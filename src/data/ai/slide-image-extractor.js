@@ -20,7 +20,10 @@ import { Logger } from "../../core/logger.js";
  */
 function extractBackgroundUrls(slideMarkdown) {
   const urls = new Set();
-  const bgMatch = slideMarkdown.match(/^background:\s*(.+)$/m);
+  // Tolerate leading whitespace and whitespace before the colon so an
+  // indented `  background: url(...)` is recognized the same as
+  // `background: url(...)` — the markdown parser accepts both.
+  const bgMatch = slideMarkdown.match(/^\s*background\s*:\s*(.+)$/m);
   if (!bgMatch) return urls;
   const bgValue = bgMatch[1];
   // Match url(...) patterns — may be inside linear-gradient() etc.

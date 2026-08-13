@@ -16,12 +16,12 @@ Both are undoable via `Ctrl+Z`.
 Available from "Refine all slides" in the AI dropdown:
 
 - **Polish** — fix formatting, wording, and layouts. Keeps the slide count and order.
-- **Remix** — two-phase plan→execute flow: a planning call produces a restructuring plan (keep/rewrite/merge), then the execute phase generates the new deck. Moderate creative freedom; preserves visual identity by default.
+- **Remix** — two-phase plan→execute flow: a planning call produces a restructuring plan (polish/rewrite/merge), then the execute phase generates the new deck. Moderate creative freedom; preserves visual identity by default.
 - **Reimagine** — same two-phase flow, with the freedom to rethink the topic, examples, notes, and visuals for a fresh deck. The AI's outline is editable before generation.
 
 ### Options
 
-- **Flow** — Story / Technical / Persuasive / Instructional
+- **Flow** — Instructional / Story / Technical / Persuasive
 - **Speaker notes** — generate notes during the refine
 - **Vision** — send content images to the AI for visual-aware restructuring (Remix/Reimagine only). Automatically falls back to text-only if the model doesn't support images.
 - **Preserve visual identity** — keep existing backgrounds and themes (Remix only; Reimagine always discards them).

@@ -64,10 +64,10 @@ export class AiGenerateModal {
         <div class="${P}field" id="${P}flow-field">
           <label class="${P}label" for="${P}flow">Flow</label>
           <select id="${P}flow" class="${P}select">
+            <option value="instructional">Instructional</option>
             <option value="story">Story</option>
             <option value="technical">Technical</option>
             <option value="persuasive">Persuasive</option>
-            <option value="instructional">Instructional</option>
           </select>
           <p id="${P}flow-desc" class="${P}note"></p>
         </div>
@@ -217,7 +217,7 @@ export class AiGenerateModal {
 
       dialog.querySelector('[data-action="generate"]').addEventListener("click", () => {
         const mode = modeSelect.value || "polish";
-        const flow = flowSelect.value || "story";
+        const flow = flowSelect.value || "instructional";
         const visionToggle = dialog.querySelector(`#${P}vision-toggle`);
         const notesToggle = dialog.querySelector(`#${P}notes-toggle`);
         const includeImages =

@@ -9,6 +9,7 @@ import {
   BATCH_SIZE,
   stripFrontmatter,
   stripThemeAndBackground,
+  stripVisualIdentity,
 } from "../data/ai/ai-prompt-builder.js";
 
 describe("buildMessages", () => {
@@ -326,7 +327,7 @@ describe("buildGenerateOptionsSuffix", () => {
 
   it("preserves visual identity when requested", () => {
     const suffix = buildGenerateOptionsSuffix({ preserveVisualIdentity: true });
-    expect(suffix).toContain("Preserve the original color theme");
+    expect(suffix).toContain("The application will apply the source slide's visual identity");
     expect(suffix).toContain("`theme:`");
     expect(suffix).toContain("`background:`");
   });
@@ -353,6 +354,127 @@ describe("stripThemeAndBackground", () => {
     const result = stripThemeAndBackground(md);
     expect(result).toContain("theme: dark");
     expect(result).toContain("@main");
+  });
+
+  it("preserves blank lines inside code fences (no global collapse)", () => {
+    const md = `layout: header-content
+theme: dark
+
+@main
+\`\`\`python
+def a():
+    pass
+
+
+def b():
+    pass
+\`\`\``;
+    const result = stripThemeAndBackground(md);
+    expect(result).not.toContain("theme:");
+    // Two blank lines between functions survive the strip.
+    expect(result).toContain("pass\n\n\ndef");
+  });
+
+  it("collapses blank runs between content outside fences", () => {
+    const md = "theme: dark\n\n@main\n- A\n\n\n- B\n\n\n\n- C";
+    const result = stripThemeAndBackground(md);
+    expect(result).not.toContain("theme:");
+    // Runs of 2+ blank lines outside fences collapse to a single blank line.
+    expect(result).toContain("- A\n\n- B\n\n- C");
+  });
+
+  it("strips indented and capitalized directives (the parser accepts both)", () => {
+    const md = "  theme: dark\nTheme: dark\n  background: #fff\n@main\n- Item";
+    const result = stripThemeAndBackground(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("Theme:");
+    expect(result).not.toContain("background: #fff");
+    expect(result).toContain("@main");
+  });
+
+  it("does not strip body text that starts with theme: or background:", () => {
+    const md =
+      "layout: header-content\n@main\n- Item 1\n\nbackground: the war began in 1939\n\ntheme: the main theme is hope";
+    const result = stripThemeAndBackground(md);
+    expect(result).toContain("background: the war began in 1939");
+    expect(result).toContain("theme: the main theme is hope");
+  });
+});
+
+describe("stripVisualIdentity", () => {
+  it("strips themes and color backgrounds but keeps image backgrounds", () => {
+    const md = `layout: full-image
+theme: dark
+background: #1a1a2e
+
+@main
+<img src="images/hero.png">
+
+---
+
+layout: header-content
+background: url(images/bg.png) center/cover
+
+@main
+- Item`;
+    const result = stripVisualIdentity(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("background: #1a1a2e");
+    // A full-bleed image background the validator allowed is content, not identity.
+    expect(result).toContain("background: url(images/bg.png) center/cover");
+    expect(result).toContain("images/hero.png");
+  });
+
+  it("strips gradient backgrounds without image references", () => {
+    const md = "layout: header-content\nbackground: linear-gradient(#000, #fff)\n@main\n- Item";
+    const result = stripVisualIdentity(md);
+    expect(result).not.toContain("background:");
+  });
+
+  it("strips indented and capitalized identity directives but keeps their image backgrounds", () => {
+    const md = `  theme: dark
+  background: #1a1a2e
+Background: url(images/bg.png)
+
+@main
+- Item`;
+    const result = stripVisualIdentity(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("background: #1a1a2e");
+    expect(result).toContain("Background: url(images/bg.png)");
+  });
+
+  it("strips a color smuggled alongside an image in a mixed background", () => {
+    // `background: #fff url(images/hero.png)` renders the color behind the
+    // (possibly transparent) image — discard mode must not leave the stale
+    // color behind while keeping the image. Only the url part survives.
+    const md =
+      "layout: full-image\nbackground: #fff url(images/hero.png) center/cover\n@main\n## Hero";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("background: url(images/hero.png) center/cover");
+    expect(result).not.toMatch(/background:.*#fff/i);
+  });
+
+  it("strips a gradient smuggled alongside an image in a mixed background", () => {
+    const md =
+      "layout: full-image\nbackground: linear-gradient(rgba(0,0,0,.5), transparent) url(images/hero.png)\n@main\n## Hero";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("background: url(images/hero.png)");
+    expect(result).not.toMatch(/background:.*gradient/i);
+  });
+
+  it("leaves a pure image background untouched", () => {
+    const md = "layout: full-image\nbackground: url(images/hero.png)\n@main\n## Hero";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("background: url(images/hero.png)");
+  });
+
+  it("does not strip body text that starts with Theme: or Background:", () => {
+    const md =
+      "layout: header-content\n@main\n- Item 1\n\nBackground: the war began in 1939\n\nTheme: the main theme is hope";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("Background: the war began in 1939");
+    expect(result).toContain("Theme: the main theme is hope");
   });
 });
 
@@ -402,6 +524,14 @@ describe("stripFrontmatter", () => {
     expect(result).not.toContain("layout: header-content");
     expect(result).toContain("background: #fff");
     expect(result).toContain("theme: dark");
+  });
+
+  it("does not strip body text that starts with a directive-like word", () => {
+    const md =
+      "layout: header-content\n@main\n- Item\n\nhidden: this is body text\n\ncode-font-size: this is also body text";
+    const result = stripFrontmatter(md, "fix");
+    expect(result).toContain("hidden: this is body text");
+    expect(result).toContain("code-font-size: this is also body text");
   });
 });
 

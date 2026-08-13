@@ -5,6 +5,8 @@ import {
   AiHttpError,
   AiParseError,
   AiMaxTokensError,
+  AiTokenExhaustedError,
+  AiRefusalError,
 } from "../data/ai/ai-provider-client.js";
 
 describe("AiProviderClient", () => {
@@ -244,6 +246,190 @@ describe("AiProviderClient", () => {
       client.chat({ messages: [], maxTokens: 100, responseFormat: null, reasoning: null }),
     ).rejects.toThrow(AiParseError);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  describe("null-content response handling", () => {
+    it("retries once with widened max_tokens then throws AiTokenExhaustedError", async () => {
+      // Real-world failure: reasoning model exhausts max_tokens during
+      // thinking, returns content: null, finish_reason: "length" — twice,
+      // so the widened retry also fails and the guidance surfaces.
+      const client = makeClient();
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [{ message: { content: null }, finish_reason: "length" }],
+            usage: { prompt_tokens: 5000, completion_tokens: 24000, total_tokens: 29000 },
+          }),
+      });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiTokenExhaustedError);
+      expect(err.userMessage).toContain("thinking level");
+      expect(globalThis.fetch).toHaveBeenCalledTimes(2); // original + widened retry
+      const firstBody = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
+      const secondBody = JSON.parse(globalThis.fetch.mock.calls[1][1].body);
+      expect(secondBody.max_tokens).toBeGreaterThan(firstBody.max_tokens);
+    });
+
+    it("succeeds when the widened max_tokens retry produces content", async () => {
+      // First response exhausts the budget; the retry with more tokens lets
+      // the reasoning pass finish and emit visible output.
+      const client = makeClient();
+      globalThis.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () =>
+            JSON.stringify({
+              choices: [{ message: { content: null }, finish_reason: "length" }],
+              usage: { completion_tokens: 24000 },
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () =>
+            JSON.stringify({
+              choices: [{ message: { content: "visible output" }, finish_reason: "stop" }],
+              usage: { completion_tokens: 30000 },
+            }),
+        });
+
+      const res = await client.chat({
+        messages: [],
+        maxTokens: 24000,
+        responseFormat: null,
+        reasoning: null,
+      });
+      expect(res.content).toBe("visible output");
+      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+      const secondBody = JSON.parse(globalThis.fetch.mock.calls[1][1].body);
+      expect(secondBody.max_tokens).toBeGreaterThan(24000);
+    });
+
+    it("surfaces token-exhaustion guidance when the widened retry is rejected (400)", async () => {
+      // Widening beyond the model's max_completion_tokens gets a 400 — the
+      // user should see the guidance, not a confusing HTTP 400.
+      const client = makeClient();
+      globalThis.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () =>
+            JSON.stringify({
+              choices: [{ message: { content: null }, finish_reason: "length" }],
+              usage: { completion_tokens: 24000 },
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          text: async () => '{"error":{"message":"max_completion_tokens exceeds model limit"}}',
+        });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiTokenExhaustedError);
+      expect(err.userMessage).toContain("thinking level");
+    });
+
+    it("throws AiRefusalError when message.refusal is present", async () => {
+      const client = makeClient();
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              { message: { content: null, refusal: "Content filtered" }, finish_reason: "stop" },
+            ],
+            usage: { total_tokens: 100 },
+          }),
+      });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiRefusalError);
+      expect(err.message).toContain("Content filtered");
+    });
+
+    it("throws AiParseError with a clear message when only message.reasoning is present", async () => {
+      const client = makeClient();
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: null, reasoning: "internal thinking..." },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { total_tokens: 500 },
+          }),
+      });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiParseError);
+      expect(err.message).toContain("only reasoning content");
+    });
+
+    it("keeps the generic parse error for a missing-content response without finish_reason detail", async () => {
+      const client = makeClient();
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        text: async () => JSON.stringify({ choices: [] }),
+      });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiParseError);
+      expect(err.message).toContain("Response missing choices[0].message.content");
+    });
   });
 
   it("AiHttpError message includes a sanitized body summary", async () => {

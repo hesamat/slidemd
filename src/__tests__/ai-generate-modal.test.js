@@ -35,7 +35,7 @@ describe("AiGenerateModal", () => {
     const result = await promise;
     expect(result).toEqual({
       mode: "polish",
-      flow: "story",
+      flow: "instructional",
       addSpeakerNotes: false,
       includeImages: false,
       preserveVisualIdentity: true,

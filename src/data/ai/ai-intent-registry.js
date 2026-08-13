@@ -56,7 +56,7 @@ const INTENTS = {
 /**
  * Compose system + user messages for an intent.
  * @param {string} intent
- * @param {{ markdown: string }} ctx
+ * @param {{ markdown: string, hasVisualSystem?: boolean, preserveVisualIdentity?: boolean }} ctx
  * @returns {{ system: string, user: string }}
  */
 function composeForIntent(intent, ctx) {
@@ -66,10 +66,15 @@ function composeForIntent(intent, ctx) {
   // Only provide visualStylingNote for the generate intent (which has the
   // {{visualStylingNote}} placeholder). When a visual system is present,
   // suppress the generic "pick your own theme" guidance — the visual system
-  // brief in the options suffix provides the specific palette. Otherwise,
-  // include the generic guidance.
+  // brief in the options suffix provides the specific palette. When visual
+  // identity is preserved (remix), the note tells the model to keep the
+  // original theme/background/color directives instead of emitting neutral
+  // styling. Otherwise, include the generic neutral-styling guidance.
   if (intent === "generate") {
-    substitutions.visualStylingNote = buildVisualStylingNote(ctx.hasVisualSystem);
+    substitutions.visualStylingNote = buildVisualStylingNote(
+      ctx.hasVisualSystem,
+      ctx.preserveVisualIdentity,
+    );
     substitutions.densityBudgets = buildDensityBudgets("full");
   }
   if (intent === "polish") {

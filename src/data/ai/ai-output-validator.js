@@ -5,6 +5,12 @@ import {
   parseTextBlockDirectives,
   CANONICAL_TEXT_BLOCK_ATTRIBUTES,
 } from "../../core/text-block-directive.js";
+import {
+  parseAllImages,
+  splitBackgroundValue,
+  findFencedRanges,
+  normalizeImageSrc,
+} from "../image-markdown-parser.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
@@ -214,6 +220,36 @@ export class AiOutputValidator {
    * @param {number} [opts.expectedSlideCount] — when set, enforce exact slide count
    * @param {boolean} [opts.skipOverflow] — skip the content-volume/overflow check
    *   (used by polish, which must preserve existing content rather than trim it)
+   * @param {boolean} [opts.enforcePreserveIdentity] — when true, enforce per-slide
+   *   preservation of the input's `theme:`/`background:` directives: each input
+   *   directive must survive at the same position, and no new directive values may
+   *   be introduced (positional — only meaningful when the slide count matches the
+   *   input, which expectedSlideCount enforces). This is kept for unit-test coverage
+   *   and backwards compatibility; the remix execute path no longer sets it because
+   *   identity is enforced mechanically after generation instead of via retries.
+   * @param {boolean} [opts.restrictImageSources] — when true (remix/reimagine execute),
+   *   every `<img src>` and `background: url(...)` in the output must reference an
+   *   image that exists in the input deck (an `<img>` src, a `reuse:<path>` reference,
+   *   or a `background: url(...)` value from the input) — fabricated/external URLs are
+   *   rejected.
+   * @param {string[]} [opts.allowedImageSrcs] — additional image srcs the output
+   *   may reference, unioned with the srcs derived from the input markdown. Used by
+   *   the reimagine execute phase, where kept source images are communicated to the
+   *   model via the options suffix rather than the virtual deck.
+   * @param {boolean} [opts.onlyExplicitImageSources] — when true (reimagine
+   *   execute), the input-derived source union is skipped and only
+   *   `allowedImageSrcs` are accepted. The reimagine virtual deck carries
+   *   generated `reuse:<path>` briefs, so unioning input-derived sources
+   *   would trust a hallucinated `reuse:` path merely because it appears in
+   *   the brief. Remix's virtual deck legitimately contains source images,
+   *   so it keeps the union behaviour.
+   * @param {boolean} [opts.skipPreservedImageCheck] — when true (batched
+   *   remix execute), `_checkPreservedImageSources` is skipped. Images may
+   *   legitimately move across batch boundaries (the full-deck allowlist
+   *   accepts cross-batch reuse), so a per-batch positional check would
+   *   false-positive on the batch that lost the image. The single-call path
+   *   runs on the full virtual deck, and the deterministic identity enforcement
+   *   (applyPreservedIdentity) catches dropped images in the final deck.
    * @returns {ValidationResult}
    */
   validate(outputMarkdown, intent, opts = {}) {
@@ -326,6 +362,39 @@ export class AiOutputValidator {
 
       // Intent-specific constraints (compare against input slide)
       this._checkIntentSpecifics(slide, i, intent, errors, warnings);
+    }
+
+    // Remix/reimagine execute-phase constraints (see opts docs above).
+    if (opts.restrictImageSources) {
+      this._checkImageSources(rawSlideTexts, errors, opts.allowedImageSrcs, {
+        onlyExplicit: opts.onlyExplicitImageSources === true,
+        // Positional exemption: a rewritten slide may keep its own source
+        // slide's images even when they were never sent to the AI as vision
+        // (e.g. backgrounds, or a text-only remix). Keeping your own picture
+        // is preservation; adopting another slide's un-analyzed image is
+        // reuse and stays prohibited. Passed only for the remix execute
+        // path, where the input slides carry the source images.
+        inputSlides: inputRawSlideTexts.length > 0 ? inputRawSlideTexts : null,
+      });
+    }
+    // Positional identity preservation — only meaningful when slide counts match
+    // (expectedSlideCount enforces this in the remix execute path). When they
+    // differ the check would attach directives to the wrong slides, so it is
+    // skipped with a warning instead of silently passing.
+    if (opts.enforcePreserveIdentity) {
+      if (rawSlideTexts.length === inputRawSlideTexts.length) {
+        this._checkPreservedIdentity(inputRawSlideTexts, rawSlideTexts, errors);
+        if (!opts.skipPreservedImageCheck) {
+          this._checkPreservedImageSources(inputRawSlideTexts, rawSlideTexts, errors);
+        }
+      } else if (this._inputMarkdown) {
+        warnings.push({
+          slide: -1,
+          code: "IDENTITY_CHECK_SKIPPED",
+          message:
+            "Identity-preservation check skipped — the output slide count differs from the input.",
+        });
+      }
     }
 
     return { ok: errors.length === 0, errors, warnings, slides };
@@ -573,6 +642,215 @@ export class AiOutputValidator {
   }
 
   /**
+   * Enforce per-slide preservation of `theme:`/`background:` directives when
+   * visual identity preservation is enabled (remix preserve mode).
+   *
+   * Positional: output slide i must keep the input slide i's directive values —
+   * at least one value per directive type when the input has several (merged
+   * virtual slides carry one directive set per source, and the AI picks one) —
+   * and must not introduce directive values the input slide does not have.
+   *
+   * `background: url(...)` values are treated as images, not identity, on both
+   * sides: converting an existing `<img>` into a full-bleed `background:` is a
+   * legitimate layout choice the image-source check (restrictImageSources)
+   * already governs, and dropping one is the same as dropping an image. Only
+   * the color/gradient part of a `background:` value participates in the
+   * identity comparison — `splitBackgroundValue` extracts it so a color
+   * smuggled alongside a legitimate image url in a mixed single-layer value
+   * (e.g. `#fff url(hero.png)`) is still caught, instead of the whole value
+   * being excluded from comparison merely because it contains `url(`.
+   *
+   * Comparisons are case/whitespace-insensitive, but error messages embed the
+   * raw values so the repair message asks the model to restore the exact
+   * spelling from the source deck.
+   *
+   * @param {string[]} inputSlides — raw input slide texts (same index order as output)
+   * @param {string[]} outputSlides — raw output slide texts
+   * @param {ValidationError[]} errors
+   */
+  _checkPreservedIdentity(inputSlides, outputSlides, errors) {
+    const normalize = (v) => v.trim().toLowerCase();
+    const backgroundColorPart = (v) => splitBackgroundValue(v).colorPart;
+    const count = Math.min(inputSlides.length, outputSlides.length);
+    for (let i = 0; i < count; i++) {
+      for (const name of ["theme", "background"]) {
+        const rawInput = extractTopLevelDirectiveValues(inputSlides[i], name)
+          .map((v) => (name === "background" ? backgroundColorPart(v) : v))
+          .filter((v) => v.trim() !== "");
+        const rawOutput = extractTopLevelDirectiveValues(outputSlides[i], name)
+          .map((v) => (name === "background" ? backgroundColorPart(v) : v))
+          .filter((v) => v.trim() !== "");
+        const inputValues = rawInput.map(normalize);
+        const outputValues = rawOutput.map(normalize);
+
+        if (inputValues.length === 0) {
+          if (outputValues.length > 0) {
+            errors.push({
+              slide: i,
+              code: "IDENTITY_DIRECTIVE_ADDED",
+              message: `Slide ${i + 1} introduced ${name}: ${rawOutput.join(", ")} — not present in the input. Do not add new ${name} directives when visual identity is preserved.`,
+            });
+          }
+          continue;
+        }
+
+        const inputSet = new Set(inputValues);
+        if (!inputValues.some((v) => outputValues.includes(v))) {
+          errors.push({
+            slide: i,
+            code: "IDENTITY_DIRECTIVE_DROPPED",
+            message: `Slide ${i + 1} dropped the input's ${name}: ${rawInput.join(", ")} — keep it when visual identity preservation is enabled.`,
+          });
+        }
+        const added = rawOutput.filter((v) => !inputSet.has(normalize(v)));
+        if (added.length > 0) {
+          errors.push({
+            slide: i,
+            code: "IDENTITY_DIRECTIVE_ADDED",
+            message: `Slide ${i + 1} introduced ${name}: ${added.join(", ")} — not present in the input. Do not add new ${name} directives when visual identity is preserved.`,
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Enforce per-slide preservation of source image srcs when visual identity
+   * preservation is enabled (remix preserve mode). For each rewritten virtual
+   * slide, every image src in the input (both `<img>` srcs and
+   * `background: url(...)` values) must appear somewhere in the output deck
+   * — conversion between `<img>` and `background: url(...)` is allowed, and
+   * relocation between slides is allowed, but dropping an image entirely is
+   * not. Image srcs that were filtered out by `keepImages` before the virtual
+   * deck was built are not required (the caller strips them from the input
+   * before validation, so they do not appear here).
+   *
+   * Distinct from `_checkImageSources` (which rejects fabricated/external
+   * references) and from `_checkPreservedIdentity` (which governs
+   * color/theme directives): this catches a preserved source image that the
+   * model silently dropped while keeping the theme/background colors.
+   *
+   * Deck-wide (not positional): an image that the model legitimately moved
+   * to another slide must not be flagged as dropped. Only an image absent
+   * from the entire output deck is a true drop. Comparison is normalized
+   * (leading `./` stripped, percent-encoding decoded) so a model that writes
+   * a path slightly differently is not falsely flagged — consistent with
+   * `_checkImageSources` and the orchestrator's `stripFabricatedImages`.
+   *
+   * @param {string[]} inputSlides — raw input slide texts (same index order as output)
+   * @param {string[]} outputSlides — raw output slide texts
+   * @param {ValidationError[]} errors
+   */
+  _checkPreservedImageSources(inputSlides, outputSlides, errors) {
+    // Collect all output image srcs across the entire deck so a model that
+    // legitimately relocates an image between slides is not falsely flagged.
+    const allOutputSrcs = new Set();
+    for (const slide of outputSlides) {
+      for (const src of collectImageSources(slide)) {
+        allOutputSrcs.add(normalizeImageSrc(src));
+      }
+    }
+    const count = Math.min(inputSlides.length, outputSlides.length);
+    for (let i = 0; i < count; i++) {
+      const inputSrcs = collectImageSources(inputSlides[i]);
+      if (inputSrcs.length === 0) continue;
+      const dropped = inputSrcs.filter((src) => !allOutputSrcs.has(normalizeImageSrc(src)));
+      if (dropped.length > 0) {
+        errors.push({
+          slide: i,
+          code: "PRESERVED_IMAGE_SRC_DROPPED",
+          message: `Slide ${i + 1} dropped source image(s): ${dropped.join(", ")}. Keep every input image somewhere in the deck (as <img> or background: url(...)) when visual identity is preserved, or convert it explicitly — do not silently drop it.`,
+        });
+      }
+    }
+  }
+
+  /**
+   * Reject fabricated or external image references in the output when the
+   * execute phase is restricted to the input deck's images (remix/reimagine).
+   *
+   * Allowed sources are the union of an explicit `allowedImageSrcs` list
+   * (reimagine's kept images and remix's full virtual-deck images,
+   * communicated via the options suffix / cross-batch allowlist) and the srcs
+   * derived from the input markdown: `<img>` srcs, `reuse:<path>` references
+   * (reimagine briefs), and `background: url(...)` values. Both `<img src>`
+   * and `background: url(...)` in the output must resolve to one of them — an
+   * image the AI invented (a made-up local path or an external URL) cannot be
+   * displayed. Fenced code blocks are excluded on both sides so code samples
+   * that merely illustrate `<img>` tags are neither allowed nor flagged.
+   *
+   * When `onlyExplicit` is true (reimagine), the input-derived union is
+   * skipped: the reimagine virtual deck carries generated `reuse:<path>`
+   * briefs, so a hallucinated `reuse:` path must not become trusted merely
+   * because it appears in the brief. Only the explicit `allowedImageSrcs`
+   * (the kept source images) are accepted.
+   *
+   * @param {string[]} outputSlides — raw output slide texts
+   * @param {ValidationError[]} errors
+   * @param {string[]} [allowedImageSrcs] — explicit allowlist unioned with the
+   *   input-derived sources (unless `onlyExplicit` is set). For remix
+   *   execute this is the set of images the plan AI actually analyzed (the
+   *   vision payload) — the only images a rewritten slide may adopt.
+   * @param {object} [opts]
+   * @param {boolean} [opts.onlyExplicit=false] — skip the input-derived union
+   *   and accept only `allowedImageSrcs`
+   * @param {string[]} [opts.inputSlides] — positional input slide texts.
+   *   When provided, an output slide may also keep an image that belongs to
+   *   its own input slide (positional exemption): keeping your own picture
+   *   is preservation, while adopting another slide's un-analyzed image
+   *   (e.g. a background the AI never saw as vision) stays prohibited.
+   */
+  _checkImageSources(outputSlides, errors, allowedImageSrcs = [], opts = {}) {
+    // Normalized comparison (leading `./` stripped, percent-encoding
+    // decoded) — a model that reuses a real deck image but writes it
+    // slightly differently (`./images/a.png` vs `images/a.png`, a
+    // URL-encoded space) must not be flagged as fabricated. See
+    // `normalizeImageSrc` and the orchestrator's `stripFabricatedImages`,
+    // which normalizes the same way so validation and the mechanical
+    // backstop agree on what counts as a match.
+    const allowed = new Set(allowedImageSrcs.map(normalizeImageSrc));
+    if (!opts || !opts.onlyExplicit) {
+      for (const src of collectImageSources(this._inputMarkdown))
+        allowed.add(normalizeImageSrc(src));
+    }
+    const inputSlides = opts?.inputSlides || [];
+    // The positional exemption covers only images that physically belong to
+    // the input slide — `<img>` srcs and `background: url(...)` values
+    // (collectOwnImageSources). `reuse:<path>` references are excluded: in
+    // reimagine briefs they are model-generated and hallucinated by design
+    // (onlyExplicitImageSources exists precisely so they are not trusted),
+    // and trusting them here would re-open that loophole.
+    const anyOwnSources = inputSlides.some((slide) => collectOwnImageSources(slide).length > 0);
+    // No legitimate image sources anywhere (no explicit allowlist, no
+    // input-derived sources, and no positional own-image exemption):
+    // nothing may be referenced. Flagging every output image would only
+    // burn a repair round-trip per batch — the orchestrator's mechanical
+    // strip (stripFabricatedImages) removes whatever the model emits
+    // anyway, so the final deck is guaranteed clean either way.
+    if (allowed.size === 0 && !anyOwnSources) return;
+
+    for (let i = 0; i < outputSlides.length; i++) {
+      const ownSrcs = new Set(collectOwnImageSources(inputSlides[i]).map(normalizeImageSrc));
+      const offenders = [];
+      for (const img of parseAllImages(stripFencedBlocks(outputSlides[i]))) {
+        const norm = normalizeImageSrc(img.src);
+        if (!allowed.has(norm) && !ownSrcs.has(norm)) offenders.push(img.src);
+      }
+      for (const url of extractBackgroundUrls(outputSlides[i])) {
+        const norm = normalizeImageSrc(url);
+        if (!allowed.has(norm) && !ownSrcs.has(norm)) offenders.push(url);
+      }
+      if (offenders.length > 0) {
+        errors.push({
+          slide: i,
+          code: "FABRICATED_IMAGE_SRC",
+          message: `Slide ${i + 1} references image(s) not present in the input deck: ${offenders.join(", ")}. Only reuse images that were sent to you with the request, or images that already belong to the slide you are rewriting — never adopt another slide's background or other unseen images, and never fabricate image URLs.`,
+        });
+      }
+    }
+  }
+
+  /**
    * Split raw slide markdown into content keyed by @area marker.
    * @param {string} rawSlide
    * @returns {Record<string, string>}
@@ -695,4 +973,152 @@ function normalizeAreasForCompare(areas) {
       .trim();
   }
   return out;
+}
+
+/**
+ * Extract all top-level (non-fenced) values of a `name:` directive from a
+ * slide's raw markdown. A slide may carry several values of the same directive
+ * (e.g. a merged virtual slide with one `theme:`/`background:` per source).
+ * Leading whitespace and case are tolerated to match the parser's own
+ * directive matching (`^\s*${name}\s*:` with the `i` flag) — an indented or
+ * capitalized directive renders, so it must participate in the checks.
+ * @param {string} markdown
+ * @param {string} name — directive name, e.g. "theme" or "background"
+ * @returns {string[]}
+ */
+export function extractTopLevelDirectiveValues(markdown, name) {
+  const values = [];
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^\\s*${escapedName}\\s*:\\s*(.+)$`, "i");
+  forEachTopLevelLine(markdown, (line) => {
+    const match = line.match(re);
+    if (match && match[1].trim()) values.push(match[1].trim());
+  });
+  return values;
+}
+
+/**
+ * Collect every image reference a deck may legitimately use: `<img>` srcs,
+ * `reuse:<path>` references, and `background: url(...)` values. Fence-aware —
+ * code samples that merely illustrate `<img>` tags are not image references.
+ * Used by `_checkImageSources` for the input-derived allowlist and by the
+ * remix orchestrator to build the explicit full-deck allowlist that lets
+ * batched validation accept images relocated across batch boundaries.
+ * @param {string} markdown
+ * @returns {string[]}
+ */
+export function collectImageSources(markdown) {
+  if (!markdown) return [];
+  const srcs = [];
+  const unfenced = stripFencedBlocks(markdown);
+  for (const img of parseAllImages(unfenced)) srcs.push(img.src);
+  for (const match of unfenced.matchAll(/reuse:([^\s"'<>|)]+)/g)) {
+    srcs.push(match[1]);
+  }
+  for (const url of extractBackgroundUrls(markdown)) srcs.push(url);
+  return srcs;
+}
+
+/**
+ * Collect the image references that physically belong to a slide: `<img>`
+ * srcs and `background: url(...)` values. Fence-aware. Excludes
+ * `reuse:<path>` references, which are instructions to the model rather
+ * than images present on the slide (in reimagine briefs they are
+ * model-generated and must not be trusted). Used for the positional
+ * own-image exemption in `_checkImageSources` and by the remix
+ * orchestrator's per-slide strip.
+ * @param {string} markdown
+ * @returns {string[]}
+ */
+export function collectOwnImageSources(markdown) {
+  if (!markdown) return [];
+  return [
+    ...parseAllImages(stripFencedBlocks(markdown)).map((img) => img.src),
+    ...extractBackgroundUrls(markdown),
+  ];
+}
+
+/**
+ * Extract all `url(...)` values from top-level (non-fenced) `background:`
+ * directives. Scans every occurrence in the value — a background may combine
+ * multiple layers, e.g. `linear-gradient(rgba(0,0,0,.5)), url(images/bg.png)`
+ * or `#000 url(images/bg.png) center/cover` — not just values that begin with
+ * `url(`. Leading whitespace and case are tolerated to match the parser.
+ * @param {string} markdown
+ * @returns {string[]}
+ */
+function extractBackgroundUrls(markdown) {
+  const urls = [];
+  forEachTopLevelLine(markdown, (line) => {
+    const match = line.match(/^\s*background\s*:\s*(.+)$/i);
+    if (!match) return;
+    for (const urlMatch of match[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
+      urls.push(urlMatch[1]);
+    }
+  });
+  return urls;
+}
+
+/**
+ * Call `callback(line)` for each line of `markdown` that is outside a fenced
+ * code block AND in the leading directive block (the run of blank and
+ * directive-like lines before the first body line — a heading, `@area`
+ * marker, prose, or fenced code block). Shared by every fence-aware
+ * directive scan in this module so they all agree on what counts as a fence
+ * and on where directives live — built on `findFencedRanges`, which (unlike
+ * this module's previous per-function ```-only `inFence` toggling) also
+ * recognizes `~~~` fences, matching `parseAllImagesOutsideFences` and the
+ * remix orchestrator's fence walks. Restricting to the leading block
+ * prevents a mid-slide prose line like `Background: the story so far` from
+ * being treated as a directive value — consistent with
+ * `MarkdownParser.extractDirective` and `findTopLevelDirectiveIdx`.
+ * @param {string} markdown
+ * @param {(line: string) => void} callback
+ */
+function forEachTopLevelLine(markdown, callback) {
+  const fences = findFencedRanges(markdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
+  const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
+  let inLeadingBlock = true;
+  let offset = 0;
+  for (const line of markdown.split("\n")) {
+    if (inLeadingBlock) {
+      if (/^\s*```/.test(line) || /^\s*~~~/.test(line)) {
+        inLeadingBlock = false;
+      } else if (line.trim() === "") {
+        // Blank lines stay in the leading block.
+        if (!inFenceAt(offset)) callback(line);
+      } else if (anyDirective.test(line)) {
+        // Directive-like line stays in the leading block.
+        if (!inFenceAt(offset)) callback(line);
+      } else {
+        // First non-blank, non-directive line ends the leading block.
+        inLeadingBlock = false;
+      }
+    }
+    offset += line.length + 1;
+  }
+}
+
+/**
+ * Blank out fenced code blocks (both fence markers and their bodies) so
+ * image/directive scans ignore code samples — a code fence may legitimately
+ * illustrate `<img>` tags or directive lines. Line breaks are preserved so
+ * line-oriented scans downstream (e.g. `extractTopLevelDirectiveValues`) see
+ * the same line count and offsets as the original markdown.
+ * @param {string} markdown
+ * @returns {string}
+ */
+function stripFencedBlocks(markdown) {
+  const ranges = findFencedRanges(markdown);
+  if (ranges.length === 0) return markdown;
+  let result = "";
+  let cursor = 0;
+  for (const { start, end } of ranges) {
+    result += markdown.slice(cursor, start);
+    result += markdown.slice(start, end).replace(/[^\n]/g, "");
+    cursor = end;
+  }
+  result += markdown.slice(cursor);
+  return result;
 }

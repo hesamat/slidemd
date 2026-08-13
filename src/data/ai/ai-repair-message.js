@@ -49,6 +49,22 @@ const CODE_GUIDANCE = new Map([
     "Each text-block issue above lists the supported attributes — use only those.",
   ],
   ["MALFORMED_TEXT_BLOCK", "Wrap text-block attributes in braces: `::: text-block { ... }`."],
+  [
+    "IDENTITY_DIRECTIVE_DROPPED",
+    "Restore the input's `theme:`/`background:` directives on the slides listed above — visual identity must be preserved.",
+  ],
+  [
+    "IDENTITY_DIRECTIVE_ADDED",
+    "Remove the `theme:`/`background:` directives that are not present in the input — do not add new ones.",
+  ],
+  [
+    "FABRICATED_IMAGE_SRC",
+    "Only reuse images that were sent to you with the request (the `[Image N]` vision entries) or that already belong to the slide you are rewriting. Do not adopt other slides' backgrounds or unseen images, and never fabricate image URLs.",
+  ],
+  [
+    "PRESERVED_IMAGE_SRC_DROPPED",
+    "Keep every input image on the slides listed above — as `<img>` or `background: url(...)`. Do not silently drop a source image when visual identity is preserved.",
+  ],
 ]);
 
 /**

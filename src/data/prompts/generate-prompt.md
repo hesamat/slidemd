@@ -12,18 +12,18 @@ Content strategy:
 - Do not repeat slide titles. Every slide title must be unique and clearly distinguishable from other slides in the deck.
 - Do not include internal chapter labels, step numbers, stage markers, or brief metadata in slide text. Slide titles and body text should be clean, human-facing content. Remove markers like `chapter 03 / ...`, `> $ section / step N`, `>>> ...`, or similar leaked brief tokens.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
-- Drop images that are low quality, redundant, or don't add value to the slide.
+- Drop images that are low quality, redundant, or don't add value to the slide — unless the visual-styling instructions below say to preserve the deck's visual identity. In that case, keep every image from the input slide (as `<img>` or `background: url(...)`); do not drop it for quality or relevance reasons.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
 - The brief may include `| image: <query>` at the end. Only honor the query if it is a `reuse:<path>` directive (e.g. `reuse:images/team-photo.jpg`). In that case, insert `<img src="path">` on that slide using the exact path. If the query is anything other than `reuse:<path>` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's `@footer` area (not in `@main`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
+- If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:
 
 {{visualStylingNote}}
 
-- Use the app's default neutral styling. Do not output `background:`, `theme:`, `style="..."`, `color`, `backgroundColor`, or `::: text-block { color="..." backgroundColor="..." }` — unless the visual-identity instructions below explicitly say to preserve existing `theme:`/`background:` directives, in which case keep them as-is. Use bold, headings, and layout to create emphasis, not color.
 - Place content images using `<img>` tags with appropriate `position: relative` + `left`/`top`/`width` for custom placement when the layout allows it.
 - For full-bleed visuals, use `layout: full-image` with the image as the `@main` content.
 
@@ -41,8 +41,8 @@ Content depth:
 
 - Each slide should have enough content to stand on its own — not just a title and one sentence. Include concrete examples, code, comparisons, or visual structure that makes the point clear.
 - Vary content structure across slides. Don't make every slide a title + code block + one-line explanation. Mix in: tables, side-by-side comparisons, annotated code, step-by-step traces, prediction questions, before/after contrasts, analogies, historical remarks, and visual metaphors.
-- Code blocks should be realistic and illustrative, not trivially short. Show enough context (variables, types, output) that the reader can trace what happens. Include expected output as a separate `text` block when helpful.
-- All code must be syntactically valid in its language and use consistent, meaningful identifiers. Do not include placeholder tokens, foreign words, or malformed syntax unless the slide explicitly labels it as a deliberate mistake and explains the fix.
+- Code blocks should be realistic and illustrative, not trivially short. Show enough context (variables, types, and state) that the reader can trace what happens.
+- Do not add answers, expected outputs, or result comments to code blocks unless the source slide already includes them. Code used as a prediction exercise, open question, or trace-for-the-audience should remain open; the reader or presenter supplies the result. If the source shows an output, preserve it exactly; otherwise keep the code block free of inline answers.
 - Speaker notes should add teaching value — not just restate the slide. Include suggested questions to ask the audience, common misconceptions, or transitions to the next slide.
 
 Slide density and overflow prevention:
@@ -55,10 +55,11 @@ Slide density and overflow prevention:
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- No custom `background:`, `theme:`, `color`, or `backgroundColor` directives are emitted unless the visual-identity instructions say to preserve them; the deck uses the app's default neutral styling.
+- `theme:`, `background:`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals, otherwise no custom directives are emitted.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
+- No fabricated images: every `<img>` and `background: url(...)` in the output references an image from the input deck or a `reuse:<path>` directive.
 - Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
 - The JSON is valid and parseable.
 

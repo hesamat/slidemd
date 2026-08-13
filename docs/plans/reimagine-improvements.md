@@ -370,9 +370,41 @@ Add or update focused tests for:
 
 ---
 
+## Workstream G — Flow-aware outline structure
+
+The outline prompt currently offers the same fixed menu of seven storytelling techniques regardless of the chosen flow, and the `flowTag` vocabulary can only express story and persuasion arcs. As a result, an instructional or technical deck is offered narrative techniques that do not fit, and the outline cannot tag instructional or technical structural beats.
+
+Execute-phase flow wording is covered by Workstream D (D2). This workstream addresses the outline and structure phase only. The D2 execute-voice improvements will also benefit Remix's execute phase, which shares the same `flow-guidance.md` variants.
+
+### G1: Flow-specific technique menus
+
+**File:** `src/data/prompts/reimagine-outline-prompt.md`
+
+Replace the fixed seven-item technique list with a per-flow subset so the AI is steered toward structures that fit the chosen flow:
+
+- **Instructional** — objectives → step-by-step → examples/demos → check for understanding → recap; layered reveal; cause → effect for "why" sections.
+- **Story** — hook → tension → resolution; historical context arc; past → present → future.
+- **Technical** — context → concept → evidence → implications; assertion-evidence; compare → contrast; layered reveal for building complexity.
+- **Persuasive** — problem → solution → benefits; compare → contrast; cause → effect; hook → tension → resolution closing with a call to action.
+
+Keep allowing the AI to combine techniques. The flow should bias the menu, not hard-lock it.
+
+### G2: Extend the flowTag vocabulary
+
+**Files:** `src/data/prompts/reimagine-outline-prompt.md`, `src/data/ai/remix-reimagine-orchestrator.js`, `src/data/prompts/reimagine-breakdown-prompt.md`
+
+Add instructional and technical structural tags so the outline can express their structure:
+
+- instructional: `objectives`, `steps`, `example`, `practice`, `recap`;
+- technical: `assertion`, `evidence`, `implication`.
+
+Map the new tags through the breakdown phase so they carry into slide briefs and beat and density guidance (for example, `objectives` and `recap` favor a clear focal point; `assertion` and `evidence` pair naturally across adjacent slides; `steps` favor continuation beats with consistent density). Keep the existing story and persuasion tags. Validate new tags leniently — unknown tags fall back to a neutral beat — so older outlines and partial model output do not break.
+
+---
+
 ## Implementation order
 
-1. **Clarify and expose the creative direction** — update outline copy and add the read-only visual direction summary to the modal.
+1. **Clarify and expose the creative direction** — update outline copy (including flow-aware technique menus and an extended flowTag vocabulary) and add the read-only visual direction summary to the modal.
 2. **Activate bounded Reimagine visual styling** — make the visual prompt conditional, pass the full visual system, and allow renderer-native theme/background choices only in Reimagine.
 3. **Wire beat-aware generation** — make the existing beat metadata affect density, hierarchy, layout, imagery, and contrast.
 4. **Improve presentation voice and speaker notes** — update content guidance and the flow variants.

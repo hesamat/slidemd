@@ -27,6 +27,7 @@ export {
   getAllowedLayoutList,
   stripFrontmatter,
   stripThemeAndBackground,
+  stripVisualIdentity,
 } from "./ai-prompt-fragments.js";
 
 /**
@@ -40,8 +41,8 @@ export {
  * @param {boolean} [opts.preserveVisualIdentity]
  * @param {import("./visual-system-schema.js").VisualSystem|null} [opts.visualSystem]
  *   When present, a visual system brief + beat→treatment mapping is appended,
- *   overriding the generate prompt's generic "Pick ONE coherent visual theme"
- *   instruction with specific design-language guidance.
+ *   overriding the generate prompt's generic visual-styling note with
+ *   specific design-language guidance.
  * @returns {string}
  */
 export function buildGenerateOptionsSuffix(opts = {}) {
@@ -100,7 +101,7 @@ export function buildMessages(markdown, mode) {
  * @param {boolean} [enrichPerSlide=false] - When true, adds per-slide metadata
  *   (content line count, bullet count, code/image/diagram markers) to each
  *   outline entry. Used by the Remix plan phase so the planning AI has enough
- *   signal to make keep/rewrite/merge decisions without seeing full content.
+ *   signal to make polish/rewrite/merge decisions without seeing full content.
  * @returns {string}
  */
 export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerSlide = false) {
@@ -109,7 +110,7 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
   // extractDirectives / injectDirectives).
   const slides = new MarkdownParser().splitSlides(markdown);
   const titles = slides.map((slide, i) => {
-    const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
+    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/im);
     const layout = layoutMatch?.[1]?.trim() || "header-content";
     const lines = slide.split("\n").filter((l) => l.trim());
     const titleLine = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || `Slide ${i + 1}`;
@@ -157,7 +158,7 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
   const uniqueLayouts = [
     ...new Set(
       slides.map((s) => {
-        const m = s.match(/^layout:\s*(.+)$/m);
+        const m = s.match(/^\s*layout\s*:\s*(.+)$/m);
         return m?.[1]?.trim() || "header-content";
       }),
     ),
@@ -191,6 +192,11 @@ export const BATCH_SIZE = 8;
  * @param {string} [deckSummary] - Pre-generated deck summary (generate mode only).
  * @param {string} [batchMode] - "polish" | undefined. When "polish",
  *   uses polish-prompt.md (specific cleanup rules) instead of generate-prompt.md.
+ * @param {boolean} [hasVisualSystem=false] — when true, the visual system brief
+ *   (options suffix) overrides the generic visual-styling note.
+ * @param {boolean} [preserveVisualIdentity=false] — when true (remix preserve),
+ *   the visual-styling note tells the model to keep the original theme/background/
+ *   color directives instead of emitting neutral styling.
  * @returns {{ system: string, user: string, original: string }}
  */
 export function buildBatchMessages(
@@ -202,6 +208,7 @@ export function buildBatchMessages(
   deckSummary,
   batchMode,
   hasVisualSystem = false,
+  preserveVisualIdentity = false,
 ) {
   if (mode === "fix" && batchMode === "polish") {
     throw new Error(
@@ -251,7 +258,10 @@ export function buildBatchMessages(
   // Only provide visualStylingNote for the generate fragment (which has the
   // {{visualStylingNote}} placeholder).
   if (isGenerateFragment) {
-    substitutions.visualStylingNote = buildVisualStylingNote(hasVisualSystem);
+    substitutions.visualStylingNote = buildVisualStylingNote(
+      hasVisualSystem,
+      preserveVisualIdentity,
+    );
     substitutions.densityBudgets = buildDensityBudgets("full");
   } else if (mode !== "fix" && batchMode === "polish") {
     substitutions.densityBudgets = buildDensityBudgets("compact");

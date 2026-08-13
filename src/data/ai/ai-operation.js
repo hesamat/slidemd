@@ -14,6 +14,15 @@
  *   - addSpeakerNotes: boolean
  *   - includeImages: boolean
  *   - preserveVisualIdentity: boolean
+ *   - visualSystem: object|null (reimagine execute)
+ *   Synthetic execute-only flags injected by the remix/reimagine orchestrator
+ *   into the synthetic operation it forwards to WholeDeckOrchestrator:
+ *   - enforcePreserveIdentity: boolean (remix execute) — enables the
+ *     validator's per-slide theme/background preservation checks
+ *   - restrictImageSources: boolean (remix/reimagine execute) — output
+ *     `<img>`/`background: url(...)` must resolve to deck images
+ *   - allowedImageSrcs: string[] (remix/reimagine execute) — explicit image
+ *     allowlist unioned with srcs derived from the virtual deck
  * @property {number} timestamp — creation time (set automatically)
  */
 

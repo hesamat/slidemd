@@ -8,6 +8,7 @@
 
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
+import { splitBackgroundValue, findFencedRanges } from "../image-markdown-parser.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -18,6 +19,7 @@ import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
 import reimagineBreakdownPrompt from "../prompts/reimagine-breakdown-prompt.md?raw";
 import flowGuidance from "../prompts/flow-guidance.md?raw";
+import remixFlowGuidance from "../prompts/remix-flow-guidance.md?raw";
 import speakerNotesGuidance from "../prompts/speaker-notes-guidance.md?raw";
 import visualIdentityGuidance from "../prompts/visual-identity-guidance.md?raw";
 import remixVisualIdentityGuidance from "../prompts/remix-visual-identity-guidance.md?raw";
@@ -38,6 +40,7 @@ export const FRAGMENTS = {
   "reimagine-outline-prompt.md": reimagineOutlinePrompt,
   "reimagine-breakdown-prompt.md": reimagineBreakdownPrompt,
   "flow-guidance.md": flowGuidance,
+  "remix-flow-guidance.md": remixFlowGuidance,
   "speaker-notes-guidance.md": speakerNotesGuidance,
   "visual-identity-guidance.md": visualIdentityGuidance,
   "remix-visual-identity-guidance.md": remixVisualIdentityGuidance,
@@ -157,18 +160,41 @@ export function buildRemixVisualIdentityGuidance(preserveVisualIdentity) {
 }
 
 /**
- * Build the {{visualStylingNote}} substitution for generate prompts.
- * When a visual system is present, the note points the model at the design
- * language while telling it explicitly not to use the palette colors, so it
- * does not contradict `buildVisualSystemBrief`.
- * @param {boolean} hasVisualSystem
+ * Build the `{{flowGuidance}}` substitution for the remix plan prompt.
+ * Flow-specific restructuring priorities (keep/reorder/merge/rewrite bias)
+ * for the plan phase. Returns an empty string when the flow is unknown or
+ * not provided, so the plan prompt stays flow-blind for callers that do not
+ * supply a flow.
+ * @param {string} [flow] — one of "instructional", "story", "technical", "persuasive"
  * @returns {string}
  */
-export function buildVisualStylingNote(hasVisualSystem) {
-  return extractVariant(
-    getFragment("visual-styling-note.md"),
-    hasVisualSystem ? "present" : "absent",
-  );
+export function buildRemixFlowGuidance(flow) {
+  const fragment = getFragment("remix-flow-guidance.md");
+  return flow && hasVariant(fragment, flow) ? extractVariant(fragment, flow) : "";
+}
+
+/**
+ * Build the {{visualStylingNote}} substitution for generate prompts.
+ * Variant selection:
+ * - "present" — a visual system is provided (reimagine): follow the design
+ *   language but do not use the palette colors, so it does not contradict
+ *   `buildVisualSystemBrief`.
+ * - "absent-preserve" — no visual system, but the deck's existing identity
+ *   must be kept (remix preserve mode): keep the original theme/background/
+ *   color directives instead of emitting neutral styling.
+ * - "absent" — default: the app provides its own neutral color scheme and no
+ *   custom `background:`/`theme:`/color directives may be emitted.
+ * @param {boolean} hasVisualSystem
+ * @param {boolean} [preserveVisualIdentity]
+ * @returns {string}
+ */
+export function buildVisualStylingNote(hasVisualSystem, preserveVisualIdentity = false) {
+  const variant = hasVisualSystem
+    ? "present"
+    : preserveVisualIdentity
+      ? "absent-preserve"
+      : "absent";
+  return extractVariant(getFragment("visual-styling-note.md"), variant);
 }
 
 /**
@@ -224,8 +250,8 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 /**
  * Build the visual system brief + beat→treatment mapping for the generate
  * prompt's options suffix. When a visual system is present, this overrides
- * the generate prompt's generic "Pick ONE coherent visual theme" instruction
- * with specific design-language guidance.
+ * the generate prompt's generic visual-styling note with specific
+ * design-language guidance.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.
@@ -293,13 +319,48 @@ export function composeMessages(systemFragment, userFragment, substitutions = {}
 
 /**
  * Strip `theme:` and `background:` directives from markdown.
- * Only replaces directives outside fenced code blocks.
+ * Only replaces directives outside fenced code blocks. Leading whitespace and
+ * case are tolerated — the markdown parser accepts both (`^\s*${name}\s*:` with
+ * the `i` flag), so an indented `  theme: dark` would otherwise render while
+ * surviving the strip.
  *
  * @param {string} markdown
  * @returns {string}
  */
 export function stripThemeAndBackground(markdown) {
-  return stripDirectives(markdown, /^(theme|background):\s*.*$/);
+  return stripDirectives(markdown, /^\s*(theme|background)\s*:\s*.*$/i);
+}
+
+/**
+ * Strip visual-identity directives from AI output while keeping image
+ * backgrounds. `theme:` lines and color/gradient `background:` directives are
+ * removed, but `background: url(...)` values are kept — the execute-phase
+ * validator (restrictImageSources) guarantees those URLs resolve to deck
+ * images, so an image background is content, not identity, and stripping it
+ * would silently empty a full-bleed slide the model deliberately composed.
+ *
+ * A single background layer can mix a color with an image (e.g.
+ * `background: #fff url(images/hero.png)`), so a value is split via
+ * `splitBackgroundValue` rather than classified as "image" wholesale just
+ * because it contains `url(` anywhere — otherwise a stale/invented color
+ * riding alongside a legitimate image would survive this strip and
+ * contradict discard mode's "no stale visual directives" guarantee.
+ *
+ * Used for the final deck in reimagine (always) and remix discard mode.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function stripVisualIdentity(markdown) {
+  return stripDirectivesWith(markdown, (line) => {
+    const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
+    if (!match) return false;
+    if (match[1].toLowerCase() === "theme") return true; // strip theme entirely
+    const { colorPart, imagePart, hasImage } = splitBackgroundValue(match[2]);
+    if (!hasImage) return true; // pure color/gradient — strip
+    if (!colorPart) return false; // pure image — keep the line as-is
+    return `background: ${imagePart}`; // mixed — drop the smuggled color, keep the image
+  });
 }
 
 /**
@@ -320,38 +381,125 @@ export function stripFrontmatter(markdown, mode) {
     // Generate mode: keep background and theme so AI sees the originals
     return stripDirectives(
       markdown,
-      /^(layout|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+      /^\s*(layout|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
     );
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
   return stripDirectives(
     markdown,
-    /^(theme|background|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+    /^\s*(theme|background|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
   );
 }
 
 function stripDirectives(markdown, pattern) {
+  return stripDirectivesWith(markdown, (line) => pattern.test(line));
+}
+
+/**
+ * Strip or rewrite leading-block directives via `processLine`, replacing
+ * stripped lines with a single blank separator and collapsing blank-line runs.
+ * Only processes the slide's leading directive block (blank lines and
+ * `name: value` lines before the first body line); content lines such as a
+ * sentence starting with "Background:" are left untouched. Fence content is
+ * kept verbatim so code samples (e.g. two blank lines between Python
+ * functions) are never reformatted.
+ * @param {string} markdown
+ * @param {(line: string) => boolean|string} processLine — return `true` to
+ *   strip the line, `false` to keep it unchanged, or a string to replace it
+ *   (e.g. rewriting a mixed color+image `background:` line to drop only the
+ *   color part).
+ * @returns {string}
+ */
+function stripDirectivesWith(markdown, processLine) {
   const lines = markdown.split("\n");
-  const result = [];
-  let inFence = false;
-  for (const line of lines) {
-    if (/^```/.test(line.trim())) {
-      inFence = !inFence;
-      result.push(line);
+  const out = [];
+  let pendingBlank = false;
+  let inLeadingBlock = true;
+  // Any directive-looking line keeps the leading block open so a
+  // non-stripped directive (e.g. `layout:`) does not end the block early
+  // and strand a later `theme:`/ `background:` line in the body.
+  const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
+
+  // Fence-aware: `~~~` and ` ``` ` fences are kept verbatim, and a bare `---`
+  // inside a fence must not be treated as a slide separator.
+  const fences = findFencedRanges(markdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
+  let offset = 0;
+
+  const flushBlank = () => {
+    if (pendingBlank) {
+      out.push("");
+      pendingBlank = false;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
+    const lineInFence = inFenceAt(lineStart);
+
+    if (lineInFence) {
+      // Preserve fenced content exactly, including blank lines and `---`.
+      flushBlank();
+      out.push(line);
+      offset = lineEnd;
+      // A fence ends the leading directive block.
+      inLeadingBlock = false;
       continue;
     }
-    if (inFence) {
-      result.push(line);
+
+    const fenceMatch = line.match(/^\s*(```+|~~~+)/);
+    if (fenceMatch) {
+      // A fence opener ends the leading block and is kept verbatim.
+      inLeadingBlock = false;
+      flushBlank();
+      out.push(line);
+      offset = lineEnd;
       continue;
     }
-    if (pattern.test(line)) {
-      result.push("");
+
+    if (line.trim() === "") {
+      pendingBlank = true;
+      offset = lineEnd;
       continue;
     }
-    result.push(line);
+
+    // Slide separator — each slide has its own leading directive block.
+    // A bare `---` outside fences is treated as a separator.
+    if (line.trim() === "---") {
+      flushBlank();
+      inLeadingBlock = true;
+      out.push(line);
+      offset = lineEnd;
+      continue;
+    }
+
+    if (inLeadingBlock) {
+      if (!anyDirective.test(line)) {
+        // First non-blank, non-directive line ends the leading block.
+        inLeadingBlock = false;
+      } else {
+        const result = processLine(line);
+        if (result === true) {
+          pendingBlank = true;
+          offset = lineEnd;
+          continue;
+        }
+        if (typeof result === "string") {
+          flushBlank();
+          out.push(result);
+          offset = lineEnd;
+          continue;
+        }
+        // result === false: keep the directive line as-is and continue the
+        // leading block so subsequent directives can still be stripped.
+      }
+    }
+
+    flushBlank();
+    out.push(line);
+    offset = lineEnd;
   }
-  return result
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return out.join("\n").trim();
 }

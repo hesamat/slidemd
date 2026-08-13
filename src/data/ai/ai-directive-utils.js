@@ -8,6 +8,7 @@
  */
 
 import { splitSlides } from "../markdown-parser.js";
+import { findFencedRanges } from "../image-markdown-parser.js";
 
 /**
  * Extract per-slide directives (layout, background, theme) from original markdown.
@@ -24,11 +25,15 @@ import { splitSlides } from "../markdown-parser.js";
 export function extractDirectives(markdown, slides) {
   const sections = slides || splitSlides(markdown);
   return sections.map((slide) => {
-    const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
-    const bgMatch = slide.match(/^background:\s*(.+)$/m);
-    const themeMatch = slide.match(/^theme:\s*(.+)$/m);
-    const mediaFullBleedMatch = slide.match(/^media-full-bleed:\s*(.+)$/m);
-    const mediaSpanMatch = slide.match(/^media-span:\s*(.+)$/m);
+    // Case-insensitive to match MarkdownParser.extractDirective's
+    // `^\s*${name}\s*:` with the `i` flag — a capitalized `Theme: dark` must
+    // be read here the same as `theme: dark`, or it is extracted as empty
+    // and the original styling is lost on the AI round-trip.
+    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/im);
+    const bgMatch = slide.match(/^\s*background\s*:\s*(.+)$/im);
+    const themeMatch = slide.match(/^\s*theme\s*:\s*(.+)$/im);
+    const mediaFullBleedMatch = slide.match(/^\s*media-full-bleed\s*:\s*(.+)$/im);
+    const mediaSpanMatch = slide.match(/^\s*media-span\s*:\s*(.+)$/im);
     const mediaFullBleed =
       /^(true|1|yes|y|on)$/i.test(mediaFullBleedMatch?.[1]?.trim() || "") ||
       /^(left|right)$/i.test(mediaSpanMatch?.[1]?.trim() || "");
@@ -144,24 +149,58 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
 }
 
 /**
- * Find the line index of a top-level (non-fenced) `name:` directive.
+ * Find the line index of a top-level (non-fenced) `name:` directive, scanning
+ * only the slide's leading directive block (the run of blank and
+ * directive-like lines before the first body line — a heading, `@area`
+ * marker, prose, or fenced code block). A mid-slide line that merely looks
+ * like a directive (e.g. `Background: the story so far` in the body) is not
+ * matched, preventing false suppression of generate-mode gap-fills.
  * @param {string[]} lines
  * @param {string} name
  * @returns {number}
  */
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function findTopLevelDirectiveIdx(lines, name) {
-  let inFence = false;
-  // No space required after the colon so `layout:two-column` and
-  // `background:red` are recognized the same as `layout: two-column`.
-  const re = new RegExp(`^${name}:\\s*`);
+  const text = lines.join("\n");
+  const fences = findFencedRanges(text);
+  let inLeadingBlock = true;
+  // Tolerate leading whitespace and whitespace before the colon so an
+  // indented `  theme: dark` or `theme :dark` is recognized the same as
+  // `theme: dark` — the markdown parser accepts both (`^\s*${name}\s*:` with
+  // the `i` flag), so the AI round-trip must too.
+  const re = new RegExp(`^\\s*${escapeRegExp(name)}\\s*:`, "i");
+  const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
+  let offset = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^\s*```/.test(line)) {
-      inFence = !inFence;
+    const lineStart = offset;
+    const lineEnd = offset + line.length + 1;
+    const inFence = fences.some((r) => lineStart >= r.start && lineStart < r.end);
+
+    // A fenced code block delimiter ends the leading directive block.
+    if (inFence) {
+      inLeadingBlock = false;
+      offset = lineEnd;
       continue;
     }
-    if (inFence) continue;
+    if (!inLeadingBlock) break;
+    if (line.trim() === "") {
+      offset = lineEnd;
+      continue;
+    }
     if (re.test(line)) return i;
+    // Another directive (not the one we're looking for) stays in the
+    // leading block.
+    if (anyDirective.test(line)) {
+      offset = lineEnd;
+      continue;
+    }
+    // First non-blank, non-directive line ends the leading block.
+    inLeadingBlock = false;
+    offset = lineEnd;
   }
   return -1;
 }
@@ -189,28 +228,55 @@ function hasTopLevelDirective(lines, name) {
  * @param {string[]} names — directive names to strip (e.g. ["background", "theme"])
  * @returns {string[]}
  */
-function stripLeadingDirectives(lines, names) {
+export function stripLeadingDirectives(lines, names) {
   const namesSet = new Set(names);
-  // No space required before/after the colon so `theme:dark` is recognized
-  // the same as `theme: dark`.
-  const directiveLine = /^([a-zA-Z][\w-]*):\s*(.*)$/;
+  // Tolerate leading whitespace and whitespace before/after the colon so
+  // `  theme : dark` is recognized the same as `theme: dark` — the markdown
+  // parser accepts both (`^\s*${name}\s*:` with the `i` flag).
+  const directiveLine = /^\s*([a-zA-Z][\w-]*)\s*:\s*(.*)$/i;
   const out = [];
   let inLeadingBlock = true;
-  for (const line of lines) {
-    if (inLeadingBlock) {
-      if (line.trim() === "") {
-        out.push(line);
-        continue;
-      }
-      const match = line.match(directiveLine);
-      if (match) {
-        if (namesSet.has(match[1])) continue; // strip
-        out.push(line);
-        continue;
-      }
-      // First non-blank, non-directive line ends the leading directive block.
+
+  const text = lines.join("\n");
+  const fences = findFencedRanges(text);
+  let offset = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = offset + line.length + 1;
+    const inFence = fences.some((r) => lineStart >= r.start && lineStart < r.end);
+    offset = lineEnd;
+
+    if (inFence || line.match(/^\s*(```+|~~~+)/)) {
+      // Fenced content (including the fence line) is kept verbatim and ends
+      // the leading directive block.
       inLeadingBlock = false;
+      out.push(line);
+      continue;
     }
+
+    if (!inLeadingBlock) {
+      out.push(line);
+      continue;
+    }
+
+    if (line.trim() === "") {
+      out.push(line);
+      continue;
+    }
+    const match = line.match(directiveLine);
+    if (match) {
+      // Case-insensitive name comparison — an echoed `Theme: light` must be
+      // stripped the same as `theme: light`, or injectDirectives splices
+      // the original after it and MarkdownParser.extractDirective (which
+      // keeps the *last* match) picks the AI's value instead of the user's.
+      if (namesSet.has(match[1].toLowerCase())) continue; // strip
+      out.push(line);
+      continue;
+    }
+    // First non-blank, non-directive line ends the leading directive block.
+    inLeadingBlock = false;
     out.push(line);
   }
   return out;
