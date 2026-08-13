@@ -16,7 +16,7 @@ What to do:
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
-- Handle crowded slides: when a slide has too much content for its one-column layout, switch it to `two-column` and distribute the content across `@main` and `@media`. {{densityBudgets}}
+- Respect per-area density budgets when choosing layouts and tightening wording. {{densityBudgets}}
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:
@@ -34,7 +34,6 @@ Success criteria:
 - The output is visibly different from the input (better formatting, wording, or layout).
 - All `[Diagram:]` markers are addressed.
 - Speaker notes are preserved and placed at the end of the slide content.
-- No slide exceeds its layout's density budget; crowded one-column slides have been switched to `two-column` instead of having content deleted or moved to notes.
 
 Input markdown:
 {{markdown}}
