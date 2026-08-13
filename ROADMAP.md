@@ -896,18 +896,7 @@ Phases 11-14 form the AI/state track and were reordered from their original sequ
 
 ## Backlog
 
-Items deferred from earlier phases; re-prioritize when the active phase is complete.
-
-| Task                                                     | Details                                                              |
-| -------------------------------------------------------- | -------------------------------------------------------------------- |
-| [ ] Allow dragging Mermaid diagrams between areas (#123) | Support drag-and-drop of Mermaid diagrams across `@area` boundaries. |
-| [ ] Improve image properties style tab UI (#126)         | Improve the style tab in the image properties panel.                 |
-
-### Office Document Import & Export
-
-| Task                                             | Details                                                                        |
-| ------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [ ] Export PowerPoint shapes and diagrams (#117) | Moved to Phase 14.9. Convert PPTX shapes and diagrams to images during import. |
+Items deferred from earlier phases; re-prioritize when the active phase is complete. Items that have been moved into a planned phase (#117 → Phase 14.9, #123 → Phase 15, #194/#196 → Phase 15) are tracked there and not duplicated here.
 
 ### Stepped Content & Motion
 
