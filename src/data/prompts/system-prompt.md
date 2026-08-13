@@ -19,6 +19,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. `` `43` ``) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in `@header` must be `#` (h1), not `##` or lower.
 - Speaker notes go at the very end: `<!-- notes: ... -->`.
 - Use `::: text-block { ... }` for styled or multi-column text. Never use raw `<div style="...">`. Attributes MUST be inside `{ }` braces. Example: `::: text-block { column-count=2 markdown=true }\n### Heading\n- item\n:::`. Blank lines inside the directive are optional.
@@ -30,6 +31,7 @@ Rules:
 - Only use an `<img>` `src` that actually exists in the input, the kept-image list, or a `reuse:<path>` directive. Do not invent URLs, search for images, or use placeholder `src` values.
 - Use `style="object-fit: contain;"` on logos, diagrams, or screenshots that must not be cropped. Use `object-fit: cover;` for full-bleed photos that should fill their area (the app CSS already defaults to `cover` for media-span images).
 - Use KaTeX syntax for math: `$...$` for inline math and `$$...$$` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use `<sup>`/`<sub>` instead of proper KaTeX.
+- When a slide with a one-column layout (`header-content` or `focus`) has a table with more than 10 rows (including header), switch it to `two-column` and split the table across `@main` and `@media`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 {{layoutList}}

@@ -23,6 +23,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -34,6 +35,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
@@ -152,6 +154,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -163,6 +166,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
@@ -324,6 +328,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -335,6 +340,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
@@ -405,7 +411,8 @@ Content depth:
 Slide density and overflow prevention:
 
 - One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
-- Respect these per-area line budgets for the standard layouts. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
+- Respect these per-area line budgets.
+  - A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
   - \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
   - \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
   - \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
@@ -485,6 +492,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -496,6 +504,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
@@ -568,6 +577,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -579,6 +589,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
@@ -643,7 +654,8 @@ Content depth:
 Slide density and overflow prevention:
 
 - One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
-- Respect these per-area line budgets for the standard layouts. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
+- Respect these per-area line budgets.
+  - A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
   - \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
   - \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
   - \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
@@ -734,6 +746,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -745,6 +758,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
@@ -769,20 +783,21 @@ What to do:
 - Remove bold wrapping from headings.
 - Remove duplicate blank lines and trailing whitespace.
 - Fix mismatched layouts: downgrade \`media-span-left\`, \`media-span-right\`, or \`two-column\` when there is no image or an empty second column.
-- Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
+- Improve wording: make headlines concise and human-facing, tighten bullet points, replace vague text with specific statements, and remove textbook-style repetition. Tighten, do not inflate.
 - Pick the best layout for each slide's content; use \`two-column\`, \`focus\`, or \`table\` layouts when they clarify the material.
 - Use tables for 2-3 item comparisons.
-- Preserve each slide's \`theme:\` and \`background:\` directives and the existing color scheme. Do not add new \`theme:\`/\`background:\` values, colored text, or \`color\`/\`backgroundColor\` attributes.
+- Preserve each slide's \`theme:\` and \`background:\` directives and the existing color scheme.
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
+- Respect per-area density budgets when choosing layouts and tightening wording. Rough per-area line budgets: \`title-slide\` \`@title\`/\`@footer\` one or two short lines each and no \`@main\` content, \`header-content\` \`@main\` ~10-14 lines, \`focus\` \`@main\` ~4-5 lines, \`two-column\` columns ~6-10 lines each, \`media-span\` \`@main\` ~8-12 lines, \`full-image\` \`@main\` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:
 
 - Keep the same slide count and order.
 - Keep the same overall narrative flow.
-- Preserve existing speaker notes unless asked to add new ones.
+- Preserve existing speaker notes unless explicitly instructed to add new ones.
 - Preserve the existing \`theme:\`, \`background:\`, and color scheme. Do not add new \`theme:\`/\`background:\` values, colored text, or \`color\`/\`backgroundColor\` attributes.
 
 Success criteria:
@@ -865,6 +880,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -876,6 +892,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
@@ -1042,6 +1059,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -1053,6 +1071,7 @@ Rules:
 - Only use an \`<img>\` \`src\` that actually exists in the input, the kept-image list, or a \`reuse:<path>\` directive. Do not invent URLs, search for images, or use placeholder \`src\` values.
 - Use \`style="object-fit: contain;"\` on logos, diagrams, or screenshots that must not be cropped. Use \`object-fit: cover;\` for full-bleed photos that should fill their area (the app CSS already defaults to \`cover\` for media-span images).
 - Use KaTeX syntax for math: \`$...$\` for inline math and \`$$...$$\` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use \`<sup>\`/\`<sub>\` instead of proper KaTeX.
+- When a slide with a one-column layout (\`header-content\` or \`focus\`) has a table with more than 10 rows (including header), switch it to \`two-column\` and split the table across \`@main\` and \`@media\`. Do not delete rows or move them to speaker notes.
 
 Allowed layouts and areas:
 title-slide: @title, @footer
