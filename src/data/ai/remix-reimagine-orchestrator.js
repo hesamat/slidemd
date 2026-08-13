@@ -1530,8 +1530,8 @@ function applyPreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   if (sourceThemes.length > 0) {
     const theme = sourceThemes[0];
     toRestore.push(`theme: ${theme}`);
-    if (!outputThemes.includes(normalize(theme))) {
-      onLog?.(`Restore: re-injecting dropped theme: ${theme}`, "warn");
+    if (outputThemes.length > 0 && !outputThemes.includes(normalize(theme))) {
+      onLog?.(`Restore: replacing model theme with source theme: ${theme}`, "warn");
     }
   } else if (outputThemes.length > 0) {
     onLog?.("Restore: stripping model-invented theme", "warn");
@@ -1560,10 +1560,10 @@ function applyPreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   const hasSourceBackground =
     sourceColorBackgrounds.length > 0 || sourceBackgroundImageUrls.length > 0;
   const hasKeptBackgroundImage = imageForLine.length > 0;
+  const restoredBackground = [colorForLine, imageForLine].filter(Boolean).join(", ");
 
   if (hasSourceBackground || hasKeptBackgroundImage) {
-    const combined = [colorForLine, imageForLine].filter(Boolean).join(", ");
-    toRestore.push(`background: ${combined}`);
+    toRestore.push(`background: ${restoredBackground}`);
     if (sourceBackgroundImageUrls.length > 1) {
       for (const extra of sourceBackgroundImageUrls.slice(1)) {
         onLog?.(
@@ -1572,8 +1572,14 @@ function applyPreservedIdentity(slideMarkdown, sourceSlides, onLog) {
         );
       }
     }
-    if (outputBackgrounds.length === 0) {
-      onLog?.(`Restore: re-injecting dropped background: ${combined}`, "warn");
+    if (
+      outputBackgrounds.length > 0 &&
+      normalize(outputBackgrounds.join(", ")) !== normalize(restoredBackground)
+    ) {
+      onLog?.(
+        `Restore: replacing model background with source background: ${restoredBackground}`,
+        "warn",
+      );
     }
   } else if (outputBackgrounds.length > 0) {
     onLog?.("Restore: stripping model-invented background", "warn");

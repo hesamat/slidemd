@@ -49,6 +49,7 @@ Rules:
 - Use `rewrite` when the topic is right but the content or layout needs a deeper change: dense slides that need restructuring, weak layouts that need a different grid, code buried in text that should move to a dedicated area, or vague wording that needs new examples.
 - Slides containing fenced code blocks (` ``` `) should be `polish`ed unless the code is already clean: each statement or declaration on its own line, consistent indentation, no flattened multi-statement lines, and no stray markdown backticks inside the code fence. Imported or pasted code frequently arrives flattened or with doubled backticks (e.g. ` `assert` `) — those slides need `polish`, not `keep`.
 - Use `merge` only when two slides are thin (few lines each), overlapping in topic, or redundant — and combining them clearly improves the deck. Do not merge slides with distinct topics, key takeaways, or strong standalone value. When merging, the `brief` must state what each source slide contributes to the merged output so no content is silently lost.
+- Never merge a slide that is marked with `image` or `diagram` in the outline metadata, or whose layout name suggests a prominent visual (`media-left`, `media-right`, `full-image`, `media-span-*`, etc.). Those slides should remain standalone so the image or diagram stays prominent; use `polish` or `rewrite` instead.
 - Do not produce output slides with no clear purpose. If a source slide adds no value, merge it into a neighbor rather than leaving it as a standalone low-value slide.
 
 {{creativeGuidance}}
