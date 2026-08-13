@@ -550,7 +550,7 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ## Phase 14.5: Structural Cleanup & Test Infrastructure ✅
 
-Goal: Pay down structural debt and close test gaps before building new features on top of Phases 15-17. These tasks are independent of each other and can be parallelized. Two structural refactors (EditController decomposition and `ai-orchestrator.js` split) are carried over from Phase 14.
+Goal: Pay down structural debt and close test gaps before improving the existing AI modes in Phases 14.6-14.8 and building new platform features in Phases 15-17. These tasks are independent of each other and can be parallelized. Two structural refactors (EditController decomposition and `ai-orchestrator.js` split) are carried over from Phase 14.
 
 ### Refactoring
 
@@ -579,71 +579,346 @@ Goal: Pay down structural debt and close test gaps before building new features 
 
 ---
 
-## Phase 15: Design System & Theme Registry
+## Phase 14.6: Polish Quality & Presentation Readiness
 
-Goal: Centralize tokens, themes, and layout governance for consistent and predictable decks.
+Goal: Make Polish a reliable conservative pass that improves presentation quality without changing the deck's identity, narrative, slide count, or order.
 
-### Tokens & Themes
+### Content & Layout Quality
 
-| Task                            | Details                                                                                                                                                                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add `DesignSystem`          | Define and expose color, spacing, typography, and radius tokens.                                                                                                                                                                                    |
-| [ ] Add `ThemeRegistry`         | Register light, dark, and any custom themes as named presets.                                                                                                                                                                                       |
-| [ ] Map themes to CSS variables | Drive `theme-manager.js` and `styles/slides.css` from the registry.                                                                                                                                                                                 |
-| [ ] Add `@import` directive     | Support `@import[theme.yaml]` for shared theme tokens and `@import[slides/section.md]` for reusable slide fragments. Recursive resolution, YAML merge into frontmatter, markdown splice into slide array. Enables repo-native multi-deck workflows. |
+| Task                              | Details                                                                                                                                                                                                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Improve presentation prose    | Make headlines concise and human-facing, tighten bullets, replace vague wording, and remove textbook-style repetition without adding content indiscriminately.                                                                                                                 |
+| [ ] Improve density handling      | Detect crowded slides, move supporting detail to notes where appropriate, and choose clearer layouts without changing the slide sequence.                                                                                                                                      |
+| [ ] Split lumped PPTX code blocks | PPTX import cannot detect separate code blocks on a slide and often merges them into one fenced block. Instruct all AI modes (Polish, Fix, Generate, Remix, Reimagine) to detect and split lumped code blocks back into separate fenced blocks with appropriate language tags. |
+| [ ] Improve imported-deck polish  | Continue addressing PPTX-import artifacts: mismatched layouts, misplaced images, verbose text boxes, broken code, and weak hierarchy.                                                                                                                                          |
+| [ ] Preserve speaker notes        | Keep existing notes unchanged unless the user explicitly enables note generation.                                                                                                                                                                                              |
+
+### Preservation & Validation
+
+| Task                             | Details                                                                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Harden identity preservation | Preserve existing `theme:`, `background:`, color scheme, slide count, slide order, and narrative flow.                                              |
+| [ ] Improve repair feedback      | Make validation and repair messages specific to overflow, malformed layouts, broken diagrams, and formatting failures.                              |
+| [ ] Add quality fixtures         | Cover dense slides, code, tables, Mermaid, PPTX conversions, notes, images, and already-polished slides that should not be rewritten unnecessarily. |
+
+### Acceptance Criteria
+
+- Polish produces a visibly cleaner deck without changing slide count or order.
+- Existing visual identity and speaker notes are preserved.
+- Crowded, malformed, and PPTX-imported slides improve without introducing new overflow.
+- Polish does not introduce new themes, backgrounds, or arbitrary colors.
+
+---
+
+## Phase 14.7: Remix Quality & Visual Identity
+
+Goal: Make Remix a dependable plan→execute restructuring mode between conservative Polish and fully creative Reimagine.
+
+### Restructuring Plan
+
+| Task                           | Details                                                                                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Improve editorial planning | Produce clearer keep/rewrite/merge decisions, stronger one-sentence briefs, purposeful reordering, and fewer redundant or low-value output slides. |
+| [ ] Preserve source coverage   | Ensure every source slide is accounted for and that important source material is not silently lost during restructuring.                           |
+| [ ] Improve merge decisions    | Merge only thin, overlapping, or redundant slides; keep distinct topics and strong standalone takeaways separate.                                  |
+| [ ] Improve plan observability | Surface the restructuring plan and important decisions in the AI sidebar so users can understand what Remix changed.                               |
+
+### Visual Identity & Assets
+
+| Task                          | Details                                                                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Define preserve behavior  | When visual identity preservation is enabled, retain original themes, backgrounds, layouts, and overall visual language while improving structure and wording. |
+| [ ] Define discard behavior   | When preservation is disabled, remove the old identity deliberately without inventing unsupported styling or changing the conservative behavior of Polish/Fix. |
+| [ ] Improve image reuse       | Use vision and exact source paths consistently; keep valuable source images and avoid fabricated or external image references.                                 |
+| [ ] Validate output alignment | Ensure rewritten and merged slides follow their briefs, preserve required identity, and remain within layout and density constraints.                          |
+
+### Acceptance Criteria
+
+- Remix produces a clearer structure without becoming a full reimagining.
+- Keep/rewrite/merge decisions are explainable and cover the source deck.
+- Preserve-identity mode does not drift into a new theme.
+- Discard-identity mode does not accidentally preserve stale visual directives.
+- Images, layouts, and source content remain aligned with the restructuring plan.
+
+---
+
+## Phase 14.8: Reimagine Creative Direction & Presentation Quality
+
+Goal: Make Reimagine feel like a guided editorial art director: surprising in its thinking, reassuring in its structure, and coherent in its execution.
+
+The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](docs/plans/reimagine-improvements.md).
+
+### Creative Direction & Review
+
+| Task                              | Details                                                                                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Strengthen the creative brief | Make the outline state the core message, fresh editorial angle, narrative structure, and inferred audience or desired outcome.                         |
+| [ ] Show visual direction         | Add a compact read-only visual-system summary to the outline review: palette, typography, composition, imagery, motifs, and preserved identity/assets. |
+| [ ] Preserve user control         | Keep plan/chapter editing and regeneration; do not turn the outline modal into a per-slide design editor.                                              |
+
+### Visual Rhythm & Voice
+
+| Task                              | Details                                                                                                                                                                                             |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Pass full visual-system brief | Thread the complete visual system to the generate prompt: palette roles, typography character, composition, imagery mood/treatment, motifs, and contrast rules — not just theme/background choices. |
+| [ ] Activate bounded visual style | For Reimagine only, allow renderer-native `theme:` and `background:` choices from the visual system; keep other AI modes conservative and avoid a post-generation token pass.                       |
+| [ ] Use visual beats              | Make continuation, transition, punctuation, emotional, and divider beats affect density, hierarchy, imagery, and contrast.                                                                          |
+| [ ] Improve presentation voice    | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                                                                |
+| [ ] Validate image reuse          | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                                                                             |
+
+### Validation & Test Coverage
+
+| Task                             | Details                                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Add visual-system validation | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.   |
+| [ ] Add Reimagine test fixtures  | Cover visual-system generation/normalization, review modal display, beat-to-treatment mapping, image reuse validation, conditional styling guidance, and no-regression for Polish/Fix/Remix prompt behavior. |
+
+### Acceptance Criteria
+
+- The user can understand and approve the new editorial and visual direction before generation.
+- The generated deck is meaningfully different in thesis, structure, and rhythm—not just wording.
+- Visual styling is active only for Reimagine and remains bounded by existing renderer capabilities.
+- Beat metadata produces visibly different density and hierarchy.
+- Headlines, body content, and speaker notes are presentation-ready.
+- Kept source images are placed when requested and never fabricated.
+- The output remains valid, repairable, undoable, and within density limits.
+
+---
+
+## Phase 14.9: PPTX Import Quality
+
+Goal: Improve the PPTX import pipeline itself — layout inference accuracy, shape/diagram visual preservation, and a complementary code-block centering directive. Distinct from Phase 14.6 (which improves AI post-processing of imported decks); this phase fixes the deterministic import path.
+
+### Layout Inference
+
+| Task                                          | Details                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Fix focus vs header-content detection     | The thin-strip header check (`headerThinRatio: 0.4`) in `pptx-layout-inference.js` is too restrictive. Slides with a header + short body where the header is not ≥40% shorter than the body fall through to `header-content` even when `focus` is the better choice. Relax the check for short content and add a `focus` path for header + short body regardless of header height. |
+| [ ] Add focus path for short bulleted content | Slides with 4+ short bullets (total <300 chars) currently skip the `focus` path because the element count exceeds `maxTitleElements: 3`. Consider element count vs. content density rather than a hard cap.                                                                                                                                                                        |
+| [ ] Review layout thresholds                  | Audit `pptx-slide-config.js` thresholds (`bodyTopRatio`, `maxTitleLength`, `maxTitleElements`, `headerThinRatio`) against a corpus of real PPTX files. Tune based on actual failure cases, not intuition.                                                                                                                                                                          |
+
+### Shape & Diagram Preservation (#117)
+
+| Task                               | Details                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Screenshot shape groups to PNG | Instead of reconstructing individual shapes in markdown, render each shape group/diagram to a canvas and capture it as a single PNG image. Build an SVG from the shape data already extracted by `pptx-extractor.js` (paths, fills, strokes), draw it to a canvas, and export via `canvas.toDataURL()`. Reuses the Canvas infrastructure in `pptx-image-converter.js`. One image per shape group — much simpler than per-shape reconstruction. |
+| [ ] Screenshot SmartArt/diagrams   | SmartArt and manual diagrams (detected by `#isManualDiagram()` / `#shapesToDiagram()`) currently flatten to bullet lists. Render the shape group as a single PNG screenshot and embed as an image instead.                                                                                                                                                                                                                                     |
+| [ ] Preserve text as fallback      | Shapes with text should keep the text content in the slide markdown alongside the rendered image, so it remains searchable and editable.                                                                                                                                                                                                                                                                                                       |
+
+### Code Block Centering
+
+| Task                            | Details                                                                                                                                                                                                                                                                                                     |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `code-center` directive | Add a per-slide `code-center: true` directive (parsed in `markdown-parser.js`, applied as a `data-code-center` attribute on the slide element). CSS in `styles.css` centers `pre` blocks via `margin: auto; width: fit-content` — same technique already used by the `focus` layout. Works with any layout. |
+
+### Text Overlay Preservation
+
+| Task                                | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Detect text-over-image overlays | During PPTX import, detect text elements that overlap images (using the existing `getOverlapArea()` in `pptx-layout-inference.js`). When overlap exceeds a threshold, emit the text as a float-mode text block (`::: text-block { float=true x=... y=... }`) positioned over the image, preserving the PPTX author's overlay intent. Currently both elements are placed in the same area in document flow and the overlay is lost. Position is calculated from the element's `left`/`top` (already in points after normalization). Z-index derived from element `order` to preserve layering. |
+
+### Acceptance Criteria
+
+- Slides with a header + short body use `focus` instead of `header-content` when the body is short enough to benefit from centered presentation.
+- Shapes with solid fills render as PNG images in imported decks instead of being converted to text-only.
+- Diagrams render as single screenshot images instead of flattening to bullet lists.
+- Text overlaid on images in PPTX is preserved as float-mode text blocks that overlay the image in the rendered slide.
+- `code-center: true` centers code blocks in any layout, not just `focus`.
+- Existing decks without the directive render unchanged.
+
+---
+
+## Phase 15: Editor Diagnostics & Polish
+
+Goal: Surface real deck-quality problems in the editor and polish existing editor features that are too simplistic in their current form — area backgrounds, background image sizing, text block styling, and mermaid drag. Drops the planned `DesignSystem` / `ThemeRegistry` / custom-theme / `@import` work — no demonstrated user need, and the existing light/dark + accent + layout presets cover the actual distribution of what users want. CSS custom properties in `styles/slides.css` already serve as the token system where they belong.
 
 ### Layout Governance
 
-| Task                           | Details                                                                                                             |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| [ ] Enforce `layout` whitelist | Allow only the layouts defined in the `LayoutData` / `DesignSystem` registry.                                       |
-| [ ] Enforce `@area` whitelist  | Validate that every `@area` marker is an allowed area for the chosen layout.                                        |
-| [ ] Add style lint to warnings | Surface off-token values in `SlideWarningManager` in real time.                                                     |
-| [ ] Validate image paths       | Warn on unresolved `![...](images/...)` references in `SlideWarningManager` in real time.                           |
-| [ ] Detect empty slides        | Warn when a slide has no content areas filled, surfaced in `SlideWarningManager`.                                   |
-| [ ] Consolidate diagnostics    | Surface all layout, area, image-path, and empty-slide warnings through the existing `SlideWarningManager` pipeline. |
+| Task                         | Details                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Wire image-path warnings | `DeckImagesResolver` already detects unresolved `images/...` paths; surface them as real-time warnings via `SlideWarningManager` instead of silent failures. |
+| [ ] Detect empty slides      | Warn when a slide has no content areas filled; route through `SlideWarningManager`. Covers the editor hot path (debounced).                                  |
+| [ ] Add style-lint warnings  | Surface off-token values in `area-style:`, `background:`, etc. through `SlideWarningManager`. Advisory only — never blocks rendering.                        |
+| [ ] Consolidate diagnostics  | Confirm layout, `@area`, image-path, empty-slide, overflow, and style-lint warnings all flow through the existing `SlideWarningManager` pipeline.            |
 
-### Brand Defaults
+### Editor Polish
 
-| Task                               | Details                                                             |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| [ ] Add brand defaults             | Default colors, fonts, and accent palette for new decks.            |
-| [ ] Add theme preview              | Render a small preview of each theme in the New Presentation modal. |
-| [ ] Add motion / transition tokens | Define default transition, duration, and easing per theme.          |
+| Task                                                     | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Upgrade area background picker (#151)                | Replace the native color input in the `@area` right-click "Set background..." menu with the full background panel from `style-helpers.js` — color swatches, custom color, image picker, overlay slider, and live preview. Reuses existing slide-level background infrastructure (`buildBackgroundPanelHtml()`, `buildImageBackground()`, `parseBackgroundValue()`). Updates `area-style-<name>:` directives to support gradients and image URLs, not just solid hex colors. |
+| [ ] Add background image sizing/position (#194)          | Add `background-size` (cover, contain, fit, custom), `background-position` (center, top, bottom, left, right, combinations), and `background-repeat` controls to both the slide-level and area-level background pickers. `buildImageBackground()` currently hardcodes `center / cover no-repeat`. Existing decks keep default behavior.                                                                                                                                     |
+| [ ] Add text block styling presets (#196)                | Add preset styles (quote, callout, highlight, warning) and fine-grained border controls (width, style, color, radius, padding, shadow) to the text block properties panel. Extends `src/core/text-block-directive.js` to persist new attributes. Presets render in editor, HTML export, and PDF.                                                                                                                                                                            |
+| [ ] Allow dragging mermaid diagrams between areas (#123) | Extend the interact.js cross-area drag system (currently images-only) to mermaid diagrams. Detect `.mermaid` containers as drag sources, support drop-target snapping, and move the mermaid fenced block between `@area` markers in markdown on drop. Reuses `ImageDragController` patterns.                                                                                                                                                                                |
+| [ ] Add theme preview                                    | Render a mini slide preview for light/dark + the selected accent in the New Presentation modal so users see the result before creating a deck. No registry required — uses the existing two themes.                                                                                                                                                                                                                                                                         |
+
+### Deferred / Dropped
+
+| Item                                                 | Reason                                                                                                                                                                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DesignSystem` JS module                             | CSS custom properties in `styles/slides.css` already are the token system. A JS registry adds indirection with no user-facing delta.                                                                                          |
+| `ThemeRegistry` + custom themes                      | No demonstrated user need. Light/dark + accent covers actual usage. Custom themes pull in a theme editor UI, portability problems, and export inlining that aren't worth the cost.                                            |
+| `@import[theme.yaml]` / `@import[slides/section.md]` | Multi-deck composition, not theming. Belongs with Phase 17 (Cloud Mode / repo-native workflows) if it's ever needed. High parser blast radius.                                                                                |
+| Motion / transition tokens                           | No transition system exists to tokenize. A slide-transition feature is a Phase 16 (Presenter) concern at minimum.                                                                                                             |
+| Brand defaults                                       | The New Presentation modal already lets users pick colors, fonts, accent, header style, borders, and radius per deck. A localStorage default profile is a small follow-up if demand appears.                                  |
+| Enforce `layout` / `@area` whitelist                 | Already implemented: `LayoutData.hasLayout()` / `getAreaNames()` validate in `SlidePreviewUpdater`, `AreaGuideManager` (with click-to-fix and header/title alias normalization), and `AiOutputValidator`. No new work needed. |
+| Image properties style tab UI (#126)                 | Too vague to be actionable — "The UI controls and their placements need to be reviewed and improved." No specifics or acceptance criteria. Revisit when concrete requirements are defined.                                    |
+| Export PowerPoint shapes as images (#117)            | Moved to Phase 14.9 (PPTX Import Quality). Not editor polish — belongs with the import pipeline.                                                                                                                              |
+
+---
+
+## Phase 15.1: Interactive Classroom Features
+
+Goal: Add the first layer of classroom interactivity that differentiates the app at v1.0 launch — copyable code blocks in student-facing exports and lightweight word cloud / poll embedding via a third-party tool (Slido or Mentimeter). Keeps the deck as the source of truth for slides, code, and structure while using an external service for the real-time audience pipe. No hosting, no realtime infrastructure, no execution engine. Must complete before Phase 15.5 (v1.0 Release).
+
+### Copyable Code Blocks
+
+| Task                               | Details                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add copy button to code blocks | Render a small copy-to-clipboard icon on every `<pre><code>` block in the runtime view and HTML export. Click copies the raw code text. Uses `navigator.clipboard.writeText()` with a fallback for non-secure contexts. Visual feedback (checkmark or "Copied" tooltip) on success. Does not appear in the presenter/audience stage view — only in student-facing HTML. |
+| [ ] Style the copy button          | Minimal, unobtrusive styling in `styles/slides.css`. Positioned top-right of the code block, does not overlap syntax-highlighted content. Works in both light and dark themes. Accessible label and keyboard focus.                                                                                                                                                     |
+| [ ] PDF fallback                   | PDF is static — no clipboard. Ensure code blocks render cleanly in PDF export with readable font sizing. Optionally add a small caption or footnote pointing to the live HTML version if a URL is available. No copy button in PDF.                                                                                                                                     |
+| [ ] Test in HTML export            | Verify copy buttons work in the self-contained HTML build (`tools/build.mjs` output). The button JS must survive the export bundling and run without a dev server.                                                                                                                                                                                                      |
+
+### Live Poll Initiation & Persistence
+
+Modeled on the existing `BreakManager` pattern: the presenter initiates a poll mid-lesson via a button, it renders as an overlay, and when ended it is persisted into the deck as a new slide. The deck grows during the class based on what happened in the room. Unlike the break feature (ephemeral), polls become a permanent part of the deck.
+
+| Task                                        | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `ActivityManager` engine module     | New module in `src/engine/` modeled on `BreakManager`. Manages live poll state (active/inactive, type, question, provider session ref, started-at). Uses `BroadcastChannel` for cross-window sync (presenter ↔ viewer). Creates an overlay slide element on the stage (like `BreakManager.createBreakSlide()`). Owned by `DeckController`.                                                                                                                                                         |
+| [ ] Add "Start Activity" UI                 | A button in the presenter panel or header (like the break button). Clicking opens a lightweight modal: choose type (word cloud, multiple choice, open text, Q&A, quiz, confidence check, pacing pulse), enter question text, paste the Slido/Mentimeter embed URL or session code. Quick and frictionless — the presenter does this live, not in advance. All activity types use the same `activity:` directive and `ActivityManager` pipeline; the type just selects the Slido/Mentimeter widget. |
+| [ ] Insert poll slide into deck on creation | When the presenter starts a poll, a new slide is immediately inserted into the deck at the current position via `DeckStore` (undoable, saved). The slide uses the `activity:` directive format: `activity: wordcloud`, `activity-provider: slido`, `activity-id: #abc123`, plus the question as slide content. The deck always reflects what is happening right now — if the window crashes or the presenter navigates away, the poll slide is already persisted.                                  |
+| [ ] Render poll overlay on stage            | While the poll is active, render an overlay on top of the poll slide showing the third-party embed (iframe or widget) and the join code/QR for students. The overlay is ephemeral (like the break slide); the underlying slide is the persistent record. Hidden from the audience stage view — only the presenter sees the embed; students join via the external tool.                                                                                                                             |
+| [ ] End poll                                | When the presenter clicks "End Poll," the overlay is removed. The poll slide remains in the deck. Optionally capture a snapshot of results into the slide content or speaker notes at this point.                                                                                                                                                                                                                                                                                                  |
+| [ ] `activity:` directive parsing           | New frontmatter directive parsed by `MarkdownParser` and stored on the slide object. Format: `activity: wordcloud` (or `poll`, `q&a`), `activity-provider: slido`, `activity-id: #abc123`. Does not affect slide splitting or layout. This is the persisted format for polls created live and for polls pre-authored in markdown.                                                                                                                                                                  |
+| [ ] Render saved activity slides            | When a saved slide has an `activity` directive, render the embed (if online) or a static fallback (question text + join code + "results from this class" note). In PDF and offline HTML, show the static fallback only. The activity definition is preserved in the markdown so the deck remains reusable.                                                                                                                                                                                         |
+| [ ] Presenter view: join code/QR            | While a poll is active, the presenter panel shows the join code and a QR code so students can connect to the Slido/Mentimeter session. The instructor sees live results in the embedded widget or the external dashboard. No result aggregation in the deck for v1.0.                                                                                                                                                                                                                              |
+| [ ] Static fallback for export              | In PDF and offline HTML, the embed cannot run. Render a placeholder: the question text, the activity type, and "Live activity: join with code XYZ at slido.com" or similar. The activity definition is preserved in the markdown.                                                                                                                                                                                                                                                                  |
+| [ ] Document the feature                    | Add `activity:` to `docs/authoring.md` with examples for Slido and Mentimeter. Document both flows: (1) live initiation via the Start Poll button, and (2) pre-authoring in markdown. Note free-tier limits (Slido: 100 participants, 3 polls/event; Mentimeter: unlimited audience, 2 questions/presentation).                                                                                                                                                                                    |
+| [ ] Update tagline and descriptions         | Update README opening, `docs/example/slides.md` title slide, `package.json` description, and `index.html` meta description to reflect the teaching-focused vision (copyable code, live participation). Proposed tagline: "Presentations that teach, not just show." Keep it grounded in what Phase 15.1 actually ships — no forward-looking platform claims.                                                                                                                                       |
+
+### Acceptance Criteria
+
+- Every code block in the HTML export has a working copy button that copies the raw code to the clipboard.
+- Code blocks in PDF export render cleanly without a copy button.
+- The presenter can initiate a poll live via a "Start Poll" button (no pre-authoring required). The poll slide is inserted into the deck immediately on creation, written through `DeckStore` (undoable, saved).
+- While the poll is active, an overlay renders on stage with the embed and join code/QR. The overlay is ephemeral; the underlying slide is the persistent record.
+- Saved activity slides render the embed when online and a static fallback in PDF and offline HTML.
+- The presenter panel shows the join code/QR while a poll is active.
+- Poll state syncs between presenter and viewer windows via `BroadcastChannel`.
+- `docs/authoring.md` documents both flows: live initiation and pre-authoring.
+- README, slides.md, package.json, and index.html reflect the teaching-focused vision grounded in Phase 15.1 features.
+- Full quality gate passes (lint, format, unit tests, E2E tests, build).
+
+---
+
+## Phase 15.5: v1.0 Release Preparation
+
+Goal: Rename the app, refresh all documentation and positioning, complete manual testing of critical user flows, and prepare launch metadata. This is the release gate — nothing goes public until this phase is done. Phases 14.6-14.9, 15, and 15.1 must be complete first.
+
+### Rename & Branding
+
+| Task                             | Details                                                                                                                                                                                                                                                    |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Decide on new app name       | Finalize the new name. Consider domain availability, npm registry (if ever published), GitHub repo name, and searchability.                                                                                                                                |
+| [ ] Rename user-facing strings   | Update README, index.html `<title>`, `public/site.webmanifest`, CHANGELOG, ROADMAP, all `docs/`, CONTRIBUTING, ADR. Straightforward find-replace.                                                                                                          |
+| [ ] Update AI prompts            | Update "SlideMD" references in `src/data/prompts/system-prompt.md`, `polish-prompt.md`, `fix-prompt.md`, `generate-prompt.md`. Regenerate test snapshots in `ai-prompt-snapshots.test.js.snap`.                                                            |
+| [ ] Update package.json metadata | Change `name`, update `repository` URL to match new GitHub repo name, update `description` and `keywords` for public launch.                                                                                                                               |
+| [ ] localStorage key strategy    | Decide: keep `webdeck_*` keys as internal implementation detail (simplest, no migration needed), or rename with a migration step on load. The keys are invisible to users. CSS classes (`webdeck-hidden`, `data-webdeck-role`) can stay as internal names. |
+| [ ] Rename GitHub repo           | Rename the repository on GitHub, update all clone URLs, badge links, and references in docs.                                                                                                                                                               |
+
+### Documentation Refresh
+
+| Task                               | Details                                                                                                                                                                                                                                               |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Update README feature list     | Add missing features from Phases 9-14.5: text blocks, command palette, full-text search, auto-save + Ctrl+S, vision-augmented AI, editable Reimagine outline, conflict resolution, global undo/redo, grid resizer, area background, media full-bleed. |
+| [ ] Add competitive comparison     | New section or doc comparing vs. PowerPoint (proprietary, no diffability), Reveal.js (requires HTML/JS), Marp (CLI-only, no live editor), Slidev (Vue-based, more complex). Focus on what makes this tool different.                                  |
+| [ ] Add privacy/security statement | Document where data goes: markdown stays local, AI calls go directly to user-configured OpenRouter/Ollama endpoint, API key stored in localStorage, no telemetry. Essential for public trust.                                                         |
+| [ ] Write v1.0 CHANGELOG entry     | Comprehensive `## 1.0.0` summary at the top of CHANGELOG.md covering all major feature categories (authoring, editing, AI, PPTX import, export, presenter). Keep existing version history below.                                                      |
+| [ ] Update docs/RELEASING.md       | Add v1.0-specific checklist (positioning, testing, migration guide if applicable).                                                                                                                                                                    |
+
+### Testing & Quality
+
+| Task                           | Details                                                                                                                                                                                                                                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Manual test plan           | Document and execute step-by-step manual testing for all critical flows: presenter view, AI whole-deck operations (Polish, Remix, Reimagine), PPTX import with real files, HTML/PDF export, text blocks, image drag, undo/redo, conflict resolution, auto-save, command palette, full-text search. |
+| [ ] Add E2E for presenter view | Playwright spec covering: open presenter panel, navigate slides, verify notes display, verify next-slide preview. (Stretch — manual testing is sufficient for v1.0 if time-constrained.)                                                                                                           |
+| [ ] Performance check          | Test large deck load times (50+ slides), export times, PPTX import times. Document any limits.                                                                                                                                                                                                     |
+| [ ] Full quality gate          | Run `npm run lint`, `npm run format:check`, `npm test`, `npm run test:e2e`, `npm run build`. All must pass.                                                                                                                                                                                        |
+
+### Launch Metadata
+
+| Task                                  | Details                                                                                                                                                                                                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Create README hero image          | One good image (screenshot of a nice slide + app name) for the README. GitHub uses the first README image as the social preview card when the repo link is shared. This replaces separate og-image work for the GitHub-sharing case.                                                       |
+| [ ] Update favicon set                | Update favicon, apple-touch-icon, and manifest icons in `public/` to match the new brand. Matters for local use — browser tabs, bookmarks, and home-screen shortcuts.                                                                                                                      |
+| [ ] Add OG tags + meta (if demo site) | Only needed if deploying a public demo site: add `og:title`, `og:description`, `og:image`, `og:url`, `og:type`, Twitter card tags, and a 150-160 char meta description to `index.html`. If the public face is the GitHub repo only, the README hero image and repo description cover this. |
+| [ ] Update GitHub repo description    | Optimize the GitHub repo "About" description for search and sharing. This is what appears in GitHub search results and on the repo card.                                                                                                                                                   |
+
+### Release
+
+| Task                            | Details                                                                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Beta pre-release (optional) | Tag `v1.0.0-beta` for early feedback from a small group before the public launch.                                                          |
+| [ ] Final manual test pass      | Complete the manual test plan on the release build. No known crash bugs.                                                                   |
+| [ ] Tag v1.0.0                  | Create v1.0 release branch, update version to 1.0.0, tag, create GitHub release with release notes.                                        |
+| [ ] Public announcement         | Blog post or announcement with: what the tool is, who it's for, key features, competitive positioning, getting started link, roadmap link. |
+
+### Acceptance Criteria
+
+- The app name is consistent across all user-facing surfaces (README, docs, index.html, package.json, GitHub repo, AI prompts).
+- README lists all current features with no stale references.
+- Competitive comparison and privacy statement are published.
+- All critical user flows have been manually tested with no known crash bugs.
+- Full quality gate passes (lint, format, unit tests, E2E tests, build).
+- Sharing the GitHub repo link produces a preview card with a hero image (README image).
+- Favicon and manifest icons reflect the new brand.
+- If a public demo site is deployed, OG tags and meta description produce a social preview card.
+- CHANGELOG has a comprehensive v1.0 entry.
+- v1.0.0 is tagged and released on GitHub.
 
 ---
 
 ## Phase 16: Presenter, Print & AI Commands
 
-Goal: Build out the presenter experience, simplify print/PDF preparation, and expose contextual AI commands.
+Goal: Fill the real competitive gaps in the presenter experience, make existing AI modes discoverable, and add PDF notes plus a visual-QA export. Extends the existing two-window architecture (editor + viewer) rather than introducing a separate presenter window — the presenter panel lives in the editor window and grows to cover timer, visual next-slide preview, and grid overview.
 
-### Presenter View
+### Presenter Core
 
-| Task                          | Details                                                           |
-| ----------------------------- | ----------------------------------------------------------------- |
-| [ ] Add `PresenterModel`      | Track elapsed time, clock, current notes, and next-slide preview. |
-| [ ] Add speaker notes panel   | Dedicated presenter panel with current and next slide notes.      |
-| [ ] Add timer and clock UI    | Display elapsed and wall-clock time in presenter view.            |
-| [ ] Add next-slide preview    | Show the upcoming slide in the presenter panel.                   |
-| [ ] Add slide grid overview   | Grid view of all slides for quick jumping during Q&A.             |
-| [ ] Add go-to-slide search    | Search by title or content from presenter view.                   |
-| [ ] Add presenter annotations | Optional laser pointer / drawing overlay (stretch).               |
+| Task                                 | Details                                                                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Auto-exit edit mode on present   | Switch off edit mode automatically when the user starts presenting, so the editor chrome drops away and the presenter panel gets full window space. Re-entering edit mode restores the editor UI. |
+| [ ] Add elapsed-time timer and clock | Display elapsed presentation time and wall-clock time in the presenter panel. Extends the existing `BreakManager` timer pattern.                                                                  |
+| [ ] Add visual next-slide preview    | Render a scaled-down preview of the upcoming slide in the presenter panel, replacing the current text-only title. Reuses `SlideRenderer` + `ContentEnhancer` off-screen.                          |
+| [ ] Add slide grid overview          | Grid view of all slides for quick jumping during Q&A.                                                                                                                                             |
 
-### Print & PDF
+### AI Command Discoverability
 
-| Task                                    | Details                                                                                                                                                                                               |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add `PrintAdapter`                  | Single DOM preparation path for print and PDF.                                                                                                                                                        |
-| [ ] Unify Mermaid/Prism/KaTeX rendering | One `ContentEnhancer` path used by runtime, HTML export, and `tools/pdf.mjs`.                                                                                                                         |
-| [ ] Support speaker notes in PDF        | Optional page-per-slide or notes section in PDF output.                                                                                                                                               |
-| [ ] Add per-slide PNG export            | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Reuses the same `PrintAdapter` DOM preparation path. Useful for README embeds, visual QA, and regression diffing. |
+| Task                             | Details                                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add AI category to palette   | Add an "AI" category to the existing command palette (`src/engine/command-palette.js`) and wire the existing intents (`enhanceSlide`, `addSpeakerNotes`, `polish`) as palette commands. |
+| [ ] Target current slide or deck | Single-slide intents target the current slide; whole-deck intents target the deck. Uses the existing `AiOrchestrator.runOperation()` path — no new execution logic.                     |
 
-### Contextual AI Commands
+### PDF Notes & Visual QA
 
-| Task                          | Details                                                                                       |
-| ----------------------------- | --------------------------------------------------------------------------------------------- |
-| [ ] Add AI command palette UI | List of intents: summarize for executive, convert bullets to metric cards, add speaker notes. |
-| [ ] Wire `AiOperations` to UI | Each command maps to an `AiOperation` with a prompt and a selected slide.                     |
+| Task                     | Details                                                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Speaker notes in PDF | Optional page-per-slide or notes section in PDF output via `tools/pdf.mjs`. Useful for handout-style PDFs.                                                                                                          |
+| [ ] Per-slide PNG export | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Builds on the existing Playwright harness. Justified as a visual-QA / regression-diffing tool, not a user presentation feature. |
+
+### Deferred / Dropped
+
+| Item                                         | Reason                                                                                                                                                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Separate presenter window (PowerPoint-style) | The existing two-window model (editor + viewer) works and is lower-risk. A third window adds window-management and sync surface area (AGENTS.md flags history/broadcasts as cross-cutting). Panel components are reusable if a dedicated window is ever needed. |
+| `PrintAdapter` class                         | Technical-debt refactor consolidating `PrintManager` and `tools/pdf.mjs` DOM prep. No user-facing delta. Defer unless the duplicated emoji-removal logic causes bugs.                                                                                           |
+| Unify Mermaid/Prism/KaTeX rendering          | Already done. `ContentEnhancer.enhanceRenderedContent()` is the single path used by runtime, HTML export (via runtime), and `tools/pdf.mjs`.                                                                                                                    |
+| Laser pointer / drawing overlay              | Explicitly stretch in the original roadmap. High blast radius (touches renderer and event handling), low demand. Drop.                                                                                                                                          |
+| "Summarize for executive" AI intent          | Niche, no demonstrated demand. The existing AI modes (enhance, fix, polish, remix, reimagine, addSpeakerNotes) cover the main use cases.                                                                                                                        |
+| "Convert bullets to metric cards" AI intent  | Very specific, no demonstrated demand. Same reasoning as above.                                                                                                                                                                                                 |
+| `PresenterModel` class                       | The presenter state is already spread across `DeckController`, `BreakManager`, and `RoleManager` and works. A dedicated model class is optional refactoring, not a user-facing gap. Keep the state where it is.                                                 |
+| Speaker notes panel (as new work)            | Already implemented: `DeckController.renderNotes()` renders notes as markdown into the existing presenter panel. Not a new task.                                                                                                                                |
+| Go-to-slide search                           | Already implemented: `SlideSearch` (`src/engine/slide-search.js`) provides full-text search across slides with a modal UI. Not a new task.                                                                                                                      |
 
 ---
 
@@ -714,34 +989,29 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
 | Phase 14: Conflict Resolution & Undo         | ✅ Complete |
 | Phase 14.5: Structural Cleanup & Tests       | ✅ Complete |
-| Phase 15: Design System & Theme Registry     | Planned     |
+| Phase 14.6: Polish Quality & Presentation    | Planned     |
+| Phase 14.7: Remix Quality & Visual Identity  | Planned     |
+| Phase 14.8: Reimagine Creative Direction     | Planned     |
+| Phase 14.9: PPTX Import Quality              | Planned     |
+| Phase 15: Editor Diagnostics & Polish        | Planned     |
+| Phase 15.1: Interactive Classroom Features   | Planned     |
+| Phase 15.5: v1.0 Release Preparation         | Planned     |
 | Phase 16: Presenter, Print & AI Commands     | Planned     |
 | Phase 17: Cloud Mode                         | Planned     |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 → Phase 15 → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 → Phase 14.6 → Phase 14.7 → Phase 14.8 → Phase 14.9 → Phase 15 → Phase 15.1 (interactive classroom) → Phase 15.5 (v1.0 release) → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
 
-Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, snapshot-based `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds working-state capture, stale-operation guards, `ConflictResolver`, committed-operation `Ctrl+Z`/`Ctrl+Y`, store-to-view synchronization, and the full `EditController` rewire. Phase 14 is delivered in two slices: 14.1 state safety and conflicts, then 14.2 undo semantics and editor rewire. Phase 14.5 (Structural Cleanup & Test Infrastructure) pays down debt accumulated during the AI/state track — shared bundle-order extraction, E2E and PPTX integration tests, a client-side logging utility, contributor documentation, and lint coverage for build scripts — before Phases 15-17 (Design System, Presenter/Print/AI Commands, Cloud Mode) build new features on top.
+Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, snapshot-based `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds working-state capture, stale-operation guards, `ConflictResolver`, committed-operation `Ctrl+Z`/`Ctrl+Y`, store-to-view synchronization, and the full `EditController` rewire. Phase 14 is delivered in two slices: 14.1 state safety and conflicts, then 14.2 undo semantics and editor rewire. Phase 14.5 (Structural Cleanup & Test Infrastructure) pays down debt accumulated during the AI/state track — shared bundle-order extraction, E2E and PPTX integration tests, a client-side logging utility, contributor documentation, and lint coverage for build scripts — before Phases 14.6-14.8 improve the existing AI modes, Phase 14.9 improves the deterministic PPTX import pipeline (layout inference accuracy, shape/diagram rendering per #117, and a `code-center` directive), and Phases 15-17 (Editor Diagnostics & Polish, Interactive Classroom Features, v1.0 Release Preparation, Presenter/Print/AI Commands, Cloud Mode) build new platform features on top. Phase 15.1 (Interactive Classroom Features) adds the first differentiating interactivity for v1.0: copyable code blocks in student-facing HTML exports and live poll initiation via a third-party tool (Slido or Mentimeter) using a simple `activity:` slide directive, modeled on the existing `BreakManager` pattern. Polls are inserted into the deck on creation so they persist immediately. No hosting or realtime infrastructure required. Phase 15.5 is the v1.0 release gate — app rename, documentation refresh, competitive positioning, manual testing of all critical flows, social metadata, and the v1.0 tag. Phases 16 and 17 are post-v1.0. Phase 15 was rescoped from its original "Design System & Theme Registry" plan after review found no demonstrated user need for a `DesignSystem` JS module, `ThemeRegistry`, custom themes, or the `@import` directive — the existing light/dark + accent + layout presets cover actual usage, and CSS custom properties already serve as the token system. The rescoped phase keeps the layout-governance warnings (real deck-quality pain), upgrades the area-background picker from a native color input to the full background panel (reusing existing slide-level infrastructure), adds background image sizing/position controls (#194), text block styling presets (#196), mermaid cross-area drag (#123), and a theme preview to the New Presentation modal (a real UX gap), while deferring the speculative architecture. Open issues #126 (image properties UI — too vague) and #117 (PPTX shape export — wrong scope) were considered and left out. Phase 16 was rescoped to drop already-done work (ContentEnhancer unification, speaker-notes panel, go-to-slide search), technical-debt refactors (`PrintAdapter`), and speculative items (laser pointer, "summarize for executive" and "convert bullets to metric cards" AI intents, `PresenterModel` class). The rescoped phase extends the existing two-window presenter panel (auto-exit edit mode on present, elapsed-time timer, visual next-slide preview, slide grid overview), wires existing AI intents into the command palette for discoverability, and adds speaker-notes-in-PDF plus per-slide PNG export for visual QA. A separate PowerPoint-style presenter window was considered and deferred — the existing editor + viewer model is lower-risk and the panel components are reusable if a dedicated window is ever needed.
 
 ## Backlog
 
-Items deferred from earlier phases; re-prioritize when the active phase is complete.
-
-| Task                                                     | Details                                                              |
-| -------------------------------------------------------- | -------------------------------------------------------------------- |
-| [ ] Allow dragging Mermaid diagrams between areas (#123) | Support drag-and-drop of Mermaid diagrams across `@area` boundaries. |
-| [ ] Improve image properties style tab UI (#126)         | Improve the style tab in the image properties panel.                 |
-
-### Office Document Import & Export
-
-| Task                                             | Details                                                        |
-| ------------------------------------------------ | -------------------------------------------------------------- |
-| [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
+Items deferred from earlier phases; re-prioritize when the active phase is complete. Items that have been moved into a planned phase (#117 → Phase 14.9, #123 → Phase 15, #194/#196 → Phase 15) are tracked there and not duplicated here.
 
 ### Stepped Content & Motion
 

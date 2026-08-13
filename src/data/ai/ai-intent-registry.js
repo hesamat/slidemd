@@ -15,6 +15,7 @@ import {
   getFragment,
   stripFrontmatter,
   buildVisualStylingNote,
+  buildDensityBudgets,
 } from "./ai-prompt-fragments.js";
 
 const INTENTS = {
@@ -69,6 +70,10 @@ function composeForIntent(intent, ctx) {
   // include the generic guidance.
   if (intent === "generate") {
     substitutions.visualStylingNote = buildVisualStylingNote(ctx.hasVisualSystem);
+    substitutions.densityBudgets = buildDensityBudgets("full");
+  }
+  if (intent === "polish") {
+    substitutions.densityBudgets = buildDensityBudgets("compact");
   }
   return composeMessages(getFragment(def.system), getFragment(def.user), substitutions);
 }

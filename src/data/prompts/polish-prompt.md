@@ -9,20 +9,21 @@ What to do:
 - Remove bold wrapping from headings.
 - Remove duplicate blank lines and trailing whitespace.
 - Fix mismatched layouts: downgrade `media-span-left`, `media-span-right`, or `two-column` when there is no image or an empty second column.
-- Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
+- Improve wording: make headlines concise and human-facing, tighten bullet points, replace vague text with specific statements, and remove textbook-style repetition. Tighten, do not inflate.
 - Pick the best layout for each slide's content; use `two-column`, `focus`, or `table` layouts when they clarify the material.
 - Use tables for 2-3 item comparisons.
-- Preserve each slide's `theme:` and `background:` directives and the existing color scheme. Do not add new `theme:`/`background:` values, colored text, or `color`/`backgroundColor` attributes.
+- Preserve each slide's `theme:` and `background:` directives and the existing color scheme.
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
+- Respect per-area density budgets when choosing layouts and tightening wording. {{densityBudgets}}
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:
 
 - Keep the same slide count and order.
 - Keep the same overall narrative flow.
-- Preserve existing speaker notes unless asked to add new ones.
+- Preserve existing speaker notes unless explicitly instructed to add new ones.
 - Preserve the existing `theme:`, `background:`, and color scheme. Do not add new `theme:`/`background:` values, colored text, or `color`/`backgroundColor` attributes.
 
 Success criteria:

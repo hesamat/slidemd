@@ -203,6 +203,15 @@ describe("buildBatchMessages", () => {
     expect(user).toContain("Return exactly 4 slide(s)");
   });
 
+  it("fix mode with polish batchMode throws (invalid combination)", () => {
+    // fix mode always uses the fix fragment; batchMode "polish" is only valid
+    // with mode "generate". Throw instead of silently ignoring batchMode so a
+    // future caller does not get fix semantics when it expected polish.
+    expect(() => buildBatchMessages(md, "fix", 0, 4, 12, "Deck: 12 slides.", "polish")).toThrow(
+      /batchMode "polish" is only valid with mode "generate"/,
+    );
+  });
+
   it("non-polish mode uses generate-prompt fragment", () => {
     const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.");
     expect(user).toContain("Refine this SlideMD presentation");

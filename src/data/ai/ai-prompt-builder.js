@@ -18,6 +18,7 @@ import {
   stripFrontmatter,
   buildVisualSystemBrief,
   buildVisualStylingNote,
+  buildDensityBudgets,
 } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { getIntentUserFragment } from "./ai-intent-registry.js";
@@ -85,6 +86,7 @@ export function buildMessages(markdown, mode) {
   const substitutions = { markdown: cleaned };
   if (mode !== "fix") {
     substitutions.visualStylingNote = buildVisualStylingNote(false);
+    substitutions.densityBudgets = buildDensityBudgets("full");
   }
   return composeMessages(getFragment("system-prompt.md"), fragment, substitutions);
 }
@@ -163,6 +165,11 @@ export function buildBatchMessages(
   batchMode,
   hasVisualSystem = false,
 ) {
+  if (mode === "fix" && batchMode === "polish") {
+    throw new Error(
+      'batchMode "polish" is only valid with mode "generate"; fix mode always uses the fix fragment',
+    );
+  }
   const cleaned = stripFrontmatter(markdown, mode);
   // Use the fence-aware split so `---` inside code blocks doesn't create
   // phantom slides and misalign indices with the orchestrator's slide list.
@@ -207,6 +214,9 @@ export function buildBatchMessages(
   // {{visualStylingNote}} placeholder).
   if (isGenerateFragment) {
     substitutions.visualStylingNote = buildVisualStylingNote(hasVisualSystem);
+    substitutions.densityBudgets = buildDensityBudgets("full");
+  } else if (mode !== "fix" && batchMode === "polish") {
+    substitutions.densityBudgets = buildDensityBudgets("compact");
   }
   const { system, user } = composeMessages(
     getFragment("system-prompt.md"),

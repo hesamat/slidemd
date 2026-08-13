@@ -26,6 +26,7 @@ import imagesGuidance from "../prompts/images-guidance.md?raw";
 import batchPagination from "../prompts/batch-pagination.md?raw";
 import creativeGuidance from "../prompts/creative-guidance.md?raw";
 import repairMessage from "../prompts/repair-message.md?raw";
+import densityBudgets from "../prompts/density-budgets.md?raw";
 
 export const FRAGMENTS = {
   "system-prompt.md": systemPrompt,
@@ -45,6 +46,7 @@ export const FRAGMENTS = {
   "batch-pagination.md": batchPagination,
   "creative-guidance.md": creativeGuidance,
   "repair-message.md": repairMessage,
+  "density-budgets.md": densityBudgets,
 };
 
 /**
@@ -167,6 +169,17 @@ export function buildVisualStylingNote(hasVisualSystem) {
     getFragment("visual-styling-note.md"),
     hasVisualSystem ? "present" : "absent",
   );
+}
+
+/**
+ * Build the {{densityBudgets}} substitution for generate and polish prompts.
+ * The "full" variant is used by generate-prompt.md (standalone density section);
+ * the "compact" variant is used by polish-prompt.md (inline in crowded-slides bullet).
+ * @param {"full"|"compact"} variant
+ * @returns {string}
+ */
+export function buildDensityBudgets(variant) {
+  return extractVariant(getFragment("density-budgets.md"), variant);
 }
 
 /**
