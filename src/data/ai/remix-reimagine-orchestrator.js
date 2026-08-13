@@ -1182,10 +1182,17 @@ export class RemixReimagineOrchestrator {
         errors.push(`${prefix}: brief is required for action "${entry.action}"`);
       }
 
-      // `reason` explains why this action was chosen. Required for all actions
-      // (including keep) so the sidebar can surface decision rationale.
-      if (entry.reason === undefined || entry.reason === null || entry.reason.trim().length === 0) {
-        errors.push(`${prefix}: reason is required for action "${entry.action}"`);
+      // `reason` explains why this action was chosen. Optional — the prompt
+      // asks for it, but less compliant models may omit it. Coerce non-string
+      // values to string; if missing/empty, the sidebar simply omits the
+      // rationale line. Don't hard-fail the plan over a display-only field.
+      if (entry.reason != null) {
+        if (typeof entry.reason !== "string") {
+          entry.reason = String(entry.reason);
+        }
+        if (entry.reason.trim().length === 0) {
+          delete entry.reason;
+        }
       }
 
       // keepImages is optional. If present, must be an array of non-negative

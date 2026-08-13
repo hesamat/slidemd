@@ -56,6 +56,7 @@ export class AiSidebar {
     this._currentPanel = panel;
 
     const outputEl = panel.querySelector(`.${P}output`);
+    const logSection = panel.querySelector(`.${P}log-section`);
     const statusEl = panel.querySelector(`.${P}status`);
     const noticeEl = panel.querySelector(`.${P}notice`);
     const planEl = panel.querySelector(`.${P}plan`);
@@ -144,6 +145,8 @@ export class AiSidebar {
       closeBtn.textContent = "Close";
       progressInline.hidden = true;
       headerEl.classList.remove(`${P}header--active`);
+      // Open the log section so the user can see what went wrong.
+      if (logSection) logSection.open = true;
       outputEl.hidden = false;
     };
 
@@ -557,7 +560,7 @@ export class AiSidebar {
       <div class="${P}status">Starting\u2026</div>
       <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
       <div class="${P}plan" hidden></div>
-      <details class="${P}log-section" open>
+      <details class="${P}log-section">
         <summary class="${P}log-summary">Log</summary>
         <div class="${P}output"></div>
       </details>

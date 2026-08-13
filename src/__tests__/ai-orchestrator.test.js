@@ -1051,23 +1051,54 @@ describe("AiOrchestrator", () => {
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
-    it("throws on missing reason field", async () => {
-      const badPlan = JSON.stringify({
+    it("does not throw when reason is missing (optional display-only field)", async () => {
+      const planNoReason = JSON.stringify({
         plan: [
           { action: "keep", source: [0], brief: "", title: "S1" },
           {
             action: "rewrite",
             source: [1],
             brief: "fix",
-            reason: "needs tightening",
             title: "S2",
           },
         ],
       });
-      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const provider = mockProviderSequence([planNoReason, EXECUTE_RESPONSE, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
-      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("reason is required");
+      const result = await orchestrator.runWholeDeckOperation(op);
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Slide 2");
+    });
+
+    it("coerces non-string reason to string without throwing", async () => {
+      const planBadReasonType = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", reason: 42, title: "S1" },
+          {
+            action: "rewrite",
+            source: [1],
+            brief: "fix",
+            reason: true,
+            title: "S2",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([
+        planBadReasonType,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      const plans = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onPlan: (plan) => plans.push(plan),
+      });
+      // Should not throw — reason is coerced to string
+      expect(result).toContain("Slide 1");
+      expect(plans[0][0].reason).toBe("42");
+      expect(plans[0][1].reason).toBe("true");
     });
 
     it("throws on out-of-range source index", async () => {

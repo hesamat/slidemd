@@ -117,10 +117,24 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
     let entry = `${i + 1}. [${layout}] ${title}`;
     if (enrichPerSlide) {
       const meta = [];
-      // Count non-empty content lines (exclude frontmatter and @area markers).
-      const contentLines = lines.filter((l) => !/^(@\w+|layout:|theme:|background:|---)/.test(l));
+      // Count non-empty content lines, excluding frontmatter directives, @area
+      // markers, speaker notes, and code fence delimiters. Trim each line
+      // before testing so indented markers and nested bullets are handled.
+      const contentLines = lines.filter((l) => {
+        const t = l.trim();
+        if (/^(@\w+|layout:|theme:|background:|---)/.test(t)) return false;
+        // Exclude other frontmatter directives (e.g. hidden:, media-full-bleed:,
+        // area-style-*, code-center:, activity:).
+        if (/^\w[\w-]*:/.test(t) && !/^#{1,6}\s/.test(t)) return false;
+        // Exclude speaker notes comments.
+        if (/^<!--\s*notes:/.test(t)) return false;
+        // Exclude code fence delimiters (``` or ~~~).
+        if (/^(```|~~~)/.test(t)) return false;
+        return true;
+      });
       meta.push(`${contentLines.length} lines`);
-      const bulletCount = contentLines.filter((l) => /^[-*]\s/.test(l)).length;
+      // Count bullets — trim first so nested/indented bullets are counted.
+      const bulletCount = contentLines.filter((l) => /^[-*]\s/.test(l.trim())).length;
       if (bulletCount > 0) meta.push(`${bulletCount} bullet${bulletCount > 1 ? "s" : ""}`);
       if (/```/.test(slide)) meta.push("code");
       if (/<img/.test(slide)) meta.push("image");
