@@ -560,7 +560,7 @@ export class AiSidebar {
       <div class="${P}status">Starting\u2026</div>
       <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
       <div class="${P}plan" hidden></div>
-      <details class="${P}log-section">
+      <details class="${P}log-section" open>
         <summary class="${P}log-summary">Log</summary>
         <div class="${P}output"></div>
       </details>

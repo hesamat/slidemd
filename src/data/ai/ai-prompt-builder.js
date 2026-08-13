@@ -101,7 +101,7 @@ export function buildMessages(markdown, mode) {
  * @param {boolean} [enrichPerSlide=false] - When true, adds per-slide metadata
  *   (content line count, bullet count, code/image/diagram markers) to each
  *   outline entry. Used by the Remix plan phase so the planning AI has enough
- *   signal to make keep/rewrite/merge decisions without seeing full content.
+ *   signal to make polish/rewrite/merge decisions without seeing full content.
  * @returns {string}
  */
 export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerSlide = false) {
@@ -110,7 +110,7 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
   // extractDirectives / injectDirectives).
   const slides = new MarkdownParser().splitSlides(markdown);
   const titles = slides.map((slide, i) => {
-    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/m);
+    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/im);
     const layout = layoutMatch?.[1]?.trim() || "header-content";
     const lines = slide.split("\n").filter((l) => l.trim());
     const titleLine = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || `Slide ${i + 1}`;

@@ -450,6 +450,10 @@ function stripDirectivesWith(markdown, processLine) {
     }
 
     // Slide separator — each slide has its own leading directive block.
+    // A bare `---` inside slide body (outside fences) is also treated as a
+    // separator by this format, so a directive-looking line after it is
+    // processed as the start of a new leading block. This mirrors the parser's
+    // behavior and is consistent with the rest of the toolchain.
     if (line.trim() === "---") {
       flushBlank();
       inLeadingBlock = true;
