@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
 import { LayoutData } from "../data/layout-data.js";
+import { KNOWN_TEXT_BLOCK_ATTRIBUTES } from "../core/text-block-directive.js";
 
 describe("buildRepairMessage", () => {
   it("lists errors on different slides with their locations", () => {
@@ -91,6 +92,46 @@ describe("buildRepairMessage", () => {
     }
   });
 
+  describe("UNKNOWN_LAYOUT guidance with a stale custom layout", () => {
+    let originalLocalStorage;
+
+    afterEach(() => {
+      if (originalLocalStorage === undefined) delete globalThis.localStorage;
+      else globalThis.localStorage = originalLocalStorage;
+      LayoutData.deleteCustomLayout("stale-custom");
+      // Force a fresh read from (now-restored) localStorage on next access,
+      // so this test's stub doesn't leak into later tests via the cache.
+      LayoutData._customMap = null;
+    });
+
+    it("excludes a custom layout name whose stored grid template is empty", () => {
+      // LayoutData.getAllLayouts() lists custom names regardless of whether
+      // their stored grid template is a non-empty string; hasLayout() (and
+      // the validator's own layout check) rejects an empty template. The
+      // repair guidance must apply the same hasLayout filter so it never
+      // tells the AI a name is "valid" when the validator would reject it
+      // on the next repair attempt.
+      originalLocalStorage = globalThis.localStorage;
+      const store = {};
+      globalThis.localStorage = {
+        getItem: (key) => store[key] ?? null,
+        setItem: (key, value) => {
+          store[key] = value;
+        },
+      };
+      LayoutData._customMap = null;
+      LayoutData.setCustomLayout("stale-custom", "");
+
+      expect(LayoutData.getAllLayouts()).toContain("stale-custom");
+      expect(LayoutData.hasLayout("stale-custom")).toBe(false);
+
+      const msg = buildRepairMessage([
+        { slide: 0, code: "UNKNOWN_LAYOUT", message: 'Slide 1 uses unknown layout "foo"' },
+      ]);
+      expect(msg).not.toContain("stale-custom");
+    });
+  });
+
   it("reminds the AI to use only the listed areas for INVALID_AREA errors", () => {
     const errors = [
       {
@@ -125,6 +166,24 @@ describe("buildRepairMessage", () => {
     expect(msg).toContain("Guidance:");
     expect(msg).toContain("Supported text-block attributes:");
     expect(msg).toContain("fontSize");
+  });
+
+  it("derives the supported text-block attribute list from the canonical set (no drift)", () => {
+    // Regression test: the guidance must be derived from
+    // KNOWN_TEXT_BLOCK_ATTRIBUTES rather than a hand-copied list, so it
+    // never omits an alias (e.g. background, textAlign, columnCount) that
+    // the parser actually accepts.
+    const errors = [
+      {
+        slide: 0,
+        code: "UNKNOWN_TEXT_BLOCK_ATTR",
+        message: "Slide 1 text-block uses unsupported attributes: style",
+      },
+    ];
+    const msg = buildRepairMessage(errors);
+    for (const attr of KNOWN_TEXT_BLOCK_ATTRIBUTES) {
+      expect(msg).toContain(attr);
+    }
   });
 
   it("tells the AI to use braces for MALFORMED_TEXT_BLOCK errors", () => {

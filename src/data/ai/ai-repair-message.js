@@ -14,6 +14,7 @@
 import { getFragment } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
+import { KNOWN_TEXT_BLOCK_ATTRIBUTES } from "../../core/text-block-directive.js";
 
 /**
  * Actionable, code-specific guidance appended once per distinct error code
@@ -24,11 +25,18 @@ import { LayoutData } from "../layout-data.js";
 const CODE_GUIDANCE = {
   SLIDE_CONTENT_OVERFLOW:
     "Reduce content density — trim bullets, move detail to speaker notes, or split the slide.",
-  UNKNOWN_LAYOUT: () => `Valid layouts: ${LayoutData.getAllLayouts().join(", ")}.`,
+  // Filter with hasLayout the same way getAllowedLayoutList() does (see
+  // ai-prompt-fragments.js) — getAllLayouts() can include a custom layout
+  // name whose stored grid template is empty/falsy, which hasLayout()
+  // (and the validator's own _isValidLayout check) would reject.
+  UNKNOWN_LAYOUT: () =>
+    `Valid layouts: ${LayoutData.getAllLayouts()
+      .filter((name) => LayoutData.hasLayout(name))
+      .join(", ")}.`,
   INVALID_AREA: "Use only the @areas listed above for the slide's layout.",
   MISSING_LAYOUT: "Add a `layout:` directive at the top of each slide.",
-  UNKNOWN_TEXT_BLOCK_ATTR:
-    "Supported text-block attributes: id, float, x, y, fontSize, color, backgroundColor, align, opacity, z, rotate, column-count, markdown, bold, italic, underline, strikethrough.",
+  UNKNOWN_TEXT_BLOCK_ATTR: () =>
+    `Supported text-block attributes: ${[...KNOWN_TEXT_BLOCK_ATTRIBUTES].join(", ")}.`,
   MALFORMED_TEXT_BLOCK: "Wrap text-block attributes in braces: `::: text-block { ... }`.",
 };
 
