@@ -74,18 +74,23 @@ export function findFencedRanges(markdown) {
   const lines = markdown.split("\n");
   let inFence = false;
   let fenceStart = 0;
+  let fenceMarker = "";
   let offset = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineStart = offset;
     const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
-    if (/^\s*(```|~~~)/.test(line)) {
+    const fenceMatch = line.match(/^\s*(```+|~~~+)/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1];
       if (!inFence) {
         inFence = true;
         fenceStart = lineStart;
-      } else {
+        fenceMarker = marker;
+      } else if (marker.startsWith(fenceMarker)) {
         ranges.push({ start: fenceStart, end: lineEnd });
         inFence = false;
+        fenceMarker = "";
       }
     }
     offset = lineEnd;

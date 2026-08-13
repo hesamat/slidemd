@@ -988,7 +988,8 @@ function normalizeAreasForCompare(areas) {
  */
 export function extractTopLevelDirectiveValues(markdown, name) {
   const values = [];
-  const re = new RegExp(`^\\s*${name}\\s*:\\s*(.+)$`, "i");
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^\\s*${escapedName}\\s*:\\s*(.+)$`, "i");
   forEachTopLevelLine(markdown, (line) => {
     const match = line.match(re);
     if (match && match[1].trim()) values.push(match[1].trim());

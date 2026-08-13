@@ -447,7 +447,7 @@ Goal: Replace the experimental single-shot Remix with a reliable two-phase plan�
 
 | Task                           | Details                                                                                                                    |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| [x] Add plan phase             | One LLM call with deck summary → returns JSON plan (keep/rewrite/merge actions with briefs). Logged in AI sidebar.         |
+| [x] Add plan phase             | One LLM call with deck summary → returns JSON plan (polish/rewrite/merge actions with briefs). Logged in AI sidebar.       |
 | [x] Add virtual deck trick     | Plan entries converted to a virtual deck markdown with `<!-- brief: ... -->` comments. Fed through existing generate path. |
 | [x] Unlock Remix for all sizes | Removed ≤8-slide limit. Execute phase batches through existing 2-worker queue for large decks.                             |
 | [x] Add `remix-plan-prompt.md` | User fragment for the plan phase: analyze deck → output restructuring plan JSON.                                           |
@@ -616,13 +616,13 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 ### Restructuring Plan
 
-| Task                           | Details                                                                                                                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [x] Improve editorial planning | Produce clearer keep/rewrite/merge decisions, stronger one-sentence briefs, purposeful reordering, and fewer redundant or low-value output slides.                             |
-| [x] Preserve source coverage   | Ensure every source slide is accounted for and that important source material is not silently lost during restructuring.                                                       |
-| [x] Improve merge decisions    | Merge only thin, overlapping, or redundant slides; keep distinct topics and strong standalone takeaways separate.                                                              |
-| [x] Improve plan observability | Surface the restructuring plan and important decisions in the AI sidebar so users can understand what Remix changed.                                                           |
-| [x] Flow-aware plan guidance   | Inject per-flow restructuring priorities (instructional/story/technical/persuasive) into the remix plan prompt so keep/rewrite/merge/reorder decisions follow the chosen flow. |
+| Task                           | Details                                                                                                                                                                          |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Improve editorial planning | Produce clearer polish/rewrite/merge decisions, stronger one-sentence briefs, purposeful reordering, and fewer redundant or low-value output slides.                             |
+| [x] Preserve source coverage   | Ensure every source slide is accounted for and that important source material is not silently lost during restructuring.                                                         |
+| [x] Improve merge decisions    | Merge only thin, overlapping, or redundant slides; keep distinct topics and strong standalone takeaways separate.                                                                |
+| [x] Improve plan observability | Surface the restructuring plan and important decisions in the AI sidebar so users can understand what Remix changed.                                                             |
+| [x] Flow-aware plan guidance   | Inject per-flow restructuring priorities (instructional/story/technical/persuasive) into the remix plan prompt so polish/rewrite/merge/reorder decisions follow the chosen flow. |
 
 ### Visual Identity & Assets
 

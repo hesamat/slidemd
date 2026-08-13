@@ -6,24 +6,26 @@ This document describes the prompt architecture used by the AI enhancement featu
 
 Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/), cataloged by the `FRAGMENTS` map in [`ai-prompt-fragments.js`](../src/data/ai/ai-prompt-fragments.js):
 
-| File                                | Role     | Purpose                                                                                                   |
-| ----------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `system-prompt.md`                  | `system` | Global rules, JSON output format, layout list                                                             |
-| `polish-prompt.md`                  | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                        |
-| `generate-prompt.md`                | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck execute phase)                            |
-| `fix-prompt.md`                     | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                           |
-| `add-speaker-notes-prompt.md`       | `user`   | Add speaker notes to slide (single-slide)                                                                 |
-| `remix-plan-prompt.md`              | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
-| `reimagine-outline-prompt.md`       | `user`   | Outline phase for Reimagine: analyze deck → output `{ plan, chapters: [...] }` JSON for user review       |
-| `flow-guidance.md`                  | snippet  | Narrative-flow guidance variants (instructional/story/technical/persuasive) for the generate suffix       |
-| `speaker-notes-guidance.md`         | snippet  | Speaker-notes guidance variants (add/preserve) for the generate suffix                                    |
-| `visual-identity-guidance.md`       | snippet  | Visual-identity guidance variants (preserve/discard) used by the generate suffix                          |
-| `remix-visual-identity-guidance.md` | snippet  | Visual-identity guidance variants (preserve/discard) used by the remix plan prompt                        |
-| `images-guidance.md`                | snippet  | Vision images guidance variants (sent/not-sent) for the remix plan prompt                                 |
-| `batch-pagination.md`               | snippet  | Batch pagination instructions variants (fix/generate) for `buildBatchMessages`                            |
-| `creative-guidance.md`              | snippet  | Remix creative guidance text for the `{{creativeGuidance}}` placeholder                                   |
-| `repair-message.md`                 | snippet  | Repair message template for validation failures                                                           |
-| `density-budgets.md`                | snippet  | Per-area line-budget guidance variants (full/compact) for the generate and polish prompts                 |
+| File                                | Role     | Purpose                                                                                                     |
+| ----------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `system-prompt.md`                  | `system` | Global rules, JSON output format, layout list                                                               |
+| `polish-prompt.md`                  | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                          |
+| `generate-prompt.md`                | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck execute phase)                              |
+| `fix-prompt.md`                     | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                             |
+| `add-speaker-notes-prompt.md`       | `user`   | Add speaker notes to slide (single-slide)                                                                   |
+| `remix-plan-prompt.md`              | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision)   |
+| `reimagine-outline-prompt.md`       | `user`   | Outline phase for Reimagine: analyze deck → output `{ plan, chapters: [...] }` JSON for user review         |
+| `flow-guidance.md`                  | snippet  | Narrative-flow guidance variants (instructional/story/technical/persuasive) for the generate suffix         |
+| `speaker-notes-guidance.md`         | snippet  | Speaker-notes guidance variants (add/preserve) for the generate suffix                                      |
+| `visual-identity-guidance.md`       | snippet  | Visual-identity guidance variants (preserve/discard) used by the generate suffix                            |
+| `remix-visual-identity-guidance.md` | snippet  | Visual-identity guidance variants (preserve/discard) used by the remix plan prompt                          |
+| `images-guidance.md`                | snippet  | Vision images guidance variants (sent/not-sent) for the remix plan prompt                                   |
+| `batch-pagination.md`               | snippet  | Batch pagination instructions variants (fix/generate) for `buildBatchMessages`                              |
+| `creative-guidance.md`              | snippet  | Remix creative guidance text for the `{{creativeGuidance}}` placeholder                                     |
+| `remix-flow-guidance.md`            | snippet  | Flow-specific restructuring guidance variants (instructional/story/technical/persuasive) for the remix plan |
+| `visual-styling-note.md`            | snippet  | Visual-styling note variants consumed by the generate prompt                                                |
+| `repair-message.md`                 | snippet  | Repair message template for validation failures                                                             |
+| `density-budgets.md`                | snippet  | Per-area line-budget guidance variants (full/compact) for the generate and polish prompts                   |
 
 Snippet files hold `<!-- variant: name -->` sections selected via `extractVariant` in [`ai-prompt-fragments.js`](../src/data/ai/ai-prompt-fragments.js). The JSON output format example lives directly in `system-prompt.md`.
 

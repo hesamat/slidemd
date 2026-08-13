@@ -391,6 +391,9 @@ export class MarkdownParser {
     const out = [];
     let offset = 0;
     let inLeadingBlock = true;
+    const fence = new FenceTracker();
+    const escapedName = directiveName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`^\\s*${escapedName}\\s*:\\s*(.*)\\s*$`, "i");
     const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
 
     for (let i = 0; i < lines.length; i++) {
@@ -398,14 +401,15 @@ export class MarkdownParser {
       const lineStart = offset;
       const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
 
+      fence.toggle(line);
+
       if (inLeadingBlock) {
         // A fenced code block delimiter ends the leading directive block.
-        if (/^\s*```/.test(line)) {
+        if (fence.isInFence) {
           inLeadingBlock = false;
         } else if (line.trim() === "") {
           // Blank lines stay in the leading block.
         } else {
-          const pattern = new RegExp(`^\\s*${directiveName}\\s*:\\s*(.*)\\s*$`, "i");
           const match = line.match(pattern);
           if (match) {
             value = match[1].trim();

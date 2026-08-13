@@ -1039,7 +1039,7 @@ describe("AiOrchestrator", () => {
       const op = createOperation("generate", null, deck, { mode: "remix" });
       const result = await orchestrator.runWholeDeckOperation(op);
 
-      expect(result).toContain("background: #1a1a2e, url(images/hero.png) center/cover");
+      expect(result).toContain("background: url(images/hero.png) center/cover #1a1a2e");
     });
 
     it("collapses model-emitted split background layers into one directive", async () => {

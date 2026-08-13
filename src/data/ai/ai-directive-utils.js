@@ -8,6 +8,7 @@
  */
 
 import { splitSlides } from "../markdown-parser.js";
+import { findFencedRanges } from "../image-markdown-parser.js";
 
 /**
  * Extract per-slide directives (layout, background, theme) from original markdown.
@@ -158,29 +159,48 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
  * @param {string} name
  * @returns {number}
  */
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function findTopLevelDirectiveIdx(lines, name) {
+  const text = lines.join("\n");
+  const fences = findFencedRanges(text);
   let inLeadingBlock = true;
   // Tolerate leading whitespace and whitespace before the colon so an
   // indented `  theme: dark` or `theme :dark` is recognized the same as
   // `theme: dark` — the markdown parser accepts both (`^\s*${name}\s*:` with
   // the `i` flag), so the AI round-trip must too.
-  const re = new RegExp(`^\\s*${name}\\s*:`, "i");
+  const re = new RegExp(`^\\s*${escapeRegExp(name)}\\s*:`, "i");
   const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
+  let offset = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = offset + line.length + 1;
+    const inFence = fences.some((r) => lineStart >= r.start && lineStart < r.end);
+
     // A fenced code block delimiter ends the leading directive block.
-    if (/^\s*```/.test(line)) {
+    if (inFence) {
       inLeadingBlock = false;
+      offset = lineEnd;
       continue;
     }
     if (!inLeadingBlock) break;
-    if (line.trim() === "") continue;
+    if (line.trim() === "") {
+      offset = lineEnd;
+      continue;
+    }
     if (re.test(line)) return i;
     // Another directive (not the one we're looking for) stays in the
     // leading block.
-    if (anyDirective.test(line)) continue;
+    if (anyDirective.test(line)) {
+      offset = lineEnd;
+      continue;
+    }
     // First non-blank, non-directive line ends the leading block.
     inLeadingBlock = false;
+    offset = lineEnd;
   }
   return -1;
 }
@@ -216,25 +236,47 @@ export function stripLeadingDirectives(lines, names) {
   const directiveLine = /^\s*([a-zA-Z][\w-]*)\s*:\s*(.*)$/i;
   const out = [];
   let inLeadingBlock = true;
-  for (const line of lines) {
-    if (inLeadingBlock) {
-      if (line.trim() === "") {
-        out.push(line);
-        continue;
-      }
-      const match = line.match(directiveLine);
-      if (match) {
-        // Case-insensitive name comparison — an echoed `Theme: light` must be
-        // stripped the same as `theme: light`, or injectDirectives splices
-        // the original after it and MarkdownParser.extractDirective (which
-        // keeps the *last* match) picks the AI's value instead of the user's.
-        if (namesSet.has(match[1].toLowerCase())) continue; // strip
-        out.push(line);
-        continue;
-      }
-      // First non-blank, non-directive line ends the leading directive block.
+
+  const text = lines.join("\n");
+  const fences = findFencedRanges(text);
+  let offset = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = offset + line.length + 1;
+    const inFence = fences.some((r) => lineStart >= r.start && lineStart < r.end);
+    offset = lineEnd;
+
+    if (inFence || line.match(/^\s*(```+|~~~+)/)) {
+      // Fenced content (including the fence line) is kept verbatim and ends
+      // the leading directive block.
       inLeadingBlock = false;
+      out.push(line);
+      continue;
     }
+
+    if (!inLeadingBlock) {
+      out.push(line);
+      continue;
+    }
+
+    if (line.trim() === "") {
+      out.push(line);
+      continue;
+    }
+    const match = line.match(directiveLine);
+    if (match) {
+      // Case-insensitive name comparison — an echoed `Theme: light` must be
+      // stripped the same as `theme: light`, or injectDirectives splices
+      // the original after it and MarkdownParser.extractDirective (which
+      // keeps the *last* match) picks the AI's value instead of the user's.
+      if (namesSet.has(match[1].toLowerCase())) continue; // strip
+      out.push(line);
+      continue;
+    }
+    // First non-blank, non-directive line ends the leading directive block.
+    inLeadingBlock = false;
     out.push(line);
   }
   return out;

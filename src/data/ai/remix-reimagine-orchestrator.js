@@ -34,12 +34,12 @@ import { stripLeadingDirectives } from "./ai-directive-utils.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import {
-  parseAllImages,
   parseAllImagesOutsideFences,
   findFencedRanges,
   splitBackgroundValue,
   normalizeImageSrc,
 } from "../image-markdown-parser.js";
+
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
 import { parseVisualSystem } from "./visual-system-schema.js";
 import { normalizeBeats } from "./beat-normalizer.js";
@@ -1444,7 +1444,7 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices, sentImages) {
   const keepSrcs = new Set(
     keepIndices.map((i) => sentImages[i]?.src).filter((src) => src !== undefined),
   );
-  const images = parseAllImages(slideMarkdown);
+  const images = parseAllImagesOutsideFences(slideMarkdown);
   if (images.length === 0) return slideMarkdown;
 
   // Build the result by removing non-kept images. Work backwards so indices
@@ -1492,6 +1492,24 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices, sentImages) {
  * @param {(msg: string, level?: string) => void} [onLog]
  * @returns {string} the slide with source identity applied
  */
+
+/**
+ * True for CSS color values that are a solid fill — hex, rgb/rgba/hsl/hsla,
+ * named color, `transparent`, `currentColor`. Gradients and images are not
+ * solid colors and must be their own background layer.
+ * @param {string} value
+ * @returns {boolean}
+ */
+function isSolidColor(value) {
+  if (!value) return false;
+  const v = value.trim().toLowerCase();
+  if (/^#/.test(v)) return true;
+  if (/^(rgb|rgba|hsl|hsla|hwb|lab|lch|color)\(/.test(v)) return true;
+  if (/^(transparent|currentColor|none)$/.test(v)) return true;
+  if (/^[a-z]+$/.test(v) && v.length > 1) return true;
+  return false;
+}
+
 function applyPreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   if (!sourceSlides || sourceSlides.length === 0) return slideMarkdown;
 
@@ -1572,7 +1590,14 @@ function applyPreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   const hasSourceBackground =
     sourceColorBackgrounds.length > 0 || sourceBackgroundImageUrls.length > 0;
   const hasKeptBackgroundImage = imageForLine.length > 0;
-  const restoredBackground = [colorForLine, imageForLine].filter(Boolean).join(", ");
+
+  // A solid color (hex, rgb/hsl, named color) can share a single layer with
+  // an image (`url(image) #000`). Gradients and images must be separate layers
+  // (`linear-gradient(...), url(image)`). Put the image first when the color
+  // is solid so the image is painted on top of the color, not hidden behind it.
+  const restoredBackground = isSolidColor(colorForLine)
+    ? [imageForLine, colorForLine].filter(Boolean).join(imageForLine ? " " : ", ")
+    : [colorForLine, imageForLine].filter(Boolean).join(", ");
 
   if (hasSourceBackground || hasKeptBackgroundImage) {
     toRestore.push(`background: ${restoredBackground}`);
@@ -1639,14 +1664,26 @@ function applyPreservedIdentity(slideMarkdown, sourceSlides, onLog) {
 function collapseBackgroundDirectives(markdown) {
   const lines = markdown.split("\n");
   const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
+  const fences = findFencedRanges(markdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
 
   // Collect indices of top-level background: lines in the leading block.
   const bgIndices = [];
   let inLeadingBlock = true;
+  let offset = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = offset + line.length + 1;
+    offset = lineEnd;
+
+    if (inFenceAt(lineStart)) {
+      inLeadingBlock = false;
+      continue;
+    }
+
     if (inLeadingBlock) {
-      if (/^\s*```/.test(line)) {
+      if (line.match(/^\s*(```+|~~~+)/)) {
         inLeadingBlock = false;
         continue;
       }
@@ -1661,14 +1698,13 @@ function collapseBackgroundDirectives(markdown) {
   }
   if (bgIndices.length <= 1) return markdown;
 
-  // Combine all layers: collect color/gradient parts and image parts from
-  // every background line, preserving order, then emit one directive.
+  // Combine the multiple background directives into a single CSS multi-layer
+  // directive, keeping each layer's original value intact. Do not re-split
+  // color and image parts: a single layer that mixes a solid color with an
+  // image (e.g. `#000 url(images/hero.png)`) must stay in one layer.
   const layers = [];
   for (const idx of bgIndices) {
-    const value = lines[idx].replace(/^\s*background\s*:\s*/i, "").trim();
-    const { colorPart, imagePart, hasImage } = splitBackgroundValue(value);
-    if (colorPart) layers.push(colorPart);
-    if (hasImage && imagePart) layers.push(imagePart);
+    layers.push(lines[idx].replace(/^\s*background\s*:\s*/i, "").trim());
   }
   if (layers.length === 0) return markdown;
 

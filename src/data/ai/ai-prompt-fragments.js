@@ -8,7 +8,7 @@
 
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
-import { splitBackgroundValue } from "../image-markdown-parser.js";
+import { splitBackgroundValue, findFencedRanges } from "../image-markdown-parser.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -413,13 +413,18 @@ function stripDirectives(markdown, pattern) {
 function stripDirectivesWith(markdown, processLine) {
   const lines = markdown.split("\n");
   const out = [];
-  let inFence = false;
   let pendingBlank = false;
   let inLeadingBlock = true;
   // Any directive-looking line keeps the leading block open so a
   // non-stripped directive (e.g. `layout:`) does not end the block early
   // and strand a later `theme:`/ `background:` line in the body.
   const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
+
+  // Fence-aware: `~~~` and ` ``` ` fences are kept verbatim, and a bare `---`
+  // inside a fence must not be treated as a slide separator.
+  const fences = findFencedRanges(markdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
+  let offset = 0;
 
   const flushBlank = () => {
     if (pendingBlank) {
@@ -428,36 +433,45 @@ function stripDirectivesWith(markdown, processLine) {
     }
   };
 
-  for (const line of lines) {
-    if (/^```/.test(line.trim())) {
-      const opening = !inFence;
-      // Markdown requires a blank line before a fence opener — restore the
-      // separator when the stripped content ended right before one.
-      if (opening && pendingBlank) out.push("");
-      pendingBlank = false;
-      inFence = !inFence;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
+    const lineInFence = inFenceAt(lineStart);
+
+    if (lineInFence) {
+      // Preserve fenced content exactly, including blank lines and `---`.
+      flushBlank();
+      out.push(line);
+      offset = lineEnd;
+      // A fence ends the leading directive block.
       inLeadingBlock = false;
-      out.push(line);
       continue;
     }
-    if (inFence) {
+
+    const fenceMatch = line.match(/^\s*(```+|~~~+)/);
+    if (fenceMatch) {
+      // A fence opener ends the leading block and is kept verbatim.
+      inLeadingBlock = false;
+      flushBlank();
       out.push(line);
+      offset = lineEnd;
       continue;
     }
+
     if (line.trim() === "") {
       pendingBlank = true;
+      offset = lineEnd;
       continue;
     }
 
     // Slide separator — each slide has its own leading directive block.
-    // A bare `---` inside slide body (outside fences) is also treated as a
-    // separator by this format, so a directive-looking line after it is
-    // processed as the start of a new leading block. This mirrors the parser's
-    // behavior and is consistent with the rest of the toolchain.
+    // A bare `---` outside fences is treated as a separator.
     if (line.trim() === "---") {
       flushBlank();
       inLeadingBlock = true;
       out.push(line);
+      offset = lineEnd;
       continue;
     }
 
@@ -469,11 +483,13 @@ function stripDirectivesWith(markdown, processLine) {
         const result = processLine(line);
         if (result === true) {
           pendingBlank = true;
+          offset = lineEnd;
           continue;
         }
         if (typeof result === "string") {
           flushBlank();
           out.push(result);
+          offset = lineEnd;
           continue;
         }
         // result === false: keep the directive line as-is and continue the
@@ -483,6 +499,7 @@ function stripDirectivesWith(markdown, processLine) {
 
     flushBlank();
     out.push(line);
+    offset = lineEnd;
   }
   return out.join("\n").trim();
 }

@@ -554,7 +554,8 @@ AI prompts live in `src/data/prompts/`:
 | `images-guidance.md`                | snippet  | Vision images guidance variants for the remix plan prompt                                                                               |
 | `batch-pagination.md`               | snippet  | Batch pagination instructions variants for `buildBatchMessages`                                                                         |
 | `creative-guidance.md`              | snippet  | Remix creative guidance for the `{{creativeGuidance}}` placeholder                                                                      |
-| `visual-styling-note.md`            | snippet  | Visual styling note appended to reimagine breakdown prompt                                                                              |
+| `remix-flow-guidance.md`            | snippet  | Flow-specific restructuring guidance variants for the remix plan prompt                                                                 |
+| `visual-styling-note.md`            | snippet  | Visual-styling note variants consumed by the generate prompt                                                                            |
 | `repair-message.md`                 | snippet  | Repair message template for validation failures                                                                                         |
 | `density-budgets.md`                | snippet  | Per-area line-budget guidance variants (full/compact) for the generate and polish prompts                                               |
 
