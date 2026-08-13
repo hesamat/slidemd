@@ -802,12 +802,12 @@ Goal: Rename the app, refresh all documentation and positioning, complete manual
 
 ### Launch Metadata
 
-| Task                               | Details                                                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add Open Graph + Twitter cards | Add `og:title`, `og:description`, `og:image`, `og:url`, `og:type` and Twitter card meta tags to `index.html`. Essential for social sharing. |
-| [ ] Create og-image.png            | 1200x630px social preview image showing the app name and a slide preview.                                                                   |
-| [ ] Update meta description        | Expand `<meta name="description">` to 150-160 chars for SEO.                                                                                |
-| [ ] Create favicon set             | Verify favicon, apple-touch-icon, and manifest icons are current with the new name.                                                         |
+| Task                                  | Details                                                                                                                                                                                                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Create README hero image          | One good image (screenshot of a nice slide + app name) for the README. GitHub uses the first README image as the social preview card when the repo link is shared. This replaces separate og-image work for the GitHub-sharing case.                                                       |
+| [ ] Update favicon set                | Update favicon, apple-touch-icon, and manifest icons in `public/` to match the new brand. Matters for local use — browser tabs, bookmarks, and home-screen shortcuts.                                                                                                                      |
+| [ ] Add OG tags + meta (if demo site) | Only needed if deploying a public demo site: add `og:title`, `og:description`, `og:image`, `og:url`, `og:type`, Twitter card tags, and a 150-160 char meta description to `index.html`. If the public face is the GitHub repo only, the README hero image and repo description cover this. |
+| [ ] Update GitHub repo description    | Optimize the GitHub repo "About" description for search and sharing. This is what appears in GitHub search results and on the repo card.                                                                                                                                                   |
 
 ### Release
 
@@ -825,7 +825,9 @@ Goal: Rename the app, refresh all documentation and positioning, complete manual
 - Competitive comparison and privacy statement are published.
 - All critical user flows have been manually tested with no known crash bugs.
 - Full quality gate passes (lint, format, unit tests, E2E tests, build).
-- Social sharing produces a preview card (OG tags + image).
+- Sharing the GitHub repo link produces a preview card with a hero image (README image).
+- Favicon and manifest icons reflect the new brand.
+- If a public demo site is deployed, OG tags and meta description produce a social preview card.
 - CHANGELOG has a comprehensive v1.0 entry.
 - v1.0.0 is tagged and released on GitHub.
 
