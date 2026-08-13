@@ -233,8 +233,8 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 /**
  * Build the visual system brief + beat→treatment mapping for the generate
  * prompt's options suffix. When a visual system is present, this overrides
- * the generate prompt's generic "Pick ONE coherent visual theme" instruction
- * with specific design-language guidance.
+ * the generate prompt's generic visual-styling note with specific
+ * design-language guidance.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.

@@ -40,8 +40,8 @@ export {
  * @param {boolean} [opts.preserveVisualIdentity]
  * @param {import("./visual-system-schema.js").VisualSystem|null} [opts.visualSystem]
  *   When present, a visual system brief + beat→treatment mapping is appended,
- *   overriding the generate prompt's generic "Pick ONE coherent visual theme"
- *   instruction with specific design-language guidance.
+ *   overriding the generate prompt's generic visual-styling note with
+ *   specific design-language guidance.
  * @returns {string}
  */
 export function buildGenerateOptionsSuffix(opts = {}) {
