@@ -784,7 +784,7 @@ What to do:
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
-- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. Rough per-area line budgets: \`header-content\` \`@main\` ~10-14 lines, \`focus\` \`@main\` ~4-5 lines, \`two-column\` columns ~6-10 lines each, \`media-span\` \`@main\` ~8-12 lines. A code block, table, or diagram counts as roughly its number of rendered lines.
+- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. Rough per-area line budgets: \`title-slide\` \`@title\`/\`@footer\` one or two short lines each and no \`@main\` content, \`header-content\` \`@main\` ~10-14 lines, \`focus\` \`@main\` ~4-5 lines, \`two-column\` columns ~6-10 lines each, \`media-span\` \`@main\` ~8-12 lines, \`full-image\` \`@main\` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:

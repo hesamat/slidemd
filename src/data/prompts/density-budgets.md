@@ -11,4 +11,4 @@
 
 <!-- variant: compact -->
 
-Rough per-area line budgets: `header-content` `@main` ~10-14 lines, `focus` `@main` ~4-5 lines, `two-column` columns ~6-10 lines each, `media-span` `@main` ~8-12 lines. A code block, table, or diagram counts as roughly its number of rendered lines.
+Rough per-area line budgets: `title-slide` `@title`/`@footer` one or two short lines each and no `@main` content, `header-content` `@main` ~10-14 lines, `focus` `@main` ~4-5 lines, `two-column` columns ~6-10 lines each, `media-span` `@main` ~8-12 lines, `full-image` `@main` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.
