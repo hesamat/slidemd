@@ -211,9 +211,28 @@ export class AiProviderClient {
         throw new AiParseError("Failed to parse response JSON", bodyText);
       }
 
-      const content = json.choices?.[0]?.message?.content;
+      const choice = json.choices?.[0];
+      const content = choice?.message?.content;
       if (typeof content !== "string") {
-        throw new AiParseError("Response missing choices[0].message.content");
+        const finishReason = choice?.finish_reason;
+        const message = choice?.message;
+        // A reasoning model can spend its entire output budget on the hidden
+        // thinking pass and return no visible content (finish_reason "length").
+        if (finishReason === "length") {
+          throw new AiTokenExhaustedError(currentMaxTokens);
+        }
+        // Some providers put a content refusal in message.refusal.
+        if (message?.refusal && typeof message.refusal === "string") {
+          throw new AiRefusalError(message.refusal);
+        }
+        // Reasoning-only responses carry the thinking in message.reasoning.
+        if (message?.reasoning && typeof message.reasoning === "string") {
+          throw new AiParseError(
+            "Response contains only reasoning content, no visible output",
+            bodyText,
+          );
+        }
+        throw new AiParseError("Response missing choices[0].message.content", bodyText);
       }
 
       return { content, usage: json.usage || null, raw: json };
@@ -290,6 +309,52 @@ export class AiMaxTokensError extends Error {
    */
   get userMessage() {
     return `This model reserves ${this.requiredMinimum.toLocaleString()} tokens for internal reasoning, which left no room for the actual output. Try a model with a smaller reasoning budget, or increase the output length setting.`;
+  }
+}
+
+/**
+ * Thrown when the model exhausts its output token budget before producing any
+ * visible content (HTTP 200, `finish_reason: "length"`, content missing).
+ * This typically happens when a high reasoning/thinking effort consumes the
+ * entire budget on the hidden thinking pass. Not retried — the user should
+ * lower the thinking level and retry.
+ */
+export class AiTokenExhaustedError extends Error {
+  constructor(maxTokens) {
+    super(
+      `The model ran out of output tokens (${maxTokens}) before producing a response — this usually happens when the reasoning/thinking level is set too high. Try a lower thinking level, or reduce the number of slides, then retry.`,
+    );
+    this.name = "AiTokenExhaustedError";
+    this.maxTokens = maxTokens;
+  }
+
+  /**
+   * A user-friendly error message suitable for display in the UI.
+   * @returns {string}
+   */
+  get userMessage() {
+    return this.message;
+  }
+}
+
+/**
+ * Thrown when the provider refuses to generate content (e.g. a content
+ * filter). The refusal text is surfaced to the user; the request is not
+ * retried.
+ */
+export class AiRefusalError extends Error {
+  constructor(refusal) {
+    super(`The model refused to generate this content: ${refusal}`);
+    this.name = "AiRefusalError";
+    this.refusal = refusal;
+  }
+
+  /**
+   * A user-friendly error message suitable for display in the UI.
+   * @returns {string}
+   */
+  get userMessage() {
+    return this.message;
   }
 }
 

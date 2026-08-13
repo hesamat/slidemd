@@ -198,7 +198,7 @@ export class WholeDeckOrchestrator {
       if (finishReason === "length") {
         throw new Error(
           `Response truncated \u2014 the AI hit its output token limit (${maxTokens} tokens). ` +
-            "Try reducing the number of slides or switch to a model with a higher output token limit.",
+            "This often happens when the reasoning/thinking level is set too high. Try a lower thinking level, or reduce the number of slides.",
         );
       }
 
@@ -347,6 +347,8 @@ export class WholeDeckOrchestrator {
     let completedSlides = 0;
     let retryCount = 0;
     let splitCount = 0;
+    /** @type {string|null} — message of the last batch that failed permanently */
+    let lastFatalMessage = null;
     const retryAttempts = new Map();
     const repairMessages = new Map();
     const queue = batches.map((b, i) => ({
@@ -471,7 +473,10 @@ export class WholeDeckOrchestrator {
             // them and the repair message is text-only.
             batch.hasVisionImages = false;
             queue.unshift(batch);
-          } else if (attempts < 2) {
+          } else if (attempts < 2 && batchResult.error.type !== "token-exhausted") {
+            // token-exhausted is deterministic (same request → same empty
+            // output), so it must NOT be retried — it falls through to the
+            // permanent-failure branch below, which surfaces the guidance.
             const detail = batchResult.error.detail
               ? `: ${batchResult.error.detail}`
               : batchResult.error.message
@@ -512,6 +517,7 @@ export class WholeDeckOrchestrator {
                 `Batch ${batch.index + 1}: failed (${batchResult.error.type}${detail})`,
                 "error",
               );
+              if (batchResult.error.message) lastFatalMessage = batchResult.error.message;
             }
             const nextBatch = queue.length > 0 ? queue[0] : null;
             onProgress?.(completedSlides, totalSlides, nextBatch);
@@ -552,7 +558,9 @@ export class WholeDeckOrchestrator {
         "error",
       );
       throw new Error(
-        `Batch processing failed — ${completedSlides}/${totalSlides} slides completed`,
+        lastFatalMessage
+          ? `Batch processing failed — ${completedSlides}/${totalSlides} slides completed. ${lastFatalMessage}`
+          : `Batch processing failed — ${completedSlides}/${totalSlides} slides completed`,
       );
     }
 
@@ -714,7 +722,16 @@ export class WholeDeckOrchestrator {
       return { slides: parsed.slides, duration };
     } catch (err) {
       if (err.name === "AbortError" || err.name === "AiAbortError") return null;
-      return { error: { type: "network-error", message: err.message } };
+      // Token exhaustion and refusals are deterministic — retrying would
+      // re-send a byte-identical request and waste a long call. Surface the
+      // guidance immediately instead of consuming the batch retry budget.
+      // Prefer the friendly userMessage (e.g. token-exhaustion guidance) so
+      // the batch log and final error tell the user what to do next.
+      const type =
+        err.name === "AiTokenExhaustedError" || err.name === "AiRefusalError"
+          ? "token-exhausted"
+          : "network-error";
+      return { error: { type, message: err.userMessage || err.message } };
     }
   }
 }
