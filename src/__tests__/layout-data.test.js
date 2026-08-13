@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { LayoutData, getMediaFullBleedSideFromGrid } from "../data/layout-data.js";
 
 describe("LayoutData", () => {
@@ -124,6 +124,47 @@ describe("LayoutData", () => {
 
     it("returns false for missing layout", () => {
       expect(LayoutData.hasLayout("nonexistent")).toBe(false);
+    });
+  });
+
+  describe("getValidLayoutNames", () => {
+    it("returns the same names as getAllLayouts when nothing is stale", () => {
+      expect(LayoutData.getValidLayoutNames()).toEqual(LayoutData.getAllLayouts());
+    });
+
+    describe("with a stale custom layout", () => {
+      let originalLocalStorage;
+
+      beforeEach(() => {
+        originalLocalStorage = globalThis.localStorage;
+      });
+
+      afterEach(() => {
+        if (originalLocalStorage === undefined) delete globalThis.localStorage;
+        else globalThis.localStorage = originalLocalStorage;
+        LayoutData.deleteCustomLayout("stale-custom");
+        LayoutData._customMap = null;
+      });
+
+      it("excludes a custom layout name whose stored grid template is empty", () => {
+        // getAllLayouts() lists every custom layout name regardless of
+        // whether its stored grid template is a non-empty string;
+        // hasLayout() rejects an empty template. getValidLayoutNames()
+        // must apply that filter so callers never advertise a name that
+        // hasLayout()/the validator would then reject.
+        const store = {};
+        globalThis.localStorage = {
+          getItem: (key) => store[key] ?? null,
+          setItem: (key, value) => {
+            store[key] = value;
+          },
+        };
+        LayoutData._customMap = null;
+        LayoutData.setCustomLayout("stale-custom", "");
+
+        expect(LayoutData.getAllLayouts()).toContain("stale-custom");
+        expect(LayoutData.getValidLayoutNames()).not.toContain("stale-custom");
+      });
     });
   });
 });

@@ -71,7 +71,7 @@ console.log(x);
 describe("layout list sync", () => {
   it("covers every layout with defined areas", () => {
     const list = getAllowedLayoutList();
-    const listed = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
+    const listed = LayoutData.getValidLayoutNames();
     for (const name of listed) {
       expect(list).toContain(`${name}:`);
     }

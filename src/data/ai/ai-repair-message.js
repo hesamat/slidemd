@@ -22,23 +22,27 @@ import { KNOWN_TEXT_BLOCK_ATTRIBUTES } from "../../core/text-block-directive.js"
  * deck, so the repair message must stay a focused checklist, not a repeat
  * of the system prompt rules.
  */
-const CODE_GUIDANCE = {
-  SLIDE_CONTENT_OVERFLOW:
+const CODE_GUIDANCE = new Map([
+  [
+    "SLIDE_CONTENT_OVERFLOW",
     "Reduce content density — trim bullets, move detail to speaker notes, or split the slide.",
-  // Filter with hasLayout the same way getAllowedLayoutList() does (see
-  // ai-prompt-fragments.js) — getAllLayouts() can include a custom layout
-  // name whose stored grid template is empty/falsy, which hasLayout()
-  // (and the validator's own _isValidLayout check) would reject.
-  UNKNOWN_LAYOUT: () =>
-    `Valid layouts: ${LayoutData.getAllLayouts()
-      .filter((name) => LayoutData.hasLayout(name))
-      .join(", ")}.`,
-  INVALID_AREA: "Use only the @areas listed above for the slide's layout.",
-  MISSING_LAYOUT: "Add a `layout:` directive at the top of each slide.",
-  UNKNOWN_TEXT_BLOCK_ATTR: () =>
-    `Supported text-block attributes: ${[...KNOWN_TEXT_BLOCK_ATTRIBUTES].join(", ")}.`,
-  MALFORMED_TEXT_BLOCK: "Wrap text-block attributes in braces: `::: text-block { ... }`.",
-};
+  ],
+  // getValidLayoutNames() applies the same hasLayout() filter as
+  // getAllowedLayoutList() (see ai-prompt-fragments.js) so the two lists
+  // can't drift — a custom layout with an empty/falsy stored grid template
+  // would otherwise be advertised here as valid and rejected on retry.
+  ["UNKNOWN_LAYOUT", () => `Valid layouts: ${LayoutData.getValidLayoutNames().join(", ")}.`],
+  // Each INVALID_AREA issue message above already states that slide's
+  // allowed areas ("... allows only: ..."), so this points back at the
+  // issue list itself rather than repeating a layout→area table here.
+  ["INVALID_AREA", "Each area issue above lists that slide's allowed @areas — use only those."],
+  ["MISSING_LAYOUT", "Add a `layout:` directive at the top of each slide."],
+  [
+    "UNKNOWN_TEXT_BLOCK_ATTR",
+    () => `Supported text-block attributes: ${[...KNOWN_TEXT_BLOCK_ATTRIBUTES].join(", ")}.`,
+  ],
+  ["MALFORMED_TEXT_BLOCK", "Wrap text-block attributes in braces: `::: text-block { ... }`."],
+]);
 
 /**
  * Group errors by slide, preserving the order slides first appear in.
@@ -68,10 +72,9 @@ function buildGuidance(errors) {
   const seen = new Set();
   const lines = [];
   for (const err of errors) {
-    if (seen.has(err.code)) continue;
-    const entry = CODE_GUIDANCE[err.code];
-    if (!entry) continue;
+    if (seen.has(err.code) || !CODE_GUIDANCE.has(err.code)) continue;
     seen.add(err.code);
+    const entry = CODE_GUIDANCE.get(err.code);
     lines.push(`- ${typeof entry === "function" ? entry() : entry}`);
   }
   return lines.length > 0 ? `\n\nGuidance:\n${lines.join("\n")}` : "";

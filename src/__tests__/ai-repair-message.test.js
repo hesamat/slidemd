@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
 import { LayoutData } from "../data/layout-data.js";
 import { KNOWN_TEXT_BLOCK_ATTRIBUTES } from "../core/text-block-directive.js";
@@ -87,31 +87,40 @@ describe("buildRepairMessage", () => {
     ];
     const msg = buildRepairMessage(errors);
     expect(msg).toContain("Guidance:");
-    for (const layout of LayoutData.getAllLayouts()) {
+    for (const layout of LayoutData.getValidLayoutNames()) {
       expect(msg).toContain(layout);
     }
   });
 
   describe("UNKNOWN_LAYOUT guidance with a stale custom layout", () => {
+    // Save/restore is symmetric across beforeEach/afterEach (rather than
+    // capturing the original inside the test body) so cleanup runs
+    // correctly even if the test throws before mutating globalThis, and so
+    // a real jsdom localStorage would never be dropped if this file later
+    // gains an `@vitest-environment jsdom` pragma.
     let originalLocalStorage;
+
+    beforeEach(() => {
+      originalLocalStorage = globalThis.localStorage;
+    });
 
     afterEach(() => {
       if (originalLocalStorage === undefined) delete globalThis.localStorage;
       else globalThis.localStorage = originalLocalStorage;
       LayoutData.deleteCustomLayout("stale-custom");
-      // Force a fresh read from (now-restored) localStorage on next access,
-      // so this test's stub doesn't leak into later tests via the cache.
+      // Force a fresh read from the (now-restored) localStorage on next
+      // access, so this test's stub doesn't leak into later tests via the
+      // module-level cache.
       LayoutData._customMap = null;
     });
 
     it("excludes a custom layout name whose stored grid template is empty", () => {
       // LayoutData.getAllLayouts() lists custom names regardless of whether
       // their stored grid template is a non-empty string; hasLayout() (and
-      // the validator's own layout check) rejects an empty template. The
-      // repair guidance must apply the same hasLayout filter so it never
-      // tells the AI a name is "valid" when the validator would reject it
-      // on the next repair attempt.
-      originalLocalStorage = globalThis.localStorage;
+      // the validator's own layout check) rejects an empty template.
+      // getValidLayoutNames() must apply the same hasLayout filter so the
+      // repair guidance never tells the AI a name is "valid" when the
+      // validator would reject it on the next repair attempt.
       const store = {};
       globalThis.localStorage = {
         getItem: (key) => store[key] ?? null,
@@ -123,7 +132,7 @@ describe("buildRepairMessage", () => {
       LayoutData.setCustomLayout("stale-custom", "");
 
       expect(LayoutData.getAllLayouts()).toContain("stale-custom");
-      expect(LayoutData.hasLayout("stale-custom")).toBe(false);
+      expect(LayoutData.getValidLayoutNames()).not.toContain("stale-custom");
 
       const msg = buildRepairMessage([
         { slide: 0, code: "UNKNOWN_LAYOUT", message: 'Slide 1 uses unknown layout "foo"' },
@@ -132,7 +141,7 @@ describe("buildRepairMessage", () => {
     });
   });
 
-  it("reminds the AI to use only the listed areas for INVALID_AREA errors", () => {
+  it("reminds the AI to use only the areas its own issue message lists for INVALID_AREA errors", () => {
     const errors = [
       {
         slide: 0,
@@ -142,7 +151,13 @@ describe("buildRepairMessage", () => {
     ];
     const msg = buildRepairMessage(errors);
     expect(msg).toContain("Guidance:");
-    expect(msg).toContain("Use only the @areas listed above for the slide's layout.");
+    expect(msg).toContain(
+      "Each area issue above lists that slide's allowed @areas — use only those.",
+    );
+    // The guidance points back at the issue text itself (which is always
+    // present in the same message, not dependent on earlier conversation
+    // turns), so the referent is always available.
+    expect(msg.indexOf("allows only: header, main")).toBeLessThan(msg.indexOf("Guidance:"));
   });
 
   it("tells the AI to add a layout directive for MISSING_LAYOUT errors", () => {

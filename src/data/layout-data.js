@@ -174,6 +174,18 @@ export class LayoutData {
   }
 
   /**
+   * Get all layout names that are actually usable — i.e. `hasLayout()`
+   * would accept them. `getAllLayouts()` can include a custom layout name
+   * whose stored grid template is empty/falsy (e.g. saved before validation
+   * was added, or corrupted localStorage), which `hasLayout()` rejects.
+   * Any list shown to the AI (system prompt, repair guidance) must use this
+   * so it never advertises a name the validator would then reject.
+   */
+  static getValidLayoutNames() {
+    return this.getAllLayouts().filter((name) => this.hasLayout(name));
+  }
+
+  /**
    * Get layout description.
    */
   static getDescription(layoutName) {
