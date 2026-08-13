@@ -124,6 +124,39 @@ describe("buildDeckSummary", () => {
     expect(summary).not.toContain("COMP 1510 202630");
     expect(summary).toContain("1. [focus] Dictionaries");
   });
+
+  it("enriches per-slide metadata when enrichPerSlide is true", () => {
+    const md =
+      "layout: header-content\n@header\n## Intro\n\n@main\n- Point 1\n- Point 2\n- Point 3\n\n---\n\nlayout: two-column\n@header\n## Code Slide\n\n@main\n```\nconsole.log('hi')\n```\n\n@media\n<img src=\"pic.png\">";
+    const summary = buildDeckSummary(md, false, true);
+    // First slide: 3 bullets, no code/images/diagrams
+    expect(summary).toContain("1. [header-content] Intro (4 lines, 3 bullets)");
+    // Second slide: has code and image
+    expect(summary).toContain("2. [two-column] Code Slide");
+    expect(summary).toContain("code");
+    expect(summary).toContain("image");
+  });
+
+  it("does not enrich per-slide metadata by default", () => {
+    const md = "layout: header-content\n@header\n## Intro\n\n@main\n- Point 1\n- Point 2";
+    const summary = buildDeckSummary(md);
+    expect(summary).toContain("1. [header-content] Intro");
+    expect(summary).not.toContain("bullets");
+    expect(summary).not.toContain("lines");
+  });
+
+  it("enriched metadata marks diagrams", () => {
+    const md = "layout: header-content\n@main\n[Diagram: A, B]";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("diagram");
+  });
+
+  it("enriched metadata counts a single bullet correctly", () => {
+    const md = "layout: header-content\n@main\n- Only one";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("1 bullet");
+    expect(summary).not.toContain("1 bullets");
+  });
 });
 
 describe("buildBatchMessages", () => {

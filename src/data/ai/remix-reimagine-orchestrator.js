@@ -935,7 +935,7 @@ export class RemixReimagineOrchestrator {
     const { context } = operation;
     const { onLog } = callbacks;
 
-    const deckSummary = buildDeckSummary(context);
+    const deckSummary = buildDeckSummary(context, false, true);
     const sourceCount = splitSlidesForAi(context, "generate").length;
 
     const mode = operation.opts?.mode || "remix";
@@ -1180,6 +1180,12 @@ export class RemixReimagineOrchestrator {
 
       if (entry.action !== "keep" && (!entry.brief || entry.brief.trim().length === 0)) {
         errors.push(`${prefix}: brief is required for action "${entry.action}"`);
+      }
+
+      // `reason` explains why this action was chosen. Required for all actions
+      // (including keep) so the sidebar can surface decision rationale.
+      if (entry.reason === undefined || entry.reason === null || entry.reason.trim().length === 0) {
+        errors.push(`${prefix}: reason is required for action "${entry.action}"`);
       }
 
       // keepImages is optional. If present, must be an array of non-negative

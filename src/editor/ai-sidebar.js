@@ -210,6 +210,8 @@ export class AiSidebar {
         const badge = document.createElement("span");
         badge.className = `${P}plan-badge ${P}plan-badge--${entry.action}`;
         badge.textContent = entry.action;
+        const content = document.createElement("div");
+        content.className = `${P}plan-content`;
         const label = document.createElement("span");
         label.className = `${P}plan-label`;
         if (entry.action === "keep") {
@@ -219,8 +221,17 @@ export class AiSidebar {
         } else {
           label.textContent = `Slide ${sourceLabel}: ${entry.title} \u2014 ${entry.brief || ""}`;
         }
+        content.appendChild(label);
+        // Show the decision rationale under the label so users can understand
+        // why each slide was kept, rewritten, or merged.
+        if (entry.reason) {
+          const reasonEl = document.createElement("div");
+          reasonEl.className = `${P}plan-reason`;
+          reasonEl.textContent = entry.reason;
+          content.appendChild(reasonEl);
+        }
         row.appendChild(badge);
-        row.appendChild(label);
+        row.appendChild(content);
         body.appendChild(row);
       }
 

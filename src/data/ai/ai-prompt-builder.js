@@ -97,9 +97,13 @@ export function buildMessages(markdown, mode) {
  * @param {boolean} [includeFirstSlide=false] - When true, appends the full raw
  *   text of the first slide so the reimagine outline prompt can extract
  *   identifying information for the first slide's footer.
+ * @param {boolean} [enrichPerSlide=false] - When true, adds per-slide metadata
+ *   (content line count, bullet count, code/image/diagram markers) to each
+ *   outline entry. Used by the Remix plan phase so the planning AI has enough
+ *   signal to make keep/rewrite/merge decisions without seeing full content.
  * @returns {string}
  */
-export function buildDeckSummary(markdown, includeFirstSlide = false) {
+export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerSlide = false) {
   // Fence-aware split so `---` inside code blocks doesn't create phantom
   // slides and misalign the outline (same fix as buildBatchMessages /
   // extractDirectives / injectDirectives).
@@ -110,7 +114,20 @@ export function buildDeckSummary(markdown, includeFirstSlide = false) {
     const lines = slide.split("\n").filter((l) => l.trim());
     const titleLine = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || `Slide ${i + 1}`;
     const title = titleLine.replace(/^#+\s*/, "").trim();
-    return `${i + 1}. [${layout}] ${title}`;
+    let entry = `${i + 1}. [${layout}] ${title}`;
+    if (enrichPerSlide) {
+      const meta = [];
+      // Count non-empty content lines (exclude frontmatter and @area markers).
+      const contentLines = lines.filter((l) => !/^(@\w+|layout:|theme:|background:|---)/.test(l));
+      meta.push(`${contentLines.length} lines`);
+      const bulletCount = contentLines.filter((l) => /^[-*]\s/.test(l)).length;
+      if (bulletCount > 0) meta.push(`${bulletCount} bullet${bulletCount > 1 ? "s" : ""}`);
+      if (/```/.test(slide)) meta.push("code");
+      if (/<img/.test(slide)) meta.push("image");
+      if (/\[Diagram:/.test(slide)) meta.push("diagram");
+      if (meta.length) entry += ` (${meta.join(", ")})`;
+    }
+    return entry;
   });
 
   const hasCode = slides.some((s) => /```/.test(s));

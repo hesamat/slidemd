@@ -84,7 +84,7 @@ Refines the whole deck while preserving structure and visual identity:
 
 ### Remix (plan → execute)
 
-Uses `remix-plan-prompt.md` for the planning call and `generate-prompt.md` for the execute call. The plan produces a structured `plan` array (`keep`, `rewrite`, `merge`) that is converted to a virtual deck and sent through the generate path.
+Uses `remix-plan-prompt.md` for the planning call and `generate-prompt.md` for the execute call. The plan produces a structured `plan` array (`keep`, `rewrite`, `merge`) with per-entry `brief`, `reason`, and `title` fields. The plan is converted to a virtual deck and sent through the generate path. The `reason` field is surfaced in the AI sidebar so users can understand why each slide was kept, rewritten, or merged.
 
 | Mode    | Creative freedom | Visual identity | Slide count | Plan guidance                                                       |
 | ------- | ---------------- | --------------- | ----------- | ------------------------------------------------------------------- |

@@ -257,11 +257,12 @@ describe("AiOrchestrator", () => {
 
     const REMIX_PLAN_RESPONSE = JSON.stringify({
       plan: [
-        { action: "keep", source: [0], brief: "", title: "Slide 1" },
+        { action: "keep", source: [0], brief: "", reason: "Already clear", title: "Slide 1" },
         {
           action: "rewrite",
           source: [1],
           brief: "Make this more concise",
+          reason: "Content is verbose",
           title: "Slide 2",
         },
       ],
@@ -388,6 +389,30 @@ describe("AiOrchestrator", () => {
       expect(planUser).toContain("Preserve the deck's core message");
       expect(planUser).toContain("strip out the original color theme");
       expect(planUser).toContain("valid source indices are 0 through 1");
+    });
+
+    it("remix plan prompt includes enriched per-slide metadata in the deck summary", async () => {
+      const deckWithBullets =
+        "layout: header-content\n@header\n## Slide 1\n\n@main\n- Point A\n- Point B\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n```\nconsole.log(1)\n```";
+      const provider = mockProviderSequence([
+        JSON.stringify({
+          plan: [
+            { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+            { action: "rewrite", source: [1], brief: "fix", reason: "ok", title: "S2" },
+          ],
+        }),
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithBullets, { mode: "remix" });
+      await orchestrator.runWholeDeckOperation(op);
+      const planUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      // Enriched metadata: bullet count and code marker
+      expect(planUser).toContain("bullets");
+      expect(planUser).toContain("code");
     });
 
     it("routes reimagine through the outline flow (no remix plan)", async () => {
@@ -1018,7 +1043,7 @@ describe("AiOrchestrator", () => {
 
     it("throws on invalid plan action", async () => {
       const badPlan = JSON.stringify({
-        plan: [{ action: "split", source: [0], brief: "split this", title: "X" }],
+        plan: [{ action: "split", source: [0], brief: "split this", reason: "ok", title: "X" }],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
@@ -1026,11 +1051,30 @@ describe("AiOrchestrator", () => {
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
-    it("throws on out-of-range source index", async () => {
+    it("throws on missing reason field", async () => {
       const badPlan = JSON.stringify({
         plan: [
           { action: "keep", source: [0], brief: "", title: "S1" },
-          { action: "rewrite", source: [5], brief: "fix", title: "S5" },
+          {
+            action: "rewrite",
+            source: [1],
+            brief: "fix",
+            reason: "needs tightening",
+            title: "S2",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("reason is required");
+    });
+
+    it("throws on out-of-range source index", async () => {
+      const badPlan = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "rewrite", source: [5], brief: "fix", reason: "ok", title: "S5" },
         ],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
@@ -1043,8 +1087,8 @@ describe("AiOrchestrator", () => {
       // sourceCount = 2; index 2 is clamped to 1, producing [1, 1]
       const badPlan = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", title: "S1" },
-          { action: "merge", source: [1, 2], brief: "merge last two", title: "M" },
+          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "merge", source: [1, 2], brief: "merge last two", reason: "ok", title: "M" },
         ],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
@@ -1055,7 +1099,7 @@ describe("AiOrchestrator", () => {
 
     it("throws on uncovered source slide", async () => {
       const badPlan = JSON.stringify({
-        plan: [{ action: "keep", source: [0], brief: "", title: "S1" }],
+        plan: [{ action: "keep", source: [0], brief: "", reason: "ok", title: "S1" }],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
@@ -1070,6 +1114,7 @@ describe("AiOrchestrator", () => {
             action: "merge",
             source: [0, 1],
             brief: "Combine into one slide",
+            reason: "Both slides are thin",
             title: "Combined",
           },
         ],
@@ -1105,10 +1150,11 @@ describe("AiOrchestrator", () => {
           action: "rewrite",
           source: [0],
           brief: "Reposition image",
+          reason: "Image placement is off",
           title: "Slide 1",
           keepImages: [0],
         },
-        { action: "keep", source: [1], brief: "", title: "Slide 2" },
+        { action: "keep", source: [1], brief: "", reason: "Fine as-is", title: "Slide 2" },
       ],
     });
 
@@ -1239,10 +1285,11 @@ describe("AiOrchestrator", () => {
             action: "rewrite",
             source: [0],
             brief: "Test",
+            reason: "ok",
             title: "S1",
             keepImages: "not-an-array",
           },
-          { action: "keep", source: [1], brief: "", title: "S2" },
+          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
         ],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
@@ -1274,10 +1321,11 @@ describe("AiOrchestrator", () => {
             action: "rewrite",
             source: [0],
             brief: "Keep only first image",
+            reason: "Second image is redundant",
             title: "S1",
             keepImages: [0], // keep only a.png, drop b.png
           },
-          { action: "keep", source: [1], brief: "", title: "S2" },
+          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
         ],
       });
       const executeResponse = JSON.stringify({
@@ -1317,10 +1365,11 @@ describe("AiOrchestrator", () => {
             action: "rewrite",
             source: [0],
             brief: "Keep only first image",
+            reason: "ok",
             title: "S1",
             keepImages: [0], // hallucinated — no images were ever sent
           },
-          { action: "keep", source: [1], brief: "", title: "S2" },
+          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
         ],
       });
       const executeResponse = JSON.stringify({
