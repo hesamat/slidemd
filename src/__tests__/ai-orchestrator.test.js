@@ -1,6 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeAll } from "vitest";
+import markdownit from "markdown-it";
 import { AiOrchestrator, isVisionError } from "../data/ai/ai-orchestrator.js";
 import { createOperation } from "../data/ai/ai-operation.js";
+
+// The output validator renders markdown through markdown-it (window.markdownit),
+// which is only defined in jsdom — without it validation always fails with
+// PARSE_ERROR and the remix/reimagine repair loops degrade to accept-after-retry.
+beforeAll(() => {
+  window.markdownit = markdownit;
+});
 
 // Mock slide-image-extractor so we don't need canvas/Image in orchestrator tests.
 // The actual extractAll is async and fetches images; here we return fake data URLs.
@@ -364,6 +373,105 @@ describe("AiOrchestrator", () => {
       expect(result).not.toContain("undefined");
     });
 
+    it("repairs execute output that drops identity or fabricates image URLs", async () => {
+      const THEMED_DECK =
+        'layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2';
+      const THEMED_PLAN_RESPONSE = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Tighten the slide",
+            reason: "Content is verbose",
+            title: "Slide 1",
+          },
+          { action: "keep", source: [1], brief: "", reason: "Fine as-is", title: "Slide 2" },
+        ],
+      });
+      // First attempt drops theme/background and invents an external image URL.
+      const BAD_EXECUTE_RESPONSE = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content:
+              '@header\n## Slide 1\n\n@main\n- Concise\n\n<img src="https://example.com/invented.png">',
+          },
+        ],
+      });
+      // Repair attempt restores identity and uses only the source image.
+      const GOOD_EXECUTE_RESPONSE = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content:
+              'theme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Concise\n\n<img src="images/a.png">',
+          },
+        ],
+      });
+      const provider = mockProviderSequence([
+        THEMED_PLAN_RESPONSE,
+        BAD_EXECUTE_RESPONSE,
+        GOOD_EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, THEMED_DECK, { mode: "remix" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // Plan + rejected attempt + repaired attempt.
+      expect(provider.chat).toHaveBeenCalledTimes(3);
+      expect(logs.some((l) => l.includes("Validation attempt 1"))).toBe(true);
+      expect(result).toContain("theme: dark");
+      expect(result).toContain("background: #1a1a2e");
+      expect(result).toContain('src="images/a.png"');
+      expect(result).not.toContain("example.com");
+    });
+
+    it("strips stale theme/background directives from the final deck in discard mode", async () => {
+      const THEMED_DECK =
+        "layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Point A\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
+      const THEMED_PLAN_RESPONSE = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Tighten the slide",
+            reason: "Content is verbose",
+            title: "Slide 1",
+          },
+          { action: "keep", source: [1], brief: "", reason: "Fine as-is", title: "Slide 2" },
+        ],
+      });
+      // The AI echoes the old theme/background even though the plan context
+      // was stripped — the orchestrator must strip them from the final deck.
+      const ECHO_EXECUTE_RESPONSE = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content:
+              "theme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Concise point",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([
+        THEMED_PLAN_RESPONSE,
+        ECHO_EXECUTE_RESPONSE,
+        ECHO_EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, THEMED_DECK, {
+        mode: "remix",
+        preserveVisualIdentity: false,
+      });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain("Concise point");
+      expect(result).not.toContain("theme:");
+      expect(result).not.toContain("background:");
+    });
+
     it("does not route to remix for mode=polish", async () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
@@ -387,7 +495,10 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(planUser).toContain("Preserve the deck's core message");
-      expect(planUser).toContain("strip out the original color theme");
+      // Preserve mode keeps the original identity — it must not instruct the
+      // execute phase to strip themes/backgrounds.
+      expect(planUser).toContain("Preserve the original color theme");
+      expect(planUser).not.toContain("strip out the original color theme");
       expect(planUser).toContain("valid source indices are 0 through 1");
     });
 
@@ -1657,10 +1768,40 @@ describe("AiOrchestrator", () => {
       });
       expect(result).not.toBeNull();
       expect(logs.some((l) => l.includes("Breakdown parse failed"))).toBe(true);
-      // The retry should have consumed an extra provider call: outline + bad
-      // breakdown + retry breakdown + execute calls (one or more depending
-      // on batching). Without the retry it would be 4; with it it's 5.
-      expect(provider.chat).toHaveBeenCalledTimes(5);
+      // The retry consumed an extra provider call: outline + bad breakdown +
+      // retry breakdown + execute (which passes validation on the first attempt).
+      expect(provider.chat).toHaveBeenCalledTimes(4);
+    });
+
+    it("strips echoed theme/background directives from the reimagine result", async () => {
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BREAKDOWN_RESPONSE,
+        JSON.stringify({
+          slides: [
+            {
+              layout: "header-content",
+              content: "theme: dark\nbackground: #1a1a2e\n@header\n## Slide A\n\n@main\n- A",
+            },
+            {
+              layout: "header-content",
+              content: "@header\n## Slide B\n\n@main\n- B",
+            },
+          ],
+        }),
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+      });
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // Reimagine always discards visual identity — echoed directives are stripped.
+      expect(result).toContain("Slide A");
+      expect(result).not.toContain("theme:");
+      expect(result).not.toContain("background:");
     });
   });
 

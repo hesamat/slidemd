@@ -184,10 +184,18 @@ export class RemixReimagineOrchestrator {
     // ── Phase 3: Execute via existing single-call/batched path ──
     // Build a synthetic operation with the virtual deck as context.
     // Clear mode so the inner call doesn't recurse into the remix flow.
+    // Propagate the resolved preserveVisualIdentity so the execute validator
+    // enforces directive preservation, and restrict output images to the
+    // virtual deck's sources (no fabricated URLs).
     const execOp = {
       ...operation,
       context: virtualDeck,
-      opts: { ...operation.opts, mode: undefined },
+      opts: {
+        ...operation.opts,
+        mode: undefined,
+        preserveVisualIdentity,
+        restrictImageSources: true,
+      },
     };
     const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
 
@@ -249,7 +257,12 @@ export class RemixReimagineOrchestrator {
     const finalSlides = plan.map((_, i) =>
       keptByPlanIndex.has(i) ? keptByPlanIndex.get(i) : rewrittenSlides[rewriteIdx++],
     );
-    return finalSlides.join("\n\n---\n\n");
+    const finalMarkdown = finalSlides.join("\n\n---\n\n");
+
+    // Discard mode: the plan context was stripped, but the AI may still echo
+    // theme/background directives it saw in other instructions or invented.
+    // Strip mechanically so stale visual directives never survive the splice.
+    return preserveVisualIdentity ? finalMarkdown : stripThemeAndBackground(finalMarkdown);
   }
 
   // ── Reimagine (brief + outline → generate) ──
@@ -388,6 +401,8 @@ export class RemixReimagineOrchestrator {
         ...operation.opts,
         mode: undefined,
         visualSystem: editedOutline.visualSystem ?? null,
+        // Output images must resolve to the kept source images (reuse:<path>).
+        restrictImageSources: true,
       },
     };
     const execSuffix =
@@ -419,7 +434,9 @@ export class RemixReimagineOrchestrator {
     // The generate path gap-fills directives positionally when the slide
     // count matches. For reimagine the virtual deck has no original
     // directives, so there's nothing to gap-fill — return the result as-is.
-    return result;
+    // Reimagine always discards visual identity, so strip any theme/background
+    // the AI echoed back from the source deck.
+    return stripThemeAndBackground(result);
   }
 
   /**

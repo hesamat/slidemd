@@ -207,6 +207,8 @@ export class WholeDeckOrchestrator {
       const result = validator.validate(enhancedMarkdown, "generate", {
         expectedSlideCount: expectedSlideCount ?? undefined,
         skipOverflow: operation.opts?.mode === "polish",
+        preserveVisualIdentity: operation.opts?.preserveVisualIdentity === true,
+        restrictImageSources: operation.opts?.restrictImageSources === true,
       });
 
       if (result.ok) {
@@ -366,6 +368,8 @@ export class WholeDeckOrchestrator {
           repairMessages: repairMessages.get(batch.batchKey) || [],
           mode: operation.opts?.mode,
           hasVisualSystem: !!operation.opts?.visualSystem,
+          preserveVisualIdentity: operation.opts?.preserveVisualIdentity === true,
+          restrictImageSources: operation.opts?.restrictImageSources === true,
           // Only the first batch gets vision images — subsequent batches
           // know the paths from the options suffix text.
           visionImages: batch.hasVisionImages ? visionImages : null,
@@ -556,6 +560,8 @@ export class WholeDeckOrchestrator {
     repairMessages = [],
     mode,
     hasVisualSystem = false,
+    preserveVisualIdentity = false,
+    restrictImageSources = false,
     visionImages = null,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
@@ -655,6 +661,8 @@ export class WholeDeckOrchestrator {
       const result = validator.validate(enhancedMarkdown, "generate", {
         expectedSlideCount: expectedCount,
         skipOverflow: mode === "polish",
+        preserveVisualIdentity,
+        restrictImageSources,
       });
 
       if (!result.ok) {

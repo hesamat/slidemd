@@ -49,6 +49,18 @@ const CODE_GUIDANCE = new Map([
     "Each text-block issue above lists the supported attributes — use only those.",
   ],
   ["MALFORMED_TEXT_BLOCK", "Wrap text-block attributes in braces: `::: text-block { ... }`."],
+  [
+    "IDENTITY_DIRECTIVE_DROPPED",
+    "Restore the input's `theme:`/`background:` directives on the slides listed above — visual identity must be preserved.",
+  ],
+  [
+    "IDENTITY_DIRECTIVE_ADDED",
+    "Remove the `theme:`/`background:` directives that are not present in the input — do not add new ones.",
+  ],
+  [
+    "FABRICATED_IMAGE_SRC",
+    "Only use images that exist in the input deck (with their exact paths) or are referenced by `reuse:<path>` directives — never fabricate image URLs.",
+  ],
 ]);
 
 /**

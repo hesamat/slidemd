@@ -591,4 +591,268 @@ background: #1a1a2e
       expect(result.errors).toHaveLength(0);
     });
   });
+
+  describe("preserveVisualIdentity checks (remix preserve mode)", () => {
+    const validatePreserve = (inputMarkdown, outputMarkdown) => {
+      const validator = new AiOutputValidator({ inputMarkdown });
+      return validator.validate(outputMarkdown, "generate", {
+        expectedSlideCount: 1,
+        preserveVisualIdentity: true,
+      });
+    };
+
+    const INPUT = `layout: header-content
+theme: dark
+background: #1a1a2e
+
+@header
+# Title
+
+@main
+- Item one
+- Item two`;
+
+    it("passes when the output keeps the input's theme and background", () => {
+      const output = `layout: header-content
+theme: dark
+background: #1a1a2e
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(INPUT, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("errors when the output drops the input's theme", () => {
+      const output = `layout: header-content
+background: #1a1a2e
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(INPUT, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("IDENTITY_DIRECTIVE_DROPPED");
+      expect(result.errors.find((e) => e.code === "IDENTITY_DIRECTIVE_DROPPED").message).toContain(
+        "theme: dark",
+      );
+    });
+
+    it("errors when the output introduces a new background", () => {
+      const output = `layout: header-content
+theme: dark
+background: linear-gradient(#000, #fff)
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(INPUT, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("IDENTITY_DIRECTIVE_ADDED");
+    });
+
+    it("errors when a slide with no input identity gains a theme", () => {
+      const input = `layout: header-content
+
+@header
+# Title
+
+@main
+- Item`;
+      const output = `layout: header-content
+theme: dark
+
+@header
+# Title
+
+@main
+- Item`;
+      const result = validatePreserve(input, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("IDENTITY_DIRECTIVE_ADDED");
+    });
+
+    it("passes when a merged slide keeps one of several input backgrounds", () => {
+      // A merged virtual slide carries one directive set per source slide.
+      const input = `layout: header-content
+background: #111
+theme: dark
+
+@main
+- A
+
+<!-- merge source -->
+
+layout: header-content
+background: #222
+
+@main
+- B`;
+      // The merge's output slide keeps one of the two backgrounds — allowed.
+      const output = `layout: header-content
+background: #111
+theme: dark
+
+@main
+- A and B`;
+      const result = validatePreserve(input, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("skips positional checks when the slide count does not match the input", () => {
+      const output = `layout: header-content
+
+@main
+- Only slide
+
+---
+
+layout: header-content
+
+@main
+- Second slide`;
+      const result = validatePreserve(INPUT, output);
+      // Count mismatch is the only error — no identity errors on misaligned slides.
+      expect(result.errors.map((e) => e.code)).toEqual(["SLIDE_COUNT_MISMATCH"]);
+    });
+
+    it("does not enforce identity when preserveVisualIdentity is not set", () => {
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+- No theme kept`;
+      const validator = new AiOutputValidator({ inputMarkdown: INPUT });
+      const result = validator.validate(output, "generate", { expectedSlideCount: 1 });
+      expect(result.ok).toBe(true);
+    });
+  });
+
+  describe("restrictImageSources checks (remix/reimagine execute)", () => {
+    const validateSources = (inputMarkdown, outputMarkdown) => {
+      const validator = new AiOutputValidator({ inputMarkdown });
+      return validator.validate(outputMarkdown, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+      });
+    };
+
+    const INPUT = `layout: header-content
+background: url(images/bg.png)
+
+@header
+# Title
+
+@main
+<img src="images/team.png" alt="Team">`;
+
+    it("passes when the output reuses images from the input deck", () => {
+      const output = `layout: header-content
+
+@main
+<img src="images/team.png" alt="Team">`;
+      const result = validateSources(INPUT, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("errors on fabricated or external image URLs", () => {
+      const output = `layout: header-content
+
+@main
+<img src="https://example.com/fake.png" alt="Fake">`;
+      const result = validateSources(INPUT, output);
+      expect(result.ok).toBe(false);
+      const err = result.errors.find((e) => e.code === "FABRICATED_IMAGE_SRC");
+      expect(err).toBeDefined();
+      expect(err.message).toContain("https://example.com/fake.png");
+    });
+
+    it("errors on invented local image paths", () => {
+      const output = `layout: header-content
+
+@main
+<img src="images/generated-chart.png">`;
+      const result = validateSources(INPUT, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+    });
+
+    it("allows images referenced via reuse:<path> in the input", () => {
+      const input = `<!-- brief: Intro | image: reuse:images/team.png -->`;
+      const output = `layout: header-content
+
+@main
+<img src="images/team.png" alt="Team">`;
+      const result = validateSources(input, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("allows an input background url to be reused as a background", () => {
+      const output = `layout: header-content
+background: url(images/bg.png)
+
+@main
+- Text`;
+      const result = validateSources(INPUT, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("errors on a fabricated background url", () => {
+      const output = `layout: header-content
+background: url(https://example.com/bg.png)
+
+@main
+- Text`;
+      const result = validateSources(INPUT, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+    });
+
+    it("errors when the input has no images and the output adds one", () => {
+      const input = `layout: header-content
+
+@main
+- Text only`;
+      const output = `layout: header-content
+
+@main
+<img src="images/new.png">`;
+      const result = validateSources(input, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+    });
+
+    it("does not flag image srcs inside code fences (code samples, not references)", () => {
+      const input = `layout: header-content
+
+@main
+\`\`\`html
+<img src="images/code-sample.png">
+\`\`\``;
+      // The output's code sample references an image that is not in the deck —
+      // it is illustrative HTML, so it must not be flagged as fabricated.
+      const output = `layout: header-content
+
+@main
+\`\`\`html
+<img src="https://developer.mozilla.org/logo.png">
+\`\`\``;
+      const result = validateSources(input, output);
+      expect(result.ok).toBe(true);
+    });
+  });
 });

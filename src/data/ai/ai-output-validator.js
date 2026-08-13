@@ -5,6 +5,7 @@ import {
   parseTextBlockDirectives,
   CANONICAL_TEXT_BLOCK_ATTRIBUTES,
 } from "../../core/text-block-directive.js";
+import { parseAllImages } from "../image-markdown-parser.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
@@ -193,6 +194,16 @@ export class AiOutputValidator {
    * @param {number} [opts.expectedSlideCount] — when set, enforce exact slide count
    * @param {boolean} [opts.skipOverflow] — skip the content-volume/overflow check
    *   (used by polish, which must preserve existing content rather than trim it)
+   * @param {boolean} [opts.preserveVisualIdentity] — when true (remix preserve mode),
+   *   enforce per-slide preservation of the input's `theme:`/`background:` directives:
+   *   each input directive must survive at the same position, and no new directive
+   *   values may be introduced (positional — only meaningful when the slide count
+   *   matches the input, which expectedSlideCount enforces).
+   * @param {boolean} [opts.restrictImageSources] — when true (remix/reimagine execute),
+   *   every `<img src>` and `background: url(...)` in the output must reference an
+   *   image that exists in the input deck (an `<img>` src, a `reuse:<path>` reference,
+   *   or a `background: url(...)` value from the input) — fabricated/external URLs are
+   *   rejected.
    * @returns {ValidationResult}
    */
   validate(outputMarkdown, intent, opts = {}) {
@@ -305,6 +316,16 @@ export class AiOutputValidator {
 
       // Intent-specific constraints (compare against input slide)
       this._checkIntentSpecifics(slide, i, intent, errors, warnings);
+    }
+
+    // Remix/reimagine execute-phase constraints (see opts docs above).
+    if (opts.restrictImageSources) {
+      this._checkImageSources(rawSlideTexts, errors);
+    }
+    // Positional identity preservation — only meaningful when slide counts match
+    // (expectedSlideCount enforces this in the remix execute path).
+    if (opts.preserveVisualIdentity && rawSlideTexts.length === inputRawSlideTexts.length) {
+      this._checkPreservedIdentity(inputRawSlideTexts, rawSlideTexts, errors);
     }
 
     return { ok: errors.length === 0, errors, warnings, slides };
@@ -552,6 +573,100 @@ export class AiOutputValidator {
   }
 
   /**
+   * Enforce per-slide preservation of `theme:`/`background:` directives when
+   * visual identity preservation is enabled (remix preserve mode).
+   *
+   * Positional: output slide i must keep the input slide i's directive values —
+   * at least one value per directive type when the input has several (merged
+   * virtual slides carry one directive set per source, and the AI picks one) —
+   * and must not introduce directive values the input slide does not have.
+   *
+   * @param {string[]} inputSlides — raw input slide texts (same index order as output)
+   * @param {string[]} outputSlides — raw output slide texts
+   * @param {ValidationError[]} errors
+   */
+  _checkPreservedIdentity(inputSlides, outputSlides, errors) {
+    const count = Math.min(inputSlides.length, outputSlides.length);
+    for (let i = 0; i < count; i++) {
+      for (const name of ["theme", "background"]) {
+        const inputValues = extractTopLevelDirectiveValues(inputSlides[i], name);
+        const outputValues = extractTopLevelDirectiveValues(outputSlides[i], name);
+
+        if (inputValues.length === 0) {
+          if (outputValues.length > 0) {
+            errors.push({
+              slide: i,
+              code: "IDENTITY_DIRECTIVE_ADDED",
+              message: `Slide ${i + 1} introduced ${name}: ${outputValues.join(", ")} — not present in the input. Do not add new ${name} directives when visual identity is preserved.`,
+            });
+          }
+          continue;
+        }
+
+        const inputSet = new Set(inputValues);
+        if (!inputValues.some((v) => outputValues.includes(v))) {
+          errors.push({
+            slide: i,
+            code: "IDENTITY_DIRECTIVE_DROPPED",
+            message: `Slide ${i + 1} dropped the input's ${name}: ${inputValues.join(", ")} — keep it when visual identity preservation is enabled.`,
+          });
+        }
+        const added = outputValues.filter((v) => !inputSet.has(v));
+        if (added.length > 0) {
+          errors.push({
+            slide: i,
+            code: "IDENTITY_DIRECTIVE_ADDED",
+            message: `Slide ${i + 1} introduced ${name}: ${added.join(", ")} — not present in the input. Do not add new ${name} directives when visual identity is preserved.`,
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Reject fabricated or external image references in the output when the
+   * execute phase is restricted to the input deck's images (remix/reimagine).
+   *
+   * Allowed sources are derived from the input markdown: `<img>` srcs, `reuse:<path>`
+   * references (reimagine briefs), and `background: url(...)` values. Both `<img src>`
+   * and `background: url(...)` in the output must resolve to one of them — an image
+   * the AI invented (a made-up local path or an external URL) cannot be displayed.
+   * Fenced code blocks are excluded on both sides so code samples that merely
+   * illustrate `<img>` tags are neither allowed nor flagged.
+   *
+   * @param {string[]} outputSlides — raw output slide texts
+   * @param {ValidationError[]} errors
+   */
+  _checkImageSources(outputSlides, errors) {
+    const allowed = new Set();
+    if (this._inputMarkdown) {
+      const inputUnfenced = stripFencedBlocks(this._inputMarkdown);
+      for (const img of parseAllImages(inputUnfenced)) allowed.add(img.src);
+      for (const match of inputUnfenced.matchAll(/reuse:([^\s"'<>|)]+)/g)) {
+        allowed.add(match[1]);
+      }
+      for (const url of extractBackgroundUrls(this._inputMarkdown)) allowed.add(url);
+    }
+
+    for (let i = 0; i < outputSlides.length; i++) {
+      const offenders = [];
+      for (const img of parseAllImages(stripFencedBlocks(outputSlides[i]))) {
+        if (!allowed.has(img.src)) offenders.push(img.src);
+      }
+      for (const url of extractBackgroundUrls(outputSlides[i])) {
+        if (!allowed.has(url)) offenders.push(url);
+      }
+      if (offenders.length > 0) {
+        errors.push({
+          slide: i,
+          code: "FABRICATED_IMAGE_SRC",
+          message: `Slide ${i + 1} references image(s) not present in the input deck: ${offenders.join(", ")}. Only reuse images from the input deck with their exact paths, or images referenced by reuse:<path> directives — never fabricate image URLs.`,
+        });
+      }
+    }
+  }
+
+  /**
    * Split raw slide markdown into content keyed by @area marker.
    * @param {string} rawSlide
    * @returns {Record<string, string>}
@@ -674,4 +789,65 @@ function normalizeAreasForCompare(areas) {
       .trim();
   }
   return out;
+}
+
+/**
+ * Extract all top-level (non-fenced) values of a `name:` directive from a
+ * slide's raw markdown. A slide may carry several values of the same directive
+ * (e.g. a merged virtual slide with one `theme:`/`background:` per source).
+ * @param {string} markdown
+ * @param {string} name — directive name, e.g. "theme" or "background"
+ * @returns {string[]}
+ */
+function extractTopLevelDirectiveValues(markdown, name) {
+  const values = [];
+  let inFence = false;
+  const re = new RegExp(`^${name}:\\s*(.+)$`);
+  for (const line of markdown.split("\n")) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const match = line.match(re);
+    if (match && match[1].trim()) values.push(match[1].trim());
+  }
+  return values;
+}
+
+/**
+ * Extract `url(...)` values from top-level (non-fenced) `background:` directives.
+ * @param {string} markdown
+ * @returns {string[]}
+ */
+function extractBackgroundUrls(markdown) {
+  const urls = [];
+  let inFence = false;
+  for (const line of markdown.split("\n")) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const match = line.match(/^background:\s*url\(\s*['"]?([^'")\s]+)['"]?\s*\)/i);
+    if (match) urls.push(match[1]);
+  }
+  return urls;
+}
+
+/**
+ * Blank out fenced code blocks so image/directive scans ignore code samples
+ * (a code fence may legitimately illustrate `<img>` tags or directive lines).
+ * @param {string} markdown
+ * @returns {string}
+ */
+function stripFencedBlocks(markdown) {
+  const lines = markdown.split("\n");
+  let inFence = false;
+  const out = [];
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) inFence = !inFence;
+    out.push(inFence ? "" : line);
+  }
+  return out.join("\n");
 }

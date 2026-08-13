@@ -625,12 +625,12 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 ### Visual Identity & Assets
 
-| Task                          | Details                                                                                                                                                        |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Define preserve behavior  | When visual identity preservation is enabled, retain original themes, backgrounds, layouts, and overall visual language while improving structure and wording. |
-| [ ] Define discard behavior   | When preservation is disabled, remove the old identity deliberately without inventing unsupported styling or changing the conservative behavior of Polish/Fix. |
-| [ ] Improve image reuse       | Use vision and exact source paths consistently; keep valuable source images and avoid fabricated or external image references.                                 |
-| [ ] Validate output alignment | Ensure rewritten and merged slides follow their briefs, preserve required identity, and remain within layout and density constraints.                          |
+| Task                          | Details                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [x] Define preserve behavior  | When visual identity preservation is enabled, retain original themes, backgrounds, layouts, and overall visual language while improving structure and wording. (PR #211) |
+| [x] Define discard behavior   | When preservation is disabled, remove the old identity deliberately without inventing unsupported styling or changing the conservative behavior of Polish/Fix. (PR #211) |
+| [x] Improve image reuse       | Use vision and exact source paths consistently; keep valuable source images and avoid fabricated or external image references. (PR #211)                                 |
+| [x] Validate output alignment | Ensure rewritten and merged slides follow their briefs, preserve required identity, and remain within layout and density constraints. (PR #211)                          |
 
 ### Acceptance Criteria
 
@@ -990,7 +990,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 14: Conflict Resolution & Undo         | ✅ Complete |
 | Phase 14.5: Structural Cleanup & Tests       | ✅ Complete |
 | Phase 14.6: Polish Quality & Presentation    | ✅ Complete |
-| Phase 14.7: Remix Quality & Visual Identity  | Planned     |
+| Phase 14.7: Remix Quality & Visual Identity  | ✅ Complete |
 | Phase 14.8: Reimagine Creative Direction     | Planned     |
 | Phase 14.9: PPTX Import Quality              | Planned     |
 | Phase 15: Editor Diagnostics & Polish        | Planned     |
@@ -1002,7 +1002,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 ✅ → Phase 14.6 ✅ → Phase 14.7 → Phase 14.8 → Phase 14.9 → Phase 15 → Phase 15.1 (interactive classroom) → Phase 15.5 (v1.0 release) → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 ✅ → Phase 14.6 ✅ → Phase 14.7 ✅ → Phase 14.8 → Phase 14.9 → Phase 15 → Phase 15.1 (interactive classroom) → Phase 15.5 (v1.0 release) → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
