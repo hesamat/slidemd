@@ -28,6 +28,7 @@ export {
   stripFrontmatter,
   stripThemeAndBackground,
   stripVisualIdentity,
+  applyVisualSystemIdentity,
 } from "./ai-prompt-fragments.js";
 
 /**

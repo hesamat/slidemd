@@ -110,6 +110,7 @@ Rules:
 - Do not preserve the original theme, colors, backgrounds, or visual language. You may propose a new visual direction.
 - Preserve the identity of the first slide. Extract the identifying information (course code, week number, author, event name) from the original first slide into the `firstSlideIdentity` field. The first chapter's first slide should display this concise identity text verbatim in its footer, even as the surrounding design and narrative change.
 - Be creative with the narrative angle. Don't just reorganize the same content — find a fresh hook, a surprising metaphor, a compelling character arc, or a concrete analogy that makes the material feel new. Include historical remarks, real-world examples, and accessible comparisons where they help learners understand abstract concepts. The deck should feel like it was crafted by an editor, not auto-generated.
+- Do not level up the material. The reimagined deck must be accessible to the same audience as the source deck. Do not introduce new concepts, jargon, prerequisites, or examples that assume more prior knowledge than the original. The fresh angle should reframe the same material, not advance its difficulty.
 
 Success criteria:
 

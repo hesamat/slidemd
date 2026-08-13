@@ -1816,7 +1816,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("spacious density");
+      expect(execUser).toContain("Density: spacious");
       expect(execUser).toContain("beat:");
 
       // Brief includes the beat suffix (punctuation on slide 1 is normalized
@@ -1861,7 +1861,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("do NOT use the palette colors");
+      expect(execUser).toContain("Palette (use only these colors)");
     });
 
     it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when visualSystem is invalid", async () => {
@@ -2804,10 +2804,11 @@ describe("AiOrchestrator", () => {
         onOutline: async (outline) => outline,
       });
 
-      // Reimagine always discards visual identity — echoed directives are stripped.
+      // Reimagine keeps allowed visual identity (theme light/dark, palette
+      // colors) and strips non-palette colors.
       expect(result).toContain("Slide A");
-      expect(result).not.toContain("theme:");
-      expect(result).not.toContain("background:");
+      expect(result).toContain("theme: dark");
+      expect(result).not.toContain("background: #1a1a2e");
     });
 
     it("removes fabricated images from the reimagine result mechanically", async () => {
@@ -2894,12 +2895,12 @@ describe("AiOrchestrator", () => {
         onOutline: async (outline) => outline,
       });
 
-      // Execute passed validation on the first attempt (3 calls), the theme
-      // and color background are stripped, but the full-bleed image background
-      // survives the discard strip.
+      // Execute passed validation on the first attempt (3 calls). The theme
+      // light/dark is kept, the non-palette color background is stripped, and
+      // the full-bleed image background survives.
       expect(provider.chat).toHaveBeenCalledTimes(3);
       expect(result).toContain("background: url(images/a.png) center/cover");
-      expect(result).not.toContain("theme:");
+      expect(result).toContain("theme: dark");
       expect(result).not.toContain("background: #1a1a2e");
     });
 

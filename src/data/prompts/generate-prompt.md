@@ -18,6 +18,7 @@ Content strategy:
 - The brief may include `| image: <query>` at the end. Only honor the query if it is a `reuse:<path>` directive (e.g. `reuse:images/team-photo.jpg`). In that case, insert `<img src="path">` on that slide using the exact path. If the query is anything other than `reuse:<path>` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's `@footer` area (not in `@main`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
+- Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:

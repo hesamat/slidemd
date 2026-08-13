@@ -176,9 +176,9 @@ export function buildRemixFlowGuidance(flow) {
 /**
  * Build the {{visualStylingNote}} substitution for generate prompts.
  * Variant selection:
- * - "present" — a visual system is provided (reimagine): follow the design
- *   language but do not use the palette colors, so it does not contradict
- *   `buildVisualSystemBrief`.
+ * - "present" — a visual system is provided (reimagine): use the visual
+ *   system palette for `theme:` and `background:` and follow the design
+ *   language for layout, imagery, and rhythm.
  * - "absent-preserve" — no visual system, but the deck's existing identity
  *   must be kept (remix preserve mode): keep the original theme/background/
  *   color directives instead of emitting neutral styling.
@@ -249,9 +249,9 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 
 /**
  * Build the visual system brief + beat→treatment mapping for the generate
- * prompt's options suffix. When a visual system is present, this overrides
- * the generate prompt's generic visual-styling note with specific
- * design-language guidance.
+ * prompt's options suffix. When a visual system is present, this provides
+ * specific design-language guidance including the palette, typography,
+ * composition, imagery, motifs, contrast rules, and beat treatment mapping.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.
@@ -262,17 +262,43 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 export function buildVisualSystemBrief(vs) {
   if (!vs) return "";
 
-  // The visual system is for structural guidance only. The app handles its own
-  // colors, so we explicitly tell the generate AI not to use the palette.
+  const palette = Object.entries(vs.palette || {})
+    .map(([name, color]) => `  - ${name}: ${color}`)
+    .join("\n");
+
   return `
-Visual system — use the following design language for composition, imagery, and rhythm, but do NOT use the palette colors in \`background:\`, \`theme:\`, \`color\`, or \`backgroundColor\` directives. The app provides its own neutral color scheme.
+Visual system — use the following design language for \`theme:\`, \`background:\`, layout, imagery, and rhythm. You may only use the palette colors listed below; do not invent your own colors.
 
-- Composition: ${vs.composition.density} density, ${vs.composition.whitespace} whitespace, ${vs.composition.alignment} alignment
-- Imagery: ${vs.imagery.role}; mood: ${vs.imagery.mood}; treatment: ${vs.imagery.treatment}
+Palette (use only these colors):
+${palette}
 
-Do not output \`background:\`, \`theme:\`, or colored text. Use bold, headings, tables, diagrams, and layout to create emphasis, not color.
+Typography:
+  - Character: ${vs.typography.character}
+  - Headlines: ${vs.typography.headline}
+  - Body: ${vs.typography.body}
 
-Each slide brief includes a \`| beat: ...\` suffix that defines the slide's structural role. Use it to vary layout and density, not to inject color.
+Composition:
+  - Density: ${vs.composition.density}
+  - Whitespace: ${vs.composition.whitespace}
+  - Alignment: ${vs.composition.alignment}
+
+Imagery:
+  - Role: ${vs.imagery.role}
+  - Mood: ${vs.imagery.mood}
+  - Treatment: ${vs.imagery.treatment}
+
+Motifs: ${(vs.motifs || []).join("; ")}
+
+Contrast rules: ${(vs.contrastRules || []).join("; ")}
+
+Visual-beat treatment mapping (each slide brief has a \`beat\`):
+  - continuation: maintain the established visual language. Use base or surface background, medium energy, continue the motif rhythm.
+  - transition: introduce a visual shift. Switch between base/surface backgrounds, use an image, or change layout to signal a new chapter.
+  - punctuation: high-emphasis moment. Use a contrast or highlight background, a large headline, and a short, bold takeaway.
+  - emotional: imagery or atmosphere carries the communication. Use an image background, full-image layout, or a dark/moody background.
+  - divider: chapter/section marker. Use a contrast or highlight background, minimal text, and a clean layout.
+
+Use \`theme: light\` or \`theme: dark\` to ensure text is legible against the background. Use \`background: <hex>\` only with palette colors, or \`background: url(<kept-image-path>)\` for kept source images. Do not use \`color\`, \`backgroundColor\`, or other colored text directives.
 `;
 }
 
@@ -360,6 +386,71 @@ export function stripVisualIdentity(markdown) {
     if (!hasImage) return true; // pure color/gradient — strip
     if (!colorPart) return false; // pure image — keep the line as-is
     return `background: ${imagePart}`; // mixed — drop the smuggled color, keep the image
+  });
+}
+
+/**
+ * Restrict visual-identity directives to values from the generated visual
+ * system. Used in reimagine so the model can emit `theme:`/`background:` from
+ * the palette but cannot invent arbitrary colors or gradients.
+ *
+ * Rules:
+ * - `theme:` must be `light`, `dark`, or a palette color.
+ * - `background:` colors must be a palette color (or `none`/`transparent`).
+ * - `background:` images (`url(...)`) are kept as-is; `stripFabricatedImages`
+ *   is responsible for validating image sources.
+ * - Mixed `background: <color> url(...)` keeps the color only when it is in
+ *   the palette; otherwise the color is dropped and only the image remains.
+ * - Gradients that include non-palette colors are stripped down to the image
+ *   part or removed entirely.
+ *
+ * @param {string} markdown
+ * @param {import("./visual-system-schema.js").VisualSystem} visualSystem
+ * @returns {string}
+ */
+export function applyVisualSystemIdentity(markdown, visualSystem) {
+  if (!visualSystem?.palette) return markdown;
+
+  const allowedColors = new Set(
+    ["light", "dark", "none", "transparent"].concat(
+      Object.values(visualSystem.palette).map((c) => c.trim().toLowerCase()),
+    ),
+  );
+
+  return stripDirectivesWith(markdown, (line) => {
+    const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
+    if (!match) return false;
+
+    const key = match[1].toLowerCase();
+    const value = match[2].trim();
+
+    if (key === "theme") {
+      const v = value.toLowerCase();
+      return allowedColors.has(v) ? false : true;
+    }
+
+    const { colorPart, imagePart, hasImage } = splitBackgroundValue(value);
+    const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
+
+    if (!hasImage) {
+      // Pure color/gradient. Keep only if the first color token is allowed;
+      // otherwise strip the whole line. We do not parse gradient stops.
+      if (firstColor && allowedColors.has(firstColor)) {
+        return `background: ${firstColor}`;
+      }
+      return true;
+    }
+
+    if (!colorPart) {
+      // Pure image background — keep as-is (images already validated).
+      return false;
+    }
+
+    // Mixed color + image. Keep the color only if its first token is allowed.
+    if (firstColor && allowedColors.has(firstColor)) {
+      return `background: ${firstColor} ${imagePart}`.trim();
+    }
+    return `background: ${imagePart}`;
   });
 }
 

@@ -8,4 +8,4 @@
 
 <!-- variant: present -->
 
-- A visual system with a specific composition, imagery, and rhythm language is provided in the instructions below. Use it for layout, imagery treatment, and pacing. Do not use the palette colors in `background:`, `theme:`, `color`, or `backgroundColor` directives — the app provides its own neutral color scheme. Do not invent your own colors or theme.
+- A visual system with a specific palette, typography, composition, imagery, motifs, and contrast rules is provided in the instructions below. Use it for `theme:`, `background:`, layout, imagery treatment, and pacing. You may only use the palette colors listed in the visual system; do not invent your own colors. Use `theme: light` or `theme: dark` to ensure text contrast, and `background: <hex>` or `background: url(<kept-image-path>)` with palette colors.

@@ -16,6 +16,7 @@ import {
   splitSlidesForAi,
   stripThemeAndBackground,
   stripVisualIdentity,
+  applyVisualSystemIdentity,
 } from "./ai-prompt-builder.js";
 import { splitSlides } from "../markdown-parser.js";
 import { extractAll } from "./slide-image-extractor.js";
@@ -500,12 +501,15 @@ export class RemixReimagineOrchestrator {
     // The generate path gap-fills directives positionally when the slide
     // count matches. For reimagine the virtual deck has no original
     // directives, so there's nothing to gap-fill — return the result as-is.
-    // Reimagine always discards visual identity, so strip any theme/color
-    // directives the AI echoed back — image backgrounds (background: url(...))
-    // are kept because the validator guarantees they are deck images — and
-    // remove any fabricated image references the model insisted on (the
-    // validator only repairs; it never hard-fails).
-    const cleaned = stripFabricatedImages(stripVisualIdentity(result), keptImageSrcs, onLog);
+    // When a visual system was generated, allow theme/background to be driven
+    // by the palette (applyVisualSystemIdentity restricts colors to the
+    // palette). When no visual system is present, fall back to stripping any
+    // model-emitted identity. Remove any fabricated image references the model
+    // insisted on (the validator only repairs; it never hard-fails).
+    const rawIdentity = editedOutline.visualSystem
+      ? applyVisualSystemIdentity(result, editedOutline.visualSystem)
+      : stripVisualIdentity(result);
+    const cleaned = stripFabricatedImages(rawIdentity, keptImageSrcs, onLog);
     const slides = splitSlides(cleaned);
     const collapsed = slides.map((slide) => collapseBackgroundDirectives(slide));
     return collapsed.join("\n\n---\n\n");

@@ -147,6 +147,7 @@ Rules:
 - Slide titles must not include internal chapter labels, step numbers, stage markers, or brief metadata. Titles should be clean, human-facing headings (e.g., "Trace the path before you run it", not "chapter 03 / prediction").
 - Use the chapter summary as the primary guide for what the slides should cover. The summary specifies the key points; distribute them across the slides.
 - Enrich technical content with analogies, real-world examples, historical remarks, or memorable stories. The intent for at least a few slides per chapter should explicitly include a concrete comparison or a non-technical context that helps learners connect the concept to something familiar.
+- Do not level up the material. Each slide must cover the same conceptual depth as the source deck. Do not introduce new concepts, jargon, or examples that assume more prior knowledge than the original.
 
 Success criteria:
 
@@ -160,6 +161,8 @@ Success criteria:
 
 Visual system:
 {{visualSystem}}
+
+Use the visual system to guide the beat treatment. Match the energy and contrast fields in the JSON above to the beat, and choose visual treatments that fit the palette, typography, composition, imagery mood, motifs, and contrast rules. Do not invent colors or visual treatments that contradict the visual system.
 
 Finalized chapter outline:
 {{chapters}}
