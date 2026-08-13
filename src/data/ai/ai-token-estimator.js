@@ -25,8 +25,12 @@ export function estimateMaxTokens(markdown, mode, opts) {
   const reasoningMultipliers = { none: 1, low: 1.5, medium: 2, high: 3 };
   const reasoningMultiplier = reasoningMultipliers[effort] ?? 1;
   const estimated = Math.ceil(inputTokens * multiplier * reasoningMultiplier);
-  // Reasoning takes budget; use a higher floor when more reasoning is requested.
-  const floor = effort === "none" || effort === "low" ? 16000 : 24000;
+  // Reasoning models share one budget between hidden thinking and visible
+  // output. A floor that's too low causes the model to exhaust it during
+  // thinking and return content: null with finish_reason: "length". OpenAI
+  // recommends reserving ~25k+ for reasoning+output; community reports
+  // suggest 30k+ for non-trivial tasks. Use 32k for medium, 40k for high.
+  const floor = effort === "high" ? 40000 : effort === "medium" ? 32000 : 16000;
   return Math.min(Math.max(floor, estimated), opts?.modelMaxOutput || 128000);
 }
 

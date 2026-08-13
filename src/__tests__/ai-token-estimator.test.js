@@ -8,10 +8,23 @@ describe("estimateMaxTokens", () => {
     expect(estimateMaxTokens(md, "fix")).toBeGreaterThanOrEqual(16000);
   });
 
-  it("returns at least 24000 with high reasoning", () => {
+  it("returns at least 40000 with high reasoning", () => {
     const md = "a".repeat(1000);
     const result = estimateMaxTokens(md, "fix", { useReasoning: true });
-    expect(result).toBeGreaterThanOrEqual(24000);
+    expect(result).toBeGreaterThanOrEqual(40000);
+  });
+
+  it("returns at least 32000 with medium reasoning", () => {
+    const md = "a".repeat(1000);
+    const result = estimateMaxTokens(md, "fix", { reasoningEffort: "medium" });
+    expect(result).toBeGreaterThanOrEqual(32000);
+  });
+
+  it("returns at least 16000 with low reasoning (not raised)", () => {
+    const md = "a".repeat(1000);
+    const result = estimateMaxTokens(md, "fix", { reasoningEffort: "low" });
+    expect(result).toBeGreaterThanOrEqual(16000);
+    expect(result).toBeLessThan(32000);
   });
 
   it("scales with input size for fix mode", () => {
