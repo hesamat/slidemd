@@ -165,6 +165,11 @@ export function buildBatchMessages(
   batchMode,
   hasVisualSystem = false,
 ) {
+  if (mode === "fix" && batchMode === "polish") {
+    throw new Error(
+      'batchMode "polish" is only valid with mode "generate"; fix mode always uses the fix fragment',
+    );
+  }
   const cleaned = stripFrontmatter(markdown, mode);
   // Use the fence-aware split so `---` inside code blocks doesn't create
   // phantom slides and misalign indices with the orchestrator's slide list.

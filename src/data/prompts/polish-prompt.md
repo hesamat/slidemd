@@ -16,13 +16,14 @@ What to do:
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
-- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. {{densityBudgets}}
+- Handle crowded slides: when a slide has too much content for its layout, relocate the overflow to speaker notes and choose a clearer layout — do not delete unique content to fit the budget. For dense tables, keep the most essential rows on the slide and move the rest to speaker notes as a reference list. {{densityBudgets}}
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:
 
 - Keep the same slide count and order.
 - Keep the same overall narrative flow.
+- Do not drop unique informational content (facts, table rows, examples, code). Tightening wording and removing redundancy are fine; relocating overflow to speaker notes is fine; deleting unique material to fit a density budget is not.
 - Preserve existing speaker notes unless explicitly instructed to add new ones.
 - Preserve the existing `theme:`, `background:`, and color scheme. Do not add new `theme:`/`background:` values, colored text, or `color`/`backgroundColor` attributes.
 
@@ -34,7 +35,7 @@ Success criteria:
 - The output is visibly different from the input (better formatting, wording, or layout).
 - All `[Diagram:]` markers are addressed.
 - Speaker notes are preserved and placed at the end of the slide content.
-- No slide exceeds its layout's density budget; crowded slides have been trimmed or moved to notes.
+- No slide exceeds its layout's density budget; overflow has been relocated to speaker notes, not deleted.
 
 Input markdown:
 {{markdown}}

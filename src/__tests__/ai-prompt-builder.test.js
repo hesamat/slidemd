@@ -203,14 +203,13 @@ describe("buildBatchMessages", () => {
     expect(user).toContain("Return exactly 4 slide(s)");
   });
 
-  it("fix mode with polish batchMode does not add densityBudgets substitution", () => {
-    // fix-prompt.md has no {{densityBudgets}} placeholder; AiPromptComposer
-    // throws on unused substitutions. This combination is currently unreachable
-    // in production (the only caller passes "generate"), but the guard prevents
-    // a hard-fail if a future caller ever passes fix + polish.
-    const { user } = buildBatchMessages(md, "fix", 0, 4, 12, "Deck: 12 slides.", "polish");
-    expect(user).toContain("CRITICAL: You must return EXACTLY 4 slide(s)");
-    expect(user).not.toContain("per-area line budgets");
+  it("fix mode with polish batchMode throws (invalid combination)", () => {
+    // fix mode always uses the fix fragment; batchMode "polish" is only valid
+    // with mode "generate". Throw instead of silently ignoring batchMode so a
+    // future caller does not get fix semantics when it expected polish.
+    expect(() => buildBatchMessages(md, "fix", 0, 4, 12, "Deck: 12 slides.", "polish")).toThrow(
+      /batchMode "polish" is only valid with mode "generate"/,
+    );
   });
 
   it("non-polish mode uses generate-prompt fragment", () => {
@@ -244,7 +243,10 @@ describe("buildGenerateOptionsSuffix", () => {
 
   it("asks to preserve existing notes when not adding new ones", () => {
     const suffix = buildGenerateOptionsSuffix({ mode: "polish" });
-    expect(suffix).toContain("Do not add new speaker notes");
+    expect(suffix).toContain("Do not author new speaker notes");
+    // Relocation of existing slide content is allowed (polish moves overflow
+    // to notes); only authoring new commentary is forbidden.
+    expect(suffix).toContain("relocate existing slide content");
   });
 
   it("preserves visual identity when requested", () => {
