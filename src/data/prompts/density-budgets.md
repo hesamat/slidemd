@@ -1,0 +1,15 @@
+<!-- variant: full -->
+
+A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
+
+- `title-slide`: `@title` only (one or two short lines) and `@footer` only (one or two short lines). No `@main` content.
+- `focus`: `@main` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+- `header-content`: `@header` is one line; `@main` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
+- `two-column`: `@header` is one line; each column (`@main` and `@media`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
+- `media-span-left` / `media-span-right`: `@header` is one line; `@main` should hold about 8–12 lines; `@media` holds one image or one Mermaid diagram.
+- `full-image`: `@main` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
+
+Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
+<!-- variant: compact -->
+
+Rough per-area line budgets: `header-content` `@main` ~10-14 lines, `focus` `@main` ~4-5 lines, `two-column` columns ~6-10 lines each, `media-span` `@main` ~8-12 lines. A code block, table, or diagram counts as roughly its number of rendered lines.

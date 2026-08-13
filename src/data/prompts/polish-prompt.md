@@ -16,7 +16,7 @@ What to do:
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
-- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. As a rough guide, `header-content` `@main` holds ~10-14 lines, `focus` `@main` holds ~4-5 lines, `two-column` columns hold ~6-10 lines each, and `media-span` `@main` holds ~8-12 lines. A code block, table, or diagram counts as roughly its number of rendered lines.
+- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. {{densityBudgets}}
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:

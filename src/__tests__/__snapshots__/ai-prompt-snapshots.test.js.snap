@@ -408,14 +408,16 @@ Content depth:
 Slide density and overflow prevention:
 
 - One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
-- Respect these per-area line budgets for the standard layouts. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
-  - \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
-  - \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
-  - \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
-  - \`two-column\`: \`@header\` is one line; each column (\`@main\` and \`@media\`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
-  - \`media-span-left\` / \`media-span-right\`: \`@header\` is one line; \`@main\` should hold about 8–12 lines; \`@media\` holds one image or one Mermaid diagram.
-  - \`full-image\`: \`@main\` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
-- Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
+- Respect these per-area line budgets. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
+
+- \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
+- \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+- \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
+- \`two-column\`: \`@header\` is one line; each column (\`@main\` and \`@media\`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
+- \`media-span-left\` / \`media-span-right\`: \`@header\` is one line; \`@main\` should hold about 8–12 lines; \`@media\` holds one image or one Mermaid diagram.
+- \`full-image\`: \`@main\` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
+
+Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
 - Speaker notes are where detail lives: common misconceptions, step-by-step narration, extra examples, and transition scripts should go in \`<!-- notes: ... -->\`, not on the slide.
 
 Success criteria:
@@ -648,14 +650,16 @@ Content depth:
 Slide density and overflow prevention:
 
 - One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
-- Respect these per-area line budgets for the standard layouts. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
-  - \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
-  - \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
-  - \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
-  - \`two-column\`: \`@header\` is one line; each column (\`@main\` and \`@media\`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
-  - \`media-span-left\` / \`media-span-right\`: \`@header\` is one line; \`@main\` should hold about 8–12 lines; \`@media\` holds one image or one Mermaid diagram.
-  - \`full-image\`: \`@main\` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
-- Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
+- Respect these per-area line budgets. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
+
+- \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
+- \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+- \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
+- \`two-column\`: \`@header\` is one line; each column (\`@main\` and \`@media\`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
+- \`media-span-left\` / \`media-span-right\`: \`@header\` is one line; \`@main\` should hold about 8–12 lines; \`@media\` holds one image or one Mermaid diagram.
+- \`full-image\`: \`@main\` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
+
+Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
 - Speaker notes are where detail lives: common misconceptions, step-by-step narration, extra examples, and transition scripts should go in \`<!-- notes: ... -->\`, not on the slide.
 
 Success criteria:
@@ -782,7 +786,7 @@ What to do:
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
-- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. As a rough guide, \`header-content\` \`@main\` holds ~10-14 lines, \`focus\` \`@main\` holds ~4-5 lines, \`two-column\` columns hold ~6-10 lines each, and \`media-span\` \`@main\` holds ~8-12 lines. A code block, table, or diagram counts as roughly its number of rendered lines.
+- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. Rough per-area line budgets: \`header-content\` \`@main\` ~10-14 lines, \`focus\` \`@main\` ~4-5 lines, \`two-column\` columns ~6-10 lines each, \`media-span\` \`@main\` ~8-12 lines. A code block, table, or diagram counts as roughly its number of rendered lines.
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:

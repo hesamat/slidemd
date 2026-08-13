@@ -18,6 +18,7 @@ import {
   stripFrontmatter,
   buildVisualSystemBrief,
   buildVisualStylingNote,
+  buildDensityBudgets,
 } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { getIntentUserFragment } from "./ai-intent-registry.js";
@@ -85,6 +86,7 @@ export function buildMessages(markdown, mode) {
   const substitutions = { markdown: cleaned };
   if (mode !== "fix") {
     substitutions.visualStylingNote = buildVisualStylingNote(false);
+    substitutions.densityBudgets = buildDensityBudgets("full");
   }
   return composeMessages(getFragment("system-prompt.md"), fragment, substitutions);
 }
@@ -207,6 +209,9 @@ export function buildBatchMessages(
   // {{visualStylingNote}} placeholder).
   if (isGenerateFragment) {
     substitutions.visualStylingNote = buildVisualStylingNote(hasVisualSystem);
+    substitutions.densityBudgets = buildDensityBudgets("full");
+  } else if (batchMode === "polish") {
+    substitutions.densityBudgets = buildDensityBudgets("compact");
   }
   const { system, user } = composeMessages(
     getFragment("system-prompt.md"),
