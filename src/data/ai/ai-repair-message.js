@@ -61,6 +61,10 @@ const CODE_GUIDANCE = new Map([
     "FABRICATED_IMAGE_SRC",
     "Only use images that exist in the input deck (with their exact paths) or are referenced by `reuse:<path>` directives — never fabricate image URLs.",
   ],
+  [
+    "PRESERVED_IMAGE_SRC_DROPPED",
+    "Keep every input image on the slides listed above — as `<img>` or `background: url(...)`. Do not silently drop a source image when visual identity is preserved.",
+  ],
 ]);
 
 /**

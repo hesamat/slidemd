@@ -24,11 +24,11 @@ import { splitSlides } from "../markdown-parser.js";
 export function extractDirectives(markdown, slides) {
   const sections = slides || splitSlides(markdown);
   return sections.map((slide) => {
-    const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
-    const bgMatch = slide.match(/^background:\s*(.+)$/m);
-    const themeMatch = slide.match(/^theme:\s*(.+)$/m);
-    const mediaFullBleedMatch = slide.match(/^media-full-bleed:\s*(.+)$/m);
-    const mediaSpanMatch = slide.match(/^media-span:\s*(.+)$/m);
+    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/m);
+    const bgMatch = slide.match(/^\s*background\s*:\s*(.+)$/m);
+    const themeMatch = slide.match(/^\s*theme\s*:\s*(.+)$/m);
+    const mediaFullBleedMatch = slide.match(/^\s*media-full-bleed\s*:\s*(.+)$/m);
+    const mediaSpanMatch = slide.match(/^\s*media-span\s*:\s*(.+)$/m);
     const mediaFullBleed =
       /^(true|1|yes|y|on)$/i.test(mediaFullBleedMatch?.[1]?.trim() || "") ||
       /^(left|right)$/i.test(mediaSpanMatch?.[1]?.trim() || "");
@@ -151,9 +151,11 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
  */
 function findTopLevelDirectiveIdx(lines, name) {
   let inFence = false;
-  // No space required after the colon so `layout:two-column` and
-  // `background:red` are recognized the same as `layout: two-column`.
-  const re = new RegExp(`^${name}:\\s*`);
+  // Tolerate leading whitespace and whitespace before the colon so an
+  // indented `  theme: dark` or `theme :dark` is recognized the same as
+  // `theme: dark` — the markdown parser accepts both (`^\s*${name}\s*:` with
+  // the `i` flag), so the AI round-trip must too.
+  const re = new RegExp(`^\\s*${name}\\s*:`, "i");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (/^\s*```/.test(line)) {
@@ -191,9 +193,10 @@ function hasTopLevelDirective(lines, name) {
  */
 function stripLeadingDirectives(lines, names) {
   const namesSet = new Set(names);
-  // No space required before/after the colon so `theme:dark` is recognized
-  // the same as `theme: dark`.
-  const directiveLine = /^([a-zA-Z][\w-]*):\s*(.*)$/;
+  // Tolerate leading whitespace and whitespace before/after the colon so
+  // `  theme : dark` is recognized the same as `theme: dark` — the markdown
+  // parser accepts both (`^\s*${name}\s*:` with the `i` flag).
+  const directiveLine = /^\s*([a-zA-Z][\w-]*)\s*:\s*(.*)$/i;
   const out = [];
   let inLeadingBlock = true;
   for (const line of lines) {

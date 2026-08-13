@@ -503,6 +503,180 @@ describe("AiOrchestrator", () => {
       expect(result).not.toContain("<img");
     });
 
+    it("preserves kept-slide images through the final fabricated-image strip", async () => {
+      // A kept slide carries an image that never appears in the virtual deck
+      // (only rewritten slides go through the execute call). The final strip
+      // must use the unified allowlist (rewritten + kept srcs) so the kept
+      // image is not mistaken for fabricated.
+      const deckWithKeptImage =
+        'layout: header-content\n@header\n## Slide 1\n\n@main\n- Item 1\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n<img src="images/kept.png">';
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+        ],
+      });
+      const execute = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 1\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, execute, execute]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithKeptImage, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain('src="images/kept.png"');
+      expect(result).toContain("Tightened");
+    });
+
+    it("preserves kept-slide image backgrounds through the final strip", async () => {
+      // A kept slide carries a full-bleed image background. The final strip
+      // must not drop it as fabricated.
+      const deckWithKeptBg =
+        "layout: full-image\nbackground: url(images/bg.png) center/cover\n@main\n## Kept\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
+      const plan = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "rewrite", source: [1], brief: "Tighten", reason: "verbose", title: "S2" },
+        ],
+      });
+      const execute = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 2\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, execute, execute]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithKeptBg, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain("background: url(images/bg.png) center/cover");
+    });
+
+    it("remix discard mode preserves kept-slide inline images while stripping theme/color", async () => {
+      // Discard mode strips theme/color from the final deck, but kept-slide
+      // inline images must survive (they are content, not identity).
+      const deck =
+        'layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n<img src="images/kept.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2';
+      const plan = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "rewrite", source: [1], brief: "Tighten", reason: "verbose", title: "S2" },
+        ],
+      });
+      const execute = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "theme: dark\nbackground: #1a1a2e\n@header\n## Slide 2\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, execute, execute]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, {
+        mode: "remix",
+        preserveVisualIdentity: false,
+      });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain('src="images/kept.png"');
+      expect(result).not.toContain("theme:");
+      expect(result).not.toContain("background: #1a1a2e");
+    });
+
+    it("deterministic backstop restores dropped theme/background on a rewritten slide", async () => {
+      // Both execute attempts drop the source theme/background. Validation is
+      // advisory and accepts after max attempts, but the deterministic
+      // backstop must restore the source identity.
+      const deck =
+        "layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Item 1";
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+        ],
+      });
+      const dropIdentity = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 1\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, dropIdentity, dropIdentity]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain("theme: dark");
+      expect(result).toContain("background: #1a1a2e");
+      expect(result).toContain("Tightened");
+    });
+
+    it("deterministic backstop restores a dropped source image background", async () => {
+      // The source slide has a full-bleed image background. The AI drops it
+      // entirely (no <img>, no background: url(...)). The backstop must
+      // restore the image background.
+      const deck =
+        "layout: full-image\nbackground: url(images/hero.png) center/cover\n@main\n## Hero";
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+        ],
+      });
+      const dropBg = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Hero\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, dropBg, dropBg]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain("background: url(images/hero.png) center/cover");
+    });
+
+    it("deterministic backstop does not double-insert an image already present as <img>", async () => {
+      // The source has a full-bleed image background. The AI converts it to
+      // an <img> tag — a legitimate layout choice. The backstop must not
+      // re-insert the background because the image URL is still present.
+      const deck =
+        "layout: full-image\nbackground: url(images/hero.png) center/cover\n@main\n## Hero";
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+        ],
+      });
+      const convertToImg = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: '@header\n## Hero\n\n@main\n<img src="images/hero.png">',
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, convertToImg, convertToImg]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain('src="images/hero.png"');
+      // No duplicate background insertion.
+      expect(result.match(/background: url\(images\/hero\.png\)/g) || []).toHaveLength(0);
+    });
+
     it("allows images relocated across batch boundaries in the batched execute path", async () => {
       // 10 source slides → a 2-batch virtual deck. The deck's only image lives
       // on the last source slide (batch 2), but the model places it on the
@@ -1224,8 +1398,14 @@ describe("AiOrchestrator", () => {
     });
 
     it("reimagine includes imageQuery in brief serialization for generate AI", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/storm.jpg", dataUrl: "data:image/jpeg;base64,/9j/s=" }],
+        [],
+      ]);
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
+        keepImages: [0], // keep images/storm.jpg so reuse: is valid
         chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
       });
       const breakdownResponse = JSON.stringify({
@@ -1252,13 +1432,69 @@ describe("AiOrchestrator", () => {
         executeResponse,
       ]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, {
+        mode: "reimagine",
+        includeImages: true,
+      });
       await orchestrator.runWholeDeckOperation(op);
       const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
+      const execText = Array.isArray(execUser)
+        ? execUser.map((b) => b.text || "").join("\n")
+        : execUser;
       // imageQuery SHOULD appear in the serialized brief as | image: <query>
-      expect(execUser).toContain("image: reuse:images/storm.jpg");
+      expect(execText).toContain("image: reuse:images/storm.jpg");
+    });
+
+    it("reimagine drops imageQuery when reuse: path is not in kept images", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [],
+      ]);
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        keepImages: [0], // keep images/a.png only
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: [
+              {
+                title: "Hook",
+                intent: "Open.",
+                imageQuery: "reuse:images/storm.jpg", // not in kept set
+              },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      const execText = Array.isArray(execUser)
+        ? execUser.map((b) => b.text || "").join("\n")
+        : execUser;
+      // The hallucinated reuse: path must not appear in the brief.
+      expect(execText).not.toContain("reuse:images/storm.jpg");
     });
 
     it("throws on invalid plan action", async () => {

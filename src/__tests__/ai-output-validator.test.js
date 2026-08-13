@@ -1103,5 +1103,160 @@ background: linear-gradient(rgba(0, 0, 0, 0.5)), url(https://example.com/bg.png)
       expect(result.ok).toBe(false);
       expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
     });
+
+    it("onlyExplicitImageSources skips the input-derived union", () => {
+      // The input brief carries a reuse:<path> reference, but
+      // onlyExplicitImageSources must not trust it — only the explicit
+      // allowedImageSrcs are accepted.
+      const input = `<!-- brief: Slide A | image: reuse:images/hallucinated.png -->`;
+      const output = `layout: header-content
+
+@main
+<img src="images/hallucinated.png" alt="Hallucinated">`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: ["images/real.png"],
+        onlyExplicitImageSources: true,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+    });
+  });
+
+  describe("enforcePreserveIdentity image-source preservation", () => {
+    const validatePreserve = (inputMarkdown, outputMarkdown) => {
+      const validator = new AiOutputValidator({ inputMarkdown });
+      return validator.validate(outputMarkdown, "generate", {
+        expectedSlideCount: 1,
+        enforcePreserveIdentity: true,
+      });
+    };
+
+    it("passes when the output keeps the input's image (as <img>)", () => {
+      const input = `layout: header-content
+theme: dark
+
+@main
+<img src="images/hero.png">`;
+      const output = `layout: header-content
+theme: dark
+
+@main
+<img src="images/hero.png">`;
+      const result = validatePreserve(input, output);
+      expect(result.ok).toBe(true);
+    });
+
+    it("passes when the output converts the input <img> to a background: url(...)", () => {
+      const input = `layout: header-content
+theme: dark
+
+@main
+<img src="images/hero.png">`;
+      const output = `layout: full-image
+theme: dark
+background: url(images/hero.png) center/cover
+
+@main
+## Hero`;
+      const result = validatePreserve(input, output);
+      expect(result.ok).toBe(true);
+    });
+
+    it("errors when the output drops the input image entirely", () => {
+      const input = `layout: header-content
+theme: dark
+
+@main
+<img src="images/hero.png">`;
+      const output = `layout: header-content
+theme: dark
+
+@main
+- Tightened point`;
+      const result = validatePreserve(input, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("PRESERVED_IMAGE_SRC_DROPPED");
+    });
+
+    it("errors when the output drops a source image background", () => {
+      const input = `layout: full-image
+theme: dark
+background: url(images/hero.png) center/cover
+
+@main
+## Hero`;
+      const output = `layout: header-content
+theme: dark
+
+@main
+- Tightened point`;
+      const result = validatePreserve(input, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("PRESERVED_IMAGE_SRC_DROPPED");
+    });
+  });
+
+  describe("directive whitespace tolerance", () => {
+    const validatePreserve = (inputMarkdown, outputMarkdown) => {
+      const validator = new AiOutputValidator({ inputMarkdown });
+      return validator.validate(outputMarkdown, "generate", {
+        expectedSlideCount: 1,
+        enforcePreserveIdentity: true,
+      });
+    };
+
+    it("recognizes 'theme : dark' (whitespace before colon) as a valid directive", () => {
+      const output = `layout: header-content
+theme : dark
+background : #1a1a2e
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(
+        "layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n# Title\n\n@main\n- Item",
+        output,
+      );
+      // Both directives are present (with whitespace before colon) — no drop error.
+      expect(result.errors.map((e) => e.code)).not.toContain("IDENTITY_DIRECTIVE_DROPPED");
+    });
+
+    it("recognizes 'Theme : dark' (case + whitespace before colon)", () => {
+      const output = `layout: header-content
+Theme : dark
+Background : #1a1a2e
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(
+        "layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n# Title\n\n@main\n- Item",
+        output,
+      );
+      expect(result.errors.map((e) => e.code)).not.toContain("IDENTITY_DIRECTIVE_DROPPED");
+    });
+
+    it("flags a dropped theme when the output uses 'theme : ' with a different value", () => {
+      const output = `layout: header-content
+theme : light
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(
+        "layout: header-content\ntheme: dark\n@header\n# Title\n\n@main\n- Item",
+        output,
+      );
+      expect(result.errors.map((e) => e.code)).toContain("IDENTITY_DIRECTIVE_ADDED");
+    });
   });
 });

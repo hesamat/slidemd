@@ -311,7 +311,7 @@ export function composeMessages(systemFragment, userFragment, substitutions = {}
  * @returns {string}
  */
 export function stripThemeAndBackground(markdown) {
-  return stripDirectives(markdown, /^\s*(theme|background):\s*.*$/i);
+  return stripDirectives(markdown, /^\s*(theme|background)\s*:\s*.*$/i);
 }
 
 /**
@@ -329,7 +329,7 @@ export function stripThemeAndBackground(markdown) {
  */
 export function stripVisualIdentity(markdown) {
   return stripDirectivesWith(markdown, (line) => {
-    const match = line.match(/^\s*(theme|background):\s*(.*)$/i);
+    const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
     if (!match) return false;
     // Keep image backgrounds; strip color/gradient backgrounds and all themes.
     return !(match[1].toLowerCase() === "background" && /url\(/i.test(match[2]));
@@ -354,13 +354,13 @@ export function stripFrontmatter(markdown, mode) {
     // Generate mode: keep background and theme so AI sees the originals
     return stripDirectives(
       markdown,
-      /^\s*(layout|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/i,
+      /^\s*(layout|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
     );
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
   return stripDirectives(
     markdown,
-    /^\s*(theme|background|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/i,
+    /^\s*(theme|background|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
   );
 }
 

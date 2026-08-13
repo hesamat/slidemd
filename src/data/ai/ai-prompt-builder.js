@@ -110,7 +110,7 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
   // extractDirectives / injectDirectives).
   const slides = new MarkdownParser().splitSlides(markdown);
   const titles = slides.map((slide, i) => {
-    const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
+    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/m);
     const layout = layoutMatch?.[1]?.trim() || "header-content";
     const lines = slide.split("\n").filter((l) => l.trim());
     const titleLine = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || `Slide ${i + 1}`;
@@ -158,7 +158,7 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
   const uniqueLayouts = [
     ...new Set(
       slides.map((s) => {
-        const m = s.match(/^layout:\s*(.+)$/m);
+        const m = s.match(/^\s*layout\s*:\s*(.+)$/m);
         return m?.[1]?.trim() || "header-content";
       }),
     ),

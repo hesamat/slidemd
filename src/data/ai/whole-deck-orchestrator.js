@@ -218,6 +218,7 @@ export class WholeDeckOrchestrator {
         enforcePreserveIdentity: operation.opts?.enforcePreserveIdentity === true,
         restrictImageSources: operation.opts?.restrictImageSources === true,
         allowedImageSrcs: operation.opts?.allowedImageSrcs,
+        onlyExplicitImageSources: operation.opts?.onlyExplicitImageSources === true,
       });
 
       if (result.ok) {
@@ -381,6 +382,15 @@ export class WholeDeckOrchestrator {
           enforcePreserveIdentity: operation.opts?.enforcePreserveIdentity === true,
           restrictImageSources: operation.opts?.restrictImageSources === true,
           allowedImageSrcs: operation.opts?.allowedImageSrcs,
+          onlyExplicitImageSources: operation.opts?.onlyExplicitImageSources === true,
+          // Images may legitimately move across batch boundaries (the
+          // full-deck allowlist accepts cross-batch reuse), so a per-batch
+          // positional preserved-image check would false-positive on the
+          // batch that lost the image. The single-call path runs on the
+          // full virtual deck; the deterministic backstop
+          // (restorePreservedIdentity) catches dropped images in the final
+          // deck regardless.
+          skipPreservedImageCheck: true,
           // Only the first batch gets vision images — subsequent batches
           // know the paths from the options suffix text.
           visionImages: batch.hasVisionImages ? visionImages : null,
@@ -575,6 +585,8 @@ export class WholeDeckOrchestrator {
     enforcePreserveIdentity = false,
     restrictImageSources = false,
     allowedImageSrcs,
+    onlyExplicitImageSources = false,
+    skipPreservedImageCheck = false,
     visionImages = null,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
@@ -678,6 +690,8 @@ export class WholeDeckOrchestrator {
         enforcePreserveIdentity,
         restrictImageSources,
         allowedImageSrcs,
+        onlyExplicitImageSources,
+        skipPreservedImageCheck,
       });
 
       if (!result.ok) {
