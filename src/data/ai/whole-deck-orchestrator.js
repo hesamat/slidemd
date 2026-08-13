@@ -134,7 +134,11 @@ export class WholeDeckOrchestrator {
     const { system, user } =
       operation.opts?.mode === "polish"
         ? buildPolishMessages(context)
-        : buildMessagesForIntent(intent, { markdown: context, hasVisualSystem });
+        : buildMessagesForIntent(intent, {
+            markdown: context,
+            hasVisualSystem,
+            preserveVisualIdentity: operation.opts?.preserveVisualIdentity,
+          });
     const userText = user + optionsSuffix;
     // When vision images are provided, build multi-modal content so the AI
     // can see the kept images and decide where to insert them.
@@ -207,8 +211,13 @@ export class WholeDeckOrchestrator {
       const result = validator.validate(enhancedMarkdown, "generate", {
         expectedSlideCount: expectedSlideCount ?? undefined,
         skipOverflow: operation.opts?.mode === "polish",
-        preserveVisualIdentity: operation.opts?.preserveVisualIdentity === true,
+        // Identity-preservation enforcement is only enabled by the remix
+        // execute operation (enforcePreserveIdentity) — the plain
+        // preserveVisualIdentity option also covers polish/generate, where
+        // dropped directives are gap-filled after the call instead.
+        enforcePreserveIdentity: operation.opts?.enforcePreserveIdentity === true,
         restrictImageSources: operation.opts?.restrictImageSources === true,
+        allowedImageSrcs: operation.opts?.allowedImageSrcs,
       });
 
       if (result.ok) {
@@ -369,7 +378,9 @@ export class WholeDeckOrchestrator {
           mode: operation.opts?.mode,
           hasVisualSystem: !!operation.opts?.visualSystem,
           preserveVisualIdentity: operation.opts?.preserveVisualIdentity === true,
+          enforcePreserveIdentity: operation.opts?.enforcePreserveIdentity === true,
           restrictImageSources: operation.opts?.restrictImageSources === true,
+          allowedImageSrcs: operation.opts?.allowedImageSrcs,
           // Only the first batch gets vision images — subsequent batches
           // know the paths from the options suffix text.
           visionImages: batch.hasVisionImages ? visionImages : null,
@@ -561,7 +572,9 @@ export class WholeDeckOrchestrator {
     mode,
     hasVisualSystem = false,
     preserveVisualIdentity = false,
+    enforcePreserveIdentity = false,
     restrictImageSources = false,
+    allowedImageSrcs,
     visionImages = null,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
@@ -575,6 +588,7 @@ export class WholeDeckOrchestrator {
       deckSummary,
       mode,
       hasVisualSystem,
+      preserveVisualIdentity,
     );
 
     const userText = user + optionsSuffix;
@@ -661,8 +675,9 @@ export class WholeDeckOrchestrator {
       const result = validator.validate(enhancedMarkdown, "generate", {
         expectedSlideCount: expectedCount,
         skipOverflow: mode === "polish",
-        preserveVisualIdentity,
+        enforcePreserveIdentity,
         restrictImageSources,
+        allowedImageSrcs,
       });
 
       if (!result.ok) {

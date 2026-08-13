@@ -1,7 +1,10 @@
 <!-- variant: absent -->
 
-- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.
-- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.
+- Use the app's default neutral styling. Do not output `background:`, `theme:`, `style="..."`, `color`, `backgroundColor`, or `::: text-block { color="..." backgroundColor="..." }`. Use bold, headings, and layout to create emphasis, not color.
+
+<!-- variant: absent-preserve -->
+
+- Keep the deck's existing visual identity: preserve each slide's `theme:`, `background:`, and color directives exactly as they are. Do not introduce new themes, backgrounds, or colored text. Use bold, headings, and layout to create emphasis, not color.
 
 <!-- variant: present -->
 

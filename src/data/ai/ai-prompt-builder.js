@@ -170,6 +170,11 @@ export const BATCH_SIZE = 8;
  * @param {string} [deckSummary] - Pre-generated deck summary (generate mode only).
  * @param {string} [batchMode] - "polish" | undefined. When "polish",
  *   uses polish-prompt.md (specific cleanup rules) instead of generate-prompt.md.
+ * @param {boolean} [hasVisualSystem=false] — when true, the visual system brief
+ *   (options suffix) overrides the generic visual-styling note.
+ * @param {boolean} [preserveVisualIdentity=false] — when true (remix preserve),
+ *   the visual-styling note tells the model to keep the original theme/background/
+ *   color directives instead of emitting neutral styling.
  * @returns {{ system: string, user: string, original: string }}
  */
 export function buildBatchMessages(
@@ -181,6 +186,7 @@ export function buildBatchMessages(
   deckSummary,
   batchMode,
   hasVisualSystem = false,
+  preserveVisualIdentity = false,
 ) {
   if (mode === "fix" && batchMode === "polish") {
     throw new Error(
@@ -230,7 +236,10 @@ export function buildBatchMessages(
   // Only provide visualStylingNote for the generate fragment (which has the
   // {{visualStylingNote}} placeholder).
   if (isGenerateFragment) {
-    substitutions.visualStylingNote = buildVisualStylingNote(hasVisualSystem);
+    substitutions.visualStylingNote = buildVisualStylingNote(
+      hasVisualSystem,
+      preserveVisualIdentity,
+    );
     substitutions.densityBudgets = buildDensityBudgets("full");
   } else if (mode !== "fix" && batchMode === "polish") {
     substitutions.densityBudgets = buildDensityBudgets("compact");

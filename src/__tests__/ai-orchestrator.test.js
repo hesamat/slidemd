@@ -482,6 +482,35 @@ describe("AiOrchestrator", () => {
       expect(provider.chat).toHaveBeenCalled();
     });
 
+    it("does not enforce identity validation for polish with preserveVisualIdentity", async () => {
+      // Polish always sets preserveVisualIdentity, but dropped directives are
+      // gap-filled after the call — the validator must not fail polish output
+      // that omits them (no repair round-trip).
+      const themedDeck =
+        "layout: header-content\ntheme: dark\n@header\n## Title\n\n@main\n- Item 1\n- Item 2";
+      const dropThemeResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Title\n\n@main\n- Tightened item",
+          },
+        ],
+      });
+      const provider = mockProvider(dropThemeResponse);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, themedDeck, {
+        mode: "polish",
+        preserveVisualIdentity: true,
+      });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      // Validation passed on the first attempt — no repair round-trip.
+      expect(provider.chat).toHaveBeenCalledTimes(1);
+      // The dropped theme is restored by positional gap-fill after the call.
+      expect(result).toContain("theme: dark");
+      expect(result).toContain("Tightened item");
+    });
+
     it("remix plan prompt uses moderate guidance and preserves visual identity", async () => {
       const provider = mockProviderSequence([
         REMIX_PLAN_RESPONSE,
@@ -1802,6 +1831,46 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("Slide A");
       expect(result).not.toContain("theme:");
       expect(result).not.toContain("background:");
+    });
+
+    it("allows kept images in the execute output when briefs carry no reuse: refs", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      // BREAKDOWN_RESPONSE briefs have no imageQuery, so the virtual deck has
+      // no reuse:<path> reference — the kept image (a.png) is only known via
+      // the available-images suffix list and must be allowed through the
+      // explicit allowedImageSrcs union.
+      const executeWithKeptImage = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: '@header\n## Slide A\n\n@main\n<img src="images/a.png" alt="A">',
+          },
+          { layout: "header-content", content: "@header\n## Slide B\n\n@main\n- B" },
+        ],
+      });
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BREAKDOWN_RESPONSE,
+        executeWithKeptImage,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // Execute passed validation on the first attempt: outline + breakdown +
+      // execute = 3 calls, no repair round-trip.
+      expect(provider.chat).toHaveBeenCalledTimes(3);
+      expect(result).toContain('src="images/a.png"');
     });
   });
 

@@ -158,17 +158,26 @@ export function buildRemixVisualIdentityGuidance(preserveVisualIdentity) {
 
 /**
  * Build the {{visualStylingNote}} substitution for generate prompts.
- * When a visual system is present, the note points the model at the design
- * language while telling it explicitly not to use the palette colors, so it
- * does not contradict `buildVisualSystemBrief`.
+ * Variant selection:
+ * - "present" — a visual system is provided (reimagine): follow the design
+ *   language but do not use the palette colors, so it does not contradict
+ *   `buildVisualSystemBrief`.
+ * - "absent-preserve" — no visual system, but the deck's existing identity
+ *   must be kept (remix preserve mode): keep the original theme/background/
+ *   color directives instead of emitting neutral styling.
+ * - "absent" — default: the app provides its own neutral color scheme and no
+ *   custom `background:`/`theme:`/color directives may be emitted.
  * @param {boolean} hasVisualSystem
+ * @param {boolean} [preserveVisualIdentity]
  * @returns {string}
  */
-export function buildVisualStylingNote(hasVisualSystem) {
-  return extractVariant(
-    getFragment("visual-styling-note.md"),
-    hasVisualSystem ? "present" : "absent",
-  );
+export function buildVisualStylingNote(hasVisualSystem, preserveVisualIdentity = false) {
+  const variant = hasVisualSystem
+    ? "present"
+    : preserveVisualIdentity
+      ? "absent-preserve"
+      : "absent";
+  return extractVariant(getFragment("visual-styling-note.md"), variant);
 }
 
 /**

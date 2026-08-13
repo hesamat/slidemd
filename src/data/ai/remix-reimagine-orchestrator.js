@@ -184,9 +184,11 @@ export class RemixReimagineOrchestrator {
     // ── Phase 3: Execute via existing single-call/batched path ──
     // Build a synthetic operation with the virtual deck as context.
     // Clear mode so the inner call doesn't recurse into the remix flow.
-    // Propagate the resolved preserveVisualIdentity so the execute validator
-    // enforces directive preservation, and restrict output images to the
-    // virtual deck's sources (no fabricated URLs).
+    // Preserve the resolved preserveVisualIdentity (for the prompt suffix and
+    // the visual-styling note), but only the remix execute operation sets
+    // enforcePreserveIdentity so identity validation never leaks into
+    // polish/generate paths that set preserveVisualIdentity themselves.
+    // Restrict output images to the virtual deck's sources (no fabricated URLs).
     const execOp = {
       ...operation,
       context: virtualDeck,
@@ -194,6 +196,7 @@ export class RemixReimagineOrchestrator {
         ...operation.opts,
         mode: undefined,
         preserveVisualIdentity,
+        enforcePreserveIdentity: preserveVisualIdentity,
         restrictImageSources: true,
       },
     };
@@ -401,8 +404,12 @@ export class RemixReimagineOrchestrator {
         ...operation.opts,
         mode: undefined,
         visualSystem: editedOutline.visualSystem ?? null,
-        // Output images must resolve to the kept source images (reuse:<path>).
+        // Output images must resolve to the kept source images. The kept paths
+        // are listed in the options suffix (buildAvailableImagesBrief), so pass
+        // them explicitly to the validator — the virtual deck only carries them
+        // when a brief happens to include a reuse:<path> directive.
         restrictImageSources: true,
+        allowedImageSrcs: keptImageSrcs,
       },
     };
     const execSuffix =

@@ -24,7 +24,6 @@ Visual styling:
 
 {{visualStylingNote}}
 
-- Use the app's default neutral styling. Do not output `background:`, `theme:`, `style="..."`, `color`, `backgroundColor`, or `::: text-block { color="..." backgroundColor="..." }`. Use bold, headings, and layout to create emphasis, not color.
 - Place content images using `<img>` tags with appropriate `position: relative` + `left`/`top`/`width` for custom placement when the layout allows it.
 - For full-bleed visuals, use `layout: full-image` with the image as the `@main` content.
 
@@ -56,7 +55,7 @@ Slide density and overflow prevention:
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- No custom `background:`, `theme:`, `color`, or `backgroundColor` directives are emitted; the deck uses the app's default neutral styling.
+- `theme:`, `background:`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals, otherwise no custom directives are emitted.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.

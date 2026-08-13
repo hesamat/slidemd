@@ -592,12 +592,12 @@ background: #1a1a2e
     });
   });
 
-  describe("preserveVisualIdentity checks (remix preserve mode)", () => {
+  describe("enforcePreserveIdentity checks (remix preserve execute)", () => {
     const validatePreserve = (inputMarkdown, outputMarkdown) => {
       const validator = new AiOutputValidator({ inputMarkdown });
       return validator.validate(outputMarkdown, "generate", {
         expectedSlideCount: 1,
-        preserveVisualIdentity: true,
+        enforcePreserveIdentity: true,
       });
     };
 
@@ -725,7 +725,7 @@ layout: header-content
       expect(result.errors.map((e) => e.code)).toEqual(["SLIDE_COUNT_MISMATCH"]);
     });
 
-    it("does not enforce identity when preserveVisualIdentity is not set", () => {
+    it("does not enforce identity when enforcePreserveIdentity is not set", () => {
       const output = `layout: header-content
 
 @header
@@ -735,6 +735,25 @@ layout: header-content
 - No theme kept`;
       const validator = new AiOutputValidator({ inputMarkdown: INPUT });
       const result = validator.validate(output, "generate", { expectedSlideCount: 1 });
+      expect(result.ok).toBe(true);
+    });
+
+    it("does not enforce identity for polish/generate with preserveVisualIdentity but no enforce flag", () => {
+      // Polish and plain generate set preserveVisualIdentity for the prompt
+      // suffix and gap-fill dropped directives after validation — identity
+      // must not be enforced there.
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+- No theme kept`;
+      const validator = new AiOutputValidator({ inputMarkdown: INPUT });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        preserveVisualIdentity: true,
+      });
       expect(result.ok).toBe(true);
     });
   });
@@ -853,6 +872,41 @@ background: url(https://example.com/bg.png)
 \`\`\``;
       const result = validateSources(input, output);
       expect(result.ok).toBe(true);
+    });
+
+    it("allows kept images passed via allowedImageSrcs even when the input has no reference", () => {
+      // Reimagine execute: the virtual deck is briefs with no reuse: ref, but
+      // the kept image is listed in the options suffix — the explicit
+      // allowlist must cover it.
+      const input = `<!-- brief: Slide A | beat: continuation, energy: medium, contrast: moderate, relationship: continue -->`;
+      const output = `layout: header-content
+
+@main
+<img src="images/team.png" alt="Team">`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: ["images/team.png"],
+      });
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("rejects images outside the explicit allowedImageSrcs list", () => {
+      const input = `<!-- brief: Slide A -->`;
+      const output = `layout: header-content
+
+@main
+<img src="images/team.png" alt="Team">`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: ["images/other.png"],
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
     });
   });
 });

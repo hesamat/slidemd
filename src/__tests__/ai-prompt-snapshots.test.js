@@ -90,6 +90,17 @@ describe("composed prompt snapshots", () => {
     expect({ system, user }).toMatchSnapshot();
   });
 
+  it("generate (whole deck, preserve visual identity)", () => {
+    // Remix preserve-mode execute: the visual-styling note must tell the model
+    // to keep the original theme/background/color directives instead of
+    // emitting neutral styling.
+    const { system, user } = buildMessagesForIntent("generate", {
+      markdown: FIXTURE_DECK,
+      preserveVisualIdentity: true,
+    });
+    expect({ system, user }).toMatchSnapshot();
+  });
+
   it("polish (whole deck)", () => {
     const { system, user } = buildPolishMessages(FIXTURE_DECK);
     expect({ system, user }).toMatchSnapshot();

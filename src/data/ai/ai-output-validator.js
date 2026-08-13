@@ -194,16 +194,23 @@ export class AiOutputValidator {
    * @param {number} [opts.expectedSlideCount] — when set, enforce exact slide count
    * @param {boolean} [opts.skipOverflow] — skip the content-volume/overflow check
    *   (used by polish, which must preserve existing content rather than trim it)
-   * @param {boolean} [opts.preserveVisualIdentity] — when true (remix preserve mode),
-   *   enforce per-slide preservation of the input's `theme:`/`background:` directives:
-   *   each input directive must survive at the same position, and no new directive
-   *   values may be introduced (positional — only meaningful when the slide count
-   *   matches the input, which expectedSlideCount enforces).
+   * @param {boolean} [opts.enforcePreserveIdentity] — when true (remix preserve
+   *   mode execute phase only), enforce per-slide preservation of the input's
+   *   `theme:`/`background:` directives: each input directive must survive at the
+   *   same position, and no new directive values may be introduced (positional —
+   *   only meaningful when the slide count matches the input, which
+   *   expectedSlideCount enforces). This is a distinct opt from the prompt-side
+   *   preserveVisualIdentity (which polish/generate also set) so identity
+   *   validation never applies to paths that gap-fill directives instead.
    * @param {boolean} [opts.restrictImageSources] — when true (remix/reimagine execute),
    *   every `<img src>` and `background: url(...)` in the output must reference an
    *   image that exists in the input deck (an `<img>` src, a `reuse:<path>` reference,
    *   or a `background: url(...)` value from the input) — fabricated/external URLs are
    *   rejected.
+   * @param {string[]} [opts.allowedImageSrcs] — additional image srcs the output
+   *   may reference, unioned with the srcs derived from the input markdown. Used by
+   *   the reimagine execute phase, where kept source images are communicated to the
+   *   model via the options suffix rather than the virtual deck.
    * @returns {ValidationResult}
    */
   validate(outputMarkdown, intent, opts = {}) {
@@ -320,11 +327,11 @@ export class AiOutputValidator {
 
     // Remix/reimagine execute-phase constraints (see opts docs above).
     if (opts.restrictImageSources) {
-      this._checkImageSources(rawSlideTexts, errors);
+      this._checkImageSources(rawSlideTexts, errors, opts.allowedImageSrcs);
     }
     // Positional identity preservation — only meaningful when slide counts match
     // (expectedSlideCount enforces this in the remix execute path).
-    if (opts.preserveVisualIdentity && rawSlideTexts.length === inputRawSlideTexts.length) {
+    if (opts.enforcePreserveIdentity && rawSlideTexts.length === inputRawSlideTexts.length) {
       this._checkPreservedIdentity(inputRawSlideTexts, rawSlideTexts, errors);
     }
 
@@ -627,18 +634,22 @@ export class AiOutputValidator {
    * Reject fabricated or external image references in the output when the
    * execute phase is restricted to the input deck's images (remix/reimagine).
    *
-   * Allowed sources are derived from the input markdown: `<img>` srcs, `reuse:<path>`
-   * references (reimagine briefs), and `background: url(...)` values. Both `<img src>`
-   * and `background: url(...)` in the output must resolve to one of them — an image
-   * the AI invented (a made-up local path or an external URL) cannot be displayed.
-   * Fenced code blocks are excluded on both sides so code samples that merely
-   * illustrate `<img>` tags are neither allowed nor flagged.
+   * Allowed sources are the union of an explicit `allowedImageSrcs` list
+   * (reimagine's kept images, communicated via the options suffix) and the srcs
+   * derived from the input markdown: `<img>` srcs, `reuse:<path>` references
+   * (reimagine briefs), and `background: url(...)` values. Both `<img src>`
+   * and `background: url(...)` in the output must resolve to one of them — an
+   * image the AI invented (a made-up local path or an external URL) cannot be
+   * displayed. Fenced code blocks are excluded on both sides so code samples
+   * that merely illustrate `<img>` tags are neither allowed nor flagged.
    *
    * @param {string[]} outputSlides — raw output slide texts
    * @param {ValidationError[]} errors
+   * @param {string[]} [allowedImageSrcs] — explicit allowlist unioned with the
+   *   input-derived sources
    */
-  _checkImageSources(outputSlides, errors) {
-    const allowed = new Set();
+  _checkImageSources(outputSlides, errors, allowedImageSrcs = []) {
+    const allowed = new Set(allowedImageSrcs);
     if (this._inputMarkdown) {
       const inputUnfenced = stripFencedBlocks(this._inputMarkdown);
       for (const img of parseAllImages(inputUnfenced)) allowed.add(img.src);
