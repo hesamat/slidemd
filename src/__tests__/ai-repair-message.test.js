@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
 import { LayoutData } from "../data/layout-data.js";
-import { KNOWN_TEXT_BLOCK_ATTRIBUTES } from "../core/text-block-directive.js";
 
 describe("buildRepairMessage", () => {
   it("lists errors on different slides with their locations", () => {
@@ -169,36 +168,28 @@ describe("buildRepairMessage", () => {
     expect(msg).toContain("Add a `layout:` directive at the top of each slide.");
   });
 
-  it("reminds the AI of supported text-block attributes for UNKNOWN_TEXT_BLOCK_ATTR errors", () => {
+  it("points back at the issue text for UNKNOWN_TEXT_BLOCK_ATTR errors instead of repeating the attribute list", () => {
+    // The validator's own issue message already lists every supported
+    // attribute ("Supported: ..."), so the guidance must not repeat that
+    // ~20-name list a second time in the same repair message — it should
+    // just point back at the issue text above it.
     const errors = [
       {
         slide: 0,
         code: "UNKNOWN_TEXT_BLOCK_ATTR",
-        message: "Slide 1 text-block uses unsupported attributes: style",
+        message:
+          "Slide 1 text-block uses unsupported attributes: style. Supported: id, float, x, y, fontSize.",
       },
     ];
     const msg = buildRepairMessage(errors);
     expect(msg).toContain("Guidance:");
-    expect(msg).toContain("Supported text-block attributes:");
-    expect(msg).toContain("fontSize");
-  });
-
-  it("derives the supported text-block attribute list from the canonical set (no drift)", () => {
-    // Regression test: the guidance must be derived from
-    // KNOWN_TEXT_BLOCK_ATTRIBUTES rather than a hand-copied list, so it
-    // never omits an alias (e.g. background, textAlign, columnCount) that
-    // the parser actually accepts.
-    const errors = [
-      {
-        slide: 0,
-        code: "UNKNOWN_TEXT_BLOCK_ATTR",
-        message: "Slide 1 text-block uses unsupported attributes: style",
-      },
-    ];
-    const msg = buildRepairMessage(errors);
-    for (const attr of KNOWN_TEXT_BLOCK_ATTRIBUTES) {
-      expect(msg).toContain(attr);
-    }
+    expect(msg).toContain(
+      "Each text-block issue above lists the supported attributes — use only those.",
+    );
+    expect(msg.indexOf("Supported: id, float")).toBeLessThan(msg.indexOf("Guidance:"));
+    // The guidance line itself must not re-embed the attribute list.
+    const guidanceSection = msg.slice(msg.indexOf("Guidance:"));
+    expect(guidanceSection).not.toContain("fontSize");
   });
 
   it("tells the AI to use braces for MALFORMED_TEXT_BLOCK errors", () => {

@@ -186,7 +186,10 @@ function fenceCompletionSource() {
  * each source can close over the pre-computed options.
  */
 export function createCompletionSources() {
-  const layoutNames = LayoutData.getAllLayouts();
+  // getValidLayoutNames() excludes custom layouts with an empty/corrupted
+  // stored grid template, so autocomplete never suggests a `layout:` value
+  // that hasLayout() would then reject.
+  const layoutNames = LayoutData.getValidLayoutNames();
   const layoutCompletions = layoutNames.map((name) => ({ label: name, type: "keyword" }));
 
   // Snippet shortcuts for common custom grid patterns.

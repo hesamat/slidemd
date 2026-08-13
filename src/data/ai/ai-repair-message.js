@@ -14,7 +14,6 @@
 import { getFragment } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
-import { KNOWN_TEXT_BLOCK_ATTRIBUTES } from "../../core/text-block-directive.js";
 
 /**
  * Actionable, code-specific guidance appended once per distinct error code
@@ -37,15 +36,29 @@ const CODE_GUIDANCE = new Map([
   // issue list itself rather than repeating a layout→area table here.
   ["INVALID_AREA", "Each area issue above lists that slide's allowed @areas — use only those."],
   ["MISSING_LAYOUT", "Add a `layout:` directive at the top of each slide."],
+  // Each UNKNOWN_TEXT_BLOCK_ATTR issue message above already lists the full
+  // supported-attribute set ("Supported: ..."), so this points back at the
+  // issue list instead of repeating that ~20-name list a second time.
   [
     "UNKNOWN_TEXT_BLOCK_ATTR",
-    () => `Supported text-block attributes: ${[...KNOWN_TEXT_BLOCK_ATTRIBUTES].join(", ")}.`,
+    "Each text-block issue above lists the supported attributes — use only those.",
   ],
   ["MALFORMED_TEXT_BLOCK", "Wrap text-block attributes in braces: `::: text-block { ... }`."],
 ]);
 
 /**
  * Group errors by slide, preserving the order slides first appear in.
+ *
+ * This clusters same-slide errors together, which can reorder a later
+ * error ahead of an unrelated error that appeared between them in the
+ * input array (e.g. a deck-level error sandwiched between two per-slide
+ * errors for the same slide). That's intentional — a focused per-slide
+ * checklist is more actionable than strict input-order — and safe: both
+ * callers (`single-slide-orchestrator.js`, `whole-deck-orchestrator.js`)
+ * only forward the resulting string to the model, nothing parses it. In
+ * practice `AiOutputValidator.validate()` always pushes its deck-level
+ * (`slide: -1`) errors before any per-slide errors, so grouping doesn't
+ * change the Deck-vs-Slide ordering for real validator output.
  * @param {ValidationError[]} errors
  * @returns {Array<[number, ValidationError[]]>}
  */
