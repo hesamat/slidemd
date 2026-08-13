@@ -17,6 +17,7 @@ Content strategy:
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
 - The brief may include `| image: <query>` at the end. Only honor the query if it is a `reuse:<path>` directive (e.g. `reuse:images/team-photo.jpg`). In that case, insert `<img src="path">` on that slide using the exact path. If the query is anything other than `reuse:<path>` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's `@footer` area (not in `@main`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
+- If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:
@@ -40,8 +41,8 @@ Content depth:
 
 - Each slide should have enough content to stand on its own — not just a title and one sentence. Include concrete examples, code, comparisons, or visual structure that makes the point clear.
 - Vary content structure across slides. Don't make every slide a title + code block + one-line explanation. Mix in: tables, side-by-side comparisons, annotated code, step-by-step traces, prediction questions, before/after contrasts, analogies, historical remarks, and visual metaphors.
-- Code blocks should be realistic and illustrative, not trivially short. Show enough context (variables, types, output) that the reader can trace what happens. Include expected output as a separate `text` block when helpful.
-- All code must be syntactically valid in its language and use consistent, meaningful identifiers. Do not include placeholder tokens, foreign words, or malformed syntax unless the slide explicitly labels it as a deliberate mistake and explains the fix.
+- Code blocks should be realistic and illustrative, not trivially short. Show enough context (variables, types, and state) that the reader can trace what happens.
+- Do not add answers, expected outputs, or result comments to code blocks unless the source slide already includes them. Code used as a prediction exercise, open question, or trace-for-the-audience should remain open; the reader or presenter supplies the result. If the source shows an output, preserve it exactly; otherwise keep the code block free of inline answers.
 - Speaker notes should add teaching value — not just restate the slide. Include suggested questions to ask the audience, common misconceptions, or transitions to the next slide.
 
 Slide density and overflow prevention:
