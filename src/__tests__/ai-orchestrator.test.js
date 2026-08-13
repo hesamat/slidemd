@@ -261,6 +261,38 @@ describe("AiOrchestrator", () => {
       ).content;
       expect(userMsg).not.toContain("Fidelity:");
     });
+
+    it("polish mode strips fabricated image filenames from the output", async () => {
+      // A model that hallucinates a new filename should not end up in the deck
+      // even after the two-attempt repair loop accepts the output.
+      const deckWithImage = `layout: header-content
+@header
+# Title
+
+@main
+<img src="images/image16-3245.jpeg" alt="Photo">`;
+      const fabricatedResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: `@header
+# Title
+
+@main
+<img src="images/image16-2349.jpeg" alt="Photo">`,
+          },
+        ],
+      });
+      const provider = mockProvider(fabricatedResponse);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithImage, { mode: "polish" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg, level) => logs.push({ msg, level }),
+      });
+      expect(result).not.toContain("images/image16-2349.jpeg");
+      expect(logs.some((l) => l.msg.includes("Removing fabricated image"))).toBe(true);
+    });
   });
 
   describe("runWholeDeckOperation (remix)", () => {

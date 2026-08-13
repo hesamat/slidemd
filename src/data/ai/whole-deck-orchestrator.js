@@ -23,6 +23,7 @@ import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
 import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
 import { buildImageLibraryVisionMessage } from "./ai-vision-message.js";
+import { collectOwnImageSources, stripFabricatedImages } from "./ai-output-validator.js";
 
 export class WholeDeckOrchestrator {
   /**
@@ -75,7 +76,7 @@ export class WholeDeckOrchestrator {
     // Single-call path for small decks. Polish and simple generate both
     // preserve the slide count (the prompts promise this), so enforce it here —
     // otherwise a truncated/lazy response could silently collapse the deck.
-    const result =
+    let result =
       totalSlides <= BATCH_SIZE
         ? await this.runWholeDeckSingleCall(
             operation,
@@ -97,6 +98,18 @@ export class WholeDeckOrchestrator {
     // index-based injection attaches a slide's original styling to an unrelated
     // slide (e.g. when remix or reimagine reorders/splits/merges).
     if (!result) return result;
+
+    // Polish must not introduce images that are not in the source deck. The
+    // validator only drives a repair loop and accepts the last response after
+    // two attempts, so this mechanical backstop removes any fabricated image
+    // references that survived the loop. Normalization means a slightly
+    // rewritten path (`./images/a.png` vs `images/a.png`) is kept, but a
+    // hallucinated filename like `image16-2349.jpeg` is stripped.
+    if (operation.opts?.mode === "polish") {
+      const allowedSrcs = collectOwnImageSources(context);
+      result = stripFabricatedImages(result, allowedSrcs, callbacks.onLog);
+    }
+
     const resultSlides = splitSlidesForAi(result, "generate");
     if (resultSlides.length === totalSlides) {
       return injectDirectives(result, origDirectives, "generate");
@@ -216,8 +229,12 @@ export class WholeDeckOrchestrator {
         // preserveVisualIdentity option also covers polish/generate, where
         // dropped directives are gap-filled after the call instead.
         enforcePreserveIdentity: operation.opts?.enforcePreserveIdentity === true,
-        restrictImageSources: operation.opts?.restrictImageSources === true,
-        allowedImageSrcs: operation.opts?.allowedImageSrcs,
+        restrictImageSources:
+          operation.opts?.restrictImageSources === true || operation.opts?.mode === "polish",
+        allowedImageSrcs:
+          operation.opts?.mode === "polish"
+            ? collectOwnImageSources(context)
+            : operation.opts?.allowedImageSrcs,
         onlyExplicitImageSources: operation.opts?.onlyExplicitImageSources === true,
       });
 
@@ -382,8 +399,12 @@ export class WholeDeckOrchestrator {
           hasVisualSystem: !!operation.opts?.visualSystem,
           preserveVisualIdentity: operation.opts?.preserveVisualIdentity === true,
           enforcePreserveIdentity: operation.opts?.enforcePreserveIdentity === true,
-          restrictImageSources: operation.opts?.restrictImageSources === true,
-          allowedImageSrcs: operation.opts?.allowedImageSrcs,
+          restrictImageSources:
+            operation.opts?.restrictImageSources === true || operation.opts?.mode === "polish",
+          allowedImageSrcs:
+            operation.opts?.mode === "polish"
+              ? collectOwnImageSources(context)
+              : operation.opts?.allowedImageSrcs,
           onlyExplicitImageSources: operation.opts?.onlyExplicitImageSources === true,
           // Images may legitimately move across batch boundaries (the
           // full-deck allowlist accepts cross-batch reuse), so a per-batch
