@@ -1242,6 +1242,8 @@ describe("AiOrchestrator", () => {
     });
 
     it("throws on out-of-range source index", async () => {
+      const badPlan = JSON.stringify({
+        plan: [
           { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
           { action: "rewrite", source: [5], brief: "fix", reason: "ok", title: "S5" },
         ],
