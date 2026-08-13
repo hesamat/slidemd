@@ -1300,8 +1300,8 @@ export class RemixReimagineOrchestrator {
         );
       }
 
-      if (entry.action === "merge" && entry.source.length < 2) {
-        errors.push(`${prefix}: merge must have 2+ sources, got ${entry.source.length}`);
+      if (entry.action === "merge" && entry.source.length !== 2) {
+        errors.push(`${prefix}: merge must have exactly 2 sources, got ${entry.source.length}`);
       }
 
       if (entry.action !== "keep" && (!entry.brief || entry.brief.trim().length === 0)) {

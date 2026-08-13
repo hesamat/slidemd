@@ -263,6 +263,7 @@ describe("AiOrchestrator", () => {
   describe("runWholeDeckOperation (remix)", () => {
     const TWO_SLIDE_MD =
       "layout: header-content\n@header\n## Slide 1\n\n@main\n- Item 1\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
+    const THREE_SLIDE_MD = `${TWO_SLIDE_MD}\n\n---\n\nlayout: header-content\n@header\n## Slide 3\n\n@main\n- Item 3`;
 
     const REMIX_PLAN_RESPONSE = JSON.stringify({
       plan: [
@@ -2057,6 +2058,24 @@ describe("AiOrchestrator", () => {
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
+    });
+
+    it("throws on merge of more than two source slides", async () => {
+      const badPlan = JSON.stringify({
+        plan: [
+          {
+            action: "merge",
+            source: [0, 1, 2],
+            brief: "Combine three slides",
+            reason: "All thin",
+            title: "M",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, THREE_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
