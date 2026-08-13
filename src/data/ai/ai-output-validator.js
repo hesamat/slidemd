@@ -15,6 +15,21 @@ import { getSchema } from "./ai-output-schema.js";
 const BASE_LINES_PER_SLIDE = 20;
 
 /**
+ * Per-layout overrides for the @main area's max line count. The formula-based
+ * derivation is an approximation that doesn't account for real rendering
+ * constraints (font size, padding, actual visible height). These values are
+ * tuned from real-world testing of what fits without overflow. Custom grid
+ * templates fall back to the formula.
+ */
+const MAIN_LINE_OVERRIDES = {
+  "header-content": 13,
+  focus: 11,
+  "two-column": 10,
+  "media-span-left": 12,
+  "media-span-right": 12,
+};
+
+/**
  * Multipliers applied by area type. Compact areas (header, footer, title)
  * get a lower multiplier because they hold short labels, not body content.
  * Media areas get a higher multiplier because image/mermaid markdown is
@@ -139,6 +154,12 @@ function computeAreaLimits(layoutName) {
   // If the layout has no `main` area, content routed to @main is misplaced.
   if (!limits.main) {
     limits.main = { maxLines: 0 };
+  }
+
+  // Apply real-world @main overrides for known presets. Custom grid templates
+  // (not in the override map) keep the formula-derived value.
+  if (limits.main && MAIN_LINE_OVERRIDES[layoutName] != null) {
+    limits.main.maxLines = MAIN_LINE_OVERRIDES[layoutName];
   }
 
   limitsCache.set(layoutName, limits);

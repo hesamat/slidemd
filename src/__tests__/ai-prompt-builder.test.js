@@ -129,10 +129,10 @@ describe("buildDeckSummary", () => {
     const md =
       "layout: header-content\n@header\n## Intro\n\n@main\n- Point 1\n- Point 2\n- Point 3\n\n---\n\nlayout: two-column\n@header\n## Code Slide\n\n@main\n```\nconsole.log('hi')\n```\n\n@media\n<img src=\"pic.png\">";
     const summary = buildDeckSummary(md, false, true);
-    // First slide: 3 bullets, no code/images/diagrams
+    // First slide: heading + 3 bullets = 4 content lines (directives and @area excluded)
     expect(summary).toContain("1. [header-content] Intro (4 lines, 3 bullets)");
-    // Second slide: has code and image
-    expect(summary).toContain("2. [two-column] Code Slide");
+    // Second slide: heading + code line + img = 3 content lines (code fences excluded)
+    expect(summary).toContain("2. [two-column] Code Slide (3 lines");
     expect(summary).toContain("code");
     expect(summary).toContain("image");
   });
@@ -156,6 +156,51 @@ describe("buildDeckSummary", () => {
     const summary = buildDeckSummary(md, false, true);
     expect(summary).toContain("1 bullet");
     expect(summary).not.toContain("1 bullets");
+  });
+
+  it("enriched metadata excludes speaker notes from line count", () => {
+    const md =
+      "layout: header-content\n@header\n## Slide\n\n@main\n- Point 1\n\n<!-- notes: Remember to mention the backstory -->";
+    const summary = buildDeckSummary(md, false, true);
+    // Heading + 1 bullet = 2 content lines (notes excluded)
+    expect(summary).toContain("(2 lines, 1 bullet)");
+  });
+
+  it("enriched metadata excludes code fence delimiters from line count", () => {
+    const md = "layout: header-content\n@main\n```\nline1 = 1\nline2 = 2\n```";
+    const summary = buildDeckSummary(md, false, true);
+    // 2 code lines (fences excluded)
+    expect(summary).toContain("2 lines");
+  });
+
+  it("enriched metadata excludes known frontmatter directives from line count", () => {
+    const md =
+      "layout: header-content\nhidden: true\nmedia-full-bleed: true\n@header\n## Slide\n\n@main\n- Point 1";
+    const summary = buildDeckSummary(md, false, true);
+    // Heading + 1 bullet = 2 content lines (hidden: and media-full-bleed: excluded)
+    expect(summary).toContain("(2 lines, 1 bullet)");
+  });
+
+  it("enriched metadata does NOT exclude body prose with colons (Example:, Output:)", () => {
+    const md =
+      "layout: header-content\n@header\n## Slide\n\n@main\nExample: this is a labelled line\nOutput: another labelled line\n- Point 1";
+    const summary = buildDeckSummary(md, false, true);
+    // Heading + Example + Output + bullet = 4 content lines, 1 bullet
+    expect(summary).toContain("(4 lines, 1 bullet)");
+  });
+
+  it("enriched metadata counts nested/indented bullets", () => {
+    const md = "layout: header-content\n@main\n- Top level\n  - Nested bullet\n  - Another nested";
+    const summary = buildDeckSummary(md, false, true);
+    // 3 bullets total (including indented ones)
+    expect(summary).toContain("3 bullets");
+  });
+
+  it("enriched metadata counts + and ordered list items as bullets", () => {
+    const md = "layout: header-content\n@main\n- Dash item\n+ Plus item\n1. First\n2. Second";
+    const summary = buildDeckSummary(md, false, true);
+    // 4 list items total
+    expect(summary).toContain("4 bullets");
   });
 });
 
