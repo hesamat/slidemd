@@ -194,9 +194,9 @@ export class RemixReimagineOrchestrator {
     // Build a synthetic operation with the virtual deck as context.
     // Clear mode so the inner call doesn't recurse into the remix flow.
     // Preserve the resolved preserveVisualIdentity (for the prompt suffix and
-    // the visual-styling note), but only the remix execute operation sets
-    // enforcePreserveIdentity so identity validation never leaks into
-    // polish/generate paths that set preserveVisualIdentity themselves.
+    // the visual-styling note). Identity is now enforced mechanically after
+    // the execute phase (applyPreservedIdentity), so do not ask the validator
+    // to retry on dropped/invented theme/background directives.
     // Restrict output images to the analyzed set (no fabricated URLs, no
     // un-analyzed adoptions). onlyExplicitImageSources skips the input-derived
     // union — the virtual deck text still carries source image markup
@@ -211,7 +211,7 @@ export class RemixReimagineOrchestrator {
         ...operation.opts,
         mode: undefined,
         preserveVisualIdentity,
-        enforcePreserveIdentity: preserveVisualIdentity,
+        enforcePreserveIdentity: false,
         restrictImageSources: true,
         allowedImageSrcs: analyzedSrcs,
         onlyExplicitImageSources: true,
@@ -295,26 +295,18 @@ export class RemixReimagineOrchestrator {
       return stripFabricatedImages(slide, [...analyzedSrcs, ...ownSrcs], onLog);
     });
 
-    // Deterministic preserve-mode backstop: validation is advisory (the
-    // whole-deck orchestrator accepts the last response after two failed
-    // attempts), so a persistent model can drop a source theme/color
-    // background or a source image background and still land in the final
-    // deck. Runs AFTER the image strip so restored source image backgrounds
+    // Deterministic preserve-mode identity enforcement: overwrite any
+    // model-emitted `theme:`/`background:` directives with the source slide's
+    // original identity. This eliminates both dropped identity and
+    // model-invented identity, and removes the need for repeated validation
+    // retries. Runs AFTER the image strip so source image backgrounds
     // (never analyzed, therefore not in the strip allowlist) survive.
-    // Restore those directives deterministically, mapped by plan-entry
-    // order (not original slide position — remix may reorder/merge). For
-    // merged source slides, restore the first source's value when the model
-    // dropped all of them; if the model kept any valid identity value from
-    // the merged sources, leave it alone. Image backgrounds are only
-    // restored when the image URL is otherwise absent from the output slide
-    // — converting an <img> to a background is a legitimate layout choice
-    // and must not be double-inserted.
     if (preserveVisualIdentity) {
       let restoreIdx2 = 0;
       for (let i = 0; i < cleaned.length; i++) {
         const sources = virtualSourceSlidesByEntry[restoreIdx2] || [];
         restoreIdx2++;
-        const restored = restorePreservedIdentity(cleaned[i], sources, onLog);
+        const restored = applyPreservedIdentity(cleaned[i], sources, onLog);
         if (restored !== cleaned[i]) cleaned[i] = restored;
       }
     }
@@ -1462,39 +1454,33 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices, sentImages) {
 }
 
 /**
- * Deterministic preserve-mode backstop for a single rewritten slide.
+ * Deterministic preserve-mode identity enforcement for a single generated slide.
  *
- * Validation is advisory — the whole-deck orchestrator accepts the last
- * response after two failed attempts — so a persistent model can drop a
- * source `theme:`/color `background:` directive or a source image
- * `background: url(...)` and still land in the final deck. This helper
- * restores those directives deterministically from the slide's virtual
- * source slides.
+ * After the execute phase the model may have dropped, altered, or invented
+ * `theme:`/`background:` directives. This helper overwrites those directives
+ * with the source slide's identity so the final deck always carries the
+ * original visual identity in preserve mode.
  *
  * Rules:
- * - For each of `theme` and color `background`, if the output slide has no
- *   value of that directive but the merged sources have at least one,
- *   restore the first source value. If the output already has any value
- *   that matches a source value (case/whitespace-insensitive), leave it.
- * - For image backgrounds (`background: url(...)`), restore the first
- *   source image URL that is entirely absent from the output slide (neither
- *   an `<img>` src nor a `background: url(...)` value). Converting an `<img>`
- *   to a full-bleed background is a legitimate layout choice, so only
- *   restore when the image is truly missing.
- * - Strip conflicting model-emitted `theme:`/`background:` from the leading
- *   directive block before inserting restored values. Without this, the
+ * - For `theme:`, always use the first source value. If the source has no
+ *   theme, any model-emitted theme is stripped.
+ * - For `background:`, rebuild a single combined layer from the first source
+ *   color and the first source image URL. If the source has no background,
+ *   any model-emitted background is stripped.
+ * - Strip all model-emitted `theme:`/`background:` lines from the leading
+ *   directive block before inserting the source values. Without this, the
  *   renderer's last-directive-wins behavior (MarkdownParser.extractDirective
- *   keeps the last match) would pick the model's value over the restored one.
- * - Insert restored directives after the existing `layout:` line (or
- *   prepend at the top when there is no layout directive). Fence-aware so
- *   a literal `theme:` inside a code block is not mistaken for a directive.
+ *   keeps the last match) would leave duplicate directive lines.
+ * - Insert the directives after the existing `layout:` line (or prepend at
+ *   the top when there is no layout directive). Fence-aware so a literal
+ *   `theme:` inside a code block is not mistaken for a directive.
  *
- * @param {string} slideMarkdown — the rewritten slide
+ * @param {string} slideMarkdown — the generated slide
  * @param {string[]} sourceSlides — the virtual source slides for this entry
  * @param {(msg: string, level?: string) => void} [onLog]
- * @returns {string} the slide with restored directives
+ * @returns {string} the slide with source identity applied
  */
-function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
+function applyPreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   if (!sourceSlides || sourceSlides.length === 0) return slideMarkdown;
 
   const normalize = (v) => v.trim().toLowerCase();
@@ -1502,12 +1488,13 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   // Collect source identity values (color/theme) and image background urls.
   // A single background layer can mix a color with an image (e.g.
   // `#fff url(hero.png)`) — splitBackgroundValue separates the two so a
-  // color riding alongside a legitimate image is still tracked for
-  // restoration, instead of the whole value being treated as pure image
-  // content merely because it contains `url(`.
+  // color riding alongside a legitimate image is still tracked, instead of
+  // the whole value being treated as pure image content merely because it
+  // contains `url(`.
   const sourceThemes = [];
   const sourceColorBackgrounds = [];
-  const sourceImageUrls = [];
+  const sourceBackgroundImageUrls = [];
+  const sourceInlineImageUrls = [];
   for (const src of sourceSlides) {
     for (const v of extractTopLevelDirectiveValues(src, "theme")) {
       if (v.trim()) sourceThemes.push(v);
@@ -1518,114 +1505,86 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
       if (colorPart) sourceColorBackgrounds.push(colorPart);
       if (hasImage) {
         for (const m of imagePart.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
-          sourceImageUrls.push(m[1]);
+          sourceBackgroundImageUrls.push(m[1]);
         }
       }
     }
+    for (const img of parseAllImagesOutsideFences(src)) {
+      sourceInlineImageUrls.push(img.src);
+    }
   }
+  const allSourceImageUrls = new Set([...sourceInlineImageUrls, ...sourceBackgroundImageUrls]);
 
   const outputThemes = extractTopLevelDirectiveValues(slideMarkdown, "theme").map(normalize);
   const outputBackgrounds = extractTopLevelDirectiveValues(slideMarkdown, "background");
-  const outputColorBackgrounds = [];
   const outputBackgroundImageParts = [];
-  const outputAllImageUrls = new Set();
   for (const v of outputBackgrounds) {
-    const { colorPart, imagePart, hasImage } = splitBackgroundValue(v);
-    if (colorPart) outputColorBackgrounds.push({ raw: colorPart, norm: normalize(colorPart) });
-    if (hasImage) {
-      outputBackgroundImageParts.push(imagePart);
-      for (const m of imagePart.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
-        outputAllImageUrls.add(m[1]);
-      }
-    }
-  }
-  for (const img of parseAllImagesOutsideFences(slideMarkdown)) {
-    outputAllImageUrls.add(img.src);
+    const { imagePart, hasImage } = splitBackgroundValue(v);
+    if (hasImage) outputBackgroundImageParts.push(imagePart);
   }
 
   const toRestore = [];
-  const namesToStrip = new Set();
-  // Theme: restore the first source theme when the output has none of the
-  // source themes.
-  if (sourceThemes.length > 0 && !sourceThemes.some((t) => outputThemes.includes(normalize(t)))) {
-    toRestore.push(`theme: ${sourceThemes[0]}`);
-    namesToStrip.add("theme");
-    onLog?.(`Restore: re-injecting dropped theme: ${sourceThemes[0]}`, "warn");
+
+  // Theme: always use the first source theme. If the source has no theme,
+  // any model-emitted theme is stripped and nothing is restored.
+  if (sourceThemes.length > 0) {
+    const theme = sourceThemes[0];
+    toRestore.push(`theme: ${theme}`);
+    if (!outputThemes.includes(normalize(theme))) {
+      onLog?.(`Restore: re-injecting dropped theme: ${theme}`, "warn");
+    }
+  } else if (outputThemes.length > 0) {
+    onLog?.("Restore: stripping model-invented theme", "warn");
   }
 
-  // Background: the slide renderer keeps only the LAST `background:`
-  // directive (MarkdownParser.extractDirective overwrites `value` for each
-  // match). A combined color+image source value such as
-  // `linear-gradient(...), url(hero.png) center/cover` must therefore be
-  // re-emitted as a SINGLE `background:` directive. The previous split-into-
-  // separate-lines behavior caused the gradient overlay to be silently
-  // dropped and, for merged source slides, only the last of several images
-  // to render.
-  //
-  // Build one combined layer:
-  // - color/gradient: a model-kept source color if the model preserved one
-  //   (preserve its choice), otherwise the first source color (restore).
-  // - image: a model-kept background image if any (do not destroy a
-  //   converted/relocated image while stripping to restore the color),
-  //   otherwise the first source image URL that is absent from the output.
-  //   Only the first source image is restored — a second center/cover image
-  //   would be hidden behind the first, so stacking them is dead weight.
-  const restoreColor =
-    sourceColorBackgrounds.length > 0 &&
-    !sourceColorBackgrounds.some((b) =>
-      outputColorBackgrounds.some((o) => o.norm === normalize(b)),
-    );
-  const absentSourceImageUrls = sourceImageUrls.filter((url) => !outputAllImageUrls.has(url));
-  const restoreImage = absentSourceImageUrls.length > 0;
+  // Background: rebuild a single `background:` directive from the source.
+  // The model may legitimately convert an inline source image into a
+  // full-bleed background, so any output background image that references a
+  // source image is kept. Otherwise the first source background image is
+  // restored. If the source has no background image, no image is forced into
+  // the background. Colors/gradients from the source are always used.
+  const colorForLine = sourceColorBackgrounds.length > 0 ? sourceColorBackgrounds[0] : "";
 
-  if (restoreColor || restoreImage) {
-    namesToStrip.add("background");
-
-    let colorForLine = "";
-    if (sourceColorBackgrounds.length > 0) {
-      const kept = outputColorBackgrounds.find((o) =>
-        sourceColorBackgrounds.some((b) => normalize(b) === o.norm),
-      );
-      colorForLine = kept ? kept.raw : sourceColorBackgrounds[0];
+  let imageForLine = "";
+  for (const part of outputBackgroundImageParts) {
+    const urls = [...part.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)].map((m) => m[1]);
+    if (urls.length > 0 && urls.every((u) => allSourceImageUrls.has(u))) {
+      imageForLine = part;
+      break;
     }
+  }
+  if (!imageForLine && sourceBackgroundImageUrls.length > 0) {
+    imageForLine = `url(${sourceBackgroundImageUrls[0]}) center/cover`;
+  }
 
-    let imageForLine = "";
-    if (outputBackgroundImageParts.length > 0) {
-      imageForLine = outputBackgroundImageParts[0];
-    } else if (restoreImage) {
-      const first = absentSourceImageUrls[0];
-      imageForLine = `url(${first}) center/cover`;
-      onLog?.(`Restore: re-injecting dropped image background: ${first}`, "warn");
-      for (const extra of absentSourceImageUrls.slice(1)) {
+  const hasSourceBackground =
+    sourceColorBackgrounds.length > 0 || sourceBackgroundImageUrls.length > 0;
+  const hasKeptBackgroundImage = imageForLine.length > 0;
+
+  if (hasSourceBackground || hasKeptBackgroundImage) {
+    const combined = [colorForLine, imageForLine].filter(Boolean).join(", ");
+    toRestore.push(`background: ${combined}`);
+    if (sourceBackgroundImageUrls.length > 1) {
+      for (const extra of sourceBackgroundImageUrls.slice(1)) {
         onLog?.(
           `Restore: dropping extra source image background from merged slide (only one center/cover image is visible): ${extra}`,
           "warn",
         );
       }
     }
-
-    if (restoreColor && colorForLine) {
-      onLog?.(`Restore: re-injecting dropped background: ${colorForLine}`, "warn");
+    if (outputBackgrounds.length === 0) {
+      onLog?.(`Restore: re-injecting dropped background: ${combined}`, "warn");
     }
-
-    const combined = [colorForLine, imageForLine].filter(Boolean).join(", ");
-    if (combined) {
-      toRestore.push(`background: ${combined}`);
-    }
+  } else if (outputBackgrounds.length > 0) {
+    onLog?.("Restore: stripping model-invented background", "warn");
   }
 
-  if (toRestore.length === 0) return slideMarkdown;
-
-  // Strip conflicting model-emitted theme:/background: from the leading
-  // directive block before inserting restored values. Without this, the
-  // renderer's last-directive-wins behavior (MarkdownParser.extractDirective
-  // keeps the last match) would pick the model's value over the restored one,
-  // defeating the backstop and leaving duplicate directive lines in the
-  // markdown.
+  // Strip any model-emitted theme:/background: from the leading directive
+  // block before inserting the deterministic source values. Without this,
+  // the renderer's last-directive-wins behavior (MarkdownParser.extractDirective
+  // keeps the last match) would leave duplicate directive lines in the markdown.
   let lines = slideMarkdown.split("\n");
-  if (namesToStrip.size > 0) {
-    lines = stripLeadingDirectives(lines, [...namesToStrip]);
-  }
+  lines = stripLeadingDirectives(lines, ["theme", "background"]);
   const stripped = lines.join("\n");
   const fences = findFencedRanges(stripped);
   const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);

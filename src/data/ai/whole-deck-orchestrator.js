@@ -389,8 +389,8 @@ export class WholeDeckOrchestrator {
           // full-deck allowlist accepts cross-batch reuse), so a per-batch
           // positional preserved-image check would false-positive on the
           // batch that lost the image. The single-call path runs on the
-          // full virtual deck; the deterministic backstop
-          // (restorePreservedIdentity) catches dropped images in the final
+          // full virtual deck; the deterministic identity enforcement
+          // (applyPreservedIdentity) catches dropped images in the final
           // deck regardless.
           skipPreservedImageCheck: true,
           // Only the first batch gets vision images — subsequent batches

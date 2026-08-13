@@ -249,8 +249,8 @@ export class AiOutputValidator {
    *   legitimately move across batch boundaries (the full-deck allowlist
    *   accepts cross-batch reuse), so a per-batch positional check would
    *   false-positive on the batch that lost the image. The single-call path
-   *   runs on the full virtual deck, and the deterministic backstop
-   *   (restorePreservedIdentity) catches dropped images in the final deck.
+   *   runs on the full virtual deck, and the deterministic identity enforcement
+   *   (applyPreservedIdentity) catches dropped images in the final deck.
    * @returns {ValidationResult}
    */
   validate(outputMarkdown, intent, opts = {}) {

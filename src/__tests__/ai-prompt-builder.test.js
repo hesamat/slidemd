@@ -327,7 +327,7 @@ describe("buildGenerateOptionsSuffix", () => {
 
   it("preserves visual identity when requested", () => {
     const suffix = buildGenerateOptionsSuffix({ preserveVisualIdentity: true });
-    expect(suffix).toContain("Preserve the original color theme");
+    expect(suffix).toContain("The application will apply the source slide's visual identity");
     expect(suffix).toContain("`theme:`");
     expect(suffix).toContain("`background:`");
   });

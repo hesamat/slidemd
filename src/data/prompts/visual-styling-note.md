@@ -4,7 +4,7 @@
 
 <!-- variant: absent-preserve -->
 
-- Keep the deck's existing visual identity: preserve each slide's `theme:`, `background:`, and color directives exactly as they are. Do not introduce new themes, backgrounds, or colored text. Use bold, headings, and layout to create emphasis, not color. Also keep every source image on the slide (as `<img>` or `background: url(...)`) — the "drop low-value images" rule above does not apply here; visual identity includes the slide's pictures, not just its colors.
+- The application will apply the source slide's visual identity (`theme:`, `background:`, colors, and background images) automatically after generation. Do not output `theme:`, `background:`, `color`, or `backgroundColor:` directives, and do not move images from one slide to another. Keep every image that belongs to the source slide in roughly the same role (inline `<img>` or `background: url(...)`), but do not add new image URLs. Use bold, headings, and layout to create emphasis, not color.
 
 <!-- variant: present -->
 

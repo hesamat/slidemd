@@ -1180,9 +1180,9 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(planUser).toContain("Preserve the deck's core message");
-      // Preserve mode keeps the original identity — it must not instruct the
-      // execute phase to strip themes/backgrounds.
-      expect(planUser).toContain("Preserve the original color theme");
+      // Preserve mode now relies on mechanical identity enforcement; the
+      // prompt tells the model not to emit theme/background directives.
+      expect(planUser).toContain("The application will apply the source slides' visual identity");
       expect(planUser).not.toContain("strip out the original color theme");
       expect(planUser).toContain("valid source indices are 0 through 1");
     });
