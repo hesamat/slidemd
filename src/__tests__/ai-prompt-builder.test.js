@@ -629,4 +629,30 @@ describe("applyVisualSystemIdentity", () => {
     expect(result).toContain("theme: dark");
     expect(result).toContain("background: #1a1a2e");
   });
+
+  it("adds missing theme and background to every slide", () => {
+    const md = `layout: header-content\n@header\n## Slide 1\n\n---\n\nlayout: two-column\n@main\n- Point`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    const slides = result.split("\n\n---\n\n");
+    expect(slides).toHaveLength(2);
+    for (const slide of slides) {
+      expect(slide).toMatch(/^theme:\s*(light|dark)$/m);
+      expect(slide).toMatch(/^background:\s*#[0-9a-f]{6}$/m);
+    }
+  });
+
+  it("corrects a mismatched theme for a palette background", () => {
+    const md = `layout: header-content\ntheme: light\nbackground: #0f172a\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #0f172a");
+  });
+
+  it("uses a deterministic palette fallback for missing backgrounds", () => {
+    const md = `layout: header-content\n@header\n## Content\n\n---\n\nlayout: focus\n@main\n## Focal\n\n---\n\nlayout: title-slide\n@title\n## Title`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: #0f172a");
+    expect(result).toContain("background: #06b6d4");
+    expect(result).toContain("background: #ffffff");
+  });
 });

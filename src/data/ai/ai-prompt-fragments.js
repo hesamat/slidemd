@@ -9,6 +9,7 @@
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
 import { splitBackgroundValue, findFencedRanges } from "../image-markdown-parser.js";
+import { splitSlides } from "../markdown-parser.js";
 import { extractVisualSystemFromMarkdown } from "./visual-system-schema.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
@@ -382,12 +383,18 @@ export function stripVisualIdentity(markdown) {
 export function applyVisualSystemIdentity(markdown, visualSystem) {
   if (!visualSystem?.palette) return markdown;
 
-  const paletteColors = new Set(
-    Object.values(visualSystem.palette).map((c) => c.trim().toLowerCase()),
-  );
+  const palette = visualSystem.palette;
+  const paletteColors = new Set(Object.values(palette).map((c) => c.trim().toLowerCase()));
+  const colorToTheme = new Map([
+    [palette.base.toLowerCase(), "dark"],
+    [palette.accent.toLowerCase(), "light"],
+    [palette.highlight.toLowerCase(), "light"],
+  ]);
+
   const allowedThemes = new Set(["light", "dark"]);
 
-  return stripDirectivesWith(markdown, (line) => {
+  // Step 1: restrict existing directives to the palette and allowed theme names.
+  const restricted = stripDirectivesWith(markdown, (line) => {
     const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
     if (!match) return false;
 
@@ -403,25 +410,98 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
 
     if (!hasImage) {
-      // Pure color/gradient. Keep only if the first color token is in the palette;
-      // otherwise strip the whole line. We do not parse gradient stops.
       if (firstColor && paletteColors.has(firstColor)) {
         return `background: ${firstColor}`;
       }
       return true;
     }
 
-    if (!colorPart) {
-      // Pure image background — keep as-is (images already validated).
-      return false;
-    }
+    if (!colorPart) return false;
 
-    // Mixed color + image. Keep the color only if its first token is allowed.
     if (firstColor && paletteColors.has(firstColor)) {
       return `background: ${firstColor} ${imagePart}`.trim();
     }
     return `background: ${imagePart}`;
   });
+
+  // Step 2: ensure every slide has a palette background and a contrasting theme.
+  const slides = splitSlides(restricted);
+  const fallbackOrder = [palette.base, palette.accent, palette.highlight];
+
+  const fixed = slides.map((slide, index) => {
+    const lines = slide.split("\n");
+    const commentLines = [];
+    const directiveLines = [];
+    const directiveOrder = [];
+    const directiveMap = new Map();
+    const body = [];
+    let inLeading = true;
+    const anyDirective = /^\s*([a-zA-Z][\w-]*)\s*:\s*(.*)$/i;
+    const htmlComment = /^\s*<!--/;
+
+    for (const line of lines) {
+      if (inLeading && line.trim() === "") continue;
+      if (inLeading && htmlComment.test(line)) {
+        commentLines.push(line);
+        continue;
+      }
+      const match = line.match(anyDirective);
+      if (inLeading && match) {
+        directiveLines.push(line);
+        const name = match[1].toLowerCase();
+        directiveOrder.push(name);
+        directiveMap.set(name, { line, value: match[2].trim() });
+        continue;
+      }
+      inLeading = false;
+      body.push(line);
+    }
+
+    const layoutValue = directiveMap.get("layout")?.value.toLowerCase() || "";
+    let backgroundValue = directiveMap.get("background")?.value;
+    let themeValue = directiveMap.get("theme")?.value;
+    let bgColor = null;
+
+    if (backgroundValue) {
+      const { colorPart } = splitBackgroundValue(backgroundValue);
+      if (colorPart) {
+        const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
+        if (paletteColors.has(firstColor)) bgColor = firstColor;
+      }
+    }
+
+    if (!backgroundValue) {
+      let colorIndex = index % fallbackOrder.length;
+      if (layoutValue === "title-slide") colorIndex = 2;
+      else if (layoutValue === "focus" || layoutValue === "full-image") colorIndex = 1;
+      backgroundValue = fallbackOrder[colorIndex];
+      bgColor = backgroundValue.toLowerCase();
+    }
+
+    if (bgColor) {
+      themeValue = colorToTheme.get(bgColor) || "dark";
+    } else if (!themeValue) {
+      themeValue = "dark";
+    }
+
+    const leading = [...commentLines];
+    if (directiveMap.has("layout")) {
+      leading.push(directiveMap.get("layout").line);
+    }
+    leading.push(`theme: ${themeValue}`);
+    leading.push(`background: ${backgroundValue}`);
+    for (const name of directiveOrder) {
+      if (name !== "layout" && name !== "theme" && name !== "background") {
+        leading.push(directiveMap.get(name).line);
+      }
+    }
+
+    if (body.length === 0 && leading.length === 0) return slide.trim();
+    if (body.length === 0) return leading.join("\n").trim();
+    return [...leading, "", ...body].join("\n").trim();
+  });
+
+  return fixed.join("\n\n---\n\n");
 }
 
 /**

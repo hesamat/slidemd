@@ -19,7 +19,7 @@ Alongside the narrative outline, design a minimal 3-color **visual system**. The
 - Keep the visual system minimal. A 3-color palette (`base`, `accent`, `highlight`) is enough.
 - `base` — dark background for most continuation and content slides.
 - `accent` — pop/attention color for emphasis, pivots, calls-to-action, or high-energy punctuation slides.
-- `highlight` — light background for the title slide, agenda, and any light focal slides. Use `theme: dark` with `highlight`.
+- `highlight` — light background for the title slide, agenda, and any light focal slides. Use `theme: light` with `highlight`.
 - Use all 3 colors across the deck. Do not put `base` on every slide.
 - Do not design a linear "slide 1 dark, slide 2 slightly lighter" ramp. The same deck may have a dark slide right after a light slide because the content demands contrast.
 
