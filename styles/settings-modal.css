@@ -51,6 +51,11 @@
   background: rgba(0, 0, 0, 0.03);
 }
 
+.settings-modal__card-header:focus-visible {
+  outline: 2px solid var(--accent, #6366f1);
+  outline-offset: -2px;
+}
+
 .settings-modal__chevron {
   display: inline-block;
   width: 0;

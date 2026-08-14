@@ -354,12 +354,8 @@ export class SettingsModal {
         });
       });
 
-      // Card fold/unfold
-      appearanceHeader.addEventListener("click", () => {
-        const open = appearanceCard.classList.toggle(`${P}card--open`);
-        appearanceBody.hidden = !open;
-      });
-
+      // Card fold/unfold — uses toggleCard for keyboard accessibility
+      // (defined below, before the Connection/Model cards are wired).
       // Initialize appearance state
       updateThemeModeButtons();
       updateVariantButtons();
@@ -432,15 +428,35 @@ export class SettingsModal {
           // Always refresh summary so it's populated whether open or collapsed
           updateSummary();
         };
-        header.addEventListener("click", () => {
+        const toggle = () => {
           open = !open;
           apply();
+        };
+        header.addEventListener("click", toggle);
+        // Keyboard accessibility: make header focusable and toggle on Enter/Space
+        header.setAttribute("role", "button");
+        header.setAttribute("tabindex", "0");
+        header.setAttribute("aria-expanded", String(open));
+        header.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+            header.setAttribute("aria-expanded", String(open));
+          }
         });
         apply();
       };
 
       const wasConfigured = this.isConfigured();
 
+      toggleCard(
+        appearanceCard,
+        appearanceHeader,
+        appearanceBody,
+        appearanceSummary,
+        updateAppearanceSummary,
+        true, // appearance card open by default
+      );
       toggleCard(
         connCard,
         connHeader,
