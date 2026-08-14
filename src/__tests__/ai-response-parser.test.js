@@ -103,6 +103,25 @@ describe("parseAiResponse (edge cases)", () => {
     expect(result.slides[0].mediaFullBleed).toBe(true);
     expect(result.slides[0].content).not.toContain("media-span:");
   });
+
+  it("extracts directives from markdown fallback with a leading batch comment", () => {
+    const input = `<!-- SLIDE 8 (return this) -->
+layout: two-column
+theme: light
+background: #f4f4f5
+
+@header
+# Title
+
+@main
+- Point`;
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].layout).toBe("two-column");
+    expect(result.slides[0].theme).toBe("light");
+    expect(result.slides[0].background).toBe("#f4f4f5");
+    expect(result.slides[0].content).toContain("# Title");
+  });
 });
 
 describe("slidesToMarkdown", () => {
@@ -134,6 +153,23 @@ describe("slidesToMarkdown", () => {
     const slides = [{ layout: "media-span-right", mediaFullBleed: true, content: "@media\nImage" }];
     const md = slidesToMarkdown(slides);
     expect(md).toContain("media-full-bleed: true");
+  });
+
+  it("strips SLIDE INDEX comments from content", () => {
+    const slides = [{ content: "<!-- SLIDE INDEX 3 (return this) -->\n@header\n## Title" }];
+    const md = slidesToMarkdown(slides);
+    expect(md).not.toContain("<!-- SLIDE INDEX");
+    expect(md).toContain("@header");
+  });
+
+  it("strips SLIDE n comments that omit INDEX", () => {
+    const slides = [
+      { content: "<!-- SLIDE 8 (return this) -->\nlayout: two-column\n@header\n## Title" },
+    ];
+    const md = slidesToMarkdown(slides);
+    expect(md).not.toContain("<!-- SLIDE");
+    expect(md).toContain("layout: two-column");
+    expect(md).toContain("@header");
   });
 });
 

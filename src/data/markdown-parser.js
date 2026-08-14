@@ -410,6 +410,9 @@ export class MarkdownParser {
           inLeadingBlock = false;
         } else if (line.trim() === "") {
           // Blank lines stay in the leading block.
+        } else if (/^\s*<!--/.test(line)) {
+          // HTML comments (including batch slide-index markers) are not body
+          // content and should not terminate the leading directive block.
         } else {
           const match = line.match(pattern);
           if (match) {
@@ -423,7 +426,7 @@ export class MarkdownParser {
           // Another directive (not the one we're looking for) stays in the
           // leading block but is kept in the output.
           if (!anyDirective.test(line)) {
-            // First non-blank, non-directive line ends the leading block.
+            // First non-blank, non-directive, non-comment line ends the leading block.
             inLeadingBlock = false;
           }
         }

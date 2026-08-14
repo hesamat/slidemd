@@ -21,12 +21,11 @@ export function slidesToMarkdown(slides) {
       if (slide.background) parts.push(`background: ${slide.background}`);
       if (slide.theme) parts.push(`theme: ${slide.theme}`);
       if (slide.mediaFullBleed) parts.push("media-full-bleed: true");
-      parts.push("");
-      // Strip SLIDE INDEX comments from content
-      const content = (slide.content || "").replace(
-        /<!-- SLIDE INDEX \d+ \(return this\) -->\n?/g,
-        "",
-      );
+      // Strip SLIDE INDEX / SLIDE n comments from content. Models often
+      // omit the word "INDEX" or vary the parenthetical text.
+      const slideCommentRe = /<!--\s*SLIDE(?:\s+INDEX)?\s+\d+(?:\s*\([^)]*\))?\s*-->\n?/gi;
+      const content = (slide.content || "").replace(slideCommentRe, "");
+      if (parts.length > 0) parts.push("");
       parts.push(content);
       return parts.join("\n");
     })

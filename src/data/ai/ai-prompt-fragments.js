@@ -424,9 +424,39 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     return `background: ${imagePart}`;
   });
 
+  // Helpers to avoid the accent color being used as a full background on
+  // content-heavy slides.
+  const contentLayouts = new Set([
+    "header-content",
+    "two-column",
+    "media-span-left",
+    "media-span-right",
+    "chapter",
+    "title-only",
+  ]);
+
+  const isDenseContent = (body) => {
+    const text = body.join("\n");
+    if (!text.trim()) return false;
+
+    const tableRows = (text.match(/^\|[^|]+\|/gm) || []).length;
+    const codeFences = (text.match(/^```[\s\S]*?^```$/gm) || []).length;
+
+    const listItemRe = /^\s*(?:[-*]|\d+\.)\s+/m;
+    const listLines = body.filter((line) => listItemRe.test(line));
+
+    // Tables, fenced code, or more than 2 list items are dense content.
+    if (tableRows >= 2 || codeFences > 0 || listLines.length > 2) return true;
+
+    // More than one major heading in the body also suggests dense content.
+    const headings = (text.match(/^#{1,2}\s+/gm) || []).length;
+    if (headings > 1) return true;
+
+    return false;
+  };
+
   // Step 2: ensure every slide has a palette background and a contrasting theme.
   const slides = splitSlides(restricted);
-  const fallbackOrder = [palette.base, palette.accent, palette.highlight];
 
   const fixed = slides.map((slide, index) => {
     const lines = slide.split("\n");
@@ -462,20 +492,55 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     let themeValue = directiveMap.get("theme")?.value;
     let bgColor = null;
 
+    let imagePart = "";
     if (backgroundValue) {
-      const { colorPart } = splitBackgroundValue(backgroundValue);
-      if (colorPart) {
-        const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
+      const split = splitBackgroundValue(backgroundValue);
+      imagePart = split.imagePart;
+      if (split.colorPart) {
+        const firstColor = split.colorPart.split(/\s+/)[0]?.toLowerCase() || "";
         if (paletteColors.has(firstColor)) bgColor = firstColor;
       }
     }
 
+    const dense = isDenseContent(body);
+
+    // If the model used the accent color as a full background on a content
+    // slide, downgrade it. Accent should be reserved for short emphasis slides.
+    if (bgColor && bgColor === palette.accent.toLowerCase()) {
+      let replacement = null;
+      if (layoutValue === "title-slide" || contentLayouts.has(layoutValue)) {
+        replacement = index % 2 === 0 ? palette.base : palette.highlight;
+      } else if ((layoutValue === "focus" || layoutValue === "full-image") && dense) {
+        replacement = palette.base;
+      }
+      if (replacement) {
+        backgroundValue = imagePart ? `${replacement} ${imagePart}`.trim() : replacement;
+        bgColor = null;
+      }
+    }
+
     if (!backgroundValue) {
-      let colorIndex = index % fallbackOrder.length;
-      if (layoutValue === "title-slide") colorIndex = 2;
-      else if (layoutValue === "focus" || layoutValue === "full-image") colorIndex = 1;
-      backgroundValue = fallbackOrder[colorIndex];
-      bgColor = backgroundValue.toLowerCase();
+      if (layoutValue === "title-slide") {
+        backgroundValue = palette.highlight;
+      } else if (layoutValue === "full-image") {
+        backgroundValue = palette.accent;
+      } else if (layoutValue === "focus") {
+        backgroundValue = dense ? palette.base : palette.accent;
+      } else if (contentLayouts.has(layoutValue)) {
+        // Content slides alternate base/highlight to preserve variety without
+        // defaulting to the accent color.
+        backgroundValue = index % 2 === 0 ? palette.base : palette.highlight;
+      } else {
+        backgroundValue = index % 3 === 0 ? palette.base : palette.highlight;
+      }
+      bgColor = null;
+    }
+
+    // Resolve the theme from the final background color.
+    if (!bgColor) {
+      const { colorPart } = splitBackgroundValue(backgroundValue);
+      const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
+      bgColor = paletteColors.has(firstColor) ? firstColor : null;
     }
 
     if (bgColor) {

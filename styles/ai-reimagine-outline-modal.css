@@ -127,6 +127,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 18px;
   font-size: 12px;
   color: var(--text-medium, #4b5563);
 }
@@ -340,7 +341,8 @@
 }
 
 .ai-reimagine-outline-modal__add-chapter-btn {
-  margin-top: 4px;
+  align-self: flex-start;
+  margin-top: 8px;
   padding: 8px 14px;
   background: var(--surface-elevated, #f8fafc);
   border: 1px dashed var(--border-medium, #cbd5e1);
@@ -482,23 +484,26 @@
 .ai-reimagine-outline-modal__visual-system {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  justify-content: center;
   gap: 14px;
+  min-height: 0;
   font-size: 13px;
   color: var(--text-high, #111827);
-  overflow-y: auto;
-  max-height: 360px;
 }
 
 .ai-reimagine-outline-modal__visual-system-empty {
   margin: 0;
   color: var(--text-medium, #6b7280);
   font-size: 13px;
+  text-align: center;
 }
 
 .ai-reimagine-outline-modal__visual-system-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
 }
 
 .ai-reimagine-outline-modal__visual-system-label {
@@ -507,18 +512,21 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-medium, #6b7280);
+  text-align: center;
 }
 
 .ai-reimagine-outline-modal__visual-system-value {
   color: var(--text-high, #111827);
   line-height: 1.45;
+  text-align: center;
 }
 
 /* Palette swatches */
 .ai-reimagine-outline-modal__palette {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  justify-content: center;
+  gap: 14px;
 }
 
 .ai-reimagine-outline-modal__palette-swatch {
@@ -540,11 +548,13 @@
 }
 
 .ai-reimagine-outline-modal__swatch-name {
+  width: 100%;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-medium, #6b7280);
+  text-align: center;
 }
 
 /* Error message */
@@ -552,13 +562,13 @@
   color: #e53935;
   font-size: 0.875rem;
   min-height: 1.2em;
-  margin: 0;
+  margin: 12px 0 0;
 }
 
 /* ── Editable palette swatches ───────────────────────────────────────────── */
 
 .ai-reimagine-outline-modal__palette-swatch--editable {
-  align-items: stretch;
+  align-items: center;
 }
 
 .ai-reimagine-outline-modal__swatch-input {

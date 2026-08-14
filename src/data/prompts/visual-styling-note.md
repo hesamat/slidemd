@@ -23,11 +23,13 @@
   - `background: #06b6d4` with `theme: light`
   - `background: #ffffff` with `theme: light`
 - Use only the 3 palette hex colors for `background: <hex>`, or use `background: url(<kept-image-path>)` for a kept image. Do not invent colors. Vary `background:` across the deck — do not make every slide `base`.
+- Reserve the `accent` color for emphasis, not as the default background. `accent` should only be used as a full-slide `background:` for punctuation, transition, emotional, divider, climax, or call-to-action moments. For the main content beats (continuation, example, practice, context, problem, solution, evidence, comparison), use `base` (`theme: dark`) or `highlight` (`theme: light`).
+- Do not use `accent` as the background on `header-content`, `two-column`, or `media-span` slides unless the brief explicitly calls for a high-energy punctuation, transition, or call-to-action moment. Those layouts are for content and should normally use `base` or `highlight`.
 - For colored callouts, panels, tables, code, or emphasized text, you may use `::: text-block { markdown=true color="<hex>" backgroundColor="<hex>" } ... :::`. Only use the 3 palette colors for `color` and `backgroundColor`.
 - Beat treatment: each slide brief includes `| beat: <beat>, energy: ..., contrast: ..., relationship: ... |`. Use it to shape density, hierarchy, layout, and imagery:
   - `continuation` — the default. Maintain normal content density and the established visual language.
   - `transition` — signal a chapter or idea change. Reduce density, shift hierarchy, and consider a `background:` change.
-  - `punctuation` — one strong takeaway. Use a focus layout, minimal competing content, and an `accent` `background:` for emphasis.
+  - `punctuation` — one strong takeaway. Use `focus` only when the takeaway is a single short statement; if it is a list or has multiple points, use `header-content` with `base` or `highlight` and add `accent` as an inline emphasis or small callout. Reserve the `accent` `background:` for the most important 1–2 punctuation/CTA moments.
   - `emotional` — imagery or atmosphere carries the message. Prefer a `full-image` or `media-span` layout when an image is available; keep text restrained.
   - `divider` — a chapter/section marker. Use minimal content, a large heading, and a clear `background:` or `theme:` change.
 - Apply `energy`, `contrast`, and `relationship` as modifiers:

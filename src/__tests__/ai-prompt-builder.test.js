@@ -655,4 +655,33 @@ describe("applyVisualSystemIdentity", () => {
     expect(result).toContain("background: #06b6d4");
     expect(result).toContain("background: #ffffff");
   });
+
+  it("downgrades accent to base or highlight on content layouts with lists", () => {
+    const md = `layout: header-content\ntheme: light\nbackground: #06b6d4\n@header\n## Slide\n\n@main\n- One\n- Two\n- Three`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).not.toContain("background: #06b6d4");
+    expect(result).toMatch(/^background:\s*#[0-9a-f]{6}$/m);
+    expect(result).toMatch(/^theme:\s*(light|dark)$/m);
+  });
+
+  it("downgrades accent to base or highlight on two-column slides with tables", () => {
+    const md = `layout: two-column\ntheme: light\nbackground: #06b6d4\n@header\n## Coverage\n\n@main\nText\n\n@media\n| Signal | Question |\n|---|---|\n| A | B |`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).not.toContain("background: #06b6d4");
+    expect(result).toMatch(/^background:\s*#[0-9a-f]{6}$/m);
+  });
+
+  it("keeps accent on a short focus slide", () => {
+    const md = `layout: focus\nbackground: #06b6d4\n@main\n## One strong takeaway.`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: #06b6d4");
+    expect(result).toContain("theme: light");
+  });
+
+  it("downgrades accent to base on a dense focus slide", () => {
+    const md = `layout: focus\nbackground: #06b6d4\n@main\n## Title\n\n1. First\n2. Second\n3. Third\n4. Fourth`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: #0f172a");
+    expect(result).toContain("theme: dark");
+  });
 });
