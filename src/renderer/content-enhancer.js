@@ -88,9 +88,20 @@ function getDOMPurify() {
  * SAFE_FOR_XML is disabled here because Mermaid arrow syntax ("A --> B") is
  * commonly reflected in legitimate attribute values; treating it as an mXSS
  * probe would strip real diagram labels.
+ *
+ * Mermaid renders flowchart/node labels inside `<foreignObject>` using HTML
+ * elements (`<div>`, `<span>`). DOMPurify strips these by default because:
+ *   1. `foreignObject` is in DOMPurify's `svgDisallowed` list.
+ *   2. `foreignObject` is not in DOMPurify's `HTML_INTEGRATION_POINTS`, so
+ *      HTML elements inside it are treated as invalid in the SVG namespace
+ *      and removed.
+ * We explicitly allow `foreignObject` and register it as an HTML integration
+ * point so the HTML labels survive sanitization.
  */
 const MERMAID_SVG_PURIFY_CONFIG = {
-  USE_PROFILES: { svg: true, svgFilters: true },
+  USE_PROFILES: { svg: true, svgFilters: true, html: true },
+  ADD_TAGS: ["foreignObject"],
+  HTML_INTEGRATION_POINTS: { "annotation-xml": true, foreignobject: true },
   SAFE_FOR_XML: false,
   ALLOW_DATA_ATTR: true,
 };
