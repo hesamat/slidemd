@@ -1002,6 +1002,22 @@ background: url(https://example.com/bg.png)
       expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
     });
 
+    it("allows quoted background urls that contain spaces", () => {
+      const input = `layout: header-content
+background: url("images/my bg.png")
+
+@main
+- Text`;
+      const output = `layout: header-content
+background: url("images/my bg.png")
+
+@main
+- Text`;
+      const result = validateSources(input, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it("allows a background url that is not the start of the value", () => {
       // Multi-layer/gradient backgrounds put url(...) after other layers —
       // every occurrence on the background line must be scanned.

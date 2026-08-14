@@ -296,6 +296,15 @@ describe("AiReimagineOutlineModal", () => {
     ]);
   });
 
+  it("renders a fallback when no visual direction is provided", async () => {
+    const promise = AiReimagineOutlineModal.show({ ...SAMPLE_OUTLINE, visualSystem: null });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
+    expect(visualSystemEl.textContent).toContain("No visual direction provided");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
   it("renders the visual direction summary from the outline", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");

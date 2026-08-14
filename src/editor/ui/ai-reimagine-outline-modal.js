@@ -51,11 +51,7 @@ const FLOW_TAGS = [
 /**
  * @typedef {Object} VisualSystem
  * @property {VisualSystemPalette} palette
- * @property {{character: string, headline: string, body: string}} typography
- * @property {{density: string, whitespace: string, alignment: string}} composition
- * @property {{role: string, mood: string, treatment: string}} imagery
- * @property {string[]} motifs
- * @property {string[]} contrastRules
+ * @property {{mood?: string}} [imagery]
  */
 
 /**
@@ -107,12 +103,12 @@ export class AiReimagineOutlineModal {
             <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
           </div>
 
-          <div class="${P}card ${P}visual-system-card">
+          <div class="${P}card ${P}visual-system-card" role="region" aria-label="Visual direction" aria-readonly="true">
             <div class="${P}card-header">
               <span class="${P}label">Visual direction</span>
-              <span class="${P}badge ${P}badge--readonly">read-only</span>
+              <span class="${P}badge ${P}badge--readonly" role="note" aria-label="read-only">read-only</span>
             </div>
-            <div id="${P}visual-system" class="${P}visual-system"></div>
+            <div id="${P}visual-system" class="${P}visual-system" role="region" aria-label="Visual direction details"></div>
           </div>
         </div>
 
@@ -123,7 +119,7 @@ export class AiReimagineOutlineModal {
         </div>
         <div id="${P}chapters-list" class="${P}chapters-list"></div>
 
-        <p class="${P}error" style="color: #e53935; font-size: 0.875rem; min-height: 1.2em; margin: 0;"></p>
+        <p class="${P}error" role="alert" aria-live="polite"></p>
 
         <div class="${P}actions">
           <button type="button" class="${P}btn" data-action="cancel">Cancel</button>
@@ -188,7 +184,7 @@ export class AiReimagineOutlineModal {
           .map(
             ([name, color]) => `
             <div class="${P}palette-swatch">
-              <span class="${P}swatch-color" style="background-color: ${escapeAttr(String(color))};" title="${escapeAttr(name)}"></span>
+              <span class="${P}swatch-color" style="background-color: ${escapeAttr(String(color))};" title="${escapeAttr(name)}" aria-label="${escapeAttr(name)}: ${escapeAttr(String(color))}"></span>
               <span class="${P}swatch-name">${escapeHtml(name)}</span>
               <span class="${P}swatch-value">${escapeHtml(String(color))}</span>
             </div>
@@ -367,13 +363,6 @@ export class AiReimagineOutlineModal {
       const firstTitleInput = dialog.querySelector(`.${P}chapter-title-input`);
       if (firstTitleInput) firstTitleInput.focus();
 
-      const close = (result) => {
-        backdrop.remove();
-        modalClosed();
-        document.removeEventListener("keydown", onKeydown);
-        resolve(result);
-      };
-
       const onKeydown = (e) => {
         if (e.key !== "Escape") return;
         // Don't close the modal while the user is editing an inline input or textarea;
@@ -392,10 +381,23 @@ export class AiReimagineOutlineModal {
         close(null);
       };
 
-      backdrop.addEventListener("click", (e) => {
+      const onBackdropClick = (e) => {
         if (e.target === backdrop) close(null);
-      });
-      backdrop.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
+      };
+
+      const onBackdropWheel = (e) => e.stopPropagation();
+
+      const close = (result) => {
+        backdrop.removeEventListener("click", onBackdropClick);
+        backdrop.removeEventListener("wheel", onBackdropWheel);
+        backdrop.remove();
+        modalClosed();
+        document.removeEventListener("keydown", onKeydown);
+        resolve(result);
+      };
+
+      backdrop.addEventListener("click", onBackdropClick);
+      backdrop.addEventListener("wheel", onBackdropWheel, { passive: true });
 
       dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
 

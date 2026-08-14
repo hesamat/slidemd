@@ -1809,7 +1809,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(breakdownUser).toContain("#1a1a2e");
-      expect(breakdownUser).toContain("cinematic");
+      expect(breakdownUser).toContain("dramatic");
 
       // Generate prompt receives the visual system brief
       const execUser = provider.chat.mock.calls[2][0].messages.find(

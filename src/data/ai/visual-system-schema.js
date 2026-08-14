@@ -2,9 +2,10 @@
  * Visual System Schema
  *
  * Validates and normalizes the `visualSystem` field produced by the Outline AI.
- * The visual system is a deck-wide design language — palette, typography,
- * composition, imagery, motifs, and contrast rules — not a slide-by-slide
- * progression.
+ * The prompt asks for a minimal visual system — a 5-color palette and an
+ * optional imagery mood. The schema still tolerates the older, fuller design
+ * language fields (typography, composition, motifs, etc.) for backward
+ * compatibility, but they are no longer required or used by the reimagine flow.
  *
  * Validation is best-effort: if the palette (the only hard requirement) is
  * missing or invalid, the entire DEFAULT_VISUAL_SYSTEM is used. If the palette
@@ -12,7 +13,7 @@
  * the default while the parsed palette is preserved.
  */
 
-const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 const MAX_MOTIFS = 3;
 const MAX_CONTRAST_RULES = 3;
 const MAX_STRING_LEN = 300;
@@ -95,7 +96,7 @@ export const DEFAULT_VISUAL_SYSTEM = {
 };
 
 /**
- * Check if a value is a valid 6-digit hex color.
+ * Check if a value is a valid hex color (3, 6, or 8 digits).
  * @param {unknown} v
  * @returns {boolean}
  */

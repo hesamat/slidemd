@@ -1093,9 +1093,9 @@ export function stripFabricatedImages(markdown, allowedSrcs, onLog) {
     if (!inFenceAt(lineStart)) {
       const bgMatch = line.match(/^\s*background\s*:\s*(.+)$/i);
       if (bgMatch) {
-        const urls = [...bgMatch[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)].map(
-          (m) => m[1],
-        );
+        const urls = [
+          ...bgMatch[1].matchAll(/url\(\s*(?:(["'])([^"']*)\1|([^'")\s]+))\s*\)/gi),
+        ].map((m) => m[2] ?? m[3]);
         const disallowed = urls.filter((u) => !allowed.has(normalizeImageSrc(u)));
         if (disallowed.length > 0) {
           removals.push({ start: lineStart, end: lineEnd });
@@ -1133,8 +1133,8 @@ function extractBackgroundUrls(markdown) {
   forEachTopLevelLine(markdown, (line) => {
     const match = line.match(/^\s*background\s*:\s*(.+)$/i);
     if (!match) return;
-    for (const urlMatch of match[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
-      urls.push(urlMatch[1]);
+    for (const urlMatch of match[1].matchAll(/url\(\s*(?:(["'])([^"']*)\1|([^'")\s]+))\s*\)/gi)) {
+      urls.push(urlMatch[2] ?? urlMatch[3]);
     }
   });
   return urls;

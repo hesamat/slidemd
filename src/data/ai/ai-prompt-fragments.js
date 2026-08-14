@@ -210,13 +210,18 @@ export function buildDensityBudgets(variant) {
 
 /**
  * Build a compact JSON serialization of the visual system for the breakdown
- * prompt's `{{visualSystem}}` placeholder.
+ * prompt's `{{visualSystem}}` placeholder. Only the palette and imagery mood
+ * are included so the breakdown AI focuses on the colors and kept-image tone.
  * @param {import("./visual-system-schema.js").VisualSystem|null} vs
  * @returns {string}
  */
 export function serializeVisualSystemForBreakdown(vs) {
   if (!vs) return "{}";
-  return JSON.stringify(vs);
+  const minimal = { palette: vs.palette };
+  if (vs.imagery?.mood) {
+    minimal.imagery = { mood: vs.imagery.mood };
+  }
+  return JSON.stringify(minimal);
 }
 
 /**
@@ -248,10 +253,9 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 }
 
 /**
- * Build the visual system brief + beat→treatment mapping for the generate
- * prompt's options suffix. When a visual system is present, this provides
- * specific design-language guidance including the palette, typography,
- * composition, imagery, motifs, contrast rules, and beat treatment mapping.
+ * Build the minimal visual system brief for the generate prompt's options
+ * suffix. When a visual system is present, this provides the palette and
+ * optional imagery mood to use for `theme:` and `background:` on every slide.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.
