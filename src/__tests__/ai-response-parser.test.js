@@ -300,10 +300,7 @@ describe("extractJsonObject", () => {
     const outline = {
       plan: "Reimagined plan.",
       visualSystem: {
-        palette: { base: "#0f172a", accent: "#3b82f6" },
-        typography: { heading: "Inter", body: "Inter" },
-        composition: { grid: "12-col" },
-        imagery: { role: "supporting", mood: "professional" },
+        palette: { base: "#0f172a", accent: "#3b82f6", highlight: "#ffffff" },
       },
       keepImages: [0],
       firstSlideIdentity: "COMP 1510 202630",
@@ -314,7 +311,7 @@ describe("extractJsonObject", () => {
     expect(result).not.toBeNull();
     expect(result.parsed.chapters).toHaveLength(1);
     expect(result.parsed.plan).toBe("Reimagined plan.");
-    expect(result.parsed.visualSystem.imagery.mood).toBe("professional");
+    expect(result.parsed.visualSystem.palette.highlight).toBe("#ffffff");
   });
 
   it("finds enclosing brace with deeply nested objects before the key", () => {
@@ -331,7 +328,7 @@ describe("extractJsonObject", () => {
 
   it("handles escaped quotes in string values during backward scan", () => {
     const payload = {
-      visualSystem: { imagery: { mood: 'say "hi"' } },
+      note: 'say "hi"',
       chapters: [{ title: 'Ch "quoted"' }],
     };
     const input = `Here:\n${JSON.stringify(payload)}\nDone.`;

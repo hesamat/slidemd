@@ -556,9 +556,7 @@ describe("BATCH_SIZE", () => {
 const TEST_VISUAL_SYSTEM = {
   palette: {
     base: "#0f172a",
-    surface: "#1e293b",
     accent: "#06b6d4",
-    contrast: "#f59e0b",
     highlight: "#ffffff",
   },
 };

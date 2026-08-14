@@ -17,6 +17,7 @@ import {
 } from "../core/utils.js";
 import { convertTextBlockDirectivesToHtml } from "../core/text-block-directive.js";
 import { LayoutParser } from "./layout-parser.js";
+import { extractVisualSystemFromMarkdown } from "../data/ai/visual-system-schema.js";
 
 class FenceTracker {
   constructor() {
@@ -834,7 +835,8 @@ export class MarkdownParser {
   parseDeckMarkdown(markdownText) {
     this.ensureMarkdownIt();
 
-    const slideTexts = this.splitSlides(markdownText);
+    const { visualSystem, markdown } = extractVisualSystemFromMarkdown(markdownText);
+    const slideTexts = this.splitSlides(markdown);
     const usedIds = new Map();
 
     const slides = slideTexts.map((raw, idx) => {
@@ -1031,6 +1033,7 @@ export class MarkdownParser {
         stage: { ...DESIGN_SIZE },
       },
       slides,
+      visualSystem,
     };
   }
 }

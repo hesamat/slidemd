@@ -22,6 +22,7 @@ import {
 } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { getIntentUserFragment } from "./ai-intent-registry.js";
+import { extractVisualSystemFromMarkdown } from "./visual-system-schema.js";
 
 export {
   getAllowedLayoutList,
@@ -109,7 +110,8 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
   // Fence-aware split so `---` inside code blocks doesn't create phantom
   // slides and misalign the outline (same fix as buildBatchMessages /
   // extractDirectives / injectDirectives).
-  const slides = new MarkdownParser().splitSlides(markdown);
+  const { markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
+  const slides = new MarkdownParser().splitSlides(withoutComment);
   const titles = slides.map((slide, i) => {
     const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/im);
     const layout = layoutMatch?.[1]?.trim() || "header-content";

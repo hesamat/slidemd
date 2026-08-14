@@ -13,6 +13,7 @@ import { Notification } from "../../renderer/notification.js";
 import { DeckLoader } from "../../data/deck-loader.js";
 import { AssetLoader } from "../../core/asset-loader.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { extractVisualSystemFromMarkdown } from "../../data/ai/visual-system-schema.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
 
@@ -331,14 +332,23 @@ export class AiEditController {
       const controller = this._getController();
       if (enhanced && controller.reloadManager?.replaceDeck) {
         await AssetLoader.ensureMarkdownItLoaded();
-        const deck = await DeckLoader.parseMarkdown(enhanced);
+
+        // Extract the visual system comment from the AI result before
+        // splitting/parsing so it doesn't show up as slide content.
+        const { visualSystem, markdown: enhancedWithoutComment } =
+          extractVisualSystemFromMarkdown(enhanced);
+        const deck = await DeckLoader.parseMarkdown(enhancedWithoutComment);
+        if (visualSystem) {
+          deck.visualSystem = visualSystem;
+        }
+
         // Update the deck store BEFORE firing deckchange via reloadManager so
         // the _onDeckChange handler reads the correct (post-refine) store
         // state. The structural-revision listener will clear the per-slide
         // editor-state cache when deckStore.replaceDeck bumps the revision.
         this._getUnsavedMarkdown().clear();
         const parser = new MarkdownParser();
-        const newSlides = parser.splitSlides(enhanced);
+        const newSlides = parser.splitSlides(enhancedWithoutComment);
         // Route through replaceDeck so the refine is undoable (Ctrl+Z)
         // instead of loadFromMarkdown which clears history. Suppress the
         // queued store-change restore so the explicit reload below is the
@@ -352,6 +362,7 @@ export class AiEditController {
             timestamp: Date.now(),
           }),
         );
+        deckStore.setVisualSystem(visualSystem);
         // Keep the store-sync module's structural revision in sync because
         // we are not using restoreStoreSnapshot() for this whole-deck
         // mutation. Any future store mutation that suppresses the queued

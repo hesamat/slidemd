@@ -9,6 +9,7 @@
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
 import { splitBackgroundValue, findFencedRanges } from "../image-markdown-parser.js";
+import { extractVisualSystemFromMarkdown } from "./visual-system-schema.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -177,8 +178,7 @@ export function buildRemixFlowGuidance(flow) {
  * Build the {{visualStylingNote}} substitution for generate prompts.
  * Variant selection:
  * - "present" — a visual system is provided (reimagine): emit `theme:` and
- *   `background:` for every slide using only the palette colors, and use the
- *   imagery mood only when deciding whether to reuse a kept image.
+ *   `background:` for every slide using only the 3 palette colors.
  * - "absent-preserve" — no visual system, but the deck's existing identity
  *   must be kept (remix preserve mode): keep the original theme/background/
  *   color directives instead of emitting neutral styling.
@@ -210,18 +210,13 @@ export function buildDensityBudgets(variant) {
 
 /**
  * Build a compact JSON serialization of the visual system for the breakdown
- * prompt's `{{visualSystem}}` placeholder. Only the palette and imagery mood
- * are included so the breakdown AI focuses on the colors and kept-image tone.
+ * prompt's `{{visualSystem}}` placeholder. Only the 3-color palette is included.
  * @param {import("./visual-system-schema.js").VisualSystem|null} vs
  * @returns {string}
  */
 export function serializeVisualSystemForBreakdown(vs) {
   if (!vs) return "{}";
-  const minimal = { palette: vs.palette };
-  if (vs.imagery?.mood) {
-    minimal.imagery = { mood: vs.imagery.mood };
-  }
-  return JSON.stringify(minimal);
+  return JSON.stringify({ palette: vs.palette });
 }
 
 /**
@@ -254,8 +249,8 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 
 /**
  * Build the minimal visual system brief for the generate prompt's options
- * suffix. When a visual system is present, this provides the palette and
- * optional imagery mood to use for `theme:` and `background:` on every slide.
+ * suffix. When a visual system is present, this provides the 3-color palette
+ * to use for `theme:` and `background:` on every slide.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.
@@ -270,14 +265,11 @@ export function buildVisualSystemBrief(vs) {
     .map(([name, color]) => `  - ${name}: ${color}`)
     .join("\n");
 
-  const mood = vs.imagery?.mood ? `Imagery mood: ${vs.imagery.mood}.` : "";
-
   return `
-Visual system — use this palette for every slide's \`theme:\` and \`background:\`.
+Visual system — use this 3-color palette for every slide's \`theme:\` and \`background:\`.
 
 Palette (use only these colors):
 ${palette}
-${mood}
 `;
 }
 
@@ -390,11 +382,10 @@ export function stripVisualIdentity(markdown) {
 export function applyVisualSystemIdentity(markdown, visualSystem) {
   if (!visualSystem?.palette) return markdown;
 
-  const allowedColors = new Set(
-    ["light", "dark", "none", "transparent"].concat(
-      Object.values(visualSystem.palette).map((c) => c.trim().toLowerCase()),
-    ),
+  const paletteColors = new Set(
+    Object.values(visualSystem.palette).map((c) => c.trim().toLowerCase()),
   );
+  const allowedThemes = new Set(["light", "dark"]);
 
   return stripDirectivesWith(markdown, (line) => {
     const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
@@ -405,16 +396,16 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
 
     if (key === "theme") {
       const v = value.toLowerCase();
-      return allowedColors.has(v) ? false : true;
+      return allowedThemes.has(v) ? false : true;
     }
 
     const { colorPart, imagePart, hasImage } = splitBackgroundValue(value);
     const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
 
     if (!hasImage) {
-      // Pure color/gradient. Keep only if the first color token is allowed;
+      // Pure color/gradient. Keep only if the first color token is in the palette;
       // otherwise strip the whole line. We do not parse gradient stops.
-      if (firstColor && allowedColors.has(firstColor)) {
+      if (firstColor && paletteColors.has(firstColor)) {
         return `background: ${firstColor}`;
       }
       return true;
@@ -426,7 +417,7 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     }
 
     // Mixed color + image. Keep the color only if its first token is allowed.
-    if (firstColor && allowedColors.has(firstColor)) {
+    if (firstColor && paletteColors.has(firstColor)) {
       return `background: ${firstColor} ${imagePart}`.trim();
     }
     return `background: ${imagePart}`;
@@ -447,16 +438,20 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
  * @returns {string}
  */
 export function stripFrontmatter(markdown, mode) {
+  // Remove the top-level visual-system HTML comment if present; the prompt
+  // builder injects the visual system separately via opts.visualSystem.
+  const { markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
+
   if (mode === "generate") {
     // Generate mode: keep background and theme so AI sees the originals
     return stripDirectives(
-      markdown,
+      withoutComment,
       /^\s*(layout|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
     );
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
   return stripDirectives(
-    markdown,
+    withoutComment,
     /^\s*(theme|background|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
   );
 }
