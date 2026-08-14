@@ -37,6 +37,17 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(PptxExtractor.htmlToMarkdown("<p>text</p>")).toContain("text");
   });
 
+  it("does not escape > characters in text content", () => {
+    const result = PptxExtractor.htmlToMarkdown("<p>a &gt; b</p>");
+    expect(result).toContain("a > b");
+    expect(result).not.toContain("&gt;");
+  });
+
+  it("escapes < characters in text content", () => {
+    const result = PptxExtractor.htmlToMarkdown("<p>a &lt; b</p>");
+    expect(result).toContain("&lt;");
+  });
+
   it("converts unordered lists", () => {
     const result = PptxExtractor.htmlToMarkdown("<ul><li>a</li><li>b</li></ul>");
     expect(result).toContain("- a");

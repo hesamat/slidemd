@@ -101,6 +101,10 @@ export const CONFIG = {
   minColumnSpreadRatio: 0.15,
   maxTitleLength: 300,
   maxTitleElements: 3,
+  // When total content is very short (< maxTitleLength), allow up to this
+  // many elements for the focus layout — short bulleted content benefits from
+  // centered presentation even with 4-6 items.
+  maxFocusElements: 6,
   headerThinRatio: 0.4,
   maxHeaderHeightRatio: 0.35,
   centerToleranceRatio: 0.1,
@@ -145,4 +149,10 @@ export const CONFIG = {
   overflowLineHeightCode: 28,
   overflowLineHeightBlank: 16,
   overflowWrapLength: 60,
+  // Text overlay detection: text elements overlapping images by this fraction
+  // of the text's own area are treated as overlays (float-mode text blocks).
+  textOverlayThreshold: 0.4,
+  // If text top is below image bottom + this fraction of slide height, it's
+  // a caption, not an overlay.
+  textOverlayCaptionTolerance: 0.1,
 };

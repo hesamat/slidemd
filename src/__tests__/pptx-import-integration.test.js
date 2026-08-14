@@ -85,10 +85,11 @@ describe("pptx import integration", () => {
     const { markdown, deck } = await convertFixture("decorative-icon.pptx");
 
     expect(deck.slides).toHaveLength(1);
-    expect(deck.slides[0].layout).toBe("header-content");
+    // Short content → focus layout
+    expect(deck.slides[0].layout).toBe("focus");
 
-    const { header = "", main = "" } = deck.slides[0].areas;
-    expect(textOf(header)).toContain("Getting Started");
+    const { main = "" } = deck.slides[0].areas;
+    expect(textOf(main)).toContain("Getting Started");
     expect(textOf(main)).toContain("Download the latest release");
     // The icon is decorative: no image may survive conversion
     expect(markdown).not.toMatch(/<img/);
@@ -99,7 +100,8 @@ describe("pptx import integration", () => {
     const { markdown, deck } = await convertFixture("verbose-bullets.pptx");
 
     expect(deck.slides).toHaveLength(1);
-    expect(deck.slides[0].layout).toBe("header-content");
+    // Short bullet content → focus layout
+    expect(deck.slides[0].layout).toBe("focus");
 
     // No literal bullet glyphs anywhere
     expect(markdown).not.toContain("•");

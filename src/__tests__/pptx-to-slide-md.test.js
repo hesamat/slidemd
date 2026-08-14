@@ -65,10 +65,10 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: header-content");
-    expect(md).toContain("@header");
-    expect(md).toContain("Header");
+    // Short header + short body → focus (centered presentation)
+    expect(md).toContain("layout: focus");
     expect(md).toContain("@main");
+    expect(md).toContain("Header");
     expect(md).toContain("Body text here");
   });
 
@@ -949,7 +949,7 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     expect(md).toContain("@footer");
     expect(md).toContain("Company Name");
-    expect(md).toContain("@header");
+    // Short header + short body → focus layout
     expect(md).toContain("@main");
     expect(md).toContain("Body content here");
   });
@@ -1330,8 +1330,8 @@ describe("convertToSlideMd", () => {
 
   it("treats a narrow top text box as a header for layout inference", () => {
     // The 30% title-width rule applies only to the header-band icon filter;
-    // a short title in a narrow box must still count as a header so the
-    // slide renders header-content.
+    // a short title in a narrow box must still count as a header. With short
+    // total content, the slide now uses focus layout (centered presentation).
     const extraction = makeExtraction([
       {
         index: 0,
@@ -1359,8 +1359,9 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: header-content");
-    expect(md).toContain("@header");
+    // Short content → focus layout
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
     expect(md).toContain("Short title");
   });
 
@@ -2023,7 +2024,8 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toMatch(/layout: (header-content|two-column)/);
+    // Short content → focus layout
+    expect(md).toContain("layout: focus");
     expect(md).toContain("@main");
     expect(md).toContain("Right text");
   });
@@ -2064,6 +2066,117 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("layout: header-content");
     expect(md).toContain("@main");
     expect(md).toContain(longBody);
+  });
+
+  it("uses focus for header + short body even with a non-thin header", () => {
+    // Header height is 80% of body height — not a thin strip. But total
+    // content is short (<300 chars), so focus is the better layout.
+    // Use slide index 1 so it doesn't get title-slide, and use bullet
+    // content so it has "body content".
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Short",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "My Heading",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 800000,
+          },
+          {
+            type: "text",
+            content: "- A brief callout",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("My Heading");
+    expect(md).toContain("A brief callout");
+  });
+
+  it("uses focus for 4+ short bullets when total content is under 300 chars", () => {
+    // 5 short bullets, total <300 chars — should use focus, not header-content.
+    const bullets = ["- Point one", "- Point two", "- Point three", "- Point four", "- Point five"];
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Bullets",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Quick List",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: bullets.join("\n"),
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("Quick List");
+    expect(md).toContain("Point one");
+  });
+
+  it("keeps header-content for 8+ bullets with total over 300 chars", () => {
+    // 8 bullets with enough text to exceed 300 chars — should stay header-content.
+    const bullets = Array.from(
+      { length: 8 },
+      (_, i) => `- Item number ${i + 1} with enough text to push total over`,
+    );
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Long List",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Detailed List",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: bullets.join("\n"),
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@main");
   });
 
   it("upgrades header-content to two-column when the body overflows", () => {
@@ -2818,5 +2931,149 @@ describe("flex-row rendering", () => {
     expect(md).toContain("image20-f6a2.jpeg");
     expect(md).toContain("image21-xxxx.jpeg");
     expect(md).toContain("image22-0bac.jpeg");
+  });
+});
+
+describe("convertToSlideMd text overlay preservation", () => {
+  it("emits overlapping text as a float-mode text block", () => {
+    // Text element that overlaps the image by >40% of its own area
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Overlay",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 1000000,
+            top: 1000000,
+            width: 6000000,
+            height: 4000000,
+          },
+          {
+            type: "text",
+            content: "Overlay text",
+            left: 2000000,
+            top: 2000000,
+            width: 4000000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("::: text-block { float=true");
+    expect(md).toContain("markdown=true");
+    expect(md).toContain("Overlay text");
+    // The image should still be present
+    expect(md).toContain("photo.png");
+  });
+
+  it("renders overlay text block headings as markdown", () => {
+    // Overlay text with heading content must use markdown=true so headings
+    // render as <h*> elements, not escaped plain text.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Overlay heading",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 1000000,
+            top: 1000000,
+            width: 6000000,
+            height: 4000000,
+          },
+          {
+            type: "text",
+            content: "## Overlay Heading",
+            left: 2000000,
+            top: 2000000,
+            width: 4000000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("::: text-block { float=true markdown=true");
+    expect(md).toContain("## Overlay Heading");
+  });
+
+  it("does not emit caption text below image as overlay", () => {
+    // Text is below the image — it's a caption, not an overlay
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Caption",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 1000000,
+            top: 500000,
+            width: 6000000,
+            height: 3000000,
+          },
+          {
+            type: "text",
+            content: "Caption below image",
+            left: 2000000,
+            top: 4500000, // well below image bottom (3.5M + tolerance)
+            width: 4000000,
+            height: 500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Caption should not be a float-mode text block
+    expect(md).not.toContain("::: text-block { float=true");
+    // Caption should still be present as normal text
+    expect(md).toContain("Caption below image");
+  });
+
+  it("does not create overlay for non-overlapping text", () => {
+    // Text is beside the image, not overlapping
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Side by side",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 1000000,
+            top: 1000000,
+            width: 3000000,
+            height: 3000000,
+          },
+          {
+            type: "text",
+            content: "Side text",
+            left: 5000000,
+            top: 1000000,
+            width: 3000000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain("::: text-block { float=true");
+    expect(md).toContain("Side text");
   });
 });

@@ -163,6 +163,16 @@ def fibonacci(n: int) -> int:
     return fibonacci(n - 1) + fibonacci(n - 2)
 ```
 
+Add the `center` keyword inside a curly-brace attribute block after the language to center a code block horizontally in any layout (mirroring the text-block directive syntax):
+
+````markdown
+```js { center }
+console.log("centered");
+```
+````
+
+This is useful for short snippets in `header-content` or `two-column` layouts where the default left alignment looks off. The `focus` layout already centers all code blocks by default.
+
 ### Math with KaTeX
 
 Inline: `$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$` → $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$

@@ -354,7 +354,7 @@ export function inferLayout(
     const hasBodyBelowHeader = contentEls.some((el) => el !== headerEl && el.top >= bodyThreshold);
     const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
 
-    if (totalLength < CONFIG.maxTitleLength && contentEls.length <= CONFIG.maxTitleElements) {
+    if (totalLength < CONFIG.maxTitleLength && contentEls.length <= CONFIG.maxFocusElements) {
       const titleBodyEls = contentEls.filter((el) => el !== headerEl);
       const hasBodyContent = titleBodyEls.some(
         (el) => REGEX.BULLET.test(el.content || "") || REGEX.NUMBER.test(el.content || ""),
@@ -395,6 +395,14 @@ export function inferLayout(
         // from two columns — use two-column layout so content can be distributed
         const codeWidth = codeEl?.width || 0;
         if (codeWidth > slideWidth * 0.8) return LAYOUT.TWO_COLUMN;
+        return LAYOUT.FOCUS;
+      }
+      // Short body content benefits from focus layout even with a non-thin header.
+      // Use focus when the body (excluding the header) is short enough to read as
+      // a centered callout rather than a two-area header+content split.
+      const bodyEls = contentEls.filter((el) => el !== headerEl);
+      const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
+      if (bodyLength < CONFIG.maxTitleLength && bodyEls.length <= CONFIG.maxFocusElements) {
         return LAYOUT.FOCUS;
       }
       return LAYOUT.HEADER_CONTENT;

@@ -277,12 +277,14 @@ export function htmlToMarkdown(html) {
   // fenced code blocks and backtick-wrapped inline code.
   md = collapseDuplicateWhitespace(md);
 
-  // Escape < and > characters, but preserve content inside backticks and
-  // fenced code blocks. Split by backtick-wrapped content and fenced code
-  // blocks, escape only the non-code parts.
+  // Escape < characters so literal angle brackets in PPTX text (e.g. "a < b")
+  // are not misread as HTML tags by markdown-it. > is NOT escaped: in markdown
+  // it only has special meaning at the start of a line (blockquote), which is
+  // rare in PPTX text, and escaping it produces ugly &gt; in the source.
+  // Content inside backticks and fenced code blocks is preserved as-is.
   md = md
     .split(/(`[^`]+`|^```\n[\s\S]*?\n```)/m)
-    .map((part, i) => (i % 2 === 1 ? part : part.replace(/</g, "&lt;").replace(/>/g, "&gt;")))
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/</g, "&lt;")))
     .join("");
   return md.trim();
 }
