@@ -1,6 +1,6 @@
 # Phase 14.9: PPTX Import Quality — Implementation Plan
 
-**Scope:** Layout inference fixes, text overlay preservation, and code-block centering.
+**Scope:** Layout inference fixes, PPTX import escaping fix, and code-block centering.
 Shape/diagram screenshot preservation (#117) is deferred to a follow-up phase.
 
 **Branch:** `feature/14.9`
@@ -26,28 +26,31 @@ The `center` keyword inside a curly-brace attribute block after the language in 
 
 2. **`styles/slides.css`** — Add CSS rule:
    ```css
-   .slide__area pre.code-centered {
+   .slide__area pre.code-centered:has(> code) {
      width: fit-content;
      margin-left: auto;
      margin-right: auto;
+     align-self: center;
      text-align: left;
    }
    ```
 
 ````
 
-This mirrors the existing `focus` layout rule but applies to individual code blocks marked with the `center` keyword.
+This mirrors the existing `focus` layout rule but applies to individual code blocks marked with the `center` keyword. The `:has(> code)` selector matches the specificity of the language-attribute code block rules and ensures `align-self: center` overrides the default `align-self: flex-start`.
 
 3. **`docs/authoring.md`** — Document the `center` fence info-string keyword in the code blocks section.
 
+4. **`tools/md-to-deck.mjs`** — Mirror the fence centering logic in `makeMarkdownRenderer()` so built presentations also apply the `code-centered` class.
+
 ### Tests
 
-- Unit test in `markdown-parser.test.js`: verify ` ```js center ` produces `<pre class="code-centered">` and ` ```js ` (without `center`) does not.
+- Unit test in `markdown-parser.test.js`: verify ` ```js { center } ` produces `<pre class="code-centered">` and ` ```js ` (without `center`) does not.
 - Verify existing decks without the keyword render unchanged (no regression).
 
 ### Acceptance
 
-- ` ```js center ` centers that specific code block in `header-content`, `two-column`, and other layouts.
+- ` ```js { center } ` centers that specific code block in `header-content`, `two-column`, and other layouts.
 - Other code blocks on the same slide without the keyword are not centered.
 - Existing decks without the keyword render unchanged.
 
@@ -96,10 +99,38 @@ This mirrors the existing `focus` layout rule but applies to individual code blo
 
 ---
 
+## Workstream 3: PPTX Import Escaping Fix
+
+**Goal:** Stop escaping `>` to `&gt;` in PPTX import markdown output.
+
+### Problem
+
+`pptx-html-to-markdown.js` was escaping both `<` and `>` in text content. While `<` must be escaped (markdown-it would parse it as an HTML tag), `>` has no special meaning in markdown except at the start of a line (blockquote), which is rare in PPTX text. Escaping it produces ugly `&gt;` in the markdown source.
+
+### Fix
+
+In the final escaping pass of `htmlToMarkdown()`, only escape `<` — leave `>` as-is. Content inside backticks and fenced code blocks is already preserved as-is by the split/join logic.
+
+**Files:**
+
+- `src/data/pptx-html-to-markdown.js` — Remove `.replace(/>/g, "&gt;")` from the escaping pass
+
+### Tests
+
+- Unit test in `pptx-extractor.test.js`: verify `>` is preserved and `<` is escaped.
+
+### Acceptance
+
+- PPTX import preserves literal `>` characters in body text.
+- `<` is still escaped to `&lt;`.
+
+---
+
 ## Implementation Order
 
 1. **Code Block Centering** — simplest, self-contained, good warmup
 2. **Layout Inference Fixes** — threshold tuning, run against existing fixtures
+3. **PPTX Import Escaping Fix** — one-line change
 
 Each workstream gets its own commit. All quality gates run before commit:
 
