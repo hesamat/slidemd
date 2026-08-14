@@ -261,6 +261,38 @@ describe("AiOrchestrator", () => {
       ).content;
       expect(userMsg).not.toContain("Fidelity:");
     });
+
+    it("polish mode strips fabricated image filenames from the output", async () => {
+      // A model that hallucinates a new filename should not end up in the deck
+      // even after the two-attempt repair loop accepts the output.
+      const deckWithImage = `layout: header-content
+@header
+# Title
+
+@main
+<img src="images/image16-3245.jpeg" alt="Photo">`;
+      const fabricatedResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: `@header
+# Title
+
+@main
+<img src="images/image16-2349.jpeg" alt="Photo">`,
+          },
+        ],
+      });
+      const provider = mockProvider(fabricatedResponse);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithImage, { mode: "polish" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg, level) => logs.push({ msg, level }),
+      });
+      expect(result).not.toContain("images/image16-2349.jpeg");
+      expect(logs.some((l) => l.msg.includes("Removing fabricated image"))).toBe(true);
+    });
   });
 
   describe("runWholeDeckOperation (remix)", () => {
@@ -1777,15 +1809,15 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(breakdownUser).toContain("#1a1a2e");
-      expect(breakdownUser).toContain("cinematic");
+      expect(breakdownUser).toContain("dramatic");
 
       // Generate prompt receives the visual system brief
       const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("spacious density");
-      expect(execUser).toContain("beat:");
+      expect(execUser).toContain("Palette");
+      expect(execUser).toContain("Imagery mood");
 
       // Brief includes the beat suffix (punctuation on slide 1 is normalized
       // to continuation by the beat normalizer)
@@ -1829,7 +1861,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("do NOT use the palette colors");
+      expect(execUser).toContain("Palette (use only these colors)");
     });
 
     it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when visualSystem is invalid", async () => {
@@ -2772,10 +2804,11 @@ describe("AiOrchestrator", () => {
         onOutline: async (outline) => outline,
       });
 
-      // Reimagine always discards visual identity — echoed directives are stripped.
+      // Reimagine keeps allowed visual identity (theme light/dark, palette
+      // colors) and strips non-palette colors.
       expect(result).toContain("Slide A");
-      expect(result).not.toContain("theme:");
-      expect(result).not.toContain("background:");
+      expect(result).toContain("theme: dark");
+      expect(result).not.toContain("background: #1a1a2e");
     });
 
     it("removes fabricated images from the reimagine result mechanically", async () => {
@@ -2862,12 +2895,12 @@ describe("AiOrchestrator", () => {
         onOutline: async (outline) => outline,
       });
 
-      // Execute passed validation on the first attempt (3 calls), the theme
-      // and color background are stripped, but the full-bleed image background
-      // survives the discard strip.
+      // Execute passed validation on the first attempt (3 calls). The theme
+      // light/dark is kept, the non-palette color background is stripped, and
+      // the full-bleed image background survives.
       expect(provider.chat).toHaveBeenCalledTimes(3);
       expect(result).toContain("background: url(images/a.png) center/cover");
-      expect(result).not.toContain("theme:");
+      expect(result).toContain("theme: dark");
       expect(result).not.toContain("background: #1a1a2e");
     });
 

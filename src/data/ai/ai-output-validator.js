@@ -7,6 +7,7 @@ import {
 } from "../../core/text-block-directive.js";
 import {
   parseAllImages,
+  parseAllImagesOutsideFences,
   splitBackgroundValue,
   findFencedRanges,
   normalizeImageSrc,
@@ -1039,6 +1040,86 @@ export function collectOwnImageSources(markdown) {
 }
 
 /**
+ * Mechanical backstop behind FABRICATED_IMAGE_SRC: remove `<img>` tags and
+ * `background: url(...)` directives whose srcs are not in the allowed set.
+ * Validation only drives the repair loop and accepts the last response after
+ * two attempts, so without this a persistent model's broken image reference
+ * would still land in the final deck.
+ *
+ * Fence-aware and multiline-safe: fenced code blocks are untouched (code
+ * samples may illustrate `<img>` tags, including multiline HTML), and
+ * multiline `<img>` tags outside fences are removed as a single range. A
+ * `background:` directive is dropped only when it references at least one
+ * disallowed image url; allowed image backgrounds are kept.
+ *
+ * Src comparison is normalized (leading `./` stripped, percent-encoding
+ * decoded) rather than literal, so a model that reuses a real deck image
+ * but writes it slightly differently (`./images/a.png` vs `images/a.png`,
+ * or a URL-encoded space) is not falsely stripped.
+ *
+ * @param {string} markdown
+ * @param {string[]} allowedSrcs — srcs the deck may reference
+ * @param {(msg: string, level?: string) => void} [onLog] — logs each removed
+ *   image/background so a silently emptied media area is not a silent
+ *   failure mode.
+ * @returns {string}
+ */
+export function stripFabricatedImages(markdown, allowedSrcs, onLog) {
+  const allowed = new Set(allowedSrcs.map(normalizeImageSrc));
+  // Collect removal ranges (byte offsets into the markdown) in document
+  // order, then apply them in reverse so earlier offsets don't shift.
+  const removals = [];
+
+  // Multiline <img> and markdown images outside fences.
+  for (const img of parseAllImagesOutsideFences(markdown)) {
+    if (!allowed.has(normalizeImageSrc(img.src))) {
+      removals.push({ start: img.start, end: img.end });
+      onLog?.(`Removing fabricated image reference not in the allowed set: ${img.src}`, "warn");
+    }
+  }
+
+  // background: url(...) directives outside fences. A directive line is
+  // dropped entirely when it references at least one disallowed url; mixed
+  // layers with any disallowed url are dropped too (the validator already
+  // flagged them, so the backstop mirrors that strictness).
+  const lines = markdown.split("\n");
+  const fences = findFencedRanges(markdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
+  let offset = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
+    if (!inFenceAt(lineStart)) {
+      const bgMatch = line.match(/^\s*background\s*:\s*(.+)$/i);
+      if (bgMatch) {
+        const urls = [
+          ...bgMatch[1].matchAll(/url\(\s*(?:(["'])([^"']*)\1|([^'")\s]+))\s*\)/gi),
+        ].map((m) => m[2] ?? m[3]);
+        const disallowed = urls.filter((u) => !allowed.has(normalizeImageSrc(u)));
+        if (disallowed.length > 0) {
+          removals.push({ start: lineStart, end: lineEnd });
+          onLog?.(
+            `Removing background referencing fabricated image(s) not in the allowed set: ${disallowed.join(", ")}`,
+            "warn",
+          );
+        }
+      }
+    }
+    offset = lineEnd;
+  }
+
+  if (removals.length === 0) return markdown;
+  removals.sort((a, b) => a.start - b.start);
+  let result = markdown;
+  for (let i = removals.length - 1; i >= 0; i--) {
+    const { start, end } = removals[i];
+    result = result.slice(0, start) + result.slice(end);
+  }
+  return result.trim();
+}
+
+/**
  * Extract all `url(...)` values from top-level (non-fenced) `background:`
  * directives. Scans every occurrence in the value — a background may combine
  * multiple layers, e.g. `linear-gradient(rgba(0,0,0,.5)), url(images/bg.png)`
@@ -1052,8 +1133,8 @@ function extractBackgroundUrls(markdown) {
   forEachTopLevelLine(markdown, (line) => {
     const match = line.match(/^\s*background\s*:\s*(.+)$/i);
     if (!match) return;
-    for (const urlMatch of match[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
-      urls.push(urlMatch[1]);
+    for (const urlMatch of match[1].matchAll(/url\(\s*(?:(["'])([^"']*)\1|([^'")\s]+))\s*\)/gi)) {
+      urls.push(urlMatch[2] ?? urlMatch[3]);
     }
   });
   return urls;

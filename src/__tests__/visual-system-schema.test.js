@@ -60,12 +60,14 @@ describe("validateVisualSystem", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null for 3-digit hex (only 6-digit supported)", () => {
+  it("accepts 3-digit and 8-digit hex colors", () => {
     const result = validateVisualSystem({
       ...VALID_SYSTEM,
-      palette: { ...VALID_PALETTE, base: "#fff" },
+      palette: { ...VALID_PALETTE, base: "#fff", surface: "#ffffff00" },
     });
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result.palette.base).toBe("#fff");
+    expect(result.palette.surface).toBe("#ffffff00");
   });
 
   it("returns null for missing palette color", () => {

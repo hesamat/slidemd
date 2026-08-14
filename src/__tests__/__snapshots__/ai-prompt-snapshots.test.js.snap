@@ -380,6 +380,7 @@ Content strategy:
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
+- Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:
@@ -391,10 +392,11 @@ Visual styling:
 
 Diagrams:
 
-- Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: \`​\`\`\`mermaid\` code blocks.
+- Use Mermaid only when a concept has branches, decisions, loops, or parallel paths. A straight line of boxes is a list, not a diagram.
 - Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. \`─┐\`, \`├──>\`, \`──>\`). These render poorly and are not interactive.
-- If a concept needs a visual, use Mermaid or a table instead.
-- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Aim for 5+ nodes in most diagrams.
+- If a concept needs a visual, prefer a table, a numbered list, or a short code example. Only use Mermaid when a relationship cannot be shown clearly in text.
+- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Keep diagrams to 3–7 nodes.
+- Do not generate more than two Mermaid diagrams per chapter or per five content slides. Most slides should not have a diagram.
 - Do not draw a linear sequence of 4+ boxes connected by arrows. That is a bullet list, not a diagram. Only use a \`flowchart\` when there are branches, decisions, loops, or parallel paths. Do not use a flowchart to explain or define a concept; use a numbered list, a table, a \`classDiagram\`, or a \`stateDiagram-v2\` instead.
 - Vary diagram types: use \`flowchart\` for data flow and decisions, \`sequenceDiagram\` for interactions between components, \`classDiagram\` for data models, and \`stateDiagram-v2\` for state transitions. Don't use \`flowchart LR\` for everything.
 - Diagrams should illustrate the concept, not restate the title. A diagram showing \`A --> B\` with the same text as the slide title adds nothing. Show the internal structure, the decision points, or the transformation steps.
@@ -424,7 +426,7 @@ Slide density and overflow prevention:
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals, otherwise no custom directives are emitted.
+- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
@@ -623,6 +625,7 @@ Content strategy:
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
+- Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:
@@ -634,10 +637,11 @@ Visual styling:
 
 Diagrams:
 
-- Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: \`​\`\`\`mermaid\` code blocks.
+- Use Mermaid only when a concept has branches, decisions, loops, or parallel paths. A straight line of boxes is a list, not a diagram.
 - Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. \`─┐\`, \`├──>\`, \`──>\`). These render poorly and are not interactive.
-- If a concept needs a visual, use Mermaid or a table instead.
-- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Aim for 5+ nodes in most diagrams.
+- If a concept needs a visual, prefer a table, a numbered list, or a short code example. Only use Mermaid when a relationship cannot be shown clearly in text.
+- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Keep diagrams to 3–7 nodes.
+- Do not generate more than two Mermaid diagrams per chapter or per five content slides. Most slides should not have a diagram.
 - Do not draw a linear sequence of 4+ boxes connected by arrows. That is a bullet list, not a diagram. Only use a \`flowchart\` when there are branches, decisions, loops, or parallel paths. Do not use a flowchart to explain or define a concept; use a numbered list, a table, a \`classDiagram\`, or a \`stateDiagram-v2\` instead.
 - Vary diagram types: use \`flowchart\` for data flow and decisions, \`sequenceDiagram\` for interactions between components, \`classDiagram\` for data models, and \`stateDiagram-v2\` for state transitions. Don't use \`flowchart LR\` for everything.
 - Diagrams should illustrate the concept, not restate the title. A diagram showing \`A --> B\` with the same text as the slide title adds nothing. Show the internal structure, the decision points, or the transformation steps.
@@ -667,7 +671,7 @@ Slide density and overflow prevention:
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals, otherwise no custom directives are emitted.
+- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
@@ -792,6 +796,7 @@ Content strategy:
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
+- Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:
@@ -803,10 +808,11 @@ Visual styling:
 
 Diagrams:
 
-- Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: \`​\`\`\`mermaid\` code blocks.
+- Use Mermaid only when a concept has branches, decisions, loops, or parallel paths. A straight line of boxes is a list, not a diagram.
 - Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. \`─┐\`, \`├──>\`, \`──>\`). These render poorly and are not interactive.
-- If a concept needs a visual, use Mermaid or a table instead.
-- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Aim for 5+ nodes in most diagrams.
+- If a concept needs a visual, prefer a table, a numbered list, or a short code example. Only use Mermaid when a relationship cannot be shown clearly in text.
+- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Keep diagrams to 3–7 nodes.
+- Do not generate more than two Mermaid diagrams per chapter or per five content slides. Most slides should not have a diagram.
 - Do not draw a linear sequence of 4+ boxes connected by arrows. That is a bullet list, not a diagram. Only use a \`flowchart\` when there are branches, decisions, loops, or parallel paths. Do not use a flowchart to explain or define a concept; use a numbered list, a table, a \`classDiagram\`, or a \`stateDiagram-v2\` instead.
 - Vary diagram types: use \`flowchart\` for data flow and decisions, \`sequenceDiagram\` for interactions between components, \`classDiagram\` for data models, and \`stateDiagram-v2\` for state transitions. Don't use \`flowchart LR\` for everything.
 - Diagrams should illustrate the concept, not restate the title. A diagram showing \`A --> B\` with the same text as the slide title adds nothing. Show the internal structure, the decision points, or the transformation steps.
@@ -836,7 +842,7 @@ Slide density and overflow prevention:
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals, otherwise no custom directives are emitted.
+- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
@@ -957,6 +963,7 @@ What to do:
 - Use tables for 2-3 item comparisons.
 - Preserve each slide's \`theme:\` and \`background:\` directives and the existing color scheme.
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
+- Keep the exact filename and path of every image you keep; do not rename or invent new image URLs.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
 - Respect per-area density budgets when choosing layouts and tightening wording. Rough per-area line budgets: \`title-slide\` \`@title\`/\`@footer\` one or two short lines each and no \`@main\` content, \`header-content\` \`@main\` ~10-13 lines, \`focus\` \`@main\` ~8-11 lines, \`two-column\` columns ~6-10 lines each, \`media-span\` \`@main\` ~8-12 lines, \`full-image\` \`@main\` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.
@@ -1091,16 +1098,10 @@ The presentation flow is **story**. Choose storytelling techniques that fit this
 
 ## Visual system
 
-Alongside the narrative outline, design a **visual system** — a deck-wide design language that defines the visual identity of the presentation. This is not a slide-by-slide progression. Do not design a linear "slide 1 dark, slide 2 slightly lighter" ramp. Instead, define a **grammar** with:
+Alongside the narrative outline, design a minimal **visual system** with a palette and an imagery mood. The visual system is used to choose \`theme:\` and \`background:\` colors for each slide and to decide how to use kept source images.
 
-- A palette of 5 colors with distinct roles (base, surface, accent, contrast, highlight).
-- Typography character (the personality of the type), headline style, and body style.
-- Composition preferences: density, whitespace, alignment.
-- Imagery: what role images play, their mood, and how they should be treated.
-- Recurring motifs (visual elements that create cohesion across slides).
-- Contrast rules (when and how to deliberately break the visual pattern for emphasis).
-
-The visual system is a **design language**, not a progression. The same deck may have a dark slide right after a light slide because the content demands contrast, not because the deck is "progressing" from dark to light.
+- Keep the visual system minimal. A palette of 5 colors (base, surface, accent, contrast, highlight) plus a one-sentence imagery mood is enough.
+- Do not design a linear "slide 1 dark, slide 2 slightly lighter" ramp. The same deck may have a dark slide right after a light slide because the content demands contrast.
 
 Output format:
 
@@ -1115,29 +1116,9 @@ Output format:
       "contrast": "#f59e0b",
       "highlight": "#ffffff"
     },
-    "typography": {
-      "character": "bold editorial",
-      "headline": "large, compact, high contrast",
-      "body": "clean, restrained"
-    },
-    "composition": {
-      "density": "medium",
-      "whitespace": "generous",
-      "alignment": "left-dominant"
-    },
     "imagery": {
-      "role": "emotional punctuation and chapter transitions",
-      "mood": "moody, atmospheric",
-      "treatment": "full-bleed, minimal overlays"
-    },
-    "motifs": [
-      "thin accent divider lines between chapters",
-      "oversized chapter numbers in accent color"
-    ],
-    "contrastRules": [
-      "Use stark white slides for major takeaways",
-      "Avoid more than 3 consecutive visually identical slides"
-    ]
+      "mood": "moody, atmospheric"
+    }
   },
   "keepImages": [0, 2],
   "firstSlideIdentity": "COMP 1510 202630",
@@ -1162,19 +1143,15 @@ Rules:
 
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.
 - \`plan\` — 1-3 sentences combining: the deck's core message, the fresh angle you propose, and the narrative structure you chose with a brief justification.
-- \`visualSystem\` — the deck-wide visual design language:
+- \`visualSystem\` — a minimal deck-wide visual system:
   - \`palette\` — 5 hex colors (\`#rrggbb\`):
-    - \`base\` — primary background color.
-    - \`surface\` — secondary background (cards, panels, slightly elevated from base).
-    - \`accent\` — the main highlight color for emphasis and interactive elements.
-    - \`contrast\` — a secondary accent for deliberate visual contrast.
-    - \`highlight\` — the lightest color (often white or near-white) for inversion/punctuation slides.
-  - \`typography\` — \`character\` (1-3 word personality description), \`headline\` (style description), \`body\` (style description).
-  - \`composition\` — \`density\` (\`compact\` | \`medium\` | \`spacious\`), \`whitespace\` (\`restrained\` | \`generous\` | \`expansive\`), \`alignment\` (\`left-dominant\` | \`centered\` | \`asymmetric\`).
-  - \`imagery\` — \`role\` (what purpose images serve), \`mood\` (emotional tone), \`treatment\` (how images are presented).
-  - \`motifs\` — 1-3 recurring visual elements that create cohesion.
-  - \`contrastRules\` — 1-3 rules for when and how to break the visual pattern.
-  - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Design a system with rules, motifs, and deliberate contrast.
+    - \`base\` — primary dark background.
+    - \`surface\` — secondary background (panels, slightly elevated from base).
+    - \`accent\` — the main highlight color.
+    - \`contrast\` — a secondary accent for contrast.
+    - \`highlight\` — the lightest color (often white or near-white) for light backgrounds.
+  - \`imagery\` — include only \`mood\` (one-sentence emotional tone for kept images).
+  - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Slides can switch between base, surface, and highlight backgrounds as the content demands.
 - \`keepImages\` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
 - \`firstSlideIdentity\` — a short string (1-2 lines) extracted EXCLUSIVELY from the "First slide (preserve its identifying info)" text provided above. Do NOT look at other slides for this. Extract the identifying text from the first slide's footer, header, or title (e.g. course code + term, event name, author). Keep it concise: do not include the full institutional description or repeated course names. If the first slide has no identifying information beyond the title heading, use the title itself. Do NOT mention this field or the footer in the plan text — just extract the value into this field.
 - \`chapters\` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
@@ -1187,11 +1164,12 @@ Rules:
 - Do not preserve the original theme, colors, backgrounds, or visual language. You may propose a new visual direction.
 - Preserve the identity of the first slide. Extract the identifying information (course code, week number, author, event name) from the original first slide into the \`firstSlideIdentity\` field. The first chapter's first slide should display this concise identity text verbatim in its footer, even as the surrounding design and narrative change.
 - Be creative with the narrative angle. Don't just reorganize the same content — find a fresh hook, a surprising metaphor, a compelling character arc, or a concrete analogy that makes the material feel new. Include historical remarks, real-world examples, and accessible comparisons where they help learners understand abstract concepts. The deck should feel like it was crafted by an editor, not auto-generated.
+- Do not level up the material. The reimagined deck must be accessible to the same audience as the source deck. Do not introduce new concepts, jargon, prerequisites, or examples that assume more prior knowledge than the original. The fresh angle should reframe the same material, not advance its difficulty.
 
 Success criteria:
 
 - The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
-- The visual system defines a cohesive design language with a palette, typography, composition, imagery, motifs, and contrast rules — not a linear progression.
+- The visual system is minimal: a 5-color palette and an imagery mood. It is not a linear progression.
 - The chapters form a clear narrative arc from opening to close.
 - The total suggested slide count is within 2-4 (3 source slides).
 - Each chapter summary is specific enough to guide slide generation without the user needing to see individual slides.

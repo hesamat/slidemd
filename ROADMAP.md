@@ -647,25 +647,27 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 Goal: Make Reimagine feel like a guided editorial art director: surprising in its thinking, reassuring in its structure, and coherent in its execution.
 
+Scope note: this is a **small slice**. It focuses on exposing the visual direction in the review modal, tightening prompt copy (beats, voice, flow-aware outline), and adding focused tests. The `theme:`/`background:` palette activation and visual-system validator work are deferred.
+
 The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](docs/plans/reimagine-improvements.md).
 
 ### Creative Direction & Review
 
 | Task                              | Details                                                                                                                                                |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [ ] Strengthen the creative brief | Make the outline state the core message, fresh editorial angle, narrative structure, and inferred audience or desired outcome.                         |
+| [x] Strengthen the creative brief | Make the outline state the core message, fresh editorial angle, narrative structure, and inferred audience or desired outcome.                         |
 | [ ] Show visual direction         | Add a compact read-only visual-system summary to the outline review: palette, typography, composition, imagery, motifs, and preserved identity/assets. |
-| [ ] Preserve user control         | Keep plan/chapter editing and regeneration; do not turn the outline modal into a per-slide design editor.                                              |
+| [x] Preserve user control         | Keep plan/chapter editing and regeneration; do not turn the outline modal into a per-slide design editor.                                              |
 
 ### Visual Rhythm & Voice
 
-| Task                              | Details                                                                                                                                                                                             |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Pass full visual-system brief | Thread the complete visual system to the generate prompt: palette roles, typography character, composition, imagery mood/treatment, motifs, and contrast rules — not just theme/background choices. |
-| [ ] Activate bounded visual style | For Reimagine only, allow renderer-native `theme:` and `background:` choices from the visual system; keep other AI modes conservative and avoid a post-generation token pass.                       |
-| [ ] Use visual beats              | Make continuation, transition, punctuation, emotional, and divider beats affect density, hierarchy, imagery, and contrast.                                                                          |
-| [ ] Improve presentation voice    | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                                                                |
-| [ ] Validate image reuse          | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                                                                             |
+| Task                                         | Details                                                                                                                                                                                             |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Pass full visual-system brief            | Thread the complete visual system to the generate prompt: palette roles, typography character, composition, imagery mood/treatment, motifs, and contrast rules — not just theme/background choices. |
+| [ ] Activate bounded visual style (deferred) | For Reimagine only, allow renderer-native `theme:` and `background:` choices from the visual system; keep other AI modes conservative and avoid a post-generation token pass.                       |
+| [ ] Use visual beats                         | Make continuation, transition, punctuation, emotional, and divider beats affect density, hierarchy, imagery, and contrast.                                                                          |
+| [ ] Improve presentation voice               | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                                                                |
+| [x] Validate image reuse                     | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                                                                             |
 
 ### Flow-Aware Outline Structure
 
@@ -676,10 +678,10 @@ The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](doc
 
 ### Validation & Test Coverage
 
-| Task                             | Details                                                                                                                                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [ ] Add visual-system validation | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.   |
-| [ ] Add Reimagine test fixtures  | Cover visual-system generation/normalization, review modal display, beat-to-treatment mapping, image reuse validation, conditional styling guidance, and no-regression for Polish/Fix/Remix prompt behavior. |
+| Task                                        | Details                                                                                                                                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Add visual-system validation (deferred) | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.   |
+| [ ] Add Reimagine test fixtures             | Cover visual-system generation/normalization, review modal display, beat-to-treatment mapping, image reuse validation, conditional styling guidance, and no-regression for Polish/Fix/Remix prompt behavior. |
 
 ### Acceptance Criteria
 

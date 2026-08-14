@@ -8,4 +8,6 @@
 
 <!-- variant: present -->
 
-- A visual system with a specific composition, imagery, and rhythm language is provided in the instructions below. Use it for layout, imagery treatment, and pacing. Do not use the palette colors in `background:`, `theme:`, `color`, or `backgroundColor` directives — the app provides its own neutral color scheme. Do not invent your own colors or theme.
+- A visual system with a specific palette is provided in the instructions below. You MUST use it for every slide.
+- For EVERY slide, emit `theme: light` or `theme: dark` and a `background:` directive. Use only the palette colors for `background: <hex>`, or use `background: url(<kept-image-path>)` for a kept image. Do not leave a slide without a `theme:` and `background:`.
+- Do not invent your own colors. Do not use `color`, `backgroundColor`, or other colored text directives.

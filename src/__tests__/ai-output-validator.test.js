@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import markdownit from "markdown-it";
-import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
+import {
+  AiOutputValidator,
+  collectOwnImageSources,
+  stripFabricatedImages,
+} from "../data/ai/ai-output-validator.js";
 
 beforeAll(() => {
   window.markdownit = markdownit;
@@ -998,6 +1002,22 @@ background: url(https://example.com/bg.png)
       expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
     });
 
+    it("allows quoted background urls that contain spaces", () => {
+      const input = `layout: header-content
+background: url("images/my bg.png")
+
+@main
+- Text`;
+      const output = `layout: header-content
+background: url("images/my bg.png")
+
+@main
+- Text`;
+      const result = validateSources(input, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it("allows a background url that is not the start of the value", () => {
       // Multi-layer/gradient backgrounds put url(...) after other layers —
       // every occurrence on the background line must be scanned.
@@ -1498,6 +1518,80 @@ theme : light
         output,
       );
       expect(result.errors.map((e) => e.code)).toContain("IDENTITY_DIRECTIVE_ADDED");
+    });
+  });
+
+  describe("collectOwnImageSources", () => {
+    it("collects <img> srcs and background urls, excluding reuse: paths", () => {
+      const markdown = `layout: header-content
+background: url(images/bg.png)
+
+@header
+# Title
+
+@main
+<img src="images/team.png" alt="Team">
+
+<!-- brief: Intro | image: reuse:images/other.png -->`;
+      const srcs = collectOwnImageSources(markdown);
+      expect(srcs).toContain("images/team.png");
+      expect(srcs).toContain("images/bg.png");
+      expect(srcs).not.toContain("reuse:images/other.png");
+    });
+  });
+
+  describe("stripFabricatedImages", () => {
+    const log = [];
+    const onLog = (msg, level) => log.push({ msg, level });
+
+    beforeEach(() => {
+      log.length = 0;
+    });
+
+    it("removes fabricated <img> tags with hallucinated filenames", () => {
+      const markdown = `layout: header-content
+
+@main
+<img src="images/image16-2349.jpeg" alt="Photo">`;
+      const allowed = ["images/image16-3245.jpeg"];
+      const result = stripFabricatedImages(markdown, allowed, onLog);
+      expect(result).not.toContain('src="images/image16-2349.jpeg"');
+      expect(log.some((l) => l.msg.includes("images/image16-2349.jpeg"))).toBe(true);
+    });
+
+    it("keeps image paths that are written slightly differently", () => {
+      const markdown = `layout: header-content
+
+@main
+<img src="./images/team.png" alt="Team">`;
+      const allowed = ["images/team.png"];
+      const result = stripFabricatedImages(markdown, allowed, onLog);
+      expect(result).toContain('src="./images/team.png"');
+      expect(log).toHaveLength(0);
+    });
+
+    it("removes fabricated background urls", () => {
+      const markdown = `layout: header-content
+background: url(images/fake-bg.png)
+
+@main
+- Text`;
+      const allowed = ["images/real-bg.png"];
+      const result = stripFabricatedImages(markdown, allowed, onLog);
+      expect(result).not.toContain("background:");
+      expect(result).not.toContain("images/fake-bg.png");
+    });
+
+    it("leaves fenced code blocks untouched", () => {
+      const markdown = `layout: header-content
+
+@main
+\`\`\`html
+<img src="images/fake.png">
+\`\`\``;
+      const allowed = [];
+      const result = stripFabricatedImages(markdown, allowed, onLog);
+      expect(result).toContain('src="images/fake.png"');
     });
   });
 });

@@ -43,16 +43,15 @@ The following foundations already exist and should be treated as shipped rather 
 - Beat normalization to catch obvious first-slide and consecutive high-impact beats.
 - Source-image extraction, kept-image selection, and `reuse:<path>` image references.
 - Generate-side instructions for placing kept images.
+- Output-validator checks for `reuse:<path>` and fabricated image sources (Phase 14.7).
 - Tolerant JSON extraction and a breakdown repair retry for model responses wrapped in prose or fences.
 - Outline review with editable plan and chapters.
 
 The main gaps are not missing infrastructure. They are incomplete product wiring and an unclear visual contract:
 
 1. The outline review does not show the visual direction the user is approving.
-2. The generated visual system contains palette information, but the current generate guidance explicitly suppresses palette use and keeps the deck neutral.
-3. The generate prompt does not provide the full visual-system summary or beat-to-treatment mapping.
-4. Presentation voice and speaker notes remain too generic.
-5. Image reuse is prompted but not yet verified by the output validator.
+2. The generate prompt does not provide the full visual-system summary or beat-to-treatment mapping.
+3. Presentation voice and speaker notes remain too generic.
 
 ---
 
@@ -404,14 +403,15 @@ Map the new tags through the breakdown phase so they carry into slide briefs and
 
 ## Implementation order
 
-1. **Clarify and expose the creative direction** — update outline copy (including flow-aware technique menus and an extended flowTag vocabulary) and add the read-only visual direction summary to the modal.
-2. **Activate bounded Reimagine visual styling** — make the visual prompt conditional, pass the full visual system, and allow renderer-native theme/background choices only in Reimagine.
+This is the **small-scope Phase 14.8** order. The palette/background styling activation and validator work are intentionally out of scope for this slice.
+
+1. **Expose the visual direction in the review modal** — add a compact read-only visual-system summary (palette swatches, typography, composition, imagery, motifs, contrast rules, and preserved identity/assets).
+2. **Clarify and expand the creative direction** — update outline copy with flow-aware technique menus and an extended flowTag vocabulary.
 3. **Wire beat-aware generation** — make the existing beat metadata affect density, hierarchy, layout, imagery, and contrast.
 4. **Improve presentation voice and speaker notes** — update content guidance and the flow variants.
-5. **Add exact image-reuse validation** — complete C7 without expanding into image search.
-6. **Update focused tests, snapshots, and hygiene checks.**
+5. **Update focused tests, snapshots, and hygiene checks.**
 
-The visual direction, beat treatment, and voice changes form the core user-visible improvement. Image validation and additional parser coverage are reliability work that should support, not define, the product experience.
+The visual direction, beat treatment, and voice changes form the core user-visible improvement. Image validation and additional parser coverage are reliability work already shipped in earlier phases.
 
 ---
 
