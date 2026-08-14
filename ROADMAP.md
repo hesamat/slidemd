@@ -704,8 +704,8 @@ Goal: Improve the PPTX import pipeline itself — layout inference accuracy, sha
 
 | Task                                          | Details                                                                                                                                                                                                                                                                                                                                                                            |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Fix focus vs header-content detection     | The thin-strip header check (`headerThinRatio: 0.4`) in `pptx-layout-inference.js` is too restrictive. Slides with a header + short body where the header is not ≥40% shorter than the body fall through to `header-content` even when `focus` is the better choice. Relax the check for short content and add a `focus` path for header + short body regardless of header height. |
-| [ ] Add focus path for short bulleted content | Slides with 4+ short bullets (total <300 chars) currently skip the `focus` path because the element count exceeds `maxTitleElements: 3`. Consider element count vs. content density rather than a hard cap.                                                                                                                                                                        |
+| [x] Fix focus vs header-content detection     | The thin-strip header check (`headerThinRatio: 0.4`) in `pptx-layout-inference.js` is too restrictive. Slides with a header + short body where the header is not ≥40% shorter than the body fall through to `header-content` even when `focus` is the better choice. Relax the check for short content and add a `focus` path for header + short body regardless of header height. |
+| [x] Add focus path for short bulleted content | Slides with 4+ short bullets (total <300 chars) currently skip the `focus` path because the element count exceeds `maxTitleElements: 3`. Consider element count vs. content density rather than a hard cap.                                                                                                                                                                        |
 | [ ] Review layout thresholds                  | Audit `pptx-slide-config.js` thresholds (`bodyTopRatio`, `maxTitleLength`, `maxTitleElements`, `headerThinRatio`) against a corpus of real PPTX files. Tune based on actual failure cases, not intuition.                                                                                                                                                                          |
 
 ### Shape & Diagram Preservation (#117)
@@ -718,24 +718,24 @@ Goal: Improve the PPTX import pipeline itself — layout inference accuracy, sha
 
 ### Code Block Centering
 
-| Task                            | Details                                                                                                                                                                                                                                                                                                     |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add `code-center` directive | Add a per-slide `code-center: true` directive (parsed in `markdown-parser.js`, applied as a `data-code-center` attribute on the slide element). CSS in `styles.css` centers `pre` blocks via `margin: auto; width: fit-content` — same technique already used by the `focus` layout. Works with any layout. |
+| Task                               | Details                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Add `{ center }` fence keyword | Add a per-code-block centering keyword in the fence info string (e.g. ` ```js { center } `), parsed in `markdown-parser.js` and `tools/md-to-deck.mjs`. Adds a `code-centered` class to the `<pre>` element. CSS in `styles/slides.css` centers via `margin: auto; width: fit-content; align-self: center`. Works with any layout. |
 
-### Text Overlay Preservation
+### PPTX Import Escaping Fix
 
-| Task                                | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Detect text-over-image overlays | During PPTX import, detect text elements that overlap images (using the existing `getOverlapArea()` in `pptx-layout-inference.js`). When overlap exceeds a threshold, emit the text as a float-mode text block (`::: text-block { float=true x=... y=... }`) positioned over the image, preserving the PPTX author's overlay intent. Currently both elements are placed in the same area in document flow and the overlay is lost. Position is calculated from the element's `left`/`top` (already in points after normalization). Z-index derived from element `order` to preserve layering. |
+| Task                  | Details                                                                                                                                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Stop escaping `>` | PPTX import (`pptx-html-to-markdown.js`) was escaping `>` to `&gt;` everywhere in markdown output. Now only `<` is escaped — `>` has no special meaning in markdown except at line start (blockquote), which is rare in PPTX text. |
 
 ### Acceptance Criteria
 
 - Slides with a header + short body use `focus` instead of `header-content` when the body is short enough to benefit from centered presentation.
 - Shapes with solid fills render as PNG images in imported decks instead of being converted to text-only.
 - Diagrams render as single screenshot images instead of flattening to bullet lists.
-- Text overlaid on images in PPTX is preserved as float-mode text blocks that overlay the image in the rendered slide.
-- `code-center: true` centers code blocks in any layout, not just `focus`.
-- Existing decks without the directive render unchanged.
+- ` ```js { center } ` centers that specific code block in any layout, not just `focus`.
+- PPTX import preserves literal `>` characters in body text.
+- Existing decks without the keyword render unchanged.
 
 ---
 
@@ -930,6 +930,7 @@ Goal: Fill the real competitive gaps in the presenter experience, make existing 
 | `PresenterModel` class                       | The presenter state is already spread across `DeckController`, `BreakManager`, and `RoleManager` and works. A dedicated model class is optional refactoring, not a user-facing gap. Keep the state where it is.                                                 |
 | Speaker notes panel (as new work)            | Already implemented: `DeckController.renderNotes()` renders notes as markdown into the existing presenter panel. Not a new task.                                                                                                                                |
 | Go-to-slide search                           | Already implemented: `SlideSearch` (`src/engine/slide-search.js`) provides full-text search across slides with a modal UI. Not a new task.                                                                                                                      |
+| Text overlay preservation (PPTX import)      | Implemented in Phase 14.9 but dropped — the float-mode text-block overlay feature had rendering bugs. Text overlapping images in PPTX is placed in normal document flow instead.                                                                                |
 
 ---
 
