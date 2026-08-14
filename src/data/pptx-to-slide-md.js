@@ -181,61 +181,6 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
 }
 
 /**
- * Detect text elements that overlap images and should be preserved as
- * float-mode text blocks (positioned overlays) rather than placed in
- * normal document flow.
- * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
- * @param {number} slideWidth
- * @param {number} slideHeight
- * @returns {Set<import('./pptx-extractor.js').ExtractedElement>} Text elements to emit as overlays.
- */
-function detectTextOverlays(elements, slideWidth, slideHeight) {
-  const images = elements.filter((el) => el.type === ELEMENT_TYPES.IMAGE && el.ref);
-  if (images.length === 0) return new Set();
-
-  const textEls = elements.filter((el) => el.type === ELEMENT_TYPES.TEXT && el.content?.trim());
-  const overlays = new Set();
-  const captionTolerance = slideHeight * CONFIG.textOverlayCaptionTolerance;
-
-  for (const textEl of textEls) {
-    const textArea = (textEl.width || 0) * (textEl.height || 0);
-    if (textArea === 0) continue;
-    for (const img of images) {
-      const overlap = getOverlapArea(textEl, img);
-      if (overlap / textArea > CONFIG.textOverlayThreshold) {
-        // Exclude captions: text below the image is a caption, not an overlay
-        const imgBottom = (img.top || 0) + (img.height || 0);
-        if ((textEl.top || 0) > imgBottom + captionTolerance) continue;
-        overlays.add(textEl);
-        break;
-      }
-    }
-  }
-  return overlays;
-}
-
-/**
- * Format a text element as a float-mode text block positioned over an image.
- * Coordinates are in pixels relative to the 1920x1080 stage.
- * @param {import('./pptx-extractor.js').ExtractedElement} el
- * @param {number} slideWidth
- * @param {number} slideHeight
- * @returns {string}
- */
-function formatOverlayTextBlock(el, slideWidth, slideHeight) {
-  // Scale from PPTX points to the 1920x1080 stage
-  const scaleX = 1920 / slideWidth;
-  const scaleY = 1080 / slideHeight;
-  const x = Math.round((el.left || 0) * scaleX);
-  const y = Math.round((el.top || 0) * scaleY);
-  const z = el.order || 1;
-  const content = formatTextElement(el.content);
-  // markdown=true so headings, bullets, and inline formatting in the overlay
-  // text are rendered as markdown rather than escaped plain text.
-  return `::: text-block { float=true markdown=true x=${x} y=${y} z=${z} }\n${content}\n:::`;
-}
-
-/**
  * Convert a single extracted slide to SlideMD markdown.
  * @param {import('./pptx-extractor.js').ExtractedSlide} slide
  * @param {number} slideWidth
@@ -373,6 +318,13 @@ function convertSlide(
   // 3. Separate structural footer elements from standard slide body elements
   const footerElements = slide.elements.filter((el) => el.placeholderType === ELEMENT_TYPES.FOOTER);
 
+  const textElements = meaningfulElements.filter(
+    (el) =>
+      el.type === ELEMENT_TYPES.TEXT &&
+      el.content?.trim() &&
+      el.placeholderType !== ELEMENT_TYPES.FOOTER,
+  );
+
   const allElements = meaningfulElements.filter(
     (el) =>
       el !== bgCandidate &&
@@ -384,26 +336,7 @@ function convertSlide(
         el.type === ELEMENT_TYPES.DIAGRAM),
   );
 
-  // Detect text elements that overlap images — these become float-mode
-  // text blocks (positioned overlays) instead of flowing into normal areas.
-  const overlayTextEls = detectTextOverlays(allElements, slideWidth, slideHeight);
-  const overlayTextBlocks = Array.from(overlayTextEls).map((el) =>
-    formatOverlayTextBlock(el, slideWidth, slideHeight),
-  );
-
-  // Remove overlay text from the normal element sets so it doesn't affect
-  // layout inference or get emitted again in the regular flow.
-  const textElements = meaningfulElements.filter(
-    (el) =>
-      el.type === ELEMENT_TYPES.TEXT &&
-      el.content?.trim() &&
-      el.placeholderType !== ELEMENT_TYPES.FOOTER &&
-      !overlayTextEls.has(el),
-  );
-
-  const allElementsFiltered = allElements.filter((el) => !overlayTextEls.has(el));
-
-  const hasMedia = allElementsFiltered.some((el) => el.type !== ELEMENT_TYPES.TEXT);
+  const hasMedia = allElements.some((el) => el.type !== ELEMENT_TYPES.TEXT);
 
   // Prune slides with no content elements
   if (allElements.length === 0 && footerElements.length === 0) {
@@ -415,7 +348,7 @@ function convertSlide(
     slideWidth,
     slideHeight,
     hasMedia,
-    allElementsFiltered,
+    allElements,
     dominantImages,
     slideIndex,
   );
@@ -432,7 +365,7 @@ function convertSlide(
   // Compute extractHeader once — reused by pre-check and all render branches.
   const { header, isHeaderValid, bodyElements } = extractHeader(
     textElements,
-    allElementsFiltered,
+    allElements,
     slideHeight,
     false,
   );
@@ -548,7 +481,7 @@ function convertSlide(
     parts.push("");
     parts.push(MARKDOWN_TAGS.TITLE);
     parts.push("");
-    parts.push(allElementsFiltered.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push(allElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
   } else if (layout.type === LAYOUT.HEADER_CONTENT.type) {
     const singleImage =
       bodyElements.length === 1 &&
@@ -902,44 +835,15 @@ function convertSlide(
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(
-      renderElementsWithFlex(
-        allElementsFiltered,
-        slideWidth,
-        slideHeight,
-        deckName,
-        formatSingleElement,
-      ),
+      renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
     );
   } else {
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(
-      renderElementsWithFlex(
-        allElementsFiltered,
-        slideWidth,
-        slideHeight,
-        deckName,
-        formatSingleElement,
-      ),
+      renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
     );
-  }
-
-  // Emit overlay text blocks (text positioned over images) as float-mode
-  // text blocks. They use absolute positioning so they render correctly
-  // regardless of which area they're in — but they must be inside a valid
-  // area for the layout so the parser routes them.
-  if (overlayTextBlocks.length > 0) {
-    // Use @title for title-slide (no @main grid area), otherwise @main.
-    const overlayArea =
-      layout.type === LAYOUT.TITLE_SLIDE.type ? MARKDOWN_TAGS.TITLE : MARKDOWN_TAGS.MAIN;
-    parts.push("");
-    parts.push(overlayArea);
-    parts.push("");
-    for (const block of overlayTextBlocks) {
-      parts.push(block);
-      parts.push("");
-    }
   }
 
   if (footerElements.length > 0) {

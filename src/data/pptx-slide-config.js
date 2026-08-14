@@ -149,10 +149,4 @@ export const CONFIG = {
   overflowLineHeightCode: 28,
   overflowLineHeightBlank: 16,
   overflowWrapLength: 60,
-  // Text overlay detection: text elements overlapping images by this fraction
-  // of the text's own area are treated as overlays (float-mode text blocks).
-  textOverlayThreshold: 0.4,
-  // If text top is below image bottom + this fraction of slide height, it's
-  // a caption, not an overlay.
-  textOverlayCaptionTolerance: 0.1,
 };

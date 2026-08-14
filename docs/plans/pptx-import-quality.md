@@ -96,58 +96,10 @@ This mirrors the existing `focus` layout rule but applies to individual code blo
 
 ---
 
-## Workstream 3: Text Overlay Preservation
-
-**Goal:** Detect text elements that overlap images in PPTX and preserve them as float-mode text blocks positioned over the image.
-
-### Implementation
-
-1. **Detection** — In `pptx-layout-inference.js` or `pptx-to-slide-md.js`, after element extraction and before layout inference, scan for text elements that overlap images. Use the existing `getOverlapArea()` function.
-
-   Logic:
-   - For each image element, find text elements where `overlapArea / textArea > CONFIG.textOverlayThreshold`.
-   - Exclude cases where the text is a caption below the image (text top > image bottom - tolerance).
-   - Exclude cases where the image is a background (already filtered by `filterMeaningfulElements`).
-
-2. **Emission** — For detected overlay text, emit as a float-mode text block:
-
-   ```
-   ::: text-block { float=true x=<px> y=<px> z=<order> }
-   <text content>
-   :::
-   ```
-
-   Position is calculated from the element's `left`/`top` (converted from EMU to pixels at the 1920x1080 stage). Z-index derived from element `order` to preserve layering.
-
-3. **Threshold** — Add to `pptx-slide-config.js`:
-   - `textOverlayThreshold: 0.4` — text is considered an overlay if ≥40% of its area overlaps an image
-   - `textOverlayCaptionTolerance: 0.1` — if text top is within 10% of slide height below image bottom, treat as caption, not overlay
-
-**Files:**
-
-- `src/data/pptx-layout-inference.js` or `src/data/pptx-to-slide-md.js` — detection logic
-- `src/data/pptx-slide-config.js` — new thresholds
-- `src/core/text-block-directive.js` — no changes needed (already supports `float`, `x`, `y`, `z`)
-
-### Tests
-
-- Add a PPTX fixture with text overlaid on an image.
-- Integration test in `pptx-import-integration.test.js`: verify the text is emitted as a float-mode text block with correct position.
-- Regression test: verify text below an image (caption) is NOT emitted as float-mode.
-
-### Acceptance
-
-- Text overlaid on images in PPTX is preserved as float-mode text blocks that overlay the image in the rendered slide.
-- Captions below images are not treated as overlays.
-- Slides without text-image overlaps are unchanged.
-
----
-
 ## Implementation Order
 
 1. **Code Block Centering** — simplest, self-contained, good warmup
 2. **Layout Inference Fixes** — threshold tuning, run against existing fixtures
-3. **Text Overlay Preservation** — medium complexity, new detection logic
 
 Each workstream gets its own commit. All quality gates run before commit:
 
