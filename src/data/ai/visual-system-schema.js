@@ -2,26 +2,27 @@
  * Visual System Schema
  *
  * Validates and normalizes the `visualSystem` field produced by the Outline AI.
- * The visual system is now a set of freeform style notes (mood + styleNotes)
- * rather than a strict 3-color palette. Legacy `palette` objects are still
- * accepted for backwards compatibility with older saved decks.
+ * The visual system is a single freeform `visualDirection` string that
+ * describes the mood and rules of thumb for choosing backgrounds and layouts.
+ *
+ * Legacy shapes (`{mood, styleNotes}` and `{palette: {...}}`) are accepted for
+ * backwards compatibility with older saved decks and converted into the new
+ * single-field format.
  */
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 /**
  * @typedef {Object} VisualSystem
- * @property {string} mood
- * @property {string} styleNotes
+ * @property {string} visualDirection
  */
 
 /**
  * @type {VisualSystem}
  */
 export const DEFAULT_VISUAL_SYSTEM = {
-  mood: "Neutral, professional, and readable.",
-  styleNotes:
-    "Use a dark or neutral background for most continuation and content slides. Use a bright or light background sparingly for punctuation, transition, climax, and call-to-action moments. Use a light background for the title slide and agenda. Use kept images in full-image or media-span layouts for emotional/atmospheric beats.",
+  visualDirection:
+    "Professional and readable. Vary backgrounds across the deck — mix dark, neutral, and light slides so no single background dominates. Use light or bright backgrounds for title, agenda, punctuation, and transition slides. Use neutral or dark backgrounds for code-heavy slides. Use kept images in full-image or media-span layouts for emotional or atmospheric beats. Always pair theme: with background: for readable contrast.",
 };
 
 /**
@@ -36,9 +37,10 @@ function isValidHex(v) {
 /**
  * Validate and normalize a visual system object from the Outline AI.
  *
- * Accepts either the new descriptive shape (`mood` + `styleNotes`) or a legacy
- * `palette` object. Legacy palettes are converted into style notes so the rest
- * of the pipeline can treat them as a freeform direction.
+ * Accepts:
+ * - New shape: `{ visualDirection: string }`
+ * - Legacy shape: `{ mood: string, styleNotes: string }` (merged into one)
+ * - Legacy palette: `{ palette: { base, accent, highlight } }` (converted)
  *
  * Returns `null` if the object is not a valid visual system. Callers should
  * fall back to `DEFAULT_VISUAL_SYSTEM` when this returns `null`.
@@ -49,15 +51,23 @@ function isValidHex(v) {
 export function validateVisualSystem(obj) {
   if (typeof obj !== "object" || obj === null) return null;
 
-  // New descriptive shape.
+  // New single-field shape.
+  if (typeof obj.visualDirection === "string") {
+    const visualDirection = obj.visualDirection.trim();
+    if (!visualDirection) return null;
+    return { visualDirection };
+  }
+
+  // Legacy mood + styleNotes shape — merge into a single field.
   if (typeof obj.mood === "string" || typeof obj.styleNotes === "string") {
     const mood = String(obj.mood ?? "").trim();
     const styleNotes = String(obj.styleNotes ?? "").trim();
     if (!mood && !styleNotes) return null;
-    return { mood, styleNotes };
+    const parts = [mood, styleNotes].filter(Boolean);
+    return { visualDirection: parts.join(" ") };
   }
 
-  // Legacy palette shape — convert to style notes but do not enforce.
+  // Legacy palette shape — convert to a visual direction string.
   if (typeof obj.palette === "object" && obj.palette !== null) {
     const { base, accent, highlight } = obj.palette;
     const baseColor = isValidHex(base) ? base : "";
@@ -65,8 +75,7 @@ export function validateVisualSystem(obj) {
     const highlightColor = isValidHex(highlight) ? highlight : "";
     if (baseColor || accentColor || highlightColor) {
       return {
-        mood: `Legacy palette: ${baseColor || "(none)"} base, ${accentColor || "(none)"} accent, ${highlightColor || "(none)"} highlight.`,
-        styleNotes: `The source deck used a 3-color palette. Use ${baseColor || "dark/neutral backgrounds"} for continuation and content slides, ${accentColor || "bright accents"} for punctuation, transition, CTA, or high-energy moments, and ${highlightColor || "light backgrounds"} for title/agenda slides.`,
+        visualDirection: `Legacy palette: ${baseColor || "(none)"} base, ${accentColor || "(none)"} accent, ${highlightColor || "(none)"} highlight. Use ${baseColor || "neutral backgrounds"} for continuation and content slides, ${accentColor || "bright accents"} for punctuation, transition, CTA, or high-energy moments, and ${highlightColor || "light backgrounds"} for title/agenda slides.`,
       };
     }
   }
@@ -90,10 +99,7 @@ export function parseVisualSystem(obj) {
  * @returns {string}
  */
 export function visualSystemToComment(visualSystem) {
-  return `<!-- visual-system: ${JSON.stringify({
-    mood: visualSystem.mood,
-    styleNotes: visualSystem.styleNotes,
-  })} -->`;
+  return `<!-- visual-system: ${JSON.stringify({ visualDirection: visualSystem.visualDirection })} -->`;
 }
 
 /**

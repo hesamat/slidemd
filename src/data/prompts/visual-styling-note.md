@@ -8,21 +8,20 @@
 
 <!-- variant: present -->
 
-- A visual direction is provided below. It describes the mood and the rules of thumb for choosing `layout:`, `theme:`, and `background:`. You are free to pick any professional colors, gradients, or kept images that match the direction. Do not feel constrained to a specific 3-color palette.
+- A visual direction is provided below. It describes the mood and the rules of thumb for choosing `layout:`, `theme:`, and `background:`. Follow it closely — it is the primary authority on background choices for this deck. You are free to pick any professional colors, gradients, or kept images that match the direction. Do not feel constrained to a specific 3-color palette.
 - For EVERY slide, the frontmatter must include both `theme:` and `background:`. Do not omit either.
 - `theme:` is a color scheme, not a color. It tells the renderer what ink color to use:
   - `theme: light` = light/bright background, dark text and UI elements.
   - `theme: dark` = dark background, light text and UI elements.
 - Pair `theme:` with `background:` for readable contrast:
-  - dark background (`#0f172a` or similar) → `theme: dark`
-  - light/bright background (`#ffffff`, a bright accent, etc.) → `theme: light`
+  - dark background → `theme: dark`
+  - light/bright background → `theme: light`
   - kept image as background → choose `theme:` based on whether the image is mostly dark or light
 - `background:` must be a solid hex color, gradient, or kept image. Do not use `transparent`, `none`, or an empty value — a see-through background makes text and diagrams (e.g. Mermaid) unreadable.
-- You may use any hex color, but avoid harsh or low-contrast combinations. Vary `background:` across the deck — do not use the same background on every slide.
-- Reserve bright, light, or image backgrounds for emphasis; do not put them on every slide. Content-heavy slides (`header-content`, `two-column`, `media-span` with text/code) should usually use a dark or neutral background so the content is readable.
+- You may use any hex color. Vary `background:` across the deck — do not use the same background on every slide. Avoid defaulting to a single dark color (e.g. navy or slate) for most slides; mix dark, neutral, and light backgrounds as the visual direction suggests. Do not use `#0f172a` as a default — if you need a dark background, pick from a variety of darks such as `#1a1a2e`, `#1e293b`, `#0d1117`, `#181818`, `#1c1c1c`, `#141414`, `#202030`, etc.
 - Beat treatment: each slide brief includes `| beat: <beat>, energy: ..., contrast: ..., relationship: ... |`. Use it to shape density, hierarchy, layout, and imagery:
-  - `continuation` — the default. Use `header-content` or `two-column`. Stick to the deck's default background style (usually dark/neutral).
-  - `example` / `practice` — code, tables, or step-by-step content. Use `two-column` or `header-content`; a dark background often works well for code.
+  - `continuation` — the default. Use `header-content` or `two-column`. Follow the visual direction's default background.
+  - `example` / `practice` — code, tables, or step-by-step content. Use `two-column` or `header-content`.
   - `punctuation` — one strong takeaway. Use `focus` only for a single short statement; if it is a list or has multiple points, use `header-content` with a bright, light, or image background.
   - `transition` — signal a chapter or idea change. Reduce density, shift hierarchy, and consider a `background:` or `theme:` change.
   - `emotional` — imagery or atmosphere carries the message. Prefer a `full-image` or `media-span` layout when an image is available; otherwise use `header-content` with an atmospheric background.

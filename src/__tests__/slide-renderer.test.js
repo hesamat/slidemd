@@ -195,8 +195,7 @@ describe("SlideRenderer", () => {
     const deck = {
       slides: [slide],
       visualSystem: {
-        mood: "Dark, technical.",
-        styleNotes: "Use dark backgrounds for content, bright for emphasis.",
+        visualDirection: "Dark, technical. Use dark backgrounds for content, bright for emphasis.",
       },
     };
     const el = SlideRenderer.createSlideElement(deck, slide, 0, true);

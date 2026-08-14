@@ -20,9 +20,8 @@ const SAMPLE_OUTLINE = {
     },
   ],
   visualSystem: {
-    mood: "Dark, technical, with bright accent walls for key moments.",
-    styleNotes:
-      "Use dark or neutral backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
+    visualDirection:
+      "Dark, technical, with bright accent walls for key moments. Use dark or neutral backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
   },
   keepImages: [0, 2],
   firstSlideIdentity: "COMP 1510 202630",
@@ -61,14 +60,23 @@ describe("AiReimagineOutlineModal", () => {
     expect(result).toBeNull();
   });
 
-  it("does not close when a click on the backdrop follows a mousedown inside the dialog", async () => {
+  it("does not close when a textarea resize drag ends on the backdrop", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const styleNotesInput = dialog.querySelector(".ai-reimagine-outline-modal__style-notes-input");
-    // Simulate the start of a resize/drag on the style notes textarea.
-    styleNotesInput.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     const backdrop = document.querySelector(".ai-reimagine-outline-modal__backdrop");
+    const visualDirectionInput = dialog.querySelector(
+      ".ai-reimagine-outline-modal__visual-direction-input",
+    );
+
+    // Simulate a full resize drag: mousedown inside the dialog (on the
+    // textarea resize handle), mousemove, then mouseup/click on the backdrop.
+    visualDirectionInput.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    document.dispatchEvent(
+      new MouseEvent("mousemove", { bubbles: true, clientX: 100, clientY: 200 }),
+    );
+    backdrop.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     backdrop.click();
+
     await Promise.resolve();
     expect(document.querySelector(".ai-reimagine-outline-modal__dialog")).not.toBeNull();
     dialog.querySelector('[data-action="cancel"]').click();
@@ -267,13 +275,11 @@ describe("AiReimagineOutlineModal", () => {
     expect(result).toBeNull();
   });
 
-  it("sets initial focus on the first chapter title input", async () => {
+  it("sets initial focus on the plan input", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const firstTitleInput = dialog.querySelector(
-      ".ai-reimagine-outline-modal__chapter-title-input",
-    );
-    expect(document.activeElement).toBe(firstTitleInput);
+    const planInput = dialog.querySelector(".ai-reimagine-outline-modal__plan-input");
+    await vi.waitFor(() => expect(document.activeElement).toBe(planInput));
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
@@ -284,30 +290,40 @@ describe("AiReimagineOutlineModal", () => {
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
     expect(result.visualSystem).not.toBeNull();
-    expect(result.visualSystem.mood).toBe(SAMPLE_OUTLINE.visualSystem.mood);
-    expect(result.visualSystem.styleNotes).toBe(SAMPLE_OUTLINE.visualSystem.styleNotes);
-    expect(Object.keys(result.visualSystem)).toEqual(["mood", "styleNotes"]);
+    expect(result.visualSystem.visualDirection).toBe(SAMPLE_OUTLINE.visualSystem.visualDirection);
+    expect(Object.keys(result.visualSystem)).toEqual(["visualDirection"]);
   });
 
-  it("edits the mood and style notes and returns the edited visual system", async () => {
+  it("edits the visual direction and returns the edited visual system", async () => {
     const outline = JSON.parse(JSON.stringify(SAMPLE_OUTLINE));
     const promise = AiReimagineOutlineModal.show(outline);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
 
-    const moodInput = dialog.querySelector(".ai-reimagine-outline-modal__mood-input");
-    const styleNotesInput = dialog.querySelector(".ai-reimagine-outline-modal__style-notes-input");
-    expect(moodInput).not.toBeNull();
-    expect(styleNotesInput).not.toBeNull();
+    const visualDirectionInput = dialog.querySelector(
+      ".ai-reimagine-outline-modal__visual-direction-input",
+    );
+    expect(visualDirectionInput).not.toBeNull();
 
-    moodInput.value = "Bright and friendly.";
-    moodInput.dispatchEvent(new Event("input"));
-    styleNotesInput.value = "Use light backgrounds for title and agenda.";
-    styleNotesInput.dispatchEvent(new Event("input"));
+    visualDirectionInput.value = "Bright and friendly. Use light backgrounds for title and agenda.";
+    visualDirectionInput.dispatchEvent(new Event("input"));
 
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
-    expect(result.visualSystem.mood).toBe("Bright and friendly.");
-    expect(result.visualSystem.styleNotes).toBe("Use light backgrounds for title and agenda.");
+    expect(result.visualSystem.visualDirection).toBe(
+      "Bright and friendly. Use light backgrounds for title and agenda.",
+    );
+  });
+
+  it("shows an error when the visual direction is empty", async () => {
+    const outline = JSON.parse(JSON.stringify(SAMPLE_OUTLINE));
+    outline.visualSystem.visualDirection = "";
+    const promise = AiReimagineOutlineModal.show(outline);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    dialog.querySelector('[data-action="generate"]').click();
+    const errorEl = dialog.querySelector(".ai-reimagine-outline-modal__error");
+    expect(errorEl.textContent).toContain("Please add a visual direction.");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
   });
 
   it("renders a fallback when no visual direction is provided", async () => {
@@ -326,12 +342,10 @@ describe("AiReimagineOutlineModal", () => {
     const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
     expect(visualSystemEl).not.toBeNull();
 
-    const moodInput = visualSystemEl.querySelector(".ai-reimagine-outline-modal__mood-input");
-    const styleNotesInput = visualSystemEl.querySelector(
-      ".ai-reimagine-outline-modal__style-notes-input",
+    const visualDirectionInput = visualSystemEl.querySelector(
+      ".ai-reimagine-outline-modal__visual-direction-input",
     );
-    expect(moodInput.value).toBe(SAMPLE_OUTLINE.visualSystem.mood);
-    expect(styleNotesInput.value).toBe(SAMPLE_OUTLINE.visualSystem.styleNotes);
+    expect(visualDirectionInput.value).toBe(SAMPLE_OUTLINE.visualSystem.visualDirection);
 
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
@@ -460,8 +474,7 @@ describe("AiReimagineOutlineModal", () => {
       plan: "Regenerated plan.",
       chapters: SAMPLE_OUTLINE.chapters,
       visualSystem: {
-        mood: "Regenerated mood.",
-        styleNotes: "Regenerated style notes.",
+        visualDirection: "Regenerated visual direction.",
       },
       keepImages: [1],
       firstSlideIdentity: "Updated identity",
@@ -473,12 +486,11 @@ describe("AiReimagineOutlineModal", () => {
     dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn").click();
 
     await vi.waitFor(() => {
-      const moodInput = dialog.querySelector(".ai-reimagine-outline-modal__mood-input");
-      expect(moodInput.value).toBe("Regenerated mood.");
+      const visualDirectionInput = dialog.querySelector(
+        ".ai-reimagine-outline-modal__visual-direction-input",
+      );
+      expect(visualDirectionInput.value).toBe("Regenerated visual direction.");
     });
-
-    const styleNotesInput = dialog.querySelector(".ai-reimagine-outline-modal__style-notes-input");
-    expect(styleNotesInput.value).toBe("Regenerated style notes.");
 
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;

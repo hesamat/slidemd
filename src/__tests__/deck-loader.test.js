@@ -121,8 +121,7 @@ describe("DeckLoader.normalizeDeck", () => {
 
   it("preserves the visual system", () => {
     const visualSystem = {
-      mood: "Dark, technical.",
-      styleNotes: "Use dark backgrounds for content, bright for emphasis.",
+      visualDirection: "Dark, technical. Use dark backgrounds for content, bright for emphasis.",
     };
     const deck = {
       meta: { title: "Test" },

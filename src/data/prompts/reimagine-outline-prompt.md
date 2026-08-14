@@ -14,14 +14,14 @@ The presentation flow is **{{flow}}**. Choose storytelling techniques that fit t
 
 ## Visual system
 
-Alongside the narrative outline, design a **visual direction** as freeform style notes. The direction is used by the later generation AI to choose `layout:`, `theme:`, and `background:` for each slide. It should describe the mood and the rules of thumb, not a strict color palette. The model is free to pick any professional colors, gradients, or kept images that match the direction.
+Alongside the narrative outline, design a **visual direction** as a single freeform paragraph. The direction is used by the later generation AI to choose `layout:`, `theme:`, and `background:` for each slide. It should describe the mood and the rules of thumb for backgrounds, not a strict color palette. The model is free to pick any professional colors, gradients, or kept images that match the direction.
 
-- `mood` — one sentence describing the overall feel (e.g. "Dark, technical, with bright accent walls for key moments" or "Bright, friendly, and high-contrast").
-- `styleNotes` — 2-4 sentences describing how to choose layouts and backgrounds across the deck. Cover:
-  - The default background style for continuation and content slides.
-  - When to use a bright, light, or image background (punctuation, transition, climax, CTA, emotional beats).
-  - The background for the title slide and agenda.
+- `visualDirection` — 2-5 sentences describing the overall feel and how to choose backgrounds across the deck. Cover:
+  - The overall mood (e.g. "Clean, technical, and high-contrast" or "Warm, editorial, with atmospheric imagery").
+  - The default background style for most content slides.
+  - When to use a different background (light, bright, image) for emphasis, transitions, title, and agenda.
   - When to use `full-image` or `media-span` layouts with kept images.
+  - A reminder to vary backgrounds so no single color dominates the deck.
 
 The AI is free to choose exact hex colors. Always pair `theme:` with `background:` so text remains readable: `theme: dark` for dark backgrounds and `theme: light` for light/bright backgrounds.
 
@@ -31,8 +31,7 @@ Output format:
 {
   "plan": "1-3 sentence statement of the deck's core message, the fresh editorial angle, and the narrative structure you chose (e.g. 'Reframe the deck around outcomes. Open with historical context, build tension around the current gap, present the approach with evidence, close with a call to action.').",
   "visualSystem": {
-    "mood": "Dark, technical, with bright accent walls for key moments.",
-    "styleNotes": "Use dark or neutral backgrounds for continuation, example, and code-heavy slides. Use a bright or light background sparingly for punctuation, transition, climax, and call-to-action moments. Use a light or dramatic dark background for the title slide and agenda. Use kept images in full-image or media-span layouts for emotional or atmospheric beats."
+    "visualDirection": "Clean, technical, and high-contrast. Vary backgrounds across the deck — mix dark, neutral, and light slides so no single color dominates. Use light or bright backgrounds for the title, agenda, punctuation, and transition slides. Use neutral or dark backgrounds for code-heavy slides. Use kept images in full-image or media-span layouts for emotional or atmospheric beats."
   },
   "keepImages": [0, 2],
   "firstSlideIdentity": "COMP 1510 202630",
@@ -58,9 +57,9 @@ Rules:
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.
 - `plan` — 1-3 sentences combining: the deck's core message, the fresh angle you propose, and the narrative structure you chose with a brief justification.
 - `visualSystem` — a deck-wide visual direction in freeform text:
-  - `mood` — one sentence describing the overall visual feel.
-  - `styleNotes` — 2-4 sentences describing how to choose layouts and backgrounds across beats and slide types. Do not list a strict color palette; describe the _kind_ of background (dark/neutral, bright/light, image, etc.) to use for each beat.
+  - `visualDirection` — 2-5 sentences describing the overall mood and how to choose backgrounds across beats and slide types. Do not list a strict color palette; describe the _kind_ of background (dark/neutral, bright/light, image, etc.) to use for each beat.
   - Do NOT design a linear progression. Slides can switch backgrounds as the content demands, but keep the direction coherent.
+  - Vary backgrounds across the deck — do not default to a single dark color for every slide.
 - `keepImages` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
 - `firstSlideIdentity` — a short string (1-2 lines) extracted EXCLUSIVELY from the "First slide (preserve its identifying info)" text provided above. Do NOT look at other slides for this. Extract the identifying text from the first slide's footer, header, or title (e.g. course code + term, event name, author). Keep it concise: do not include the full institutional description or repeated course names. If the first slide has no identifying information beyond the title heading, use the title itself. Do NOT mention this field or the footer in the plan text — just extract the value into this field.
 - `chapters` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
@@ -78,7 +77,7 @@ Rules:
 Success criteria:
 
 - The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
-- The visual system is a coherent visual direction (mood + styleNotes). It is not a linear progression.
+- The visual system is a coherent visual direction (visualDirection). It is not a linear progression.
 - The chapters form a clear narrative arc from opening to close.
 - The total suggested slide count is within {{minSlides}}-{{maxSlides}} ({{sourceCount}} source slides).
 - Each chapter summary is specific enough to guide slide generation without the user needing to see individual slides.

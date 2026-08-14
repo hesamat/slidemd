@@ -41,8 +41,7 @@ const FLOW_TAGS = [
 
 /**
  * @typedef {Object} VisualSystem
- * @property {string} mood
- * @property {string} styleNotes
+ * @property {string} visualDirection
  */
 
 /**
@@ -66,6 +65,7 @@ export class AiReimagineOutlineModal {
    */
   static show(outline, opts = {}) {
     return new Promise((resolve) => {
+      const previousFocus = document.activeElement;
       const backdrop = document.createElement("div");
       backdrop.className = `${P}backdrop`;
 
@@ -184,27 +184,16 @@ export class AiReimagineOutlineModal {
 
         visualSystemEl.innerHTML = `
           <div class="${P}visual-system-section">
-            <label class="${P}visual-system-label" for="${P}mood-input">Mood</label>
-            <input type="text" id="${P}mood-input" class="${P}mood-input" value="${escapeAttr(visualSystem.mood)}" />
-          </div>
-          <div class="${P}visual-system-section">
-            <label class="${P}visual-system-label" for="${P}style-notes-input">Style notes</label>
-            <textarea id="${P}style-notes-input" class="${P}style-notes-input" rows="5">${escapeHtml(visualSystem.styleNotes)}</textarea>
+            <label class="${P}visual-system-label" for="${P}visual-direction-input">Visual direction</label>
+            <textarea id="${P}visual-direction-input" class="${P}visual-direction-input" rows="4">${escapeHtml(visualSystem.visualDirection)}</textarea>
           </div>
         `;
 
-        const moodInput = visualSystemEl.querySelector(`#${P}mood-input`);
-        const styleNotesInput = visualSystemEl.querySelector(`#${P}style-notes-input`);
+        const directionInput = visualSystemEl.querySelector(`#${P}visual-direction-input`);
 
-        if (moodInput) {
-          moodInput.addEventListener("input", (e) => {
-            visualSystem.mood = e.target.value;
-          });
-        }
-
-        if (styleNotesInput) {
-          styleNotesInput.addEventListener("input", (e) => {
-            visualSystem.styleNotes = e.target.value;
+        if (directionInput) {
+          directionInput.addEventListener("input", (e) => {
+            visualSystem.visualDirection = e.target.value;
           });
         }
       };
@@ -341,26 +330,54 @@ export class AiReimagineOutlineModal {
         });
       }
 
-      // Focus the first chapter title input so keyboard users have an entry point.
-      const firstTitleInput = dialog.querySelector(`.${P}chapter-title-input`);
-      if (firstTitleInput) firstTitleInput.focus();
+      // Focus the plan input so keyboard users have an entry point at the top
+      // of the dialog.  Focusing an element below the fold (e.g. a chapter
+      // title) would cause the browser to scroll the dialog down, making the
+      // modal open with the scrollbar at the bottom instead of the top.
+      requestAnimationFrame(() => {
+        dialog.scrollTop = 0;
+        planInput.focus();
+        planInput.setSelectionRange(planInput.value.length, planInput.value.length);
+      });
 
       const onKeydown = (e) => {
-        if (e.key !== "Escape") return;
-        // Don't close the modal while the user is editing an inline input or textarea;
-        // let Escape blur the field first so in-progress edits aren't discarded.
-        const active = document.activeElement;
-        if (
-          active &&
-          dialog.contains(active) &&
-          (active.tagName === "INPUT" ||
-            active.tagName === "TEXTAREA" ||
-            active.tagName === "SELECT")
-        ) {
-          active.blur();
+        if (e.key === "Escape") {
+          // Don't close the modal while the user is editing an inline input or textarea;
+          // let Escape blur the field first so in-progress edits aren't discarded.
+          const active = document.activeElement;
+          if (
+            active &&
+            dialog.contains(active) &&
+            (active.tagName === "INPUT" ||
+              active.tagName === "TEXTAREA" ||
+              active.tagName === "SELECT")
+          ) {
+            active.blur();
+            return;
+          }
+          close(null);
           return;
         }
-        close(null);
+
+        // Focus trap: keep Tab/Shift+Tab cycling within the dialog.
+        if (e.key === "Tab") {
+          const focusable = dialog.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          );
+          const visible = Array.from(focusable).filter(
+            (el) => el.offsetParent !== null || el === document.activeElement,
+          );
+          if (visible.length === 0) return;
+          const first = visible[0];
+          const last = visible[visible.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       };
 
       // Track where a click sequence started (mousedown) so we don't close the
@@ -394,6 +411,10 @@ export class AiReimagineOutlineModal {
         backdrop.remove();
         modalClosed();
         document.removeEventListener("keydown", onKeydown);
+        // Restore focus to the element that was focused before the modal opened.
+        if (previousFocus && typeof previousFocus.focus === "function") {
+          previousFocus.focus();
+        }
         resolve(result);
       };
 
@@ -415,8 +436,8 @@ export class AiReimagineOutlineModal {
         errorEl.textContent = "";
 
         if (visualSystem) {
-          if (!visualSystem.mood.trim() || !visualSystem.styleNotes.trim()) {
-            errorEl.textContent = "Please add a mood and style notes for the visual direction.";
+          if (!visualSystem.visualDirection.trim()) {
+            errorEl.textContent = "Please add a visual direction.";
             return;
           }
         }

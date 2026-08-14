@@ -1746,9 +1746,8 @@ describe("AiOrchestrator", () => {
 
     it("reimagine threads visualSystem from outline through breakdown to generate", async () => {
       const visualSystem = {
-        mood: "Dark, dramatic, with red accents for emphasis.",
-        styleNotes:
-          "Use dark backgrounds for continuation slides. Use red accent backgrounds for punctuation and climax moments. Use white or light backgrounds for title and agenda.",
+        visualDirection:
+          "Dark, dramatic, with red accents for emphasis. Use dark backgrounds for continuation slides. Use red accent backgrounds for punctuation and climax moments. Use white or light backgrounds for title and agenda.",
       };
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
@@ -1793,22 +1792,20 @@ describe("AiOrchestrator", () => {
       // visualSystem is passed through the onOutline callback
       expect(outlines).toHaveLength(1);
       expect(outlines[0].visualSystem).not.toBeNull();
-      expect(outlines[0].visualSystem.mood).toBe(visualSystem.mood);
-      expect(outlines[0].visualSystem.styleNotes).toBe(visualSystem.styleNotes);
+      expect(outlines[0].visualSystem.visualDirection).toBe(visualSystem.visualDirection);
 
-      // Breakdown prompt receives the style notes
+      // Breakdown prompt receives the visual direction
       const breakdownUser = provider.chat.mock.calls[1][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      expect(breakdownUser).toContain(visualSystem.mood);
-      expect(breakdownUser).toContain(visualSystem.styleNotes);
+      expect(breakdownUser).toContain(visualSystem.visualDirection);
 
       // Generate prompt receives the visual direction brief
       const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual direction");
-      expect(execUser).toContain(visualSystem.mood);
+      expect(execUser).toContain(visualSystem.visualDirection);
 
       // Brief includes the beat suffix (punctuation on slide 1 is normalized
       // to continuation by the beat normalizer)
@@ -1845,14 +1842,14 @@ describe("AiOrchestrator", () => {
       });
       // Falls back to default visual system
       expect(outlines[0].visualSystem).not.toBeNull();
-      expect(outlines[0].visualSystem.mood).toBe(DEFAULT_VISUAL_SYSTEM.mood);
+      expect(outlines[0].visualSystem.visualDirection).toBe(DEFAULT_VISUAL_SYSTEM.visualDirection);
 
       // Generate prompt still receives the visual direction brief (from default)
       const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual direction");
-      expect(execUser).toContain(DEFAULT_VISUAL_SYSTEM.mood);
+      expect(execUser).toContain(DEFAULT_VISUAL_SYSTEM.visualDirection);
     });
 
     it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when visualSystem is invalid", async () => {
@@ -1882,7 +1879,7 @@ describe("AiOrchestrator", () => {
           return outline;
         },
       });
-      expect(outlines[0].visualSystem.mood).toBe(DEFAULT_VISUAL_SYSTEM.mood);
+      expect(outlines[0].visualSystem.visualDirection).toBe(DEFAULT_VISUAL_SYSTEM.visualDirection);
     });
 
     it("reimagine includes imageQuery in brief serialization for generate AI", async () => {
@@ -2871,7 +2868,7 @@ describe("AiOrchestrator", () => {
             {
               layout: "full-image",
               content:
-                'theme: dark\nbackground: #1a1a2e\nbackground: url(images/a.png) center/cover\n@main\n<img src="images/a.png">',
+                'theme: dark\nbackground: #0f172a\nbackground: url(images/a.png) center/cover\n@main\n<img src="images/a.png">',
             },
             { layout: "header-content", content: "@header\n## Slide B\n\n@main\n- B" },
           ],
@@ -2892,7 +2889,7 @@ describe("AiOrchestrator", () => {
       expect(provider.chat).toHaveBeenCalledTimes(3);
       expect(result).toContain("background: url(images/a.png) center/cover");
       expect(result).toContain("theme: dark");
-      expect(result).not.toContain("background: #1a1a2e");
+      expect(result).not.toContain("background: #0f172a");
     });
 
     it("allows kept images in the execute output when briefs carry no reuse: refs", async () => {

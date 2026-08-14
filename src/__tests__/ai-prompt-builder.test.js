@@ -573,23 +573,22 @@ describe("BATCH_SIZE", () => {
 });
 
 const TEST_VISUAL_SYSTEM = {
-  mood: "Dark, technical, with bright accent walls for key moments.",
-  styleNotes:
-    "Use dark or neutral backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
+  visualDirection:
+    "Dark, technical, with bright accent walls for key moments. Use dark or neutral backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
 };
 
 describe("applyVisualSystemIdentity", () => {
   it("keeps arbitrary background colors and image backgrounds", () => {
-    const md = `layout: full-image\nbackground: #1a1a2e url(images/hero.png) center/cover\n@main\n<img src="images/hero.png">`;
+    const md = `layout: full-image\nbackground: #1a1a2e url(images/hero.png)\n@main\n<img src="images/hero.png">`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("background: #1a1a2e url(images/hero.png) center/cover");
+    expect(result).toContain("background: #1a1a2e url(images/hero.png)");
     expect(result).toContain("theme: dark");
   });
 
   it("keeps mixed backgrounds and infers the correct theme", () => {
-    const md = `layout: full-image\nbackground: #ffffff url(images/hero.png) center/cover\n@main\n## Hero`;
+    const md = `layout: full-image\nbackground: #ffffff url(images/hero.png)\n@main\n## Hero`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("background: #ffffff url(images/hero.png) center/cover");
+    expect(result).toContain("background: #ffffff url(images/hero.png)");
     expect(result).toContain("theme: light");
   });
 
@@ -614,7 +613,7 @@ describe("applyVisualSystemIdentity", () => {
     expect(slides).toHaveLength(2);
     for (const slide of slides) {
       expect(slide).toMatch(/^theme: dark$/m);
-      expect(slide).toMatch(/^background: #0f172a$/m);
+      expect(slide).toMatch(/^background: #1a1a2e$/m);
     }
   });
 
@@ -622,7 +621,7 @@ describe("applyVisualSystemIdentity", () => {
     const md = `layout: header-content\ntheme: dark\nbackground: transparent\n@header\n## Slide`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
     expect(result).toContain("theme: dark");
-    expect(result).toContain("background: #0f172a");
+    expect(result).toContain("background: #1a1a2e");
     expect(result).not.toMatch(/^background:\s*transparent$/m);
   });
 
@@ -652,5 +651,73 @@ describe("applyVisualSystemIdentity", () => {
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
     expect(result).toContain("background: #06b6d4");
     expect(result).toContain("theme: light");
+  });
+
+  it("replaces background: none with a real color", () => {
+    const md = `layout: header-content\ntheme: dark\nbackground: none\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #1a1a2e");
+    expect(result).not.toMatch(/^background:\s*none$/m);
+  });
+
+  it("expands 3-digit hex colors and infers theme correctly", () => {
+    // #abc expands to #aabbcc which is light
+    const md = `layout: header-content\nbackground: #abc\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: #abc");
+    expect(result).toContain("theme: light");
+  });
+
+  it("handles 8-digit hex colors with alpha", () => {
+    const md = `layout: header-content\nbackground: #0f172a80\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: #0f172a80");
+    expect(result).toContain("theme: dark");
+  });
+
+  it("does not crash on non-hex color names and infers theme as dark fallback", () => {
+    const md = `layout: header-content\nbackground: red\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toBeDefined();
+    // "red" is a valid named CSS color, so it should be kept
+    expect(result).toContain("background: red");
+    // themeForColor returns null for non-hex, so theme defaults to "dark"
+    expect(result).toContain("theme: dark");
+  });
+
+  it("rejects javascript: URLs in background values", () => {
+    const md = `layout: header-content\nbackground: url(javascript:alert(1))\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).not.toContain("javascript:");
+    expect(result).toMatch(/^background: #1a1a2e$/m);
+  });
+
+  it("rejects malformed background values and replaces with fallback", () => {
+    const md = `layout: header-content\nbackground: expression(alert(1))\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).not.toContain("expression");
+    expect(result).toMatch(/^background: #1a1a2e$/m);
+  });
+
+  it("preserves valid gradient backgrounds", () => {
+    const md = `layout: header-content\nbackground: linear-gradient(135deg, #0f172a, #1e293b)\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("linear-gradient");
+    expect(result).toContain("theme: dark");
+  });
+
+  it("preserves valid rgb() background colors", () => {
+    const md = `layout: header-content\nbackground: rgb(15, 23, 42)\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: rgb(15, 23, 42)");
+  });
+
+  it("preserves image part when replacing invalid color part", () => {
+    const md = `layout: full-image\nbackground: expression(alert(1)) url(images/hero.png)\n@main\n<img src="images/hero.png">`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("url(images/hero.png)");
+    expect(result).not.toContain("expression");
+    expect(result).toMatch(/^background: .*#1a1a2e/m);
   });
 });

@@ -33,8 +33,73 @@ import creativeGuidance from "../prompts/creative-guidance.md?raw";
 import repairMessage from "../prompts/repair-message.md?raw";
 import densityBudgets from "../prompts/density-budgets.md?raw";
 
-const DEFAULT_DARK_BG = "#0f172a";
+const DEFAULT_DARK_BG = "#1a1a2e";
 const DEFAULT_LIGHT_BG = "#ffffff";
+
+/**
+ * Pattern for a single CSS color token: hex (3/6/8 digits), rgb(), rgba(),
+ * hsl(), hsla(), or a named CSS color.  This is used to validate individual
+ * color components inside a `background:` value.
+ */
+const COLOR_TOKEN_RE =
+  /^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|rgb\([^)]*\)|rgba\([^)]*\)|hsl\([^)]*\)|hsla\([^)]*\)|[a-zA-Z]+)$/;
+
+/**
+ * Pattern for a `url(...)` token — only quotes or unquoted paths, no
+ * `javascript:` or `data:` schemes.
+ */
+const URL_TOKEN_RE = /^url\(\s*['"]?(?!javascript:|data:)[^'")]+['"]?\s*\)$/i;
+
+/**
+ * Pattern for a CSS gradient: `linear-gradient(...)`, `radial-gradient(...)`,
+ * `conic-gradient(...)`.
+ */
+const GRADIENT_RE = /^(linear-gradient|radial-gradient|conic-gradient)\([^)]*\)$/i;
+
+/**
+ * Validate a `background:` value from AI output before writing it into
+ * markdown.  Accepts:
+ * - Solid hex colors (`#abc`, `#aabbcc`, `#aabbccff`)
+ * - `rgb()`, `rgba()`, `hsl()`, `hsla()` colors
+ * - Named CSS colors (`white`, `red`, etc.)
+ * - CSS gradients (`linear-gradient(...)`, etc.)
+ * - `url(...)` image references (no `javascript:` or `data:` schemes)
+ * - Combinations of the above separated by spaces (e.g. `url(img.png) #fff`)
+ *
+ * Returns the value if valid, or `null` if it contains anything that is not
+ * a recognised safe CSS background token.  Callers should replace `null`
+ * with a fallback color.
+ *
+ * @param {string} value
+ * @returns {string|null}
+ */
+function validateBackgroundValue(value) {
+  const v = String(value || "").trim();
+  if (!v) return null;
+
+  // Split on whitespace but respect parentheses (gradients, url(), rgb()).
+  const tokens = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of v) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === " " && depth === 0) {
+      if (current) tokens.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current) tokens.push(current);
+
+  for (const token of tokens) {
+    if (!COLOR_TOKEN_RE.test(token) && !URL_TOKEN_RE.test(token) && !GRADIENT_RE.test(token)) {
+      return null;
+    }
+  }
+  return v;
+}
 
 export const FRAGMENTS = {
   "system-prompt.md": systemPrompt,
@@ -216,15 +281,14 @@ export function buildDensityBudgets(variant) {
 
 /**
  * Build a compact JSON serialization of the visual system for the breakdown
- * prompt's `{{visualSystem}}` placeholder. Includes the new freeform style
- * notes and any legacy palette for backwards compatibility.
+ * prompt's `{{visualSystem}}` placeholder. Includes the freeform visual
+ * direction string.
  * @param {import("./visual-system-schema.js").VisualSystem|null} vs
  * @returns {string}
  */
 export function serializeVisualSystemForBreakdown(vs) {
   if (!vs) return "{}";
-  const out = { mood: vs.mood, styleNotes: vs.styleNotes };
-  if (vs.palette) out.palette = vs.palette;
+  const out = { visualDirection: vs.visualDirection };
   return JSON.stringify(out, null, 2);
 }
 
@@ -259,8 +323,8 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 /**
  * Build the minimal visual system brief for the generate prompt's options
  * suffix. When a visual system is present, this provides the freeform visual
- * direction (mood and style notes) to inform the model's `layout:`, `theme:`,
- * and `background:` choices.
+ * direction to inform the model's `layout:`, `theme:`, and `background:`
+ * choices.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.
@@ -274,9 +338,7 @@ export function buildVisualSystemBrief(vs) {
   return `
 Visual direction for this deck:
 
-Mood: ${vs.mood}
-
-Style notes: ${vs.styleNotes}
+${vs.visualDirection}
 `;
 }
 
@@ -463,10 +525,24 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     const { colorPart, imagePart } = splitBackgroundValue(backgroundValue || "");
     const color = colorPart.trim().toLowerCase();
     const isBlankColor = !color || color === "transparent" || color === "none";
+    // Discard image parts that are just layout keywords (e.g. "none",
+    // "cover", "center") or contain javascript:/data: URLs — only keep
+    // real url(...) references.
+    const safeImagePart =
+      imagePart && /^url\(/i.test(imagePart) && !/javascript:|data:/i.test(imagePart)
+        ? imagePart
+        : "";
     if (!backgroundValue || isBlankColor) {
       const fallbackColor =
         themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
-      backgroundValue = imagePart ? `${imagePart} ${fallbackColor}`.trim() : fallbackColor;
+      backgroundValue = safeImagePart ? `${safeImagePart} ${fallbackColor}`.trim() : fallbackColor;
+    } else if (!validateBackgroundValue(backgroundValue)) {
+      // The AI emitted a background value that is not a recognised safe CSS
+      // token (e.g. an expression, a javascript: URL, or malformed syntax).
+      // Replace it with a fallback color but preserve any valid image part.
+      const fallbackColor =
+        themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
+      backgroundValue = safeImagePart ? `${safeImagePart} ${fallbackColor}`.trim() : fallbackColor;
     }
 
     const leading = [...commentLines];

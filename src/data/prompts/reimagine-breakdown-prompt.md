@@ -164,15 +164,15 @@ Use the direction above to assign a sensible `visualBeat` and image query to eac
 
 Background / layout guidance by beat:
 
-- `continuation` — default content beat. Use `header-content` or `two-column` for dense content; keep to the deck's default background style (usually dark/neutral).
-- `example` / `practice` — code, tables, or step-by-step content. Use `two-column` or `header-content`; a dark background often works well for code.
+- `continuation` — default content beat. Use `header-content` or `two-column` for dense content; follow the visual direction's default background.
+- `example` / `practice` — code, tables, or step-by-step content. Use `two-column` or `header-content`.
 - `punctuation` — a high-emphasis moment. Use `focus` only for a single short takeaway; otherwise use `header-content` with a bright, light, or image background.
 - `transition` — bridge between chapters. Use a deliberate background/theme shift; `header-content` or `focus`.
 - `emotional` — imagery or atmosphere. Use `full-image` or `media-span` with a kept image when available; otherwise use `header-content` with an atmospheric background.
 - `divider` — a section marker. Minimal content, a large heading, and a strong background/theme change. `title-slide` or `header-content`.
-- Title/agenda (first two slides of the first chapter) — `title-slide` for the title and `header-content` or `title-slide` for the agenda, with a light or dramatic dark background.
+- Title/agenda (first two slides of the first chapter) — `title-slide` for the title and `header-content` or `title-slide` for the agenda, with a light or dramatic background.
 
-Vary backgrounds across the deck; do not use the same background for every slide.
+Vary backgrounds across the deck; do not use the same background for every slide. Do not default to a single dark color for most slides — mix dark, neutral, and light backgrounds as the visual direction suggests.
 
 Finalized chapter outline:
 {{chapters}}

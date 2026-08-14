@@ -232,12 +232,12 @@ describe("DeckStore", () => {
   it("extracts and round-trips a visual system comment", () => {
     const store = new DeckStore();
     const comment =
-      '<!-- visual-system: {"palette":{"base":"#0f172a","accent":"#06b6d4","highlight":"#ffffff"}} -->';
+      '<!-- visual-system: {"visualDirection":"Dark, technical. Use #0f172a for base, #06b6d4 for accent, #ffffff for highlight."} -->';
     store.loadFromMarkdown(`${comment}\n\n# A\n\n---\n\n# B`);
     const visualSystem = store.getVisualSystem();
     expect(visualSystem).not.toBeNull();
-    expect(visualSystem.mood).toContain("#0f172a");
-    expect(visualSystem.styleNotes).toContain("#06b6d4");
+    expect(visualSystem.visualDirection).toContain("#0f172a");
+    expect(visualSystem.visualDirection).toContain("#06b6d4");
     expect(store.getSlides()).toEqual(["# A", "# B"]);
     expect(store.toMarkdown()).toContain("visual-system");
     expect(store.toMarkdown()).toContain("#0f172a");
@@ -246,12 +246,10 @@ describe("DeckStore", () => {
   it("restores the visual system through undo/redo for replaceDeck", () => {
     const store = new DeckStore();
     const originalVisual = {
-      mood: "Original mood.",
-      styleNotes: "Original style notes.",
+      visualDirection: "Original visual direction.",
     };
     const newVisual = {
-      mood: "New mood.",
-      styleNotes: "New style notes.",
+      visualDirection: "New visual direction.",
     };
     store.loadFromMarkdown(`# A`);
     store.setVisualSystem(originalVisual);

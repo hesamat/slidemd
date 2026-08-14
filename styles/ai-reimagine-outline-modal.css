@@ -481,8 +481,7 @@
   text-align: left;
 }
 
-.ai-reimagine-outline-modal__mood-input,
-.ai-reimagine-outline-modal__style-notes-input {
+.ai-reimagine-outline-modal__visual-direction-input {
   width: 100%;
   padding: 10px 12px;
   font-family: inherit;
@@ -493,19 +492,11 @@
   border-radius: 8px;
   box-sizing: border-box;
   line-height: 1.5;
-}
-
-.ai-reimagine-outline-modal__mood-input {
-  min-height: 0;
-}
-
-.ai-reimagine-outline-modal__style-notes-input {
-  min-height: 120px;
+  min-height: 100px;
   resize: vertical;
 }
 
-.ai-reimagine-outline-modal__mood-input:focus,
-.ai-reimagine-outline-modal__style-notes-input:focus {
+.ai-reimagine-outline-modal__visual-direction-input:focus {
   outline: none;
   border-color: var(--accent, #6366f1);
   box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.12));
