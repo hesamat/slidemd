@@ -2222,6 +2222,53 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("make_username");
   });
 
+  it("uses focus for 8-line fenced code block (fence lines not counted)", () => {
+    // 8 code lines + 2 fence lines = 10 total, but fence delimiters should
+    // not count toward minMergedCodeLines. This is a real PPTX case.
+    const code = [
+      "```python",
+      "styles = {",
+      '    "excited": shout,',
+      '    "secret": whisper',
+      "}",
+      'selected_style = styles["excited"]',
+      "print(selected_style)",
+      'print(deliver("Python functions are objects", selected_style))',
+      'print(selected_style("No parentheses means no call"))',
+      "```",
+    ].join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Code Example",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Example Page 2 of 2",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000,
+            width: 9000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("selected_style");
+  });
+
   it("uses two-column for header + long wide code block", () => {
     // A code block with 10+ non-empty lines that spans >80% of the slide width
     // should still use two-column so the content can be split across columns.

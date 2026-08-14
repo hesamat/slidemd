@@ -397,7 +397,9 @@ export function inferLayout(
         // code block is a single snippet, not merged columns, and TWO_COLUMN
         // would just get downgraded to HEADER_CONTENT after a failed split.
         const codeWidth = codeEl?.width || 0;
-        const codeLines = (codeEl?.content || "").split("\n").filter((l) => l.trim()).length;
+        const codeLines = (codeEl?.content || "")
+          .split("\n")
+          .filter((l) => l.trim() && !/^\s*```/.test(l)).length;
         if (codeWidth > slideWidth * 0.8 && codeLines >= CONFIG.minMergedCodeLines) {
           return LAYOUT.TWO_COLUMN;
         }
