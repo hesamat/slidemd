@@ -930,7 +930,6 @@ Goal: Fill the real competitive gaps in the presenter experience, make existing 
 | `PresenterModel` class                       | The presenter state is already spread across `DeckController`, `BreakManager`, and `RoleManager` and works. A dedicated model class is optional refactoring, not a user-facing gap. Keep the state where it is.                                                 |
 | Speaker notes panel (as new work)            | Already implemented: `DeckController.renderNotes()` renders notes as markdown into the existing presenter panel. Not a new task.                                                                                                                                |
 | Go-to-slide search                           | Already implemented: `SlideSearch` (`src/engine/slide-search.js`) provides full-text search across slides with a modal UI. Not a new task.                                                                                                                      |
-| Text overlay preservation (PPTX import)      | Implemented in Phase 14.9 but dropped — the float-mode text-block overlay feature had rendering bugs. Text overlapping images in PPTX is placed in normal document flow instead.                                                                                |
 
 ---
 
