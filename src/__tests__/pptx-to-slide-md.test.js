@@ -65,10 +65,10 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: header-content");
-    expect(md).toContain("@header");
-    expect(md).toContain("Header");
+    // Short header + short body → focus (centered presentation)
+    expect(md).toContain("layout: focus");
     expect(md).toContain("@main");
+    expect(md).toContain("Header");
     expect(md).toContain("Body text here");
   });
 
@@ -949,7 +949,7 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     expect(md).toContain("@footer");
     expect(md).toContain("Company Name");
-    expect(md).toContain("@header");
+    // Short header + short body → focus layout
     expect(md).toContain("@main");
     expect(md).toContain("Body content here");
   });
@@ -1330,8 +1330,8 @@ describe("convertToSlideMd", () => {
 
   it("treats a narrow top text box as a header for layout inference", () => {
     // The 30% title-width rule applies only to the header-band icon filter;
-    // a short title in a narrow box must still count as a header so the
-    // slide renders header-content.
+    // a short title in a narrow box must still count as a header. With short
+    // total content, the slide now uses focus layout (centered presentation).
     const extraction = makeExtraction([
       {
         index: 0,
@@ -1359,8 +1359,9 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: header-content");
-    expect(md).toContain("@header");
+    // Short content → focus layout
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
     expect(md).toContain("Short title");
   });
 
@@ -2023,7 +2024,8 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toMatch(/layout: (header-content|two-column)/);
+    // Short content → focus layout
+    expect(md).toContain("layout: focus");
     expect(md).toContain("@main");
     expect(md).toContain("Right text");
   });
@@ -2064,6 +2066,259 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("layout: header-content");
     expect(md).toContain("@main");
     expect(md).toContain(longBody);
+  });
+
+  it("uses focus for header + short body even with a non-thin header", () => {
+    // Header height is 80% of body height — not a thin strip. But total
+    // content is short (<300 chars), so focus is the better layout.
+    // Use slide index 1 so it doesn't get title-slide, and use bullet
+    // content so it has "body content".
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Short",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "My Heading",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 800000,
+          },
+          {
+            type: "text",
+            content: "- A brief callout",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("My Heading");
+    expect(md).toContain("A brief callout");
+  });
+
+  it("uses focus for 4+ short bullets when total content is under 300 chars", () => {
+    // 5 short bullets, total <300 chars — should use focus, not header-content.
+    const bullets = ["- Point one", "- Point two", "- Point three", "- Point four", "- Point five"];
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Bullets",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Quick List",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: bullets.join("\n"),
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("Quick List");
+    expect(md).toContain("Point one");
+  });
+
+  it("keeps header-content for 8+ bullets with total over 300 chars", () => {
+    // 8 bullets with enough text to exceed 300 chars — should stay header-content.
+    const bullets = Array.from(
+      { length: 8 },
+      (_, i) => `- Item number ${i + 1} with enough text to push total over`,
+    );
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Long List",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Detailed List",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: bullets.join("\n"),
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@main");
+  });
+
+  it("uses focus for header + short wide code block instead of two-column", () => {
+    // A short code block (<300 chars) that spans >80% of the slide width
+    // should use focus, not two-column. Two-column would downgrade to
+    // header-content after a failed split, which is worse than focus.
+    const code = [
+      "```python",
+      "def make_username(first_name, last_name):",
+      "    initial = first_name[0]",
+      "    return f'{initial}{last_name}'.lower()",
+      "```",
+    ].join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Code Example",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Example: Out of scope",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000, // below bodyThreshold (22% of 5143500 = 1131570)
+            width: 9000000, // >80% of slide width (9144000)
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("make_username");
+  });
+
+  it("uses focus for 8-line fenced code block (fence lines not counted)", () => {
+    // 8 code lines + 2 fence lines = 10 total, but fence delimiters should
+    // not count toward minMergedCodeLines. This is a real PPTX case.
+    const code = [
+      "```python",
+      "styles = {",
+      '    "excited": shout,',
+      '    "secret": whisper',
+      "}",
+      'selected_style = styles["excited"]',
+      "print(selected_style)",
+      'print(deliver("Python functions are objects", selected_style))',
+      'print(selected_style("No parentheses means no call"))',
+      "```",
+    ].join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Code Example",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Example Page 2 of 2",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000,
+            width: 9000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("selected_style");
+  });
+
+  it("uses two-column for header + long wide code block", () => {
+    // A code block with 10+ non-empty lines that spans >80% of the slide width
+    // should still use two-column so the content can be split across columns.
+    // Uses raw code (no fences) to match how PPTX merged-column code arrives.
+    const code = [
+      "products = [",
+      "    'Keyboard',",
+      "    'Mouse',",
+      "    'Monitor',",
+      "    'Webcam',",
+      "]",
+      "inventory = {",
+      "    product: 0",
+      "    for product in products",
+      "}",
+      "words = [",
+      "    'algorithm',",
+      "    'loop',",
+      "    'dictionary',",
+      "    'function'",
+      "]",
+    ].join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Long Code",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Long Code Example",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000, // below bodyThreshold
+            width: 9000000,
+            height: 4000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
   });
 
   it("upgrades header-content to two-column when the body overflows", () => {

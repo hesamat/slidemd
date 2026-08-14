@@ -629,6 +629,19 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   background: var(--code-surface) !important;
 }
 
+/* Per-code-block centering via fence info string `{ center }`
+   (e.g. ```js { center }). Works in any layout, not just focus.
+   Must come after the language-attribute code block rules and use
+   :has() to match their specificity, so align-self: center overrides
+   the default align-self: flex-start set above. */
+.slide__area pre.code-centered:has(> code) {
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  align-self: center;
+  text-align: left;
+}
+
 /* Code inside pre blocks */
 .slide__area pre[class*="language-"] > code,
 .slide__area pre > code[class*="language-"] {

@@ -282,7 +282,16 @@ export class MarkdownParser {
       this.md.renderer.rules[ruleName] = function (tokens, idx, options, env, slf) {
         const token = tokens[idx];
         addSourceLineAttr(token);
-        return originalRule(tokens, idx, options, env, slf);
+        let html = originalRule(tokens, idx, options, env, slf);
+        // Per-code-block centering: if the fence info string contains a
+        // curly-brace attribute block with the `center` keyword (mirroring
+        // the text-block directive syntax, e.g. ```js { center }), add a CSS
+        // class to the <pre> tag so it can be centered via CSS regardless of
+        // the slide layout.
+        if (ruleName === "fence" && /\{[^}]*\bcenter\b[^}]*\}/i.test(token.info || "")) {
+          html = html.replace(/<pre/, '<pre class="code-centered"');
+        }
+        return html;
       };
     }
   }
