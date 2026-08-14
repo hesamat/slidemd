@@ -357,6 +357,7 @@ export class DeckLoader {
         stage: raw.meta?.stage || { ...DESIGN_SIZE },
       },
       slides,
+      visualSystem: raw.visualSystem ?? null,
     };
   }
 }

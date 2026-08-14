@@ -119,6 +119,24 @@ describe("DeckLoader.normalizeDeck", () => {
     expect(result.slides[0].areaStyle).toBe("border: 1px");
   });
 
+  it("preserves the visual system", () => {
+    const visualSystem = {
+      palette: { base: "#0f172a", accent: "#06b6d4", highlight: "#ffffff" },
+    };
+    const deck = {
+      meta: { title: "Test" },
+      slides: [{ id: "s1", title: "S", areas: { main: "<p>Hi</p>" } }],
+      visualSystem,
+    };
+    const result = DeckLoader.normalizeDeck(deck);
+    expect(result.visualSystem).toEqual(visualSystem);
+  });
+
+  it("defaults visual system to null when missing", () => {
+    const result = DeckLoader.normalizeDeck(validDeck);
+    expect(result.visualSystem).toBeNull();
+  });
+
   it("normalizes hidden to boolean", () => {
     const deck = {
       meta: { title: "Test" },
