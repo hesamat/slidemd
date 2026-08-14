@@ -22,24 +22,9 @@ const SAMPLE_OUTLINE = {
   visualSystem: {
     palette: {
       base: "#0f172a",
-      surface: "#1e293b",
       accent: "#06b6d4",
-      contrast: "#f59e0b",
       highlight: "#ffffff",
     },
-    typography: {
-      character: "bold editorial",
-      headline: "large, compact, high contrast",
-      body: "clean, restrained",
-    },
-    composition: { density: "medium", whitespace: "generous", alignment: "left-dominant" },
-    imagery: {
-      role: "emotional punctuation",
-      mood: "moody, atmospheric",
-      treatment: "full-bleed",
-    },
-    motifs: ["accent divider lines", "oversized chapter numbers"],
-    contrastRules: ["Use stark white for takeaways"],
   },
   keepImages: [0, 2],
   firstSlideIdentity: "COMP 1510 202630",
@@ -289,11 +274,32 @@ describe("AiReimagineOutlineModal", () => {
     expect(result.visualSystem).not.toBeNull();
     expect(result.visualSystem.palette.base).toBe("#0f172a");
     expect(result.visualSystem.palette.accent).toBe("#06b6d4");
-    expect(result.visualSystem.typography.character).toBe("bold editorial");
-    expect(result.visualSystem.motifs).toEqual([
-      "accent divider lines",
-      "oversized chapter numbers",
-    ]);
+    expect(result.visualSystem.palette.highlight).toBe("#ffffff");
+    expect(Object.keys(result.visualSystem)).toEqual(["palette"]);
+  });
+
+  it("edits the palette colors and returns the edited visual system", async () => {
+    const outline = JSON.parse(JSON.stringify(SAMPLE_OUTLINE));
+    const promise = AiReimagineOutlineModal.show(outline);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const inputs = dialog.querySelectorAll(".ai-reimagine-outline-modal__swatch-input");
+    expect(inputs).toHaveLength(3);
+
+    // base
+    inputs[0].value = "#111827";
+    inputs[0].dispatchEvent(new Event("input"));
+    // accent
+    inputs[1].value = "#3b82f6";
+    inputs[1].dispatchEvent(new Event("input"));
+    // highlight
+    inputs[2].value = "#f3f4f6";
+    inputs[2].dispatchEvent(new Event("input"));
+
+    dialog.querySelector('[data-action="generate"]').click();
+    const result = await promise;
+    expect(result.visualSystem.palette.base).toBe("#111827");
+    expect(result.visualSystem.palette.accent).toBe("#3b82f6");
+    expect(result.visualSystem.palette.highlight).toBe("#f3f4f6");
   });
 
   it("renders a fallback when no visual direction is provided", async () => {
@@ -305,20 +311,19 @@ describe("AiReimagineOutlineModal", () => {
     await promise;
   });
 
-  it("renders the visual direction summary from the outline", async () => {
-    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+  it("renders the editable visual direction summary from the outline", async () => {
+    const promise = AiReimagineOutlineModal.show(JSON.parse(JSON.stringify(SAMPLE_OUTLINE)));
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
 
     const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
     expect(visualSystemEl).not.toBeNull();
 
     const swatches = visualSystemEl.querySelectorAll(".ai-reimagine-outline-modal__palette-swatch");
-    expect(swatches).toHaveLength(5);
+    expect(swatches).toHaveLength(3);
 
     const baseSwatchColor = swatches[0].querySelector(".ai-reimagine-outline-modal__swatch-color");
     expect(baseSwatchColor.style.backgroundColor).toBe("rgb(15, 23, 42)");
 
-    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.visualSystem.imagery.mood);
     expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.firstSlideIdentity);
     expect(visualSystemEl.textContent).toContain("2 source images selected to keep");
 
@@ -449,12 +454,9 @@ describe("AiReimagineOutlineModal", () => {
       plan: "Regenerated plan.",
       chapters: SAMPLE_OUTLINE.chapters,
       visualSystem: {
-        ...SAMPLE_OUTLINE.visualSystem,
         palette: {
           base: "#111111",
-          surface: "#222222",
           accent: "#333333",
-          contrast: "#444444",
           highlight: "#555555",
         },
       },
@@ -469,7 +471,7 @@ describe("AiReimagineOutlineModal", () => {
 
     await vi.waitFor(() => {
       const swatches = dialog.querySelectorAll(".ai-reimagine-outline-modal__palette-swatch");
-      expect(swatches).toHaveLength(5);
+      expect(swatches).toHaveLength(3);
     });
 
     const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");

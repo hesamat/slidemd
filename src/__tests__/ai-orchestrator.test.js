@@ -1747,16 +1747,9 @@ describe("AiOrchestrator", () => {
       const visualSystem = {
         palette: {
           base: "#1a1a2e",
-          surface: "#16213e",
           accent: "#e94560",
-          contrast: "#0f3460",
           highlight: "#ffffff",
         },
-        typography: { character: "cinematic", headline: "bold", body: "clean" },
-        composition: { density: "spacious", whitespace: "expansive", alignment: "centered" },
-        imagery: { role: "atmospheric", mood: "dramatic", treatment: "full-bleed" },
-        motifs: ["red accent lines"],
-        contrastRules: ["Use white slides for key reveals"],
       };
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
@@ -1803,13 +1796,13 @@ describe("AiOrchestrator", () => {
       expect(outlines[0].visualSystem).not.toBeNull();
       expect(outlines[0].visualSystem.palette.base).toBe("#1a1a2e");
       expect(outlines[0].visualSystem.palette.accent).toBe("#e94560");
+      expect(outlines[0].visualSystem.palette.highlight).toBe("#ffffff");
 
-      // Breakdown prompt receives the visual system
+      // Breakdown prompt receives the 3-color palette
       const breakdownUser = provider.chat.mock.calls[1][0].messages.find(
         (m) => m.role === "user",
       ).content;
       expect(breakdownUser).toContain("#1a1a2e");
-      expect(breakdownUser).toContain("dramatic");
 
       // Generate prompt receives the visual system brief
       const execUser = provider.chat.mock.calls[2][0].messages.find(
@@ -1817,7 +1810,7 @@ describe("AiOrchestrator", () => {
       ).content;
       expect(execUser).toContain("Visual system");
       expect(execUser).toContain("Palette");
-      expect(execUser).toContain("Imagery mood");
+      expect(execUser).not.toContain("Imagery mood");
 
       // Brief includes the beat suffix (punctuation on slide 1 is normalized
       // to continuation by the beat normalizer)
