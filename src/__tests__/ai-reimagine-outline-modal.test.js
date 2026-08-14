@@ -61,6 +61,20 @@ describe("AiReimagineOutlineModal", () => {
     expect(result).toBeNull();
   });
 
+  it("does not close when a click on the backdrop follows a mousedown inside the dialog", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const styleNotesInput = dialog.querySelector(".ai-reimagine-outline-modal__style-notes-input");
+    // Simulate the start of a resize/drag on the style notes textarea.
+    styleNotesInput.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    const backdrop = document.querySelector(".ai-reimagine-outline-modal__backdrop");
+    backdrop.click();
+    await Promise.resolve();
+    expect(document.querySelector(".ai-reimagine-outline-modal__dialog")).not.toBeNull();
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
   it("shows the plan as an editable textarea", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");

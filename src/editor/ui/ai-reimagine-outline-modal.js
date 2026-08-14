@@ -75,14 +75,17 @@ export class AiReimagineOutlineModal {
 
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", `${P}title`);
       dialog.innerHTML = `
         <div class="${P}header">
-          <h2 class="${P}title">Reimagine: Review plan</h2>
-          <p class="${P}subtitle">The AI proposed a new direction. Review the creative plan, visual direction, and chapter structure before generating the full deck.</p>
+          <h2 id="${P}title" class="${P}title">Reimagine: Review plan</h2>
+          <p class="${P}subtitle">Review the AI's proposed direction and edit chapters before generating the full deck.</p>
         </div>
 
         <div class="${P}top-grid">
-          <div class="${P}card ${P}plan-card">
+          <div class="${P}card ${P}plan-card" role="region" aria-label="Creative plan">
             <div class="${P}card-header">
               <label class="${P}label" for="${P}plan-input">Creative plan</label>
               ${
@@ -97,16 +100,14 @@ export class AiReimagineOutlineModal {
           <div class="${P}card ${P}visual-system-card" role="region" aria-label="Visual direction">
             <div class="${P}card-header">
               <span class="${P}label">Visual direction</span>
-              <span class="${P}badge ${P}badge--editable" role="note" aria-label="editable">editable</span>
             </div>
             <div id="${P}visual-system" class="${P}visual-system" role="region" aria-label="Visual direction details"></div>
           </div>
         </div>
 
-        <div id="${P}stats" class="${P}stats"></div>
-
         <div class="${P}chapters-header">
           <span class="${P}label">Chapters</span>
+          <div id="${P}stats" class="${P}stats"></div>
         </div>
         <div id="${P}chapters-list" class="${P}chapters-list"></div>
 
@@ -184,11 +185,11 @@ export class AiReimagineOutlineModal {
         visualSystemEl.innerHTML = `
           <div class="${P}visual-system-section">
             <label class="${P}visual-system-label" for="${P}mood-input">Mood</label>
-            <input type="text" id="${P}mood-input" class="${P}mood-input" value="${escapeAttr(visualSystem.mood)}" aria-label="Mood" />
+            <input type="text" id="${P}mood-input" class="${P}mood-input" value="${escapeAttr(visualSystem.mood)}" />
           </div>
           <div class="${P}visual-system-section">
             <label class="${P}visual-system-label" for="${P}style-notes-input">Style notes</label>
-            <textarea id="${P}style-notes-input" class="${P}style-notes-input" rows="5" aria-label="Style notes">${escapeHtml(visualSystem.styleNotes)}</textarea>
+            <textarea id="${P}style-notes-input" class="${P}style-notes-input" rows="5">${escapeHtml(visualSystem.styleNotes)}</textarea>
           </div>
         `;
 
@@ -362,13 +363,32 @@ export class AiReimagineOutlineModal {
         close(null);
       };
 
+      // Track where a click sequence started (mousedown) so we don't close the
+      // modal when the user drags a resizable textarea outside the dialog and
+      // releases the mouse over the backdrop.
+      let clickStartTarget = null;
+
+      const onBackdropMouseDown = (e) => {
+        clickStartTarget = e.target;
+      };
+
       const onBackdropClick = (e) => {
-        if (e.target === backdrop) close(null);
+        if (e.target !== backdrop) return;
+        if (
+          clickStartTarget &&
+          clickStartTarget !== backdrop &&
+          dialog.contains(clickStartTarget)
+        ) {
+          // Drag ended on the backdrop but began inside the dialog (e.g. resize handle drag).
+          return;
+        }
+        close(null);
       };
 
       const onBackdropWheel = (e) => e.stopPropagation();
 
       const close = (result) => {
+        backdrop.removeEventListener("mousedown", onBackdropMouseDown);
         backdrop.removeEventListener("click", onBackdropClick);
         backdrop.removeEventListener("wheel", onBackdropWheel);
         backdrop.remove();
@@ -377,6 +397,7 @@ export class AiReimagineOutlineModal {
         resolve(result);
       };
 
+      backdrop.addEventListener("mousedown", onBackdropMouseDown);
       backdrop.addEventListener("click", onBackdropClick);
       backdrop.addEventListener("wheel", onBackdropWheel, { passive: true });
 

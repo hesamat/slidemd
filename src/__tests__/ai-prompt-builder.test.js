@@ -614,8 +614,23 @@ describe("applyVisualSystemIdentity", () => {
     expect(slides).toHaveLength(2);
     for (const slide of slides) {
       expect(slide).toMatch(/^theme: dark$/m);
-      expect(slide).toMatch(/^background: transparent$/m);
+      expect(slide).toMatch(/^background: #0f172a$/m);
     }
+  });
+
+  it("replaces a transparent background with a real color matching the theme", () => {
+    const md = `layout: header-content\ntheme: dark\nbackground: transparent\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #0f172a");
+    expect(result).not.toMatch(/^background:\s*transparent$/m);
+  });
+
+  it("fills a light theme with a real light background when background is missing", () => {
+    const md = `layout: header-content\ntheme: light\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: light");
+    expect(result).toContain("background: #ffffff");
   });
 
   it("corrects a mismatched theme for a solid-hex background", () => {

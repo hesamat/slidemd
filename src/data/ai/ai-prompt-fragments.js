@@ -33,6 +33,9 @@ import creativeGuidance from "../prompts/creative-guidance.md?raw";
 import repairMessage from "../prompts/repair-message.md?raw";
 import densityBudgets from "../prompts/density-budgets.md?raw";
 
+const DEFAULT_DARK_BG = "#0f172a";
+const DEFAULT_LIGHT_BG = "#ffffff";
+
 export const FRAGMENTS = {
   "system-prompt.md": systemPrompt,
   "fix-prompt.md": fixPrompt,
@@ -365,26 +368,28 @@ export function stripVisualIdentity(markdown) {
 }
 
 /**
- * Returns a readable theme for a solid-hex background.
+ * Returns a readable theme for a solid-hex background or the first hex color
+ * found in a gradient/string.
  * @param {string} color
  * @returns {"light"|"dark"|null}
  */
 function themeForColor(color) {
-  let hex = String(color || "")
+  const value = String(color || "")
     .trim()
     .toLowerCase();
-  if (!hex.startsWith("#")) return null;
+  // Try longer matches first so `#0f172a` is not truncated to `#0f1`.
+  const match = value.match(/#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})/i);
+  if (!match) return null;
 
+  let hex = match[0];
   const digits = hex.slice(1);
   if (digits.length === 3) {
-    hex = hex
-      .slice(1)
-      .split("")
-      .map((c) => c + c)
-      .join("");
-    hex = `#${hex}`;
-  } else if (digits.length !== 6 && digits.length !== 8) {
-    return null;
+    hex =
+      "#" +
+      digits
+        .split("")
+        .map((c) => c + c)
+        .join("");
   }
 
   return isColorDark(hex) ? "dark" : "light";
@@ -397,10 +402,11 @@ function themeForColor(color) {
  *
  * - leaves `theme:` and `background:` values (including arbitrary colors,
  *   gradients, and images) untouched,
- * - infers `theme:` from a solid-hex `background:` when `theme:` is missing or
- *   obviously mismatched,
- * - adds `theme: dark` and `background: transparent` as a neutral fallback when
- *   either directive is missing.
+ * - infers `theme:` from the first hex color in a `background:` gradient/color
+ *   when `theme:` is missing or obviously mismatched,
+ * - adds a sensible fallback (`theme: dark` and a real dark background color)
+ *   when either directive is missing, and replaces invalid values such as
+ *   `transparent` or `none` so slides do not end up see-through.
  *
  * @param {string} markdown
  * @param {import("./visual-system-schema.js").VisualSystem} visualSystem
@@ -441,20 +447,27 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     let backgroundValue = directiveMap.get("background")?.value;
     let themeValue = directiveMap.get("theme")?.value;
 
-    // If a solid hex background is present, make sure `theme:` is legible.
+    // If a background color/gradient is present, make sure `theme:` is legible.
     if (backgroundValue) {
       const { colorPart } = splitBackgroundValue(backgroundValue);
-      const firstColor = colorPart.split(/\s+/)[0] || "";
-      const inferred = themeForColor(firstColor);
+      const inferred = themeForColor(colorPart);
 
       if (inferred && (!themeValue || themeValue.toLowerCase() !== inferred)) {
         themeValue = inferred;
       }
     }
 
-    // Fall back to a neutral dark theme if the model omitted directives.
-    if (!backgroundValue) backgroundValue = "transparent";
+    // Fall back to a real, legible dark theme if the model omitted directives.
     if (!themeValue) themeValue = "dark";
+
+    const { colorPart, imagePart } = splitBackgroundValue(backgroundValue || "");
+    const color = colorPart.trim().toLowerCase();
+    const isBlankColor = !color || color === "transparent" || color === "none";
+    if (!backgroundValue || isBlankColor) {
+      const fallbackColor =
+        themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
+      backgroundValue = imagePart ? `${imagePart} ${fallbackColor}`.trim() : fallbackColor;
+    }
 
     const leading = [...commentLines];
     for (const name of directiveOrder) {

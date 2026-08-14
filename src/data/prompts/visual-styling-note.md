@@ -17,6 +17,7 @@
   - dark background (`#0f172a` or similar) → `theme: dark`
   - light/bright background (`#ffffff`, a bright accent, etc.) → `theme: light`
   - kept image as background → choose `theme:` based on whether the image is mostly dark or light
+- `background:` must be a solid hex color, gradient, or kept image. Do not use `transparent`, `none`, or an empty value — a see-through background makes text and diagrams (e.g. Mermaid) unreadable.
 - You may use any hex color, but avoid harsh or low-contrast combinations. Vary `background:` across the deck — do not use the same background on every slide.
 - Reserve bright, light, or image backgrounds for emphasis; do not put them on every slide. Content-heavy slides (`header-content`, `two-column`, `media-span` with text/code) should usually use a dark or neutral background so the content is readable.
 - Beat treatment: each slide brief includes `| beat: <beat>, energy: ..., contrast: ..., relationship: ... |`. Use it to shape density, hierarchy, layout, and imagery:
