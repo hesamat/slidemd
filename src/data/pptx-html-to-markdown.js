@@ -278,13 +278,13 @@ export function htmlToMarkdown(html) {
   md = collapseDuplicateWhitespace(md);
 
   // Escape < characters so literal angle brackets in PPTX text (e.g. "a < b")
-  // are not misread as HTML tags by markdown-it. > is NOT escaped: in markdown
-  // it only has special meaning at the start of a line (blockquote), which is
-  // rare in PPTX text, and escaping it produces ugly &gt; in the source.
-  // Content inside backticks and fenced code blocks is preserved as-is.
+  // are not misread as HTML tags by markdown-it. > is escaped only at the start
+  // of a line, where markdown would interpret it as a blockquote; elsewhere it
+  // is left as-is to avoid ugly &gt; in the source. Content inside backticks
+  // and fenced code blocks is preserved as-is.
   md = md
     .split(/(`[^`]+`|^```\n[\s\S]*?\n```)/m)
-    .map((part, i) => (i % 2 === 1 ? part : part.replace(/</g, "&lt;")))
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/</g, "&lt;").replace(/^>/gm, "&gt;")))
     .join("");
   return md.trim();
 }

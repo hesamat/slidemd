@@ -43,6 +43,12 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).not.toContain("&gt;");
   });
 
+  it("escapes > at the start of a line to prevent blockquote", () => {
+    const result = PptxExtractor.htmlToMarkdown("<p>&gt; quoted text</p>");
+    expect(result).toContain("&gt;");
+    expect(result).not.toMatch(/^>/);
+  });
+
   it("escapes < characters in text content", () => {
     const result = PptxExtractor.htmlToMarkdown("<p>a &lt; b</p>");
     expect(result).toContain("&lt;");
