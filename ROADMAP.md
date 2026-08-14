@@ -647,7 +647,7 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 Goal: Make Reimagine feel like a guided editorial art director: surprising in its thinking, reassuring in its structure, and coherent in its execution.
 
-Scope note: the 3-color palette and its renderer application shipped in the first slice. This continuation focuses on beat-aware generation, presentation voice, flow-aware outline structure, and remaining test coverage. Visual-system validator work remains deferred.
+Scope note: the first slice shipped a 3-color palette; it has since been replaced by a freeform `visualDirection` field. This continuation focuses on beat-aware generation, presentation voice, flow-aware outline structure, and remaining test coverage. Visual-system validator work remains deferred.
 
 The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](docs/plans/reimagine-improvements.md).
 
@@ -656,18 +656,18 @@ The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](doc
 | Task                              | Details                                                                                                                        |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | [x] Strengthen the creative brief | Make the outline state the core message, fresh editorial angle, narrative structure, and inferred audience or desired outcome. |
-| [x] Show visual direction         | The review modal displays and lets the user edit the 3-color palette (`base`, `accent`, `highlight`).                          |
+| [x] Show visual direction         | The review modal displays and lets the user edit a freeform `visualDirection` string describing mood and background choices.   |
 | [x] Preserve user control         | Keep plan/chapter editing and regeneration; do not turn the outline modal into a per-slide design editor.                      |
 
 ### Visual Rhythm & Voice
 
-| Task                                     | Details                                                                                                                                              |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [x] Pass the 3-color palette to generate | The generate prompt and `visual-styling-note.md` thread the `base`/`accent`/`highlight` palette and restrict `theme:`/`background:` to those colors. |
-| [x] Activate bounded visual style        | Reimagine uses palette-derived `theme:` and `background:` values via `applyVisualSystemIdentity`; other AI modes keep conservative neutral styling.  |
-| [x] Use visual beats                     | Make continuation, transition, punctuation, emotional, and divider beats affect density, hierarchy, imagery, and contrast.                           |
-| [x] Improve presentation voice           | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                 |
-| [x] Validate image reuse                 | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                              |
+| Task                                      | Details                                                                                                                                                                                             |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Pass the visual direction to generate | The generate prompt and `visual-styling-note.md` thread the `visualDirection` and instruct the model to pair `theme:` with `background:` and vary backgrounds across the deck.                      |
+| [x] Activate bounded visual style         | Reimagine uses the generated `visualDirection` to guide `theme:` and `background:` choices, then normalizes them via `applyVisualSystemIdentity`; other AI modes keep conservative neutral styling. |
+| [x] Use visual beats                      | Make continuation, transition, punctuation, emotional, and divider beats affect density, hierarchy, imagery, and contrast.                                                                          |
+| [x] Improve presentation voice            | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                                                                |
+| [x] Validate image reuse                  | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                                                                             |
 
 ### Flow-Aware Outline Structure
 
