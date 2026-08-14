@@ -78,6 +78,7 @@ export class AiReimagineOutlineModal {
       dialog.setAttribute("role", "dialog");
       dialog.setAttribute("aria-modal", "true");
       dialog.setAttribute("aria-labelledby", `${P}title`);
+      // Static structure only — no interpolated content (Hard Rule 6).
       dialog.innerHTML = `
         <div class="${P}header">
           <h2 id="${P}title" class="${P}title">Reimagine: Review plan</h2>
@@ -88,13 +89,8 @@ export class AiReimagineOutlineModal {
           <div class="${P}card ${P}plan-card" role="region" aria-label="Creative plan">
             <div class="${P}card-header">
               <label class="${P}label" for="${P}plan-input">Creative plan</label>
-              ${
-                opts.onRegenerate
-                  ? `<button type="button" class="${P}btn ${P}btn--secondary ${P}btn--small" id="${P}regenerate-btn" title="Regenerate chapters based on the edited plan">Regenerate chapters</button>`
-                  : ""
-              }
             </div>
-            <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
+            <textarea id="${P}plan-input" class="${P}plan-input" rows="3"></textarea>
           </div>
 
           <div class="${P}card ${P}visual-system-card" role="region" aria-label="Visual direction">
@@ -119,6 +115,18 @@ export class AiReimagineOutlineModal {
         </div>
       `;
 
+      // Add the optional "Regenerate chapters" button via DOM construction.
+      if (opts.onRegenerate) {
+        const cardHeader = dialog.querySelector(`.${P}plan-card .${P}card-header`);
+        const regenBtn = document.createElement("button");
+        regenBtn.type = "button";
+        regenBtn.className = `${P}btn ${P}btn--secondary ${P}btn--small`;
+        regenBtn.id = `${P}regenerate-btn`;
+        regenBtn.title = "Regenerate chapters based on the edited plan";
+        regenBtn.textContent = "Regenerate chapters";
+        cardHeader.appendChild(regenBtn);
+      }
+
       backdrop.appendChild(dialog);
       document.body.appendChild(backdrop);
       modalOpened();
@@ -129,6 +137,9 @@ export class AiReimagineOutlineModal {
       const errorEl = dialog.querySelector(`.${P}error`);
       const planInput = dialog.querySelector(`#${P}plan-input`);
       const regenerateBtn = dialog.querySelector(`#${P}regenerate-btn`);
+
+      // Set dynamic content via DOM properties (Hard Rule 6).
+      planInput.value = outline.plan || "";
 
       // Working copies of outline metadata so the original outline object is
       // never mutated (regenerate may replace chapters, but not the caller's).
@@ -212,13 +223,21 @@ export class AiReimagineOutlineModal {
       /**
        * Build the flow-tag <select> element for a chapter.
        * @param {string} selectedTag
-       * @returns {string}
+       * @returns {HTMLSelectElement}
        */
-      const flowTagOptions = (selectedTag) =>
-        FLOW_TAGS.map(
-          ({ value, label }) =>
-            `<option value="${escapeAttr(value)}"${value === selectedTag ? " selected" : ""}>${escapeHtml(label)}</option>`,
-        ).join("");
+      const buildFlowTagSelect = (selectedTag) => {
+        const select = document.createElement("select");
+        select.className = `${P}flow-tag-select`;
+        select.setAttribute("aria-label", "Flow tag");
+        for (const { value, label } of FLOW_TAGS) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label;
+          if (value === selectedTag) option.selected = true;
+          select.appendChild(option);
+        }
+        return select;
+      };
 
       /**
        * Render the chapters list with inline editing.
@@ -229,30 +248,40 @@ export class AiReimagineOutlineModal {
         chapters.forEach((chapter, ci) => {
           const chapterEl = document.createElement("div");
           chapterEl.className = `${P}chapter`;
+
+          // Static structure only — no interpolated content (Hard Rule 6).
           chapterEl.innerHTML = `
             <div class="${P}chapter-header">
-              <select class="${P}flow-tag-select" aria-label="Flow tag">${flowTagOptions(chapter.flowTag)}</select>
-              <input type="text" class="${P}chapter-title-input" placeholder="Chapter title" value="${escapeAttr(chapter.title)}" />
+              <div class="${P}flow-tag-slot"></div>
+              <input type="text" class="${P}chapter-title-input" placeholder="Chapter title" />
               <div class="${P}chapter-actions">
                 <button type="button" class="${P}icon-btn" data-action="chapter-up" ${ci === 0 ? "disabled" : ""} aria-label="Move chapter up">\u2191</button>
                 <button type="button" class="${P}icon-btn" data-action="chapter-down" ${ci === chapters.length - 1 ? "disabled" : ""} aria-label="Move chapter down">\u2193</button>
                 <button type="button" class="${P}icon-btn" data-action="chapter-remove" aria-label="Remove chapter">\u00D7</button>
               </div>
             </div>
-            <textarea class="${P}chapter-summary-input" placeholder="Chapter objective \u2014 describe what this chapter covers and how it connects to the narrative arc." rows="3">${escapeHtml(chapter.summary)}</textarea>
+            <textarea class="${P}chapter-summary-input" placeholder="Chapter objective \u2014 describe what this chapter covers and how it connects to the narrative arc." rows="3"></textarea>
           `;
 
+          // Insert the flow-tag select via DOM construction.
+          const flowTagSlot = chapterEl.querySelector(`.${P}flow-tag-slot`);
+          const flowTagSelect = buildFlowTagSelect(chapter.flowTag);
+          flowTagSlot.replaceWith(flowTagSelect);
+
+          // Set dynamic content via DOM properties (Hard Rule 6).
           const titleInput = chapterEl.querySelector(`.${P}chapter-title-input`);
+          titleInput.value = chapter.title || "";
+
+          const summaryInput = chapterEl.querySelector(`.${P}chapter-summary-input`);
+          summaryInput.value = chapter.summary || "";
           titleInput.addEventListener("input", (e) => {
             chapters[ci].title = e.target.value;
           });
 
-          const flowTagSelect = chapterEl.querySelector(`.${P}flow-tag-select`);
           flowTagSelect.addEventListener("change", (e) => {
             chapters[ci].flowTag = e.target.value;
           });
 
-          const summaryInput = chapterEl.querySelector(`.${P}chapter-summary-input`);
           summaryInput.addEventListener("input", (e) => {
             chapters[ci].summary = e.target.value;
           });
@@ -471,22 +500,4 @@ export class AiReimagineOutlineModal {
       document.addEventListener("keydown", onKeydown);
     });
   }
-}
-
-/**
- * Escape a string for use in HTML text content.
- * @param {string} s
- * @returns {string}
- */
-function escapeHtml(s) {
-  return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/**
- * Escape a string for use in an HTML attribute value.
- * @param {string} s
- * @returns {string}
- */
-function escapeAttr(s) {
-  return (s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }

@@ -65,8 +65,9 @@ const POSITION_SIZE_RE = /^[\w.]+(%|px|em|rem|vh|vw)?\/[\w.]+(%|px|em|rem|vh|vw|
  * Check if a token is a CSS gradient with potentially nested function calls
  * (e.g. `linear-gradient(135deg, rgba(0,0,0,.5), transparent)`).
  * The simple regex `[^)]*` fails on nested parens, so we do a structural check:
- * the token starts with a gradient function name followed by `(`, and the
- * parentheses are balanced.
+ * the token starts with a gradient function name followed by `(`, the
+ * parentheses are balanced, and the content does not contain dangerous
+ * schemes (`javascript:`, `data:`, `expression(`).
  *
  * @param {string} token
  * @returns {boolean}
@@ -80,7 +81,10 @@ function isGradientToken(token) {
     if (ch === ")") depth--;
     if (depth < 0) return false;
   }
-  return depth === 0;
+  if (depth !== 0) return false;
+  // Reject gradients that embed dangerous URL schemes or expression().
+  if (/javascript:|data:|expression\(/i.test(token)) return false;
+  return true;
 }
 
 /**

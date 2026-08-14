@@ -714,6 +714,13 @@ describe("applyVisualSystemIdentity", () => {
     expect(result).toContain("rgba(15,23,42,0.8)");
   });
 
+  it("rejects gradients with javascript: scheme inside", () => {
+    const md = `layout: header-content\nbackground: linear-gradient(135deg, javascript:alert(1), red)\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).not.toContain("javascript:");
+    expect(result).toMatch(/^background: #1a1a2e/m);
+  });
+
   it("preserves background with position/size keywords", () => {
     const md = `layout: full-image\nbackground: url(images/hero.png) center/cover #0f172a\n@main\n<img src="images/hero.png">`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
