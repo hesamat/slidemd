@@ -707,6 +707,21 @@ describe("applyVisualSystemIdentity", () => {
     expect(result).toContain("theme: dark");
   });
 
+  it("preserves gradients with nested rgba() functions", () => {
+    const md = `layout: header-content\nbackground: linear-gradient(135deg, rgba(15,23,42,0.8), transparent)\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("linear-gradient");
+    expect(result).toContain("rgba(15,23,42,0.8)");
+  });
+
+  it("preserves background with position/size keywords", () => {
+    const md = `layout: full-image\nbackground: url(images/hero.png) center/cover #0f172a\n@main\n<img src="images/hero.png">`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("url(images/hero.png)");
+    expect(result).toContain("center/cover");
+    expect(result).toContain("#0f172a");
+  });
+
   it("preserves valid rgb() background colors", () => {
     const md = `layout: header-content\nbackground: rgb(15, 23, 42)\n@header\n## Slide`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);

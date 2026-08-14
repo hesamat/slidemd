@@ -74,6 +74,59 @@ export function areasToMarkdown(slides) {
 }
 
 /**
+ * Remove trailing commas from JSON text. Models sometimes emit a trailing
+ * comma after the last property of an object or array (e.g. after
+ * `visualSystem`). `JSON.parse` rejects this, so we strip commas that
+ * directly precede a closing `}` or `]` while outside of strings.
+ *
+ * @param {string} raw - JSON-ish text.
+ * @returns {string}
+ */
+function stripTrailingCommas(raw) {
+  const out = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escaped) {
+      out.push(ch);
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out.push(ch);
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      out.push(ch);
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      out.push(ch);
+      continue;
+    }
+    if (ch === ",") {
+      // Look ahead past whitespace for } or ]
+      let j = i + 1;
+      while (
+        j < raw.length &&
+        (raw[j] === " " || raw[j] === "\t" || raw[j] === "\n" || raw[j] === "\r")
+      ) {
+        j++;
+      }
+      if (raw[j] === "}" || raw[j] === "]") {
+        // Skip the comma — don't push it
+        continue;
+      }
+    }
+    out.push(ch);
+  }
+  return out.join("");
+}
+
+/**
  * Escape literal newlines and carriage returns that appear unescaped inside
  * JSON strings. Models often emit raw line breaks inside "content" strings
  * instead of the required `\n` escape, which makes the JSON unparseable.
@@ -124,7 +177,12 @@ function escapeRawNewlinesInJson(raw) {
  * @returns {{ parsed: object, raw: string }|null}
  */
 function tryParseJson(raw, ok) {
-  const attempts = [raw, escapeRawNewlinesInJson(raw)];
+  const attempts = [
+    raw,
+    escapeRawNewlinesInJson(raw),
+    stripTrailingCommas(raw),
+    stripTrailingCommas(escapeRawNewlinesInJson(raw)),
+  ];
   for (const candidate of attempts) {
     try {
       const parsed = JSON.parse(candidate);

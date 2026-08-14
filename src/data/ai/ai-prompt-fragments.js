@@ -51,10 +51,37 @@ const COLOR_TOKEN_RE =
 const URL_TOKEN_RE = /^url\(\s*['"]?(?!javascript:|data:)[^'")]+['"]?\s*\)$/i;
 
 /**
- * Pattern for a CSS gradient: `linear-gradient(...)`, `radial-gradient(...)`,
- * `conic-gradient(...)`.
+ * Pattern for CSS background position/size keywords and numeric values.
+ * These are valid in the `background:` shorthand alongside colors and images
+ * (e.g. `url(img.png) center/cover #fff`).
  */
-const GRADIENT_RE = /^(linear-gradient|radial-gradient|conic-gradient)\([^)]*\)$/i;
+const POSITION_KEYWORD_RE =
+  /^(repeat-x|repeat-y|no-repeat|repeat|round|space|cover|contain|center|top|bottom|left|right|fixed|local|scroll|border-box|padding-box|content-box|auto|initial|inherit|unset)$/i;
+const NUMERIC_RE = /^[\d.]+(%|px|em|rem|vh|vw)?$/i;
+// Position/size shorthand: `center/cover`, `50%/cover`, `left 50%/100px`, etc.
+const POSITION_SIZE_RE = /^[\w.]+(%|px|em|rem|vh|vw)?\/[\w.]+(%|px|em|rem|vh|vw|auto)?$/i;
+
+/**
+ * Check if a token is a CSS gradient with potentially nested function calls
+ * (e.g. `linear-gradient(135deg, rgba(0,0,0,.5), transparent)`).
+ * The simple regex `[^)]*` fails on nested parens, so we do a structural check:
+ * the token starts with a gradient function name followed by `(`, and the
+ * parentheses are balanced.
+ *
+ * @param {string} token
+ * @returns {boolean}
+ */
+function isGradientToken(token) {
+  const match = token.match(/^(linear-gradient|radial-gradient|conic-gradient)\(/i);
+  if (!match) return false;
+  let depth = 0;
+  for (const ch of token) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (depth < 0) return false;
+  }
+  return depth === 0;
+}
 
 /**
  * Validate a `background:` value from AI output before writing it into
@@ -62,9 +89,12 @@ const GRADIENT_RE = /^(linear-gradient|radial-gradient|conic-gradient)\([^)]*\)$
  * - Solid hex colors (`#abc`, `#aabbcc`, `#aabbccff`)
  * - `rgb()`, `rgba()`, `hsl()`, `hsla()` colors
  * - Named CSS colors (`white`, `red`, etc.)
- * - CSS gradients (`linear-gradient(...)`, etc.)
+ * - CSS gradients (`linear-gradient(...)`, etc.) with nested functions
  * - `url(...)` image references (no `javascript:` or `data:` schemes)
- * - Combinations of the above separated by spaces (e.g. `url(img.png) #fff`)
+ * - Background position/size keywords (`center`, `cover`, `top`, etc.)
+ * - Numeric position values (`50%`, `100px`, etc.)
+ * - Position/size shorthand (`50%/cover`, `center/cover`, etc.)
+ * - Combinations of the above separated by spaces
  *
  * Returns the value if valid, or `null` if it contains anything that is not
  * a recognised safe CSS background token.  Callers should replace `null`
@@ -94,7 +124,14 @@ function validateBackgroundValue(value) {
   if (current) tokens.push(current);
 
   for (const token of tokens) {
-    if (!COLOR_TOKEN_RE.test(token) && !URL_TOKEN_RE.test(token) && !GRADIENT_RE.test(token)) {
+    if (
+      !COLOR_TOKEN_RE.test(token) &&
+      !URL_TOKEN_RE.test(token) &&
+      !isGradientToken(token) &&
+      !POSITION_KEYWORD_RE.test(token) &&
+      !NUMERIC_RE.test(token) &&
+      !POSITION_SIZE_RE.test(token)
+    ) {
       return null;
     }
   }

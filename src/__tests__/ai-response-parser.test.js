@@ -76,6 +76,25 @@ describe("parseAiResponse (edge cases)", () => {
     expect(result.slides[0].content).toContain("- Point 1");
   });
 
+  it("recovers from JSON with trailing commas after object properties", () => {
+    // Models sometimes emit a trailing comma after the last property.
+    const raw = '{"slides":[{"layout":"header-content","content":"@header\\n## Title",}],}';
+    const result = parseAiResponse(raw);
+    expect(result).not.toBeNull();
+    expect(result.slides).toHaveLength(1);
+    expect(result.slides[0].layout).toBe("header-content");
+  });
+
+  it("recovers from JSON with trailing commas in nested objects and arrays", () => {
+    // Trailing comma after visualSystem object (as seen in real AI output)
+    const raw =
+      '{"plan":"Test.","visualSystem":{"visualDirection":"Dark.",},"keepImages":[0,1,],"chapters":[]}';
+    const extracted = extractJsonObject(raw, "chapters");
+    expect(extracted).not.toBeNull();
+    expect(extracted.parsed.plan).toBe("Test.");
+    expect(extracted.parsed.visualSystem.visualDirection).toBe("Dark.");
+  });
+
   it("does not corrupt already-correct \n escapes when recovering from raw newlines", () => {
     // Mixed: the model got some escapes right and inserted a raw newline.
     const raw =
