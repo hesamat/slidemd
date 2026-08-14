@@ -129,7 +129,9 @@ export class SlideNavigator extends EventEmitter {
     const url = new URL(window.location.href);
     url.hash = `#slide-${this.currentIndex + 1}`;
     if (window.location.protocol === "file:") {
-      window.location.hash = url.hash;
+      // replace the current history entry instead of pushing a new one
+      // for every slide change, so Back/Forward do not traverse stale hashes
+      window.location.replace(url.hash);
     } else {
       history.replaceState({}, "", url.toString());
     }
