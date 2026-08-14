@@ -353,6 +353,7 @@
 
 .settings-modal__variant-label {
   margin-top: 4px;
+  display: block;
 }
 
 .settings-modal__variant-grid {
@@ -395,7 +396,7 @@
   background: linear-gradient(135deg, #1e1d1b 0%, #383735 50%, #b39ddb 100%);
 }
 
-.settings-modal__variant-swatch--indigo-gray {
+.settings-modal__variant-swatch--indigo {
   background: linear-gradient(135deg, #1a1b22 0%, #232429 50%, #a78bfa 100%);
 }
 

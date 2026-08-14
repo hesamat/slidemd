@@ -15,7 +15,7 @@
 
 import { validateAiBaseUrl, KEY_REQUIRED_PROVIDERS } from "../data/ai/ai-provider-client.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
-import { ThemeManager, DARK_VARIANTS, DARK_VARIANT_LABELS } from "../renderer/theme-manager.js";
+import { ThemeManager, PALETTES, PALETTE_LABELS } from "../renderer/theme-manager.js";
 
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
 const STORAGE_KEY_BASE_OVERRIDE = "webdeck_ai_base_override";
@@ -302,21 +302,16 @@ export class SettingsModal {
       const appearanceBody = appearanceCard.querySelector(`.${P}card-body`);
       const appearanceSummary = appearanceCard.querySelector(`.${P}card-summary-text`);
       const themeModeBtns = appearanceBody.querySelectorAll("[data-theme-mode]");
-      const variantLabel = appearanceBody.querySelector(`.${P}variant-label`);
-      const variantGrid = appearanceBody.querySelector("[data-variant-grid]");
-      const variantBtns = appearanceBody.querySelectorAll("[data-dark-variant]");
+      const variantBtns = appearanceBody.querySelectorAll("[data-palette]");
 
       /** @type {"light"|"dark"} */
       let selectedTheme = ThemeManager.getCurrentTheme();
       /** @type {string} */
-      let selectedVariant = ThemeManager.getDarkVariant();
+      let selectedPalette = ThemeManager.getPalette();
 
       const updateAppearanceSummary = () => {
-        if (selectedTheme === "dark") {
-          appearanceSummary.textContent = `Dark · ${DARK_VARIANT_LABELS[selectedVariant]}`;
-        } else {
-          appearanceSummary.textContent = "Light";
-        }
+        const themeLabel = selectedTheme === "dark" ? "Dark" : "Light";
+        appearanceSummary.textContent = `${themeLabel} · ${PALETTE_LABELS[selectedPalette]}`;
         appearanceSummary.hidden = false;
       };
 
@@ -327,18 +322,11 @@ export class SettingsModal {
             btn.dataset.themeMode === selectedTheme,
           );
         });
-        // Show/hide variant selector
-        const isDark = selectedTheme === "dark";
-        variantLabel.hidden = !isDark;
-        variantGrid.hidden = !isDark;
       };
 
       const updateVariantButtons = () => {
         variantBtns.forEach((btn) => {
-          btn.classList.toggle(
-            `${P}variant-btn--active`,
-            btn.dataset.darkVariant === selectedVariant,
-          );
+          btn.classList.toggle(`${P}variant-btn--active`, btn.dataset.palette === selectedPalette);
         });
       };
 
@@ -346,9 +334,7 @@ export class SettingsModal {
         // Live preview: apply immediately so user sees the change
         localStorage.setItem(ThemeManager.THEME_KEY, selectedTheme);
         ThemeManager.applyTheme(selectedTheme);
-        if (selectedTheme === "dark") {
-          ThemeManager.setDarkVariant(selectedVariant);
-        }
+        ThemeManager.setPalette(selectedPalette);
         updateThemeModeButtons();
         updateVariantButtons();
         updateAppearanceSummary();
@@ -363,7 +349,7 @@ export class SettingsModal {
 
       variantBtns.forEach((btn) => {
         btn.addEventListener("click", () => {
-          selectedVariant = btn.dataset.darkVariant;
+          selectedPalette = btn.dataset.palette;
           applyAppearanceLive();
         });
       });
@@ -1048,13 +1034,13 @@ export class SettingsModal {
               </button>
             </div>
 
-            <label class="${P}label ${P}variant-label" hidden>Dark Palette</label>
-            <div class="${P}variant-grid" hidden data-variant-grid>
-              ${DARK_VARIANTS.map(
+            <label class="${P}label ${P}variant-label">Palette</label>
+            <div class="${P}variant-grid" data-palette-grid>
+              ${PALETTES.map(
                 (v) => `
-                <button type="button" class="${P}variant-btn" data-dark-variant="${v}">
+                <button type="button" class="${P}variant-btn" data-palette="${v}">
                   <span class="${P}variant-swatch ${P}variant-swatch--${v}"></span>
-                  <span class="${P}variant-name">${DARK_VARIANT_LABELS[v]}</span>
+                  <span class="${P}variant-name">${PALETTE_LABELS[v]}</span>
                 </button>`,
               ).join("")}
             </div>

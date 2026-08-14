@@ -12,6 +12,11 @@ export default defineConfig({
         host: '127.0.0.1',
         port: 8000,
         open: noOpen ? false : '/index.html',
+        fs: {
+            // Allow serving from symlinked node_modules outside the worktree
+            // (e.g. when using git worktrees with a shared node_modules).
+            allow: ['..'],
+        },
         watch: {
             ignored: /[/\\]images[/\\]/,
         },

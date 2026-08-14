@@ -111,47 +111,38 @@ html[data-embedded="true"] body {
 }
 
 /* ========================================================================
-   Dark Theme
+   Palettes
    ========================================================================
-   The base [data-theme="dark"] block sets shared structural values that
-   are common to every dark variant (color-scheme, text opacity ratios,
-   border opacity ratios, hover overlay). Each variant then overrides the
-   palette-specific variables: --color-slate, --color-primary, surface
-   tones, --input-bg, and accent derivatives.
+   Each palette defines --color-primary and --color-secondary, which drive
+   accent colors, hover borders, and focus rings in both light and dark
+   themes. The [data-palette="..."] selector is theme-agnostic.
 
-   Variant selection uses [data-dark-variant="..."] on the same element
-   that carries [data-theme="dark"] (document.documentElement).
+   Dark-mode surface tones (--surface-bg, --surface-elevated, --input-bg,
+   --theme-bg, --theme-bg-gradient) are set per palette under
+   [data-theme="dark"][data-palette="..."].
+
+   Light-mode gets a subtle --theme-bg tint per palette under
+   [data-theme="light"][data-palette="..."].
    ======================================================================== */
 
-[data-theme="dark"] {
-  color-scheme: dark;
+/* ── Palette: Warm Graphite (default) ──────────────────────────────
+   Warm indigo accent. Dark surfaces have subtle brown undertones. */
 
-  /* Text opacity ratios (shared across variants) */
-  --text-high: rgba(var(--color-slate), 0.95);
-  --text-medium: rgba(var(--color-slate), 0.82);
-  --text-low: rgba(var(--color-slate), 0.62);
-  --text-muted: rgba(var(--color-slate), 0.48);
-
-  /* Border opacity ratios (shared across variants) */
-  --border-subtle: rgba(255, 255, 255, 0.1);
-  --border-medium: rgba(255, 255, 255, 0.18);
-  --border-strong: rgba(255, 255, 255, 0.28);
-
-  /* Hover overlay (shared) */
-  --surface-hover: rgba(255, 255, 255, 0.08);
-
-  /* Accent opacity ratios (shared; --color-primary differs per variant) */
-  --accent-bg: rgba(var(--color-primary), 0.2);
-  --accent-border: rgba(var(--color-primary), 0.5);
-  --accent-text: rgba(var(--color-primary), 0.95);
-  --accent: rgba(var(--color-primary), 0.85);
+[data-palette="warm-graphite"] {
+  --color-primary: 124, 99, 184;
+  --color-secondary: 124, 99, 184;
 }
 
-/* ── Variant: Warm Graphite (default) ──────────────────────────────
-   Warm charcoal with subtle brown undertones. Accent: warm indigo.
-   Input surface is ~18 levels lighter than elevated — clearly editable. */
+[data-theme="light"][data-palette="warm-graphite"] {
+  --theme-bg: rgba(124, 99, 184, 0.06);
+  --theme-bg-gradient: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    rgba(124, 99, 184, 0.05) 0%,
+    transparent 60%
+  );
+}
 
-[data-theme="dark"][data-dark-variant="warm-graphite"] {
+[data-theme="dark"][data-palette="warm-graphite"] {
   --color-slate: 232, 234, 237;
   --color-primary: 179, 157, 219;
   --color-secondary: 179, 157, 219;
@@ -167,11 +158,24 @@ html[data-embedded="true"] body {
   );
 }
 
-/* ── Variant: Cool Indigo-Gray ─────────────────────────────────────
-   Subtle indigo undertone throughout. Accent: brighter indigo.
-   Input surface is ~16 levels lighter than elevated. */
+/* ── Palette: Cool Indigo ──────────────────────────────────────────
+   Bright indigo accent. Dark surfaces have cool indigo undertones. */
 
-[data-theme="dark"][data-dark-variant="indigo-gray"] {
+[data-palette="indigo"] {
+  --color-primary: 99, 102, 241;
+  --color-secondary: 99, 102, 241;
+}
+
+[data-theme="light"][data-palette="indigo"] {
+  --theme-bg: rgba(99, 102, 241, 0.06);
+  --theme-bg-gradient: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    rgba(99, 102, 241, 0.05) 0%,
+    transparent 60%
+  );
+}
+
+[data-theme="dark"][data-palette="indigo"] {
   --color-slate: 232, 234, 237;
   --color-primary: 167, 139, 250;
   --color-secondary: 167, 139, 250;
@@ -187,11 +191,24 @@ html[data-embedded="true"] body {
   );
 }
 
-/* ── Variant: Blue Slate ───────────────────────────────────────────
-   Refined slate with blue undertones. Accent: sky blue.
-   Input surface is ~16 levels lighter than elevated. */
+/* ── Palette: Blue Slate ───────────────────────────────────────────
+   Sky blue accent. Dark surfaces have blue undertones. */
 
-[data-theme="dark"][data-dark-variant="blue-slate"] {
+[data-palette="blue-slate"] {
+  --color-primary: 37, 99, 235;
+  --color-secondary: 37, 99, 235;
+}
+
+[data-theme="light"][data-palette="blue-slate"] {
+  --theme-bg: rgba(37, 99, 235, 0.06);
+  --theme-bg-gradient: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    rgba(37, 99, 235, 0.05) 0%,
+    transparent 60%
+  );
+}
+
+[data-theme="dark"][data-palette="blue-slate"] {
   --color-slate: 226, 232, 240;
   --color-primary: 96, 165, 250;
   --color-secondary: 96, 165, 250;
@@ -205,6 +222,34 @@ html[data-embedded="true"] body {
     rgba(96, 165, 250, 0.07) 0%,
     transparent 60%
   );
+}
+
+/* ========================================================================
+   Dark Theme — Shared Structural Values
+   ======================================================================== */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Text opacity ratios (shared across palettes) */
+  --text-high: rgba(var(--color-slate), 0.95);
+  --text-medium: rgba(var(--color-slate), 0.82);
+  --text-low: rgba(var(--color-slate), 0.62);
+  --text-muted: rgba(var(--color-slate), 0.48);
+
+  /* Border opacity ratios (shared across palettes) */
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-medium: rgba(255, 255, 255, 0.18);
+  --border-strong: rgba(255, 255, 255, 0.28);
+
+  /* Hover overlay (shared) */
+  --surface-hover: rgba(255, 255, 255, 0.08);
+
+  /* Accent opacity ratios (shared; --color-primary differs per palette) */
+  --accent-bg: rgba(var(--color-primary), 0.2);
+  --accent-border: rgba(var(--color-primary), 0.5);
+  --accent-text: rgba(var(--color-primary), 0.95);
+  --accent: rgba(var(--color-primary), 0.85);
 }
 
 /* ========================================================================

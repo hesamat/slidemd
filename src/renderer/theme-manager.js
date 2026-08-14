@@ -1,32 +1,33 @@
 /**
  * ThemeManager
- * Manages theme state (light/dark mode) and dark-mode palette variants,
+ * Manages theme state (light/dark mode) and color palette selection,
  * localStorage persistence, and system preference detection.
  *
  * The base theme is stored under "webdeck_theme" ("light" | "dark").
- * The dark palette variant is stored under "webdeck_dark_variant"
- * ("indigo-gray" | "blue-slate" | "warm-graphite"). The variant only
- * applies when the base theme is "dark"; it is ignored in light mode.
+ * The palette is stored under "webdeck_palette"
+ * ("warm-graphite" | "indigo" | "blue-slate"). The palette applies to
+ * both light and dark themes — each palette defines accent colors and
+ * surface tones for both modes.
  */
 
 /**
- * @typedef {"indigo-gray" | "blue-slate" | "warm-graphite"} DarkVariant
+ * @typedef {"warm-graphite" | "indigo" | "blue-slate"} Palette
  */
 
-/** @type {DarkVariant[]} */
-export const DARK_VARIANTS = ["indigo-gray", "blue-slate", "warm-graphite"];
+/** @type {Palette[]} */
+export const PALETTES = ["warm-graphite", "indigo", "blue-slate"];
 
-export const DARK_VARIANT_LABELS = {
-  "indigo-gray": "Cool Indigo-Gray",
-  "blue-slate": "Blue Slate",
+export const PALETTE_LABELS = {
   "warm-graphite": "Warm Graphite",
+  indigo: "Cool Indigo",
+  "blue-slate": "Blue Slate",
 };
 
-const DEFAULT_DARK_VARIANT = "warm-graphite";
+const DEFAULT_PALETTE = "warm-graphite";
 
 export class ThemeManager {
   static THEME_KEY = "webdeck_theme";
-  static DARK_VARIANT_KEY = "webdeck_dark_variant";
+  static PALETTE_KEY = "webdeck_palette";
 
   /**
    * Initializes the theme on application startup.
@@ -45,49 +46,43 @@ export class ThemeManager {
 
   /**
    * Applies the specified theme to the document.
-   * When applying "dark", also sets the persisted dark variant.
+   * Also ensures the palette attribute is set.
    * @param {"light"|"dark"} theme - The theme to apply
    */
   static applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
-    if (theme === "dark") {
-      ThemeManager.applyDarkVariant(ThemeManager.getDarkVariant());
-    } else {
-      // Remove variant attribute in light mode so it has no effect.
-      document.documentElement.removeAttribute("data-dark-variant");
+    ThemeManager.applyPalette(ThemeManager.getPalette());
+  }
+
+  /**
+   * Applies a palette by setting data-palette on the document element.
+   * The palette applies to both light and dark themes.
+   * @param {Palette} palette
+   */
+  static applyPalette(palette) {
+    document.documentElement.setAttribute("data-palette", palette);
+  }
+
+  /**
+   * Gets the persisted palette (or the default).
+   * @returns {Palette}
+   */
+  static getPalette() {
+    const stored = localStorage.getItem(ThemeManager.PALETTE_KEY);
+    if (PALETTES.includes(/** @type {Palette} */ (stored))) {
+      return /** @type {Palette} */ (stored);
     }
+    return DEFAULT_PALETTE;
   }
 
   /**
-   * Applies a dark palette variant by setting data-dark-variant.
-   * No-op if the current theme is not dark.
-   * @param {DarkVariant} variant
+   * Persists and applies a palette.
+   * @param {Palette} palette
    */
-  static applyDarkVariant(variant) {
-    if (document.documentElement.getAttribute("data-theme") !== "dark") return;
-    document.documentElement.setAttribute("data-dark-variant", variant);
-  }
-
-  /**
-   * Gets the persisted dark variant (or the default).
-   * @returns {DarkVariant}
-   */
-  static getDarkVariant() {
-    const stored = localStorage.getItem(ThemeManager.DARK_VARIANT_KEY);
-    if (DARK_VARIANTS.includes(/** @type {DarkVariant} */ (stored))) {
-      return /** @type {DarkVariant} */ (stored);
-    }
-    return DEFAULT_DARK_VARIANT;
-  }
-
-  /**
-   * Persists and applies a dark palette variant.
-   * @param {DarkVariant} variant
-   */
-  static setDarkVariant(variant) {
-    if (!DARK_VARIANTS.includes(variant)) return;
-    localStorage.setItem(ThemeManager.DARK_VARIANT_KEY, variant);
-    ThemeManager.applyDarkVariant(variant);
+  static setPalette(palette) {
+    if (!PALETTES.includes(palette)) return;
+    localStorage.setItem(ThemeManager.PALETTE_KEY, palette);
+    ThemeManager.applyPalette(palette);
   }
 
   /**
