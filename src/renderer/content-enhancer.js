@@ -2,7 +2,7 @@
  * ContentEnhancer
  * Provides static methods for enhancing slide content, including diagram rendering (Mermaid), syntax highlighting (Prism), and math typesetting (KaTeX).
  */
-import { normalizeCodeLanguage, escapeHtml, base64Encode, base64Decode } from "../core/utils.js";
+import { normalizeCodeLanguage, base64Encode, base64Decode } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
 import createDOMPurify from "dompurify";
 
@@ -82,6 +82,9 @@ function getDOMPurify() {
  * Sanitize a Mermaid-rendered SVG string before it is inserted into the DOM.
  * DOMPurify removes script tags, event handlers, and other executable vectors.
  *
+ * Returns `null` when DOMPurify is unavailable so the caller can fall back to
+ * a text-only sink (`textContent`) instead of assigning raw SVG to `innerHTML`.
+ *
  * SAFE_FOR_XML is disabled here because Mermaid arrow syntax ("A --> B") is
  * commonly reflected in legitimate attribute values; treating it as an mXSS
  * probe would strip real diagram labels.
@@ -97,9 +100,9 @@ function sanitizeMermaidSvg(svg) {
   if (!purify) {
     if (!_domPurifyWarned) {
       _domPurifyWarned = true;
-      Logger.warn("DOMPurify not available; rendering Mermaid SVG as text");
+      Logger.warn("DOMPurify not available; rendering Mermaid source as text");
     }
-    return escapeHtml(svg);
+    return null;
   }
   return purify.sanitize(svg, MERMAID_SVG_PURIFY_CONFIG);
 }
@@ -227,21 +230,42 @@ contain: layout paint style;
           out = await mermaid.render(id, source);
         }
         const svg = typeof out === "string" ? out : out?.svg;
-        if (svg) el.innerHTML = sanitizeMermaidSvg(svg);
+        if (svg) {
+          const safeSvg = sanitizeMermaidSvg(svg);
+          if (safeSvg) {
+            el.innerHTML = safeSvg;
+          } else {
+            el.textContent = source;
+          }
+        }
         if (out && typeof out !== "string") out.bindFunctions?.(el);
       } catch (e) {
-        const errorMessage = escapeHtml(e.message || "Mermaid rendering failed");
-        const safeSource = escapeHtml(source);
-        el.innerHTML = `
-                    <div class="mermaid-error" role="alert">
-                        <div class="mermaid-error__title">Mermaid error</div>
-                        <div class="mermaid-error__message">${errorMessage}</div>
-                        <details class="mermaid-error__details">
-                            <summary>Show source</summary>
-                            <pre>${safeSource}</pre>
-                        </details>
-                    </div>
-                `;
+        el.textContent = "";
+        const alert = document.createElement("div");
+        alert.className = "mermaid-error";
+        alert.setAttribute("role", "alert");
+
+        const title = document.createElement("div");
+        title.className = "mermaid-error__title";
+        title.textContent = "Mermaid error";
+        alert.appendChild(title);
+
+        const message = document.createElement("div");
+        message.className = "mermaid-error__message";
+        message.textContent = e.message || "Mermaid rendering failed";
+        alert.appendChild(message);
+
+        const details = document.createElement("details");
+        details.className = "mermaid-error__details";
+        const summary = document.createElement("summary");
+        summary.textContent = "Show source";
+        details.appendChild(summary);
+        const pre = document.createElement("pre");
+        pre.textContent = source;
+        details.appendChild(pre);
+        alert.appendChild(details);
+
+        el.appendChild(alert);
       }
       el.dataset.mermaidProcessed = "1";
     }
