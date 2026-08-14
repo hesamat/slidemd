@@ -199,7 +199,7 @@ async function scheduleReload(format) {
       watchTimeout = null;
       return;
     }
-    const current = fs.readFileSync(path.basename(format.mdFile), "utf8");
+    const current = fs.readFileSync(format.mdFile, "utf8");
     const currentHash = hashContent(current);
     const lastHash = lastWrittenContentHashes.get(format.mdFile);
     if (currentHash === lastHash) {
@@ -461,12 +461,6 @@ function createHandler(format) {
         return;
       }
       try {
-      const relativePath = path.relative(".", format.mdFile);
-      if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid file path" }));
-        return;
-      }
         const markdown = fs.readFileSync(format.mdFile, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ markdown, type: "md" }));

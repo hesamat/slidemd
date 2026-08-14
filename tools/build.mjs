@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import parseDeckMarkdown from "./md-to-deck.mjs";
 import { build as esbuild } from "esbuild";
+import { readTextIfExists, toDataUri, resolveCssImports, mimeForExt } from "./build-helpers.mjs";
 
 const root = process.cwd();
 const distDir = path.join(root, "dist");
@@ -56,51 +57,6 @@ const outHtml = path.join(distDir, `${path.basename(inDeck, path.extname(inDeck)
 
 // Set deckDir to the directory containing the deck file
 deckDir = path.dirname(path.resolve(inDeck));
-
-function readTextIfExists(filePath) {
-    if (!fs.existsSync(filePath)) return "";
-    if (filePath.includes('..') || path.isAbsolute(filePath)) throw new Error("Invalid file path");
-    return fs.readFileSync(filePath, "utf8");
-}
-
-function isRemoteCssImport(specifier) {
-    const s = String(specifier || "").trim().toLowerCase();
-    return s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:");
-}
-
-function resolveCssImports(entryFilePath, { _seen = new Set() } = {}) {
-    const absEntry = path.resolve(entryFilePath);
-    if (_seen.has(absEntry)) return "";
-    _seen.add(absEntry);
-
-    const src = fs.readFileSync(absEntry, "utf8");
-    const dir = path.dirname(absEntry);
-
-    // Very small, dependency-free @import resolver.
-    // Supports: @import "./file.css"; and @import url("./file.css");
-    // Supports basic media queries: @import "./file.css" print;
-    const importRe = /^\s*@import\s+(?:url\()?['"]([^'"]+)['"]\)?\s*([^;]*);\s*$/gm;
-
-    return src.replace(importRe, (full, specifier, mediaRaw) => {
-        if (isRemoteCssImport(specifier)) return full;
-
-        const importedAbs = path.resolve(dir, specifier);
-        const relativeCheck = path.relative(dir, importedAbs);
-        if (relativeCheck.startsWith('..') || path.isAbsolute(relativeCheck)) return full;
-        if (!fs.existsSync(importedAbs)) return full;
-
-        const importedCss = resolveCssImports(importedAbs, { _seen });
-        const media = String(mediaRaw || "").trim();
-        const banner = `/* @import ${specifier}${media ? " " + media : ""} */`;
-
-        if (!media) return `${banner}\n${importedCss}`;
-
-        // Avoid changing semantics for less-common @import forms.
-        if (/^(layer|supports)\b/i.test(media)) return full;
-
-        return `${banner}\n@media ${media} {\n${importedCss}\n}`;
-    });
-}
 
 function fontMimeForExt(ext) {
     switch (ext.toLowerCase()) {
@@ -173,34 +129,6 @@ function escapeJsonForHtmlScriptTag(jsonText) {
     return jsonText.replace(/</g, "\\u003C");
 }
 
-function mimeForExt(ext) {
-    switch (ext.toLowerCase()) {
-        case ".png":
-            return "image/png";
-        case ".jpg":
-        case ".jpeg":
-            return "image/jpeg";
-        case ".gif":
-            return "image/gif";
-        case ".webp":
-            return "image/webp";
-        case ".svg":
-            return "image/svg+xml";
-        default:
-            return null;
-    }
-}
-
-function toDataUri(filePath) {
-    const ext = path.extname(filePath);
-    const mime = mimeForExt(ext);
-    if (!mime) return null;
-    if (filePath.includes('..') || path.isAbsolute(filePath)) return null;
-    const buf = fs.readFileSync(filePath);
-    const b64 = buf.toString("base64");
-    return `data:${mime};base64,${b64}`;
-}
-
 function inlineLocalImagesInHtml(htmlText) {
     if (!htmlText) return htmlText;
 
@@ -214,7 +142,7 @@ function inlineLocalImagesInHtml(htmlText) {
         // Resolve relative to the deck file's directory
         const abs = path.resolve(deckDir, relPath);
         if (!fs.existsSync(abs)) return m;
-        const uri = toDataUri(abs);
+        const uri = toDataUri(abs, deckDir);
         if (!uri) return m;
         return ` ${attr}=${quote}${uri}${quote}`;
     });
@@ -273,7 +201,7 @@ function inlineImagesInDeck(deck) {
                 }
                 const abs = path.resolve(deckDir, url);
                 if (fs.existsSync(abs)) {
-                    const uri = toDataUri(abs);
+                    const uri = toDataUri(abs, deckDir);
                     if (uri) return `url(${uri})`;
                 }
                 return m;
@@ -478,27 +406,28 @@ if (usesPrism || usesKatex || usesMermaid) {
     const vendorCssParts = [];
 
     if (usesPrism) {
-        vendorCssParts.push(readTextIfExists(path.join(root, "node_modules", "prismjs", "themes", "prism-tomorrow.css")));
+        vendorCssParts.push(readTextIfExists(path.join(root, "node_modules", "prismjs", "themes", "prism-tomorrow.css"), root));
 
-        const prismCore = readTextIfExists(path.join(root, "node_modules", "prismjs", "prism.js"));
+        const prismCore = readTextIfExists(path.join(root, "node_modules", "prismjs", "prism.js"), root);
         if (prismCore) vendorJsParts.push(prismCore);
 
         const comps = detectPrismComponentsFromDeck(deckHtmlText);
         for (const c of comps) {
             const file = path.join(root, "node_modules", "prismjs", "components", `prism-${c}.min.js`);
-            const src = readTextIfExists(file);
+            const src = readTextIfExists(file, root);
             if (src) vendorJsParts.push(src);
         }
     }
 
     if (usesKatex) {
-        const katexCssRaw = readTextIfExists(path.join(root, "node_modules", "katex", "dist", "katex.min.css"));
+        const katexCssRaw = readTextIfExists(path.join(root, "node_modules", "katex", "dist", "katex.min.css"), root);
         const katexCss = inlineKatexFontDataUris ? inlineKatexFonts(katexCssRaw) : katexCssRaw;
         if (katexCss) vendorCssParts.push(katexCss);
 
-        const katexCore = readTextIfExists(path.join(root, "node_modules", "katex", "dist", "katex.min.js"));
+        const katexCore = readTextIfExists(path.join(root, "node_modules", "katex", "dist", "katex.min.js"), root);
         const katexAutoRender = readTextIfExists(
-            path.join(root, "node_modules", "katex", "dist", "contrib", "auto-render.min.js")
+            path.join(root, "node_modules", "katex", "dist", "contrib", "auto-render.min.js"),
+            root
         );
         if (katexCore) vendorJsParts.push(katexCore);
         if (katexAutoRender) vendorJsParts.push(katexAutoRender);
