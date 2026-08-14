@@ -73,6 +73,69 @@ export function areasToMarkdown(slides) {
 }
 
 /**
+ * Escape literal newlines and carriage returns that appear unescaped inside
+ * JSON strings. Models often emit raw line breaks inside "content" strings
+ * instead of the required `\n` escape, which makes the JSON unparseable.
+ *
+ * Only modifies characters that are inside a string (between unescaped
+ * double quotes), so structural line breaks and code-fence markers outside
+ * strings are left untouched.
+ *
+ * @param {string} raw - A JSON-ish substring.
+ * @returns {string}
+ */
+function escapeRawNewlinesInJson(raw) {
+  const out = [];
+  let inString = false;
+  let escaped = false;
+  for (const ch of raw) {
+    if (escaped) {
+      out.push(ch);
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out.push(ch);
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      out.push(ch);
+      inString = !inString;
+      continue;
+    }
+    if (inString && (ch === "\n" || ch === "\r")) {
+      out.push("\\n");
+      continue;
+    }
+    out.push(ch);
+  }
+  return out.join("");
+}
+
+/**
+ * Try to parse a JSON string, first as-is and then with raw newlines escaped
+ * inside strings. Returns the parsed object and (optionally) the raw substring
+ * that successfully parsed.
+ *
+ * @param {string} raw - JSON source.
+ * @param {function} ok - Validator to accept the parsed object.
+ * @returns {{ parsed: object, raw: string }|null}
+ */
+function tryParseJson(raw, ok) {
+  const attempts = [raw, escapeRawNewlinesInJson(raw)];
+  for (const candidate of attempts) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (ok(parsed)) return { parsed, raw: candidate };
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+/**
  * Extract a top-level JSON object from raw LLM text, robust to code fences,
  * prose wrappers, and stray braces in surrounding text.
  *
@@ -98,23 +161,15 @@ export function extractJsonObject(text, key, validate) {
 
   // 1. Direct parse — only accept if the parsed object contains the key,
   // otherwise fall through to the brace walk (the key may be nested).
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (ok(parsed)) return { parsed, raw: trimmed };
-  } catch {
-    /* not valid JSON */
-  }
+  const direct = tryParseJson(trimmed, ok);
+  if (direct) return { parsed: direct.parsed, raw: direct.raw };
 
   // 2. Code fence — same guard: only accept if the key is present.
   const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   if (fenceMatch) {
     const inner = fenceMatch[1].trim();
-    try {
-      const parsed = JSON.parse(inner);
-      if (ok(parsed)) return { parsed, raw: inner };
-    } catch {
-      /* not valid JSON */
-    }
+    const fenced = tryParseJson(inner, ok);
+    if (fenced) return { parsed: fenced.parsed, raw: fenced.raw };
   }
 
   // 3. Locate the key and walk braces to extract the enclosing object.
@@ -202,12 +257,8 @@ export function extractJsonObject(text, key, validate) {
     }
     if (braceDepth === 0) {
       const raw = trimmed.slice(start, end + 1);
-      try {
-        const parsed = JSON.parse(raw);
-        if (ok(parsed)) return { parsed, raw };
-      } catch {
-        /* not valid JSON */
-      }
+      const result = tryParseJson(raw, ok);
+      if (result) return { parsed: result.parsed, raw };
     }
     searchPos = keyIdx;
   }

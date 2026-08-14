@@ -436,16 +436,18 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
 - \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every \`<img>\` and \`background: url(...)\` in the output references an image from the input deck or a \`reuse:<path>\` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use \`\\n\` escapes for line breaks inside the \`content\` strings.
 
 Input markdown:
+<!-- SLIDE INDEX 1 (return this) -->
 @header
 
 ## Why SlideMD
@@ -462,6 +464,7 @@ Input markdown:
 
 ---
 
+<!-- SLIDE INDEX 2 (return this) -->
 @header
 
 ## Roadmap
@@ -478,7 +481,14 @@ console.log(x);
 - Export PDF
 
 
-Return exactly 2 slide(s) as JSON. Fix or organize these slides within the context of the full deck.",
+CRITICAL: Return exactly 2 slide(s) as JSON — one for each "SLIDE INDEX" comment in the input (indices 1 through 2). Do NOT return context slides, do NOT split a brief into multiple slides, and do NOT merge briefs into fewer slides.
+
+Output format: a single JSON object with a "slides" array. Each slide object must have:
+
+- "layout": one of the allowed layouts.
+- "content": the SlideMD body as a JSON string. Use \`\\n\` for all line breaks inside this string.
+
+The first line of each "content" string must be the same \`<!-- SLIDE INDEX n (return this) -->\` comment from the input, where n matches the slide index.",
 }
 `;
 
@@ -692,14 +702,15 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
 - \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every \`<img>\` and \`background: url(...)\` in the output references an image from the input deck or a \`reuse:<path>\` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use \`\\n\` escapes for line breaks inside the \`content\` strings.
 
 Input markdown:
 background: #1a1a2e
@@ -874,14 +885,15 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
 - \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every \`<img>\` and \`background: url(...)\` in the output references an image from the input deck or a \`reuse:<path>\` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use \`\\n\` escapes for line breaks inside the \`content\` strings.
 
 Input markdown:
 background: #1a1a2e

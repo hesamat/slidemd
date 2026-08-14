@@ -65,6 +65,27 @@ describe("parseAiResponse (edge cases)", () => {
     expect(result.slides[0].layout).toBe("title-slide");
   });
 
+  it("recovers from JSON with raw, unescaped newlines inside content strings", () => {
+    // Some models emit real line breaks inside JSON strings instead of \n.
+    const raw =
+      '{"slides":[{"layout":"header-content","content":"@header\n# Title\n\n@main\n- Point 1"}]}';
+    const result = parseAiResponse(raw);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].layout).toBe("header-content");
+    expect(result.slides[0].content).toContain("@main");
+    expect(result.slides[0].content).toContain("- Point 1");
+  });
+
+  it("does not corrupt already-correct \n escapes when recovering from raw newlines", () => {
+    // Mixed: the model got some escapes right and inserted a raw newline.
+    const raw =
+      '{"slides":[{"layout":"header-content","content":"@header\\n# Title\n\n@main\\n- Point"}]}';
+    const result = parseAiResponse(raw);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].content).toContain("# Title");
+    expect(result.slides[0].content).toContain("- Point");
+  });
+
   it("handles code fence with language tag", () => {
     const input = '```json\n{"slides":[{"layout":"header-content","content":"@main"}]}\n```';
     const result = parseAiResponse(input);

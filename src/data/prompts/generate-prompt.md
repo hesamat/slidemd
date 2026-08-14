@@ -67,14 +67,15 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
 - `theme:`, `background:`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for `theme:` and `background:`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every `<img>` and `background: url(...)` in the output references an image from the input deck or a `reuse:<path>` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use `\n` escapes for line breaks inside the `content` strings.
 
 Input markdown:
 {{markdown}}
