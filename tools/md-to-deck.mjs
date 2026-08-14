@@ -541,12 +541,28 @@ function escapeKatexBracketDelimiters(markdownText) {
 }
 
 function makeMarkdownRenderer() {
-    return new MarkdownIt({
+    const md = new MarkdownIt({
         html: true,
         linkify: false,
         typographer: false,
         breaks: true,
     });
+    // Per-code-block centering: if the fence info string contains a
+    // curly-brace attribute block with the `center` keyword (e.g.
+    // ```js { center }), add a CSS class to the <pre> element. Mirrors
+    // the same rule in MarkdownParser.ensureMarkdownIt().
+    const originalFence = md.renderer.rules.fence;
+    if (originalFence) {
+        md.renderer.rules.fence = function (tokens, idx, options, env, slf) {
+            let html = originalFence(tokens, idx, options, env, slf);
+            const token = tokens[idx];
+            if (/\{[^}]*\bcenter\b[^}]*\}/i.test(token.info || "")) {
+                html = html.replace(/<pre/, '<pre class="code-centered"');
+            }
+            return html;
+        };
+    }
+    return md;
 }
 
 function resolveLayoutPreset(layoutSpec) {

@@ -1,7 +1,13 @@
-import { describe, it, expect } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, beforeAll } from "vitest";
+import markdownit from "markdown-it";
 import { MarkdownParser } from "../data/markdown-parser.js";
 
 const parser = new MarkdownParser();
+
+beforeAll(() => {
+  window.markdownit = markdownit;
+});
 
 describe("MarkdownParser.parseBooleanDirectiveValue", () => {
   it("returns true for truthy values", () => {
@@ -504,5 +510,46 @@ describe("MarkdownParser.convertMermaidCodeBlocksToDiv", () => {
     expect(result).toMatch(/data-mermaid-source="b64:[A-Za-z0-9+/=]+"/);
     const encoded = result.match(/data-mermaid-source="(b64:[A-Za-z0-9+/=]+)"/)[1];
     expect(atob(encoded.slice(4))).toBe("graph TD\nA --> B");
+  });
+});
+
+describe("MarkdownParser fence centering", () => {
+  it("adds code-centered class when info string contains '{ center }'", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("```js { center }\nconsole.log('hi');\n```");
+    expect(html).toContain('class="code-centered"');
+  });
+
+  it("does not add code-centered class without 'center' keyword", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("```js\nconsole.log('hi');\n```");
+    expect(html).not.toContain("code-centered");
+  });
+
+  it("preserves language class alongside code-centered", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("```python { center }\nprint('hi')\n```");
+    expect(html).toContain('class="code-centered"');
+    expect(html).toContain("language-python");
+  });
+
+  it("does not match bare 'center' without curly braces", () => {
+    parser.ensureMarkdownIt();
+    // The keyword must be inside a { ... } block, mirroring text-block syntax.
+    const html = parser.md.render("```js center\nconsole.log('hi');\n```");
+    expect(html).not.toContain("code-centered");
+  });
+
+  it("does not match 'center' as part of another word inside braces", () => {
+    parser.ensureMarkdownIt();
+    // 'recenters' inside braces should not trigger centering
+    const html = parser.md.render("```js { recenters }\nx\n```");
+    expect(html).not.toContain("code-centered");
+  });
+
+  it("matches 'center' alongside other attributes in braces", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("```js { linenos center }\nx\n```");
+    expect(html).toContain('class="code-centered"');
   });
 });
