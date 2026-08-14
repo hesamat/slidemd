@@ -1816,8 +1816,8 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("Density: spacious");
-      expect(execUser).toContain("beat:");
+      expect(execUser).toContain("Palette");
+      expect(execUser).toContain("Imagery mood");
 
       // Brief includes the beat suffix (punctuation on slide 1 is normalized
       // to continuation by the beat normalizer)

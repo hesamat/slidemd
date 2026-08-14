@@ -183,7 +183,7 @@ export class AiReimagineOutlineModal {
           visualSystemEl.innerHTML = `<p class="${P}visual-system-empty">No visual direction provided.</p>`;
           return;
         }
-        const { palette, typography, composition, imagery, motifs, contrastRules } = visualSystem;
+        const { palette, imagery } = visualSystem;
         const swatches = Object.entries(palette || {})
           .map(
             ([name, color]) => `
@@ -209,54 +209,12 @@ export class AiReimagineOutlineModal {
             <div class="${P}palette">${swatches}</div>
           </div>
 
-          <div class="${P}visual-system-grid">
-            <div class="${P}visual-system-section">
-              <div class="${P}visual-system-label">Typography</div>
-              <div class="${P}visual-system-value">${escapeHtml(typography?.character || "—")}</div>
-              <div class="${P}visual-system-sublabel">Headlines</div>
-              <div class="${P}visual-system-value">${escapeHtml(typography?.headline || "—")}</div>
-              <div class="${P}visual-system-sublabel">Body</div>
-              <div class="${P}visual-system-value">${escapeHtml(typography?.body || "—")}</div>
-            </div>
-
-            <div class="${P}visual-system-section">
-              <div class="${P}visual-system-label">Composition</div>
-              <div class="${P}visual-system-value">${escapeHtml(composition?.density || "—")} density</div>
-              <div class="${P}visual-system-sublabel">Whitespace</div>
-              <div class="${P}visual-system-value">${escapeHtml(composition?.whitespace || "—")}</div>
-              <div class="${P}visual-system-sublabel">Alignment</div>
-              <div class="${P}visual-system-value">${escapeHtml(composition?.alignment || "—")}</div>
-            </div>
-          </div>
-
-          <div class="${P}visual-system-section">
-            <div class="${P}visual-system-label">Imagery</div>
-            <div class="${P}visual-system-value">${escapeHtml(imagery?.role || "—")}</div>
-            <div class="${P}visual-system-sublabel">Mood</div>
-            <div class="${P}visual-system-value">${escapeHtml(imagery?.mood || "—")}</div>
-            <div class="${P}visual-system-sublabel">Treatment</div>
-            <div class="${P}visual-system-value">${escapeHtml(imagery?.treatment || "—")}</div>
-          </div>
-
           ${
-            motifs?.length
-              ? `
-            <div class="${P}visual-system-section">
-              <div class="${P}visual-system-label">Motifs</div>
-              <div class="${P}chip-list">${motifs.map((m) => `<span class="${P}chip">${escapeHtml(m)}</span>`).join("")}</div>
-            </div>
-          `
-              : ""
-          }
-
-          ${
-            contrastRules?.length
-              ? `
-            <div class="${P}visual-system-section">
-              <div class="${P}visual-system-label">Contrast rules</div>
-              <div class="${P}chip-list">${contrastRules.map((r) => `<span class="${P}chip">${escapeHtml(r)}</span>`).join("")}</div>
-            </div>
-          `
+            imagery?.mood
+              ? `<div class="${P}visual-system-section">
+            <div class="${P}visual-system-label">Imagery mood</div>
+            <div class="${P}visual-system-value">${escapeHtml(imagery.mood)}</div>
+          </div>`
               : ""
           }
 

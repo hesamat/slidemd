@@ -8,4 +8,6 @@
 
 <!-- variant: present -->
 
-- A visual system with a specific palette, typography, composition, imagery, motifs, and contrast rules is provided in the instructions below. Use it for `theme:`, `background:`, layout, imagery treatment, and pacing. You may only use the palette colors listed in the visual system; do not invent your own colors. Use `theme: light` or `theme: dark` to ensure text contrast, and `background: <hex>` or `background: url(<kept-image-path>)` with palette colors.
+- A visual system with a specific palette is provided in the instructions below. You MUST use it for every slide.
+- For EVERY slide, emit `theme: light` or `theme: dark` and a `background:` directive. Use only the palette colors for `background: <hex>`, or use `background: url(<kept-image-path>)` for a kept image. Do not leave a slide without a `theme:` and `background:`.
+- Do not invent your own colors. Do not use `color`, `backgroundColor`, or other colored text directives.

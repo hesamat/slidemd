@@ -30,10 +30,11 @@ Visual styling:
 
 Diagrams:
 
-- Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: `​```mermaid` code blocks.
+- Use Mermaid only when a concept has branches, decisions, loops, or parallel paths. A straight line of boxes is a list, not a diagram.
 - Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. `─┐`, `├──>`, `──>`). These render poorly and are not interactive.
-- If a concept needs a visual, use Mermaid or a table instead.
-- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Aim for 5+ nodes in most diagrams.
+- If a concept needs a visual, prefer a table, a numbered list, or a short code example. Only use Mermaid when a relationship cannot be shown clearly in text.
+- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Keep diagrams to 3–7 nodes.
+- Do not generate more than two Mermaid diagrams per chapter or per five content slides. Most slides should not have a diagram.
 - Do not draw a linear sequence of 4+ boxes connected by arrows. That is a bullet list, not a diagram. Only use a `flowchart` when there are branches, decisions, loops, or parallel paths. Do not use a flowchart to explain or define a concept; use a numbered list, a table, a `classDiagram`, or a `stateDiagram-v2` instead.
 - Vary diagram types: use `flowchart` for data flow and decisions, `sequenceDiagram` for interactions between components, `classDiagram` for data models, and `stateDiagram-v2` for state transitions. Don't use `flowchart LR` for everything.
 - Diagrams should illustrate the concept, not restate the title. A diagram showing `A --> B` with the same text as the slide title adds nothing. Show the internal structure, the decision points, or the transformation steps.
@@ -56,7 +57,7 @@ Slide density and overflow prevention:
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- `theme:`, `background:`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals, otherwise no custom directives are emitted.
+- `theme:`, `background:`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for `theme:` and `background:`; preserve mode keeps the originals; otherwise do not emit custom color directives.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.

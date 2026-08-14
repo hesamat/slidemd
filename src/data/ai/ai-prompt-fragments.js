@@ -176,9 +176,9 @@ export function buildRemixFlowGuidance(flow) {
 /**
  * Build the {{visualStylingNote}} substitution for generate prompts.
  * Variant selection:
- * - "present" — a visual system is provided (reimagine): use the visual
- *   system palette for `theme:` and `background:` and follow the design
- *   language for layout, imagery, and rhythm.
+ * - "present" — a visual system is provided (reimagine): emit `theme:` and
+ *   `background:` for every slide using only the palette colors, and use the
+ *   imagery mood only when deciding whether to reuse a kept image.
  * - "absent-preserve" — no visual system, but the deck's existing identity
  *   must be kept (remix preserve mode): keep the original theme/background/
  *   color directives instead of emitting neutral styling.
@@ -266,39 +266,14 @@ export function buildVisualSystemBrief(vs) {
     .map(([name, color]) => `  - ${name}: ${color}`)
     .join("\n");
 
+  const mood = vs.imagery?.mood ? `Imagery mood: ${vs.imagery.mood}.` : "";
+
   return `
-Visual system — use the following design language for \`theme:\`, \`background:\`, layout, imagery, and rhythm. You may only use the palette colors listed below; do not invent your own colors.
+Visual system — use this palette for every slide's \`theme:\` and \`background:\`.
 
 Palette (use only these colors):
 ${palette}
-
-Typography:
-  - Character: ${vs.typography.character}
-  - Headlines: ${vs.typography.headline}
-  - Body: ${vs.typography.body}
-
-Composition:
-  - Density: ${vs.composition.density}
-  - Whitespace: ${vs.composition.whitespace}
-  - Alignment: ${vs.composition.alignment}
-
-Imagery:
-  - Role: ${vs.imagery.role}
-  - Mood: ${vs.imagery.mood}
-  - Treatment: ${vs.imagery.treatment}
-
-Motifs: ${(vs.motifs || []).join("; ")}
-
-Contrast rules: ${(vs.contrastRules || []).join("; ")}
-
-Visual-beat treatment mapping (each slide brief has a \`beat\`):
-  - continuation: maintain the established visual language. Use base or surface background, medium energy, continue the motif rhythm.
-  - transition: introduce a visual shift. Switch between base/surface backgrounds, use an image, or change layout to signal a new chapter.
-  - punctuation: high-emphasis moment. Use a contrast or highlight background, a large headline, and a short, bold takeaway.
-  - emotional: imagery or atmosphere carries the communication. Use an image background, full-image layout, or a dark/moody background.
-  - divider: chapter/section marker. Use a contrast or highlight background, minimal text, and a clean layout.
-
-Use \`theme: light\` or \`theme: dark\` to ensure text is legible against the background. Use \`background: <hex>\` only with palette colors, or \`background: url(<kept-image-path>)\` for kept source images. Do not use \`color\`, \`backgroundColor\`, or other colored text directives.
+${mood}
 `;
 }
 

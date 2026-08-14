@@ -309,11 +309,7 @@ describe("AiReimagineOutlineModal", () => {
     const baseSwatchColor = swatches[0].querySelector(".ai-reimagine-outline-modal__swatch-color");
     expect(baseSwatchColor.style.backgroundColor).toBe("rgb(15, 23, 42)");
 
-    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.visualSystem.typography.character);
-    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.visualSystem.composition.density);
     expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.visualSystem.imagery.mood);
-    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.visualSystem.motifs[0]);
-    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.visualSystem.contrastRules[0]);
     expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.firstSlideIdentity);
     expect(visualSystemEl.textContent).toContain("2 source images selected to keep");
 

@@ -47,20 +47,17 @@ Only after these two slides should the chapter's content slides begin. If the fi
 
 The generate AI chooses layouts, but you can guide it through the intent. Vary the visual structure across slides — don't make every slide a code block with an explanation. Consider:
 
-- Diagrams and flowcharts for conceptual relationships (Mermaid)
 - Tables for comparisons
 - Full-image or media-span layouts for emotional/visual slides
 - Focus layouts for key takeaways and predictions
 - Two-column for code + explanation or before/after comparisons
-- Use `media-span-left`/`media-span-right` ONLY when the slide's `@media` area will contain an image or a Mermaid diagram. Do not choose these layouts for tables, text, or code.
+- Use `media-span-left`/`media-span-right` ONLY when the slide's `@media` area will contain an image. Do not choose these layouts for tables, text, or code.
 
-If a slide should use a specific visual format, mention it in the intent (e.g. "Use a Mermaid flowchart to show the data flow" or "Use a table comparing lists vs dictionaries").
+Only ask for a Mermaid diagram when the concept has branches, decisions, loops, or parallel paths that cannot be shown clearly in text, a table, or code. A straight line of boxes is a list, not a diagram. Do not request a flowchart to explain or define a concept; use a numbered list, table, or code example instead.
 
-When describing diagrams in the intent, be specific about what the diagram should show — not just "use a flowchart" but "use a flowchart showing the access path from list → dict → key → value with 5+ nodes and a branch for the error case." Trivial diagrams (two boxes with an arrow) add no value; guide the generate AI toward diagrams that illustrate real structure, relationships, or transformations.
+No more than one Mermaid diagram per chapter. For most chapters, zero diagrams is the right choice.
 
-Do not ask for a Mermaid diagram that is just a straight line of 4+ boxes connected by arrows. That is a list, not a diagram. Only request a flowchart when the concept has branches, decisions, loops, or parallel paths. Do not request a flowchart to explain or define a concept; use a numbered list, table, or code example instead.
-
-Vary the content format across slides in a chapter. Don't make every slide "code block + explanation." Mix in: comparison tables, step-by-step traces, prediction questions, before/after contrasts, annotated examples, diagrams, analogies, and historical remarks. If a chapter has 5 slides, at least 2 should use a non-code-centric format and at least 1 should use an analogy or a memorable story.
+Vary the content format across slides in a chapter. Don't make every slide "code block + explanation." Mix in: comparison tables, step-by-step traces, prediction questions, before/after contrasts, annotated examples, analogies, and historical remarks. If a chapter has 5 slides, at most 2 should use a visual format (diagram, table, or image) and the rest should be code or concise text.
 
 ## Image queries
 
@@ -162,7 +159,7 @@ Success criteria:
 Visual system:
 {{visualSystem}}
 
-Use the visual system to guide the beat treatment. Match the energy and contrast fields in the JSON above to the beat, and choose visual treatments that fit the palette, typography, composition, imagery mood, motifs, and contrast rules. Do not invent colors or visual treatments that contradict the visual system.
+Use the visual system palette for `theme:` and `background:` choices. Do not invent colors. Only use the imagery mood when deciding whether to reuse a kept image.
 
 Finalized chapter outline:
 {{chapters}}
