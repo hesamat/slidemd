@@ -8,6 +8,8 @@
 
 <!-- variant: present -->
 
-- A visual system with a specific palette is provided in the instructions below. You MUST use it for every slide.
-- For EVERY slide, emit `theme: light` or `theme: dark` and a `background:` directive. Use only the palette colors for `background: <hex>`, or use `background: url(<kept-image-path>)` for a kept image. Do not leave a slide without a `theme:` and `background:`.
-- Do not invent your own colors. Do not use `color`, `backgroundColor`, or other colored text directives.
+- A visual system with a specific 3-color palette is provided in the instructions below. You MUST use it for every slide.
+- The palette is `base` (dark), `accent` (pop/attention), and `highlight` (light).
+- For EVERY slide, emit `theme:` and `background:`. Choose `theme` to contrast with the background: `theme: light` for `base` and `accent`, `theme: dark` for `highlight`.
+- Use only the 3 palette hex colors for `background: <hex>`, or use `background: url(<kept-image-path>)` for a kept image. Do not invent colors. Vary `background:` across the deck — do not make every slide `base`.
+- For colored callouts, panels, tables, code, or emphasized text, you may use `::: text-block { markdown=true color="<hex>" backgroundColor="<hex>" } ... :::`. Only use the 3 palette colors for `color` and `backgroundColor`.

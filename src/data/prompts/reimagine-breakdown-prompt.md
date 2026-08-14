@@ -153,13 +153,22 @@ Success criteria:
 - Each slide has a distinct purpose within its chapter.
 - The slide intents are specific enough to guide full slide generation.
 - The visual beats create rhythm — high-impact beats are used sparingly and not repeated on adjacent slides.
-- Image queries (when present) are consistent with the visual system's imagery mood.
+- Image queries (when present) are consistent with the chosen palette and theme.
 - The JSON is valid and parseable.
 
 Visual system:
 {{visualSystem}}
 
-Use the visual system palette for `theme:` and `background:` choices. Do not invent colors. Only use the imagery mood when deciding whether to reuse a kept image.
+Use the 3-color palette for every slide's `theme:` and `background:` choices.
+
+Color usage:
+
+- `base` — dark background for most continuation/transition/content slides.
+- `accent` — pop/attention color for emphasis, pivots, calls-to-action, or punctuation slides.
+- `highlight` — light background for the title slide, agenda, and light focal slides. Use `theme: dark` with `highlight`.
+- Vary backgrounds across the deck; do not put `base` on every slide.
+
+Do not invent colors.
 
 Finalized chapter outline:
 {{chapters}}

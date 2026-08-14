@@ -1,6 +1,7 @@
 import MarkdownIt from "markdown-it";
 import { safeString, slugifyTitle, escapeBareHtmlTags } from "../src/core/utils.js";
 import { convertTextBlockDirectivesToHtml } from "../src/core/text-block-directive.js";
+import { extractVisualSystemFromMarkdown } from "../src/data/ai/visual-system-schema.js";
 
 function splitSlides(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
@@ -586,7 +587,8 @@ function extractAreaNamesFromGridTemplate(gridTemplate) {
 export function parseDeckMarkdown(markdownText) {
     const md = makeMarkdownRenderer();
 
-    const slideTexts = splitSlides(markdownText);
+    const { visualSystem, markdown } = extractVisualSystemFromMarkdown(markdownText);
+    const slideTexts = splitSlides(markdown);
     const usedIds = new Map();
 
     const slides = slideTexts
@@ -710,6 +712,7 @@ export function parseDeckMarkdown(markdownText) {
             stage: { width: 1920, height: 1080 },
         },
         slides,
+        visualSystem,
     };
 }
 

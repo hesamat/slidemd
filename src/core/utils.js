@@ -56,6 +56,34 @@ export function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+/**
+ * Convert a 3, 6, or 8-digit hex color to an `rgba(...)` string with the given alpha.
+ * @param {string} hex
+ * @param {number} alpha
+ * @returns {string}
+ */
+export function hexToRgba(hex, alpha) {
+  const clean = safeString(hex).replace(/^#/, "").toLowerCase();
+  if (!clean) return `rgba(0, 0, 0, ${alpha})`;
+
+  let r = "";
+  let g = "";
+  let b = "";
+
+  if (clean.length === 3) {
+    r = clean[0] + clean[0];
+    g = clean[1] + clean[1];
+    b = clean[2] + clean[2];
+  } else if (clean.length >= 6) {
+    r = clean.slice(0, 2);
+    g = clean.slice(2, 4);
+    b = clean.slice(4, 6);
+  }
+
+  const toChannel = (v) => Math.max(0, Math.min(255, parseInt(v || "00", 16)));
+  return `rgba(${toChannel(r)}, ${toChannel(g)}, ${toChannel(b)}, ${alpha})`;
+}
+
 export function safeString(v) {
   return typeof v === "string" ? v : "";
 }

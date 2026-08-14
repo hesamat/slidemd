@@ -5,7 +5,13 @@
  * for grid-based slide design.
  */
 // Slide DOM rendering
-import { safeString, escapeHtml, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
+import {
+  safeString,
+  escapeHtml,
+  DESIGN_SIZE,
+  splitCssDeclarations,
+  hexToRgba,
+} from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData, getMediaFullBleedSideFromGrid } from "../data/layout-data.js";
@@ -171,6 +177,15 @@ export class SlideRenderer {
 
     if (slide?.background) {
       wrapper.style.background = slide.background;
+    }
+
+    const palette = deck?.visualSystem?.palette;
+    if (palette) {
+      wrapper.style.setProperty("--palette-base", palette.base);
+      wrapper.style.setProperty("--palette-accent", palette.accent);
+      wrapper.style.setProperty("--palette-highlight", palette.highlight);
+      wrapper.style.setProperty("--palette-accent-light", hexToRgba(palette.accent, 0.15));
+      wrapper.style.setProperty("--palette-accent-hover", palette.accent);
     }
 
     if (slide?._areaOffsets) {

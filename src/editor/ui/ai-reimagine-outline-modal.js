@@ -42,16 +42,13 @@ const FLOW_TAGS = [
 /**
  * @typedef {Object} VisualSystemPalette
  * @property {string} base
- * @property {string} surface
  * @property {string} accent
- * @property {string} contrast
  * @property {string} highlight
  */
 
 /**
  * @typedef {Object} VisualSystem
  * @property {VisualSystemPalette} palette
- * @property {{mood?: string}} [imagery]
  */
 
 /**
@@ -103,12 +100,13 @@ export class AiReimagineOutlineModal {
             <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
           </div>
 
-          <div class="${P}card ${P}visual-system-card" role="region" aria-label="Visual direction" aria-readonly="true">
+          <div class="${P}card ${P}visual-system-card" role="region" aria-label="Visual direction">
             <div class="${P}card-header">
               <span class="${P}label">Visual direction</span>
-              <span class="${P}badge ${P}badge--readonly" role="note" aria-label="read-only">read-only</span>
+              <span class="${P}badge ${P}badge--editable" role="note" aria-label="editable">editable</span>
             </div>
             <div id="${P}visual-system" class="${P}visual-system" role="region" aria-label="Visual direction details"></div>
+            <p class="${P}visual-system-hint">AI-generated from the source deck. Edit the colors before generating.</p>
           </div>
         </div>
 
@@ -160,36 +158,47 @@ export class AiReimagineOutlineModal {
         const totalSuggested = chapters.reduce((sum, ch) => sum + (ch.suggestedSlideCount || 0), 0);
         const inRange =
           sourceCount === 0 || (totalSuggested >= minTarget && totalSuggested <= maxTarget);
-        statsEl.innerHTML = `
-          <span class="${P}stat">${chapters.length} chapter${chapters.length === 1 ? "" : "s"}</span>
-          <span class="${P}stat">${totalSuggested} slide${totalSuggested === 1 ? "" : "s"} planned</span>
-          ${
-            sourceCount > 0
-              ? `<span class="${P}stat ${inRange ? "" : P + "stat--warn"}">target ${minTarget}\u2013${maxTarget} (from ${sourceCount})</span>`
-              : ""
-          }
-        `;
+
+        statsEl.textContent = "";
+
+        const chapterSpan = document.createElement("span");
+        chapterSpan.className = `${P}stat`;
+        chapterSpan.textContent = `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}`;
+        statsEl.appendChild(chapterSpan);
+
+        const slideSpan = document.createElement("span");
+        slideSpan.className = `${P}stat`;
+        slideSpan.textContent = `${totalSuggested} slide${totalSuggested === 1 ? "" : "s"} planned`;
+        statsEl.appendChild(slideSpan);
+
+        if (sourceCount > 0) {
+          const targetSpan = document.createElement("span");
+          targetSpan.className = `${P}stat ${inRange ? "" : P + "stat--warn"}`;
+          targetSpan.textContent = `target ${minTarget}\u2013${maxTarget} (from ${sourceCount})`;
+          statsEl.appendChild(targetSpan);
+        }
       };
 
       /**
-       * Render the read-only visual direction summary.
+       * Render the editable visual direction summary.
        */
       const renderVisualSystem = () => {
         if (!visualSystem) {
           visualSystemEl.innerHTML = `<p class="${P}visual-system-empty">No visual direction provided.</p>`;
           return;
         }
-        const { palette, imagery } = visualSystem;
-        const swatches = Object.entries(palette || {})
-          .map(
-            ([name, color]) => `
-            <div class="${P}palette-swatch">
+        const palette = visualSystem.palette || {};
+        const swatches = ["base", "accent", "highlight"]
+          .map((name) => {
+            const color = palette[name] || "";
+            return `
+            <div class="${P}palette-swatch ${P}palette-swatch--editable" data-color-name="${escapeAttr(name)}">
               <span class="${P}swatch-color" style="background-color: ${escapeAttr(String(color))};" title="${escapeAttr(name)}" aria-label="${escapeAttr(name)}: ${escapeAttr(String(color))}"></span>
               <span class="${P}swatch-name">${escapeHtml(name)}</span>
-              <span class="${P}swatch-value">${escapeHtml(String(color))}</span>
+              <input type="text" class="${P}swatch-input" value="${escapeAttr(String(color))}" aria-label="${escapeAttr(name)} color" />
             </div>
-          `,
-          )
+          `;
+          })
           .join("");
 
         const identityText = firstSlideIdentity ? escapeHtml(firstSlideIdentity) : "None";
@@ -205,15 +214,6 @@ export class AiReimagineOutlineModal {
             <div class="${P}palette">${swatches}</div>
           </div>
 
-          ${
-            imagery?.mood
-              ? `<div class="${P}visual-system-section">
-            <div class="${P}visual-system-label">Imagery mood</div>
-            <div class="${P}visual-system-value">${escapeHtml(imagery.mood)}</div>
-          </div>`
-              : ""
-          }
-
           <div class="${P}visual-system-meta">
             <div class="${P}visual-system-meta-item">
               <span class="${P}visual-system-meta-label">First slide identity</span>
@@ -225,6 +225,29 @@ export class AiReimagineOutlineModal {
             </div>
           </div>
         `;
+
+        visualSystemEl.querySelectorAll(`.${P}swatch-input`).forEach((input) => {
+          input.addEventListener("input", (e) => {
+            const target = /** @type {HTMLInputElement} */ (e.target);
+            const name = target.closest(`.${P}palette-swatch`)?.getAttribute("data-color-name");
+            if (!name || !visualSystem) return;
+            visualSystem.palette[name] = target.value;
+            const swatch = target.closest(`.${P}palette-swatch`);
+            const colorDot = swatch?.querySelector(`.${P}swatch-color`);
+            if (colorDot) {
+              colorDot.setAttribute("style", `background-color: ${escapeAttr(target.value)};`);
+              colorDot.setAttribute(
+                "aria-label",
+                `${escapeAttr(name)}: ${escapeAttr(target.value)}`,
+              );
+            }
+            if (isValidHexColor(target.value)) {
+              target.classList.remove(`${P}swatch-input--invalid`);
+            } else {
+              target.classList.add(`${P}swatch-input--invalid`);
+            }
+          });
+        });
       };
 
       /**
@@ -411,6 +434,15 @@ export class AiReimagineOutlineModal {
         }
 
         errorEl.textContent = "";
+
+        if (
+          visualSystem &&
+          !Object.values(visualSystem.palette).every((c) => isValidHexColor(String(c)))
+        ) {
+          errorEl.textContent = "Please fix the visual direction colors (valid hex like #rrggbb).";
+          return;
+        }
+
         const planText = planInput.value.trim() || outline.plan;
         close({
           plan: planText,
@@ -447,4 +479,13 @@ function escapeHtml(s) {
  */
 function escapeAttr(s) {
   return (s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+/**
+ * Validate a single hex color string (3, 6, or 8 digits).
+ * @param {string} value
+ * @returns {boolean}
+ */
+function isValidHexColor(value) {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value);
 }

@@ -23,6 +23,7 @@
  * @typedef {Object} Deck
  * @property {DeckMeta} meta - Deck-level metadata.
  * @property {Slide[]} slides - Ordered list of slides.
+ * @property {import('./data/ai/visual-system-schema.js').VisualSystem|null} [visualSystem] - Optional deck-wide visual system.
  */
 
 /**

@@ -129,7 +129,7 @@ export function extractJsonObject(text, key, validate) {
     // first { we see. We track brace depth: every } we pass increases depth,
     // every { decreases it. When depth goes negative, that { is the
     // enclosing one. This correctly skips sibling objects that appear before
-    // the key (e.g. visualSystem.imagery before "chapters" in an outline).
+    // the key (e.g. visualSystem.palette before "chapters" in an outline).
     let start = keyIdx;
     let depth = 0;
     let inString = false;

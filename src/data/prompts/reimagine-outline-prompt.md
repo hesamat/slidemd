@@ -14,9 +14,13 @@ The presentation flow is **{{flow}}**. Choose storytelling techniques that fit t
 
 ## Visual system
 
-Alongside the narrative outline, design a minimal **visual system** with a palette and an imagery mood. The visual system is used to choose `theme:` and `background:` colors for each slide and to decide how to use kept source images.
+Alongside the narrative outline, design a minimal 3-color **visual system**. The visual system is used to choose `theme:` and `background:` colors for each slide.
 
-- Keep the visual system minimal. A palette of 5 colors (base, surface, accent, contrast, highlight) plus a one-sentence imagery mood is enough.
+- Keep the visual system minimal. A 3-color palette (`base`, `accent`, `highlight`) is enough.
+- `base` — dark background for most continuation and content slides.
+- `accent` — pop/attention color for emphasis, pivots, calls-to-action, or high-energy punctuation slides.
+- `highlight` — light background for the title slide, agenda, and any light focal slides. Use `theme: dark` with `highlight`.
+- Use all 3 colors across the deck. Do not put `base` on every slide.
 - Do not design a linear "slide 1 dark, slide 2 slightly lighter" ramp. The same deck may have a dark slide right after a light slide because the content demands contrast.
 
 Output format:
@@ -27,13 +31,8 @@ Output format:
   "visualSystem": {
     "palette": {
       "base": "#0f172a",
-      "surface": "#1e293b",
       "accent": "#06b6d4",
-      "contrast": "#f59e0b",
       "highlight": "#ffffff"
-    },
-    "imagery": {
-      "mood": "moody, atmospheric"
     }
   },
   "keepImages": [0, 2],
@@ -60,14 +59,12 @@ Rules:
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.
 - `plan` — 1-3 sentences combining: the deck's core message, the fresh angle you propose, and the narrative structure you chose with a brief justification.
 - `visualSystem` — a minimal deck-wide visual system:
-  - `palette` — 5 hex colors (`#rrggbb`):
-    - `base` — primary dark background.
-    - `surface` — secondary background (panels, slightly elevated from base).
-    - `accent` — the main highlight color.
-    - `contrast` — a secondary accent for contrast.
-    - `highlight` — the lightest color (often white or near-white) for light backgrounds.
-  - `imagery` — include only `mood` (one-sentence emotional tone for kept images).
-  - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Slides can switch between base, surface, and highlight backgrounds as the content demands.
+  - `palette` — 3 hex colors (`#rrggbb`):
+    - `base` — dark background for most content slides.
+    - `accent` — pop/attention color for emphasis, pivots, calls-to-action.
+    - `highlight` — light background for title, agenda, or focal slides.
+  - Use all 3 colors across the deck. Do NOT make every slide `base`.
+  - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Slides can switch between `base`, `accent`, and `highlight` backgrounds as the content demands.
 - `keepImages` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
 - `firstSlideIdentity` — a short string (1-2 lines) extracted EXCLUSIVELY from the "First slide (preserve its identifying info)" text provided above. Do NOT look at other slides for this. Extract the identifying text from the first slide's footer, header, or title (e.g. course code + term, event name, author). Keep it concise: do not include the full institutional description or repeated course names. If the first slide has no identifying information beyond the title heading, use the title itself. Do NOT mention this field or the footer in the plan text — just extract the value into this field.
 - `chapters` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
@@ -85,7 +82,7 @@ Rules:
 Success criteria:
 
 - The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
-- The visual system is minimal: a 5-color palette and an imagery mood. It is not a linear progression.
+- The visual system is minimal: a 3-color palette. It is not a linear progression.
 - The chapters form a clear narrative arc from opening to close.
 - The total suggested slide count is within {{minSlides}}-{{maxSlides}} ({{sourceCount}} source slides).
 - Each chapter summary is specific enough to guide slide generation without the user needing to see individual slides.
