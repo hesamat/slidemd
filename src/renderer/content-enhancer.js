@@ -4,6 +4,7 @@
  */
 import { normalizeCodeLanguage, escapeHtml, base64Encode, base64Decode } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
+import createDOMPurify from "dompurify";
 
 const EMOJI_SEQUENCE_RE =
   /(?:[0-9#*]\uFE0F?\u20E3|\p{Regional_Indicator}{2}|(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?(?:\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?)*)/gu;
@@ -54,6 +55,53 @@ function normalizeEmojiText(rootEl) {
     : [...(rootEl.querySelectorAll?.(".slide__area") || [])];
   const roots = areaRoots.length > 0 ? areaRoots : [rootEl];
   roots.forEach(normalizeEmojiTextInRoot);
+}
+
+let _purify;
+let _domPurifyWarned = false;
+
+function getDOMPurify() {
+  if (_purify !== undefined) return _purify;
+
+  if (typeof createDOMPurify !== "undefined") {
+    try {
+      _purify = createDOMPurify(window);
+    } catch {
+      _purify = null;
+    }
+  }
+
+  if (!_purify && typeof window !== "undefined" && window.DOMPurify) {
+    _purify = window.DOMPurify;
+  }
+
+  return _purify;
+}
+
+/**
+ * Sanitize a Mermaid-rendered SVG string before it is inserted into the DOM.
+ * DOMPurify removes script tags, event handlers, and other executable vectors.
+ *
+ * SAFE_FOR_XML is disabled here because Mermaid arrow syntax ("A --> B") is
+ * commonly reflected in legitimate attribute values; treating it as an mXSS
+ * probe would strip real diagram labels.
+ */
+const MERMAID_SVG_PURIFY_CONFIG = {
+  USE_PROFILES: { svg: true, svgFilters: true },
+  SAFE_FOR_XML: false,
+  ALLOW_DATA_ATTR: true,
+};
+
+function sanitizeMermaidSvg(svg) {
+  const purify = getDOMPurify();
+  if (!purify) {
+    if (!_domPurifyWarned) {
+      _domPurifyWarned = true;
+      Logger.warn("DOMPurify not available; rendering Mermaid SVG as text");
+    }
+    return escapeHtml(svg);
+  }
+  return purify.sanitize(svg, MERMAID_SVG_PURIFY_CONFIG);
 }
 
 export class ContentEnhancer {
@@ -179,7 +227,7 @@ contain: layout paint style;
           out = await mermaid.render(id, source);
         }
         const svg = typeof out === "string" ? out : out?.svg;
-        if (svg) el.innerHTML = svg;
+        if (svg) el.innerHTML = sanitizeMermaidSvg(svg);
         if (out && typeof out !== "string") out.bindFunctions?.(el);
       } catch (e) {
         const errorMessage = escapeHtml(e.message || "Mermaid rendering failed");

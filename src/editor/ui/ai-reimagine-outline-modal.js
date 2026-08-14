@@ -152,15 +152,25 @@ export class AiReimagineOutlineModal {
         const totalSuggested = chapters.reduce((sum, ch) => sum + (ch.suggestedSlideCount || 0), 0);
         const inRange =
           sourceCount === 0 || (totalSuggested >= minTarget && totalSuggested <= maxTarget);
-        statsEl.innerHTML = `
-          <span class="${P}stat">${chapters.length} chapter${chapters.length === 1 ? "" : "s"}</span>
-          <span class="${P}stat">${totalSuggested} slide${totalSuggested === 1 ? "" : "s"} planned</span>
-          ${
-            sourceCount > 0
-              ? `<span class="${P}stat ${inRange ? "" : P + "stat--warn"}">target ${minTarget}\u2013${maxTarget} (from ${sourceCount})</span>`
-              : ""
-          }
-        `;
+
+        statsEl.textContent = "";
+
+        const chapterSpan = document.createElement("span");
+        chapterSpan.className = `${P}stat`;
+        chapterSpan.textContent = `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}`;
+        statsEl.appendChild(chapterSpan);
+
+        const slideSpan = document.createElement("span");
+        slideSpan.className = `${P}stat`;
+        slideSpan.textContent = `${totalSuggested} slide${totalSuggested === 1 ? "" : "s"} planned`;
+        statsEl.appendChild(slideSpan);
+
+        if (sourceCount > 0) {
+          const targetSpan = document.createElement("span");
+          targetSpan.className = `${P}stat ${inRange ? "" : P + "stat--warn"}`;
+          targetSpan.textContent = `target ${minTarget}\u2013${maxTarget} (from ${sourceCount})`;
+          statsEl.appendChild(targetSpan);
+        }
       };
 
       /**

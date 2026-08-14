@@ -34,6 +34,25 @@ export class AreaContextMenu {
     this._abortController = null;
   }
 
+  /**
+   * Create a context-menu button with a safely rendered label.
+   * @private
+   */
+  _createMenuItem(label, onClick) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "area-context-menu__item";
+    btn.setAttribute("role", "menuitem");
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "area-context-menu__label";
+    labelSpan.textContent = label;
+    btn.appendChild(labelSpan);
+    if (onClick) {
+      btn.addEventListener("click", onClick);
+    }
+    return btn;
+  }
+
   init() {
     this._abortController = new AbortController();
     const { signal } = this._abortController;
@@ -123,12 +142,7 @@ export class AreaContextMenu {
     }
 
     if (canSwap) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "area-context-menu__item";
-      btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="area-context-menu__label">Swap with next</span>`;
-      btn.addEventListener("click", (e) => {
+      const btn = this._createMenuItem("Swap with next", (e) => {
         e.stopPropagation();
         this.close();
         this._onSwapArea?.(areaName);
@@ -137,12 +151,7 @@ export class AreaContextMenu {
     }
 
     if (canMakeFullHeight) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "area-context-menu__item";
-      btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="area-context-menu__label">Make column full height</span>`;
-      btn.addEventListener("click", (e) => {
+      const btn = this._createMenuItem("Make column full height", (e) => {
         e.stopPropagation();
         this.close();
         this._onMakeFullHeight?.(areaName);
@@ -151,12 +160,7 @@ export class AreaContextMenu {
     }
 
     if (canFullBleed && fullBleedLabel) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "area-context-menu__item";
-      btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="area-context-menu__label">${fullBleedLabel}</span>`;
-      btn.addEventListener("click", (e) => {
+      const btn = this._createMenuItem(fullBleedLabel, (e) => {
         e.stopPropagation();
         this.close();
         this._onToggleFullBleed?.(areaName);
@@ -169,12 +173,7 @@ export class AreaContextMenu {
       const hasBackground = opts.hasBackground;
 
       if (hasBackground) {
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "area-context-menu__item";
-        removeBtn.setAttribute("role", "menuitem");
-        removeBtn.innerHTML = `<span class="area-context-menu__label">Remove background</span>`;
-        removeBtn.addEventListener("click", (e) => {
+        const removeBtn = this._createMenuItem("Remove background", (e) => {
           e.stopPropagation();
           this.close();
           this._onSetBackground?.(areaName, "");
@@ -182,12 +181,7 @@ export class AreaContextMenu {
         menu.appendChild(removeBtn);
       }
 
-      const bgBtn = document.createElement("button");
-      bgBtn.type = "button";
-      bgBtn.className = "area-context-menu__item";
-      bgBtn.setAttribute("role", "menuitem");
-      bgBtn.innerHTML = `<span class="area-context-menu__label">Set background…</span>`;
-      bgBtn.addEventListener("click", (e) => {
+      const bgBtn = this._createMenuItem("Set background…", (e) => {
         e.stopPropagation();
 
         const input = document.createElement("input");
@@ -227,12 +221,7 @@ export class AreaContextMenu {
     }
 
     if (canDelete) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "area-context-menu__item";
-      btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="area-context-menu__label">Delete @${areaName}</span>`;
-      btn.addEventListener("click", (e) => {
+      const btn = this._createMenuItem(`Delete @${areaName}`, (e) => {
         e.stopPropagation();
         this.close();
         this._onDeleteArea?.(areaName);
