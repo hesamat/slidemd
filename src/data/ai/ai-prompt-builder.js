@@ -67,7 +67,13 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   const visualIdentityGuidance = getFragment("visual-identity-guidance.md");
   if (opts.preserveVisualIdentity) {
     parts.push(`\n${extractVariant(visualIdentityGuidance, "preserve")}`);
-  } else if (opts.preserveVisualIdentity === false) {
+  } else if (opts.preserveVisualIdentity === false && !opts.visualSystem) {
+    // When a visual system is present, the "present" visual-styling note
+    // (injected into generate-prompt.md) and the visual system brief below
+    // are the authority on the new visual identity. The "discard" fragment
+    // would contradict them by ordering the AI to strip all theme/background
+    // and introduce no new ones, so it must be skipped here. "discard" only
+    // applies when the app falls back to its own neutral styling.
     parts.push(`\n${extractVariant(visualIdentityGuidance, "discard")}`);
   }
   if (opts.visualSystem) {

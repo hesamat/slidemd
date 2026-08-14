@@ -106,15 +106,6 @@ export function parseVisualSystem(obj) {
 }
 
 /**
- * Serialize a visual system as a top-of-markdown HTML comment.
- * @param {VisualSystem} visualSystem
- * @returns {string}
- */
-export function visualSystemToComment(visualSystem) {
-  return `<!-- visual-system: ${JSON.stringify({ visualDirection: visualSystem.visualDirection })} -->`;
-}
-
-/**
  * Extract a visual system comment from the top of markdown.
  * Returns the parsed visual system and the markdown with the comment removed.
  * @param {string} markdown

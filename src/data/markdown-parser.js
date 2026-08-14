@@ -847,7 +847,7 @@ export class MarkdownParser {
   parseDeckMarkdown(markdownText) {
     this.ensureMarkdownIt();
 
-    const { visualSystem, markdown } = extractVisualSystemFromMarkdown(markdownText);
+    const { markdown } = extractVisualSystemFromMarkdown(markdownText);
     const slideTexts = this.splitSlides(markdown);
     const usedIds = new Map();
 
@@ -1045,7 +1045,6 @@ export class MarkdownParser {
         stage: { ...DESIGN_SIZE },
       },
       slides,
-      visualSystem,
     };
   }
 }

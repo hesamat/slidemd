@@ -340,6 +340,26 @@ describe("buildGenerateOptionsSuffix", () => {
     expect(suffix).toContain("Do not preserve the original color theme");
     expect(suffix).toContain("Do not introduce new colors");
   });
+
+  it("does not emit discard guidance when a visual system is present", () => {
+    // Reimagine with a visual system: the "present" visual-styling note
+    // (in generate-prompt.md) and the visual system brief are the authority.
+    // The "discard" fragment would contradict them by ordering the AI to
+    // strip all theme/background and introduce no new ones.
+    const visualSystem = {
+      visualDirection: "Clean, playful, investigative.",
+      backgroundGuidance: "Vary backgrounds across the deck.",
+      themeGuidance: "Pair theme with background for contrast.",
+    };
+    const suffix = buildGenerateOptionsSuffix({
+      mode: "reimagine",
+      preserveVisualIdentity: false,
+      visualSystem,
+    });
+    expect(suffix).not.toContain("Do not preserve the original color theme");
+    expect(suffix).not.toContain("Do not introduce new colors");
+    expect(suffix).toContain("Visual direction for this deck");
+  });
 });
 
 describe("buildVisualStylingNote", () => {

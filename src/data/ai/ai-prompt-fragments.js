@@ -525,8 +525,8 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     for (const line of lines) {
       if (inLeading && line.trim() === "") continue;
       if (inLeading && htmlComment.test(line)) {
-        // Drop AI-generated visual-system comments — the correct comment is
-        // prepended by the orchestrator via visualSystemToComment().
+        // Drop any stray AI-generated visual-system comments so they do not
+        // leak into the rendered slide body.
         if (visualSystemComment.test(line)) continue;
         commentLines.push(line);
         continue;

@@ -229,36 +229,12 @@ describe("DeckStore", () => {
     expect(store.getSlides()).toEqual(["a", "c"]);
   });
 
-  it("extracts and round-trips a visual system comment", () => {
+  it("strips a visual system comment from the top of markdown", () => {
     const store = new DeckStore();
     const comment =
       '<!-- visual-system: {"visualDirection":"Dark, technical. Use #0f172a for base, #06b6d4 for accent, #ffffff for highlight."} -->';
     store.loadFromMarkdown(`${comment}\n\n# A\n\n---\n\n# B`);
-    const visualSystem = store.getVisualSystem();
-    expect(visualSystem).not.toBeNull();
-    expect(visualSystem.visualDirection).toContain("#0f172a");
-    expect(visualSystem.visualDirection).toContain("#06b6d4");
     expect(store.getSlides()).toEqual(["# A", "# B"]);
-    expect(store.toMarkdown()).toContain("visual-system");
-    expect(store.toMarkdown()).toContain("#0f172a");
-  });
-
-  it("restores the visual system through undo/redo for replaceDeck", () => {
-    const store = new DeckStore();
-    const originalVisual = {
-      visualDirection: "Original visual direction.",
-    };
-    const newVisual = {
-      visualDirection: "New visual direction.",
-    };
-    store.loadFromMarkdown(`# A`);
-    store.setVisualSystem(originalVisual);
-    store.replaceDeck(["# X"], 0, { source: "ai" });
-    store.setVisualSystem(newVisual);
-    expect(store.getVisualSystem()).toEqual(newVisual);
-    store.undo();
-    expect(store.getVisualSystem()).toEqual(originalVisual);
-    store.redo();
-    expect(store.getVisualSystem()).toEqual(newVisual);
+    expect(store.toMarkdown()).not.toContain("visual-system");
   });
 });

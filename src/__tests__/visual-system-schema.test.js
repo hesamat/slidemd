@@ -3,7 +3,6 @@ import {
   validateVisualSystem,
   parseVisualSystem,
   DEFAULT_VISUAL_SYSTEM,
-  visualSystemToComment,
   extractVisualSystemFromMarkdown,
 } from "../data/ai/visual-system-schema.js";
 
@@ -104,18 +103,9 @@ describe("parseVisualSystem", () => {
   });
 });
 
-describe("visualSystemToComment", () => {
-  it("serializes a valid visual system as a top-of-markdown HTML comment", () => {
-    const comment = visualSystemToComment(VALID_VISUAL_SYSTEM);
-    expect(comment).toMatch(/^<!-- visual-system: /);
-    expect(comment).toMatch(/ -->$/);
-    expect(comment).toContain('"visualDirection"');
-  });
-});
-
 describe("extractVisualSystemFromMarkdown", () => {
   it("extracts the visual system and removes the comment", () => {
-    const comment = visualSystemToComment(VALID_VISUAL_SYSTEM);
+    const comment = `<!-- visual-system: {"visualDirection":"${VALID_VISUAL_SYSTEM.visualDirection}"} -->`;
     const markdown = `${comment}\n\n# Slide 1\n\n---\n\n# Slide 2`;
     const { visualSystem, markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
     expect(visualSystem).toEqual(VALID_VISUAL_SYSTEM);
