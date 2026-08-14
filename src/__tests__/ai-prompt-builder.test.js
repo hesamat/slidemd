@@ -781,4 +781,18 @@ describe("applyVisualSystemIdentity", () => {
     expect(layoutMatches).toHaveLength(1);
     expect(fontSizeMatches).toHaveLength(1);
   });
+
+  it("infers theme from gradient background using darkest color", () => {
+    // First stop #96b23c is light (lum ~156), second #768c2f is dark (lum ~123).
+    // themeForColor should classify the gradient as dark.
+    const md = `layout: focus\ntheme: light\nbackground: linear-gradient(#96b23c 0%, #768c2f 97%)\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+  });
+
+  it("infers theme from 3-digit hex background", () => {
+    const md = `layout: focus\nbackground: #000\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+  });
 });

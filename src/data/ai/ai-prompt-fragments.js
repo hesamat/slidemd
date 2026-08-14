@@ -477,25 +477,16 @@ export function stripVisualIdentity(markdown) {
  * @returns {"light"|"dark"|null}
  */
 function themeForColor(color) {
-  const value = String(color || "")
-    .trim()
-    .toLowerCase();
-  // Try longer matches first so `#0f172a` is not truncated to `#0f1`.
-  const match = value.match(/#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})/i);
-  if (!match) return null;
-
-  let hex = match[0];
-  const digits = hex.slice(1);
-  if (digits.length === 3) {
-    hex =
-      "#" +
-      digits
-        .split("")
-        .map((c) => c + c)
-        .join("");
-  }
-
-  return isColorDark(hex) ? "dark" : "light";
+  const value = String(color || "").trim();
+  if (!value) return null;
+  // isColorDark handles both solid hex colors and gradient strings (it
+  // extracts all hex colors from a gradient and picks the darkest one).
+  // Passing the full value avoids the previous behavior of matching only
+  // the first hex color in a gradient, which could misclassify a gradient
+  // whose first stop is light but whose overall mass is dark.
+  // Return null for values with no hex color so callers keep the existing theme.
+  if (!/#[0-9a-f]{3}([0-9a-f]{3})?([0-9a-f]{2})?/i.test(value)) return null;
+  return isColorDark(value) ? "dark" : "light";
 }
 
 /**
