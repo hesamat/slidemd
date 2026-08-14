@@ -106,7 +106,6 @@ export class AiReimagineOutlineModal {
               <span class="${P}badge ${P}badge--editable" role="note" aria-label="editable">editable</span>
             </div>
             <div id="${P}visual-system" class="${P}visual-system" role="region" aria-label="Visual direction details"></div>
-            <p class="${P}visual-system-hint">AI-generated from the source deck. Edit the colors before generating.</p>
           </div>
         </div>
 
@@ -201,28 +200,10 @@ export class AiReimagineOutlineModal {
           })
           .join("");
 
-        const identityText = firstSlideIdentity ? escapeHtml(firstSlideIdentity) : "None";
-        const keptCount = keepImages.length;
-        const keptImagesText =
-          keptCount > 0
-            ? `${keptCount} source image${keptCount === 1 ? "" : "s"} selected to keep`
-            : "None";
-
         visualSystemEl.innerHTML = `
           <div class="${P}visual-system-section">
             <div class="${P}visual-system-label">Palette</div>
             <div class="${P}palette">${swatches}</div>
-          </div>
-
-          <div class="${P}visual-system-meta">
-            <div class="${P}visual-system-meta-item">
-              <span class="${P}visual-system-meta-label">First slide identity</span>
-              <span class="${P}visual-system-meta-value">${identityText}</span>
-            </div>
-            <div class="${P}visual-system-meta-item">
-              <span class="${P}visual-system-meta-label">Source images kept</span>
-              <span class="${P}visual-system-meta-value">${keptImagesText}</span>
-            </div>
           </div>
         `;
 

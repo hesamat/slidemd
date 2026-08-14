@@ -12,6 +12,7 @@ import {
   stripVisualIdentity,
   applyVisualSystemIdentity,
 } from "../data/ai/ai-prompt-builder.js";
+import { buildVisualStylingNote } from "../data/ai/ai-prompt-fragments.js";
 
 describe("buildMessages", () => {
   it("strips frontmatter from markdown in fix mode but keeps layout", () => {
@@ -313,7 +314,8 @@ describe("buildGenerateOptionsSuffix", () => {
   it("adds story flow instruction", () => {
     const suffix = buildGenerateOptionsSuffix({ flow: "story" });
     expect(suffix).toContain("narrative");
-    expect(suffix).toContain("story arc");
+    expect(suffix).toContain("story-driven");
+    expect(suffix).toContain("payoff");
   });
 
   it("adds speaker notes instruction when requested", () => {
@@ -337,6 +339,23 @@ describe("buildGenerateOptionsSuffix", () => {
     const suffix = buildGenerateOptionsSuffix({ mode: "reimagine", preserveVisualIdentity: false });
     expect(suffix).toContain("Do not preserve the original color theme");
     expect(suffix).toContain("Do not introduce new colors");
+  });
+});
+
+describe("buildVisualStylingNote", () => {
+  it("includes beat treatment guidance when a visual system is present", () => {
+    const note = buildVisualStylingNote(true);
+    expect(note).toContain("Beat treatment");
+    expect(note).toContain("`continuation`");
+    expect(note).toContain("`punctuation`");
+    expect(note).toContain("`emotional`");
+    expect(note).toContain("`energy: high`");
+    expect(note).toContain("`relationship: break`");
+  });
+
+  it("does not include beat treatment guidance when no visual system is present", () => {
+    const note = buildVisualStylingNote(false);
+    expect(note).not.toContain("Beat treatment");
   });
 });
 

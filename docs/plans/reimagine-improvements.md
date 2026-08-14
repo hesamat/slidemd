@@ -46,12 +46,13 @@ The following foundations already exist and should be treated as shipped rather 
 - Output-validator checks for `reuse:<path>` and fabricated image sources (Phase 14.7).
 - Tolerant JSON extraction and a breakdown repair retry for model responses wrapped in prose or fences.
 - Outline review with editable plan and chapters.
+- A minimal **3-color visual system** (`base` dark, `accent` pop, `highlight` light) that is editable in the review modal, persisted in the deck, and applied through `theme:`/`background:`/text-block color directives.
 
-The main gaps are not missing infrastructure. They are incomplete product wiring and an unclear visual contract:
+The main gaps are not missing infrastructure. They are incomplete product wiring and an unclear voice/beat contract:
 
-1. The outline review does not show the visual direction the user is approving.
-2. The generate prompt does not provide the full visual-system summary or beat-to-treatment mapping.
-3. Presentation voice and speaker notes remain too generic.
+1. The generate prompt does not map visual beats to density, hierarchy, and treatment.
+2. Presentation voice and speaker notes remain too generic.
+3. The outline does not yet steer structure by flow (fixed technique menu, limited flowTag vocabulary).
 
 ---
 
@@ -122,74 +123,9 @@ The prompt should continue to preserve factual accuracy and first-slide identity
 
 Do not add a large new schema solely to represent an audience or goal. Prefer expressing those assumptions in the existing plan unless the user flow later demonstrates that a separate editable field is necessary.
 
-### A2: Show the creative direction in the review modal
-
-**Files:**
-
-- `src/editor/ui/ai-reimagine-outline-modal.js`
-- `styles/ai-reimagine-outline-modal.css`
-
-Add a compact read-only section alongside the plan and chapters showing:
-
-- the visual-system palette as swatches with hex values;
-- typography character;
-- composition style;
-- imagery role and mood;
-- one or two motifs or contrast rules;
-- first-slide identity and selected reusable images when available.
-
-Use human-facing labels such as **Creative direction** or **Visual direction**. Do not show raw JSON or expose every schema field.
-
-The section must update when the user regenerates the outline with an edited plan and must remain read-only when the user edits chapters.
-
-### A3: Preserve the current review controls
-
-Keep the existing ability to:
-
-- edit the plan;
-- rename, reorder, add, and remove chapters;
-- edit chapter summaries and flow tags;
-- regenerate chapters from an edited plan;
-- cancel before breakdown or generation.
-
-Do not make individual slide briefs editable in this phase. The purpose of the modal is to approve the direction, not to duplicate the editor.
-
 ---
 
 ## Workstream B — Bounded visual-system application
-
-### B1: Use the full visual-system brief during generation
-
-**Files:**
-
-- `src/data/ai/ai-prompt-fragments.js`
-- `src/data/ai/ai-prompt-builder.js`
-- `src/data/prompts/generate-prompt.md`
-- `src/data/prompts/visual-styling-note.md`
-
-When a `visualSystem` is present, generation guidance must include:
-
-- palette roles: base, surface, accent, contrast, and highlight;
-- typography character, headline style, and body style;
-- density, whitespace, and alignment preferences;
-- imagery role, mood, and treatment;
-- recurring motifs;
-- contrast rules.
-
-The current options-suffix injection mechanism is acceptable. A literal `{{visualSystemBrief}}` placeholder is not required if the resulting prompt is clear and the substitutions remain testable.
-
-### B2: Allow renderer-native styling for Reimagine
-
-For Reimagine generation only:
-
-- allow `theme: dark` and `theme: light` based on the visual direction and slide content;
-- allow palette-derived `background:` values using the existing SlideMD syntax;
-- use base/surface colors for foundations and accent/contrast/highlight colors for deliberate emphasis;
-- prefer existing layouts, images, Mermaid, tables, and hierarchy before relying on arbitrary text-block styling.
-
-Do not require every slide to contain a new `background:` and `theme:` directive. A design system can be expressed through composition, density, imagery, layout, and selective contrast. Do not encourage the AI to use every palette color on every slide.
-
-The generic neutral-only instructions must move into the no-visual-system path or otherwise be made conditional. They must remain unchanged for Polish, Fix, and other non-Reimagine flows.
 
 ### B3: Keep the visual contract bounded
 
@@ -202,7 +138,7 @@ Do not implement:
 - new renderer layout types;
 - automatic theme changes based on opaque heuristics after generation.
 
-The AI is responsible for making the creative styling choices. The existing renderer is responsible for rendering those choices.
+The 3-color palette is applied through the existing `theme:`, `background:`, and optional `::: text-block { color="..." backgroundColor="..." }` directives. The AI makes the creative styling choices; the existing renderer parses and renders them.
 
 ### B4: Add narrow visual-system validation
 
@@ -218,104 +154,9 @@ Do not flag an individual slide merely because it lacks `background:` or `theme:
 
 ---
 
-## Workstream C — Beat-aware composition and density
-
-### C1: Teach Generate how to use beat metadata
-
-**Files:**
-
-- `src/data/prompts/generate-prompt.md`
-- `src/data/ai/ai-prompt-fragments.js`
-
-The breakdown already serializes beat metadata into each virtual slide brief. Add explicit treatment guidance:
-
-| Beat           | Generate guidance                                                                |
-| -------------- | -------------------------------------------------------------------------------- |
-| `continuation` | Maintain the established visual language and normal content density.             |
-| `transition`   | Signal a chapter or idea change with reduced density and a changed hierarchy.    |
-| `punctuation`  | Give one takeaway a strong focal point with minimal competing content.           |
-| `emotional`    | Let imagery or atmosphere carry more of the communication; keep text restrained. |
-| `divider`      | Use minimal content and make the chapter boundary unmistakable.                  |
-
-Apply `energy`, `contrast`, and `relationship` as modifiers:
-
-- high energy permits stronger hierarchy and more visual emphasis;
-- strong contrast permits a deliberate departure within the visual system;
-- `relationship: continue` favors continuity with the preceding slide;
-- `relationship: break` permits a noticeable but intentional departure.
-
-Do not add quotas, sequence scoring, mathematical scheduling, or a visual-rhythm optimizer.
-
-### C2: Keep beat normalization small
-
-Retain the existing deterministic normalizer for obvious mistakes such as a high-impact first slide or adjacent high-impact beats. Do not expand it into a design engine.
-
----
-
-## Workstream D — Presentation-oriented voice
-
-### D1: Improve generate content guidance
-
-**File:** `src/data/prompts/generate-prompt.md`
-
-Add concise guidance to make slides feel spoken and presentable:
-
-- use conversational headlines rather than full-sentence labels;
-- prefer short phrases and bullets over encyclopedia-style paragraphs;
-- keep one idea per bullet;
-- use progressive disclosure: the headline creates interest and the body delivers the point;
-- vary sentence openings and structure;
-- use concrete examples, analogies, comparisons, and real-world references;
-- put supporting detail in speaker notes when it does not belong on the slide.
-
-Keep the existing line budgets and overflow rules. Voice guidance must not become a reason to pack more text onto a slide.
-
-### D2: Deepen flow-aware voice
-
-**File:** `src/data/prompts/flow-guidance.md`
-
-Expand the existing flow variants without making them repetitive:
-
-- **Story:** narrative arc, characters or situations, tension, before/after framing, and payoff;
-- **Technical:** precise terminology, progressive complexity, evidence, code or architecture examples;
-- **Persuasive:** problem, stakes, evidence, solution, benefits, and a clear call to action;
-- **Instructional:** objectives, steps, examples, likely mistakes, tips, and recap.
-
-Flow guidance should affect both wording and slide sequencing. It must not override the user's reviewed chapter structure.
-
-### D3: Make speaker notes sound spoken
-
-**File:** `src/data/prompts/speaker-notes-guidance.md`
-
-When notes are enabled, instruct the AI to:
-
-- write in a conversational speaking voice;
-- add transitions, explanations, questions, examples, or misconceptions;
-- avoid repeating the visible slide content verbatim;
-- keep notes useful for presenting the actual slide.
-
-When notes are not enabled, preserve the existing behavior.
-
----
-
 ## Workstream E — Source-image reuse reliability
 
-### E1: Keep the current source-image inventory
-
-The source-image inventory and `reuse:<path>` pipeline are the correct scope for this iteration:
-
-- only reuse images that actually exist in the source deck;
-- preserve exact source paths;
-- allow slides to omit images when no source image adds value;
-- do not fabricate URLs or search the web.
-
-### E2: Validate requested image placement
-
-**File:** `src/data/ai/ai-output-validator.js`
-
-When a virtual slide brief contains `image: reuse:<path>`, emit a warning if the generated markdown contains no matching image reference. Accept the existing supported image forms, including HTML `<img>` and Markdown image syntax.
-
-Prefer checking the exact requested path rather than accepting any unrelated image. Use the warning to trigger the existing repair loop.
+The source-image inventory and `reuse:<path>` pipeline are already implemented and validated (Phase 14.7). Do not expand into web image search or automatic image-query generation in this phase.
 
 ---
 
@@ -323,49 +164,13 @@ Prefer checking the exact requested path rather than accepting any unrelated ima
 
 Keep the existing tolerant response parsing, output validation, and repair loop. Do not make valid JSON formatting a source of unnecessary failures when the model adds fences or surrounding prose.
 
-Add or update focused tests for:
+The visual-system contract, review UI, image-reuse validation, pipeline-resilience, beat-treatment, and voice tests are already in place. Add or update focused tests for the remaining flow-aware outline work:
 
-### Visual-system contract
+### Flow-aware outline
 
-- valid visual-system generation and normalization;
-- invalid palette fallback;
-- partial merge with a valid palette;
-- full visual-system prompt content;
-- conditional neutral versus Reimagine styling guidance;
-- no impact on Polish/Fix/Remix prompt behavior.
-
-### Review UI
-
-- visual-system summary appears when present;
-- palette values are escaped safely;
-- regeneration updates the summary;
-- missing visual system is handled without a broken or empty panel;
-- resolved outline preserves the visual system unchanged.
-
-### Beat generation
-
-- beat metadata remains in virtual brief serialization;
-- each beat maps to the intended density/treatment guidance;
-- existing beat normalization behavior remains unchanged.
-
-### Image reuse
-
-- source-image inventory reaches breakdown;
-- `reuse:<path>` reaches generation;
-- missing requested image produces a warning;
-- unrelated images do not satisfy an exact reuse request.
-
-### Voice
-
-- flow variants are included only for the applicable flow;
-- speaker-note guidance differs correctly between add and preserve modes;
-- prompt snapshots and hygiene tests cover the new language.
-
-### Pipeline resilience
-
-- direct JSON, fenced JSON, prose-wrapped JSON, nested braces, and escaped quotes continue to parse;
-- breakdown repair retry remains available after a parse failure;
-- existing overflow, layout, and invalid-output repair behavior remains intact.
+- flow-specific technique menus appear in the outline prompt;
+- new `flowTag` values reach the breakdown output and slide briefs;
+- unknown `flowTag` values fall back to a neutral beat without failing.
 
 ---
 
@@ -373,7 +178,7 @@ Add or update focused tests for:
 
 The outline prompt currently offers the same fixed menu of seven storytelling techniques regardless of the chosen flow, and the `flowTag` vocabulary can only express story and persuasion arcs. As a result, an instructional or technical deck is offered narrative techniques that do not fit, and the outline cannot tag instructional or technical structural beats.
 
-Execute-phase flow wording is covered by Workstream D (D2). This workstream addresses the outline and structure phase only. The D2 execute-voice improvements will also benefit Remix's execute phase, which shares the same `flow-guidance.md` variants.
+Execute-phase flow wording is covered by the updated `flow-guidance.md` variants. This workstream addresses the outline and structure phase only.
 
 ### G1: Flow-specific technique menus
 
@@ -403,13 +208,10 @@ Map the new tags through the breakdown phase so they carry into slide briefs and
 
 ## Implementation order
 
-This is the **small-scope Phase 14.8** order. The palette/background styling activation and validator work are intentionally out of scope for this slice.
+This is the **small-scope Phase 14.8** order. The 3-color palette and its renderer application are already shipped; the validator work is intentionally out of scope for this slice.
 
-1. **Expose the visual direction in the review modal** — add a compact read-only visual-system summary (palette swatches, typography, composition, imagery, motifs, contrast rules, and preserved identity/assets).
-2. **Clarify and expand the creative direction** — update outline copy with flow-aware technique menus and an extended flowTag vocabulary.
-3. **Wire beat-aware generation** — make the existing beat metadata affect density, hierarchy, layout, imagery, and contrast.
-4. **Improve presentation voice and speaker notes** — update content guidance and the flow variants.
-5. **Update focused tests, snapshots, and hygiene checks.**
+1. **Clarify and expand the creative direction** — update outline copy with flow-aware technique menus and an extended flowTag vocabulary.
+2. **Update focused tests, snapshots, and hygiene checks.**
 
 The visual direction, beat treatment, and voice changes form the core user-visible improvement. Image validation and additional parser coverage are reliability work already shipped in earlier phases.
 
@@ -436,7 +238,7 @@ Do not implement in this iteration:
 
 - Unsplash, Pexels, or other web image search;
 - automatic image-query generation for assets not present in the source deck;
-- a generalized design-token or CSS-variable engine;
+- a generalized design-token engine;
 - programmatic palette application after generation;
 - WCAG token resolution or automatic contrast correction;
 - new slide layouts or beat-specific renderer components;

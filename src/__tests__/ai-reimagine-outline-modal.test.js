@@ -324,9 +324,6 @@ describe("AiReimagineOutlineModal", () => {
     const baseSwatchColor = swatches[0].querySelector(".ai-reimagine-outline-modal__swatch-color");
     expect(baseSwatchColor.style.backgroundColor).toBe("rgb(15, 23, 42)");
 
-    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.firstSlideIdentity);
-    expect(visualSystemEl.textContent).toContain("2 source images selected to keep");
-
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
@@ -473,10 +470,6 @@ describe("AiReimagineOutlineModal", () => {
       const swatches = dialog.querySelectorAll(".ai-reimagine-outline-modal__palette-swatch");
       expect(swatches).toHaveLength(3);
     });
-
-    const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
-    expect(visualSystemEl.textContent).toContain("Updated identity");
-    expect(visualSystemEl.textContent).toContain("1 source image selected to keep");
 
     const baseSwatch = dialog.querySelector(".ai-reimagine-outline-modal__swatch-color");
     expect(baseSwatch.style.backgroundColor).toBe("rgb(17, 17, 17)");
