@@ -343,12 +343,39 @@ export class ImagePicker {
   }
 
   /**
+   * Show a static message in the image grid.
+   * @private
+   */
+  static _setGridMessage(icon, primary, detail = "") {
+    this.grid.textContent = "";
+    const wrap = document.createElement("div");
+    wrap.className = "image-picker-empty";
+
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "image-picker-empty-icon";
+    iconDiv.textContent = icon;
+    wrap.appendChild(iconDiv);
+
+    const primaryDiv = document.createElement("div");
+    primaryDiv.textContent = primary;
+    wrap.appendChild(primaryDiv);
+
+    if (detail) {
+      const detailEl = document.createElement("small");
+      detailEl.textContent = detail;
+      wrap.appendChild(detailEl);
+    }
+
+    this.grid.appendChild(wrap);
+  }
+
+  /**
    * Fetch the list of existing images from the server and render the grid.
    * @private
    */
   static async _refreshGrid() {
     if (!this.grid) return;
-    this.grid.innerHTML = `<div class="image-picker-empty"><div class="image-picker-empty-icon">⏳</div>Loading…</div>`;
+    this._setGridMessage("⏳", "Loading…");
 
     try {
       const res = await fetch("/api/images");
@@ -374,45 +401,57 @@ export class ImagePicker {
       this._renderGrid();
     } catch (err) {
       Logger.warn("Failed to load images:", err);
-      this.grid.innerHTML = `<div class="image-picker-empty"><div class="image-picker-empty-icon">⚠</div>Could not load images.<br/><small>${escapeText(err.message)}</small></div>`;
+      this._setGridMessage("⚠", "Could not load images.", err.message);
     }
   }
 
   static _renderGrid() {
     if (!this._availableImages.length) {
-      this.grid.innerHTML = `<div class="image-picker-empty"><div class="image-picker-empty-icon">📁</div>No images yet.<br/><small>Upload or add files to <code>images/</code>.</small></div>`;
+      this._setGridMessage("📁", "No images yet.", "Upload or add files to images/.");
       return;
     }
 
     // Sort newest first when filename starts with a timestamp
     const sorted = [...this._availableImages].sort((a, b) => b.name.localeCompare(a.name));
 
-    this.grid.innerHTML = sorted
-      .map(
-        (img) => `
-                <div class="image-picker-item" data-path="${escapeAttr(img.path)}" tabindex="0" role="button" aria-label="${escapeAttr(img.name)}" draggable="true">
-                    <img src="${escapeAttr(img.path)}?v=${DeckImagesResolver._cacheVersion}" alt="${escapeAttr(img.name)}" loading="lazy" />
-                    <div class="image-picker-item-name">${escapeText(img.name)}</div>
-                </div>
-            `,
-      )
-      .join("");
+    this.grid.textContent = "";
+    const fragment = document.createDocumentFragment();
 
-    this.grid.querySelectorAll(".image-picker-item").forEach((el) => {
-      el.addEventListener("click", () => this._selectExisting(el));
-      el.addEventListener("keydown", (e) => {
+    for (const img of sorted) {
+      const item = document.createElement("div");
+      item.className = "image-picker-item";
+      item.dataset.path = img.path;
+      item.tabIndex = 0;
+      item.setAttribute("role", "button");
+      item.setAttribute("aria-label", img.name);
+      item.draggable = true;
+
+      const thumb = document.createElement("img");
+      thumb.src = `${img.path}?v=${DeckImagesResolver._cacheVersion}`;
+      thumb.alt = img.name;
+      thumb.loading = "lazy";
+
+      const name = document.createElement("div");
+      name.className = "image-picker-item-name";
+      name.textContent = img.name;
+
+      item.appendChild(thumb);
+      item.appendChild(name);
+
+      item.addEventListener("click", () => this._selectExisting(item));
+      item.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          this._selectExisting(el);
+          this._selectExisting(item);
         }
       });
+
       // Drag-to-insert: carry the path so the slide drop handler can
       // build an <img> snippet at the cursor position.
-      el.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("text/x-webdeck-image", el.dataset.path);
+      item.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/x-webdeck-image", item.dataset.path);
         e.dataTransfer.effectAllowed = "copy";
         // Use the thumbnail as the drag image for nicer feedback.
-        const thumb = el.querySelector("img");
         if (thumb) {
           try {
             e.dataTransfer.setDragImage(thumb, 24, 24);
@@ -421,7 +460,11 @@ export class ImagePicker {
           }
         }
       });
-    });
+
+      fragment.appendChild(item);
+    }
+
+    this.grid.appendChild(fragment);
   }
 
   static _selectExisting(el) {
@@ -434,17 +477,32 @@ export class ImagePicker {
   }
 
   /**
+   * Clear the upload zone and show an icon plus a plain-text message.
+   * @private
+   */
+  static _setUploadMessage(icon, message) {
+    this.uploadZone.textContent = "";
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "image-picker-upload-icon";
+    iconDiv.textContent = icon;
+    this.uploadZone.appendChild(iconDiv);
+    const msg = document.createElement("div");
+    msg.textContent = message;
+    this.uploadZone.appendChild(msg);
+  }
+
+  /**
    * Upload a file via the dev server endpoint and select the resulting path.
    * @private
    */
   static async _handleUploadFile(file) {
     const allowed = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
     if (!allowed.test(file.name)) {
-      this.uploadZone.innerHTML = `<div class="image-picker-upload-icon">✗</div><div>Unsupported image type: ${escapeText(file.name)}</div>`;
+      this._setUploadMessage("✗", `Unsupported image type: ${file.name}`);
       return;
     }
 
-    this.uploadZone.innerHTML = `<div class="image-picker-upload-icon">⏳</div><div>Uploading…</div>`;
+    this._setUploadMessage("⏳", "Uploading…");
 
     try {
       const formData = new FormData();
@@ -454,18 +512,27 @@ export class ImagePicker {
       const result = await res.json();
       this.selectedPath = result.path;
       await this._refreshGrid();
-      this.uploadZone.innerHTML = `
-                    <img src="${escapeAttr(result.path)}" alt="${escapeAttr(file.name)}" class="image-picker-upload-preview" />
-                    <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Uploaded — click Insert or pick another file.</div>
-                `;
+
+      this.uploadZone.textContent = "";
+      const img = document.createElement("img");
+      img.className = "image-picker-upload-preview";
+      img.src = result.path;
+      img.alt = file.name;
+      this.uploadZone.appendChild(img);
+
+      const msg = document.createElement("div");
+      msg.style.cssText = "opacity: 0.7; margin-top: 4px; font-size: 11px;";
+      msg.textContent = "Uploaded — click Insert or pick another file.";
+      this.uploadZone.appendChild(msg);
+
       this._syncInsertButton();
       return;
     } catch (err) {
-      this.uploadZone.innerHTML = `
-                <div class="image-picker-upload-icon">✗</div>
-                <div>Upload failed: ${escapeText(err.message)}</div>
-                <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Click to try again.</div>
-            `;
+      this._setUploadMessage("✗", `Upload failed: ${err.message}`);
+      const hint = document.createElement("div");
+      hint.style.cssText = "opacity: 0.7; margin-top: 4px; font-size: 11px;";
+      hint.textContent = "Click to try again.";
+      this.uploadZone.appendChild(hint);
       return;
     }
   }
@@ -606,12 +673,4 @@ export class ImagePicker {
       // No preset matches — leave all inactive.
     }
   }
-}
-
-function escapeText(text) {
-  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function escapeAttr(text) {
-  return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }

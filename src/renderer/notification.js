@@ -170,14 +170,13 @@ export class Notification {
     icon.className = "notification-toast__icon";
     icon.setAttribute("aria-hidden", "true");
 
-    const iconMap = {
-      success: "✓",
-      error: "✕",
-      warning: "⚠",
-      info: "ℹ",
-    };
+    const iconMap = Object.create(null);
+    iconMap.success = "✓";
+    iconMap.error = "✕";
+    iconMap.warning = "⚠";
+    iconMap.info = "ℹ";
 
-    icon.innerHTML = iconMap[type] || iconMap.info;
+    icon.textContent = iconMap[type] ?? iconMap.info;
     return icon;
   }
 

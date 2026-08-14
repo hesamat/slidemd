@@ -81,6 +81,12 @@ Release process and versioning conventions live in **`docs/RELEASING.md`**.
 
 5. **Do not declare a task complete while known verification failures remain.**
 
+6. **Never assign user-controlled or interpolated strings to `innerHTML`, `outerHTML`, or `document.write`.**
+   - Prefer safe DOM construction: `document.createElement`, `textContent`, and `setAttribute`.
+   - If HTML must be inserted, pass it through `DOMPurify.sanitize()` first.
+   - Static string literals with no interpolation are acceptable, but prefer DOM construction when possible.
+   - Do not use `escapeHtml` or `escapeAttr` as a substitute for DOMPurify or DOM construction.
+
 ---
 
 ## Development Workflow
