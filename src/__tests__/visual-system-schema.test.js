@@ -7,51 +7,41 @@ import {
   extractVisualSystemFromMarkdown,
 } from "../data/ai/visual-system-schema.js";
 
-const VALID_PALETTE = {
+const VALID_STYLE = {
+  mood: "Dark, technical, with bright accent walls.",
+  styleNotes:
+    "Use dark backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
+};
+
+const LEGACY_PALETTE = {
   base: "#0f172a",
   accent: "#06b6d4",
   highlight: "#ffffff",
 };
 
-const VALID_SYSTEM = {
-  palette: VALID_PALETTE,
-};
-
 describe("validateVisualSystem", () => {
-  it("returns a normalized visual system for valid input", () => {
-    const result = validateVisualSystem(VALID_SYSTEM);
+  it("returns a normalized visual system for the new style-note shape", () => {
+    const result = validateVisualSystem(VALID_STYLE);
     expect(result).not.toBeNull();
-    expect(result.palette.base).toBe("#0f172a");
-    expect(result.palette.accent).toBe("#06b6d4");
-    expect(result.palette.highlight).toBe("#ffffff");
+    expect(result.mood).toBe(VALID_STYLE.mood);
+    expect(result.styleNotes).toBe(VALID_STYLE.styleNotes);
+    expect(result.palette).toBeUndefined();
   });
 
-  it("returns null for missing palette", () => {
-    const result = validateVisualSystem({});
-    expect(result).toBeNull();
-  });
-
-  it("returns null for invalid hex color in palette", () => {
-    const result = validateVisualSystem({
-      palette: { ...VALID_PALETTE, base: "not-a-hex" },
-    });
-    expect(result).toBeNull();
-  });
-
-  it("accepts 3-digit and 8-digit hex colors", () => {
-    const result = validateVisualSystem({
-      palette: { ...VALID_PALETTE, base: "#fff", accent: "#ffffff00" },
-    });
+  it("treats a legacy palette as a valid style note", () => {
+    const result = validateVisualSystem({ palette: LEGACY_PALETTE });
     expect(result).not.toBeNull();
-    expect(result.palette.base).toBe("#fff");
-    expect(result.palette.accent).toBe("#ffffff00");
+    expect(result.mood).toContain("#0f172a");
+    expect(result.styleNotes).toContain("#0f172a");
+    expect(result.styleNotes).toContain("#06b6d4");
+    expect(result.styleNotes).toContain("#ffffff");
   });
 
-  it("returns null for missing palette color", () => {
-    const result = validateVisualSystem({
-      palette: { base: "#0f172a", accent: "#06b6d4" },
-    });
-    expect(result).toBeNull();
+  it("ignores an empty or partial legacy palette", () => {
+    const result = validateVisualSystem({ palette: { base: "#0f172a" } });
+    expect(result).not.toBeNull();
+    expect(result.mood).toContain("#0f172a");
+    expect(result.styleNotes).toContain("#0f172a");
   });
 
   it("returns null for non-object input", () => {
@@ -61,21 +51,28 @@ describe("validateVisualSystem", () => {
     expect(validateVisualSystem(undefined)).toBeNull();
   });
 
-  it("ignores extra fields beyond the palette", () => {
+  it("ignores extra fields beyond mood and styleNotes", () => {
     const result = validateVisualSystem({
-      palette: VALID_PALETTE,
+      ...VALID_STYLE,
       typography: { character: "bold" },
       imagery: { mood: "moody" },
     });
     expect(result).not.toBeNull();
-    expect(Object.keys(result)).toEqual(["palette"]);
+    expect(Object.keys(result)).toEqual(["mood", "styleNotes"]);
   });
 });
 
 describe("parseVisualSystem", () => {
-  it("returns the parsed visual system for valid input", () => {
-    const result = parseVisualSystem(VALID_SYSTEM);
-    expect(result.palette.base).toBe("#0f172a");
+  it("returns the parsed visual system for valid style-note input", () => {
+    const result = parseVisualSystem(VALID_STYLE);
+    expect(result.mood).toBe(VALID_STYLE.mood);
+    expect(result.styleNotes).toBe(VALID_STYLE.styleNotes);
+  });
+
+  it("converts a legacy palette into a style note", () => {
+    const result = parseVisualSystem({ palette: LEGACY_PALETTE });
+    expect(result.mood).toContain("#0f172a");
+    expect(result.styleNotes).toContain("#06b6d4");
   });
 
   it("falls back to DEFAULT_VISUAL_SYSTEM for invalid input", () => {
@@ -83,7 +80,7 @@ describe("parseVisualSystem", () => {
     expect(result).toBe(DEFAULT_VISUAL_SYSTEM);
   });
 
-  it("falls back to DEFAULT_VISUAL_SYSTEM for missing palette", () => {
+  it("falls back to DEFAULT_VISUAL_SYSTEM for empty input", () => {
     const result = parseVisualSystem({});
     expect(result).toBe(DEFAULT_VISUAL_SYSTEM);
   });
@@ -96,20 +93,20 @@ describe("parseVisualSystem", () => {
 
 describe("visualSystemToComment", () => {
   it("serializes a valid visual system as a top-of-markdown HTML comment", () => {
-    const comment = visualSystemToComment(VALID_SYSTEM);
+    const comment = visualSystemToComment(VALID_STYLE);
     expect(comment).toMatch(/^<!-- visual-system: /);
     expect(comment).toMatch(/ -->$/);
-    expect(comment).toContain('"base"');
-    expect(comment).toContain('"#0f172a"');
+    expect(comment).toContain('"mood"');
+    expect(comment).toContain('"styleNotes"');
   });
 });
 
 describe("extractVisualSystemFromMarkdown", () => {
   it("extracts the visual system and removes the comment", () => {
-    const comment = visualSystemToComment(VALID_SYSTEM);
+    const comment = visualSystemToComment(VALID_STYLE);
     const markdown = `${comment}\n\n# Slide 1\n\n---\n\n# Slide 2`;
     const { visualSystem, markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
-    expect(visualSystem).toEqual(VALID_SYSTEM);
+    expect(visualSystem).toEqual(VALID_STYLE);
     expect(withoutComment).not.toContain("visual-system");
     expect(withoutComment.startsWith("# Slide 1")).toBe(true);
   });

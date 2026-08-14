@@ -573,47 +573,24 @@ describe("BATCH_SIZE", () => {
 });
 
 const TEST_VISUAL_SYSTEM = {
-  palette: {
-    base: "#0f172a",
-    accent: "#06b6d4",
-    highlight: "#ffffff",
-  },
+  mood: "Dark, technical, with bright accent walls for key moments.",
+  styleNotes:
+    "Use dark or neutral backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
 };
 
 describe("applyVisualSystemIdentity", () => {
-  it("keeps allowed theme and palette background colors", () => {
-    const md = `layout: header-content\ntheme: dark\nbackground: #0f172a\n@header\n## Title`;
+  it("keeps arbitrary background colors and image backgrounds", () => {
+    const md = `layout: full-image\nbackground: #1a1a2e url(images/hero.png) center/cover\n@main\n<img src="images/hero.png">`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: #1a1a2e url(images/hero.png) center/cover");
     expect(result).toContain("theme: dark");
-    expect(result).toContain("background: #0f172a");
   });
 
-  it("strips non-palette colors and keeps image backgrounds", () => {
-    const md = `layout: full-image\ntheme: dark\nbackground: #1a1a2e\nbackground: url(images/hero.png) center/cover\n@main\n<img src="images/hero.png">`;
+  it("keeps mixed backgrounds and infers the correct theme", () => {
+    const md = `layout: full-image\nbackground: #ffffff url(images/hero.png) center/cover\n@main\n## Hero`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("theme: dark");
-    expect(result).not.toContain("background: #1a1a2e");
-    expect(result).toContain("background: url(images/hero.png) center/cover");
-  });
-
-  it("strips invalid theme values", () => {
-    const md = `layout: header-content\ntheme: purple\nbackground: #0f172a\n@main\n- Item`;
-    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).not.toContain("theme: purple");
-    expect(result).toContain("background: #0f172a");
-  });
-
-  it("keeps mixed color+image backgrounds when the color is in the palette", () => {
-    const md = `layout: full-image\nbackground: #0f172a url(images/hero.png) center/cover\n@main\n## Hero`;
-    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("background: #0f172a url(images/hero.png) center/cover");
-  });
-
-  it("drops smuggled non-palette colors from mixed backgrounds", () => {
-    const md = `layout: full-image\nbackground: #1a1a2e url(images/hero.png) center/cover\n@main\n## Hero`;
-    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("background: url(images/hero.png) center/cover");
-    expect(result).not.toContain("#1a1a2e");
+    expect(result).toContain("background: #ffffff url(images/hero.png) center/cover");
+    expect(result).toContain("theme: light");
   });
 
   it("leaves body text untouched", () => {
@@ -623,9 +600,9 @@ describe("applyVisualSystemIdentity", () => {
     expect(result).toContain("background: the war began");
   });
 
-  it("is a no-op when no palette is provided", () => {
+  it("is a no-op when no visual system is provided", () => {
     const md = `layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@main\n- Item`;
-    const result = applyVisualSystemIdentity(md, { typography: {} });
+    const result = applyVisualSystemIdentity(md, null);
     expect(result).toContain("theme: dark");
     expect(result).toContain("background: #1a1a2e");
   });
@@ -636,52 +613,29 @@ describe("applyVisualSystemIdentity", () => {
     const slides = result.split("\n\n---\n\n");
     expect(slides).toHaveLength(2);
     for (const slide of slides) {
-      expect(slide).toMatch(/^theme:\s*(light|dark)$/m);
-      expect(slide).toMatch(/^background:\s*#[0-9a-f]{6}$/m);
+      expect(slide).toMatch(/^theme: dark$/m);
+      expect(slide).toMatch(/^background: transparent$/m);
     }
   });
 
-  it("corrects a mismatched theme for a palette background", () => {
+  it("corrects a mismatched theme for a solid-hex background", () => {
     const md = `layout: header-content\ntheme: light\nbackground: #0f172a\n@header\n## Slide`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
     expect(result).toContain("theme: dark");
     expect(result).toContain("background: #0f172a");
   });
 
-  it("uses a deterministic palette fallback for missing backgrounds", () => {
-    const md = `layout: header-content\n@header\n## Content\n\n---\n\nlayout: focus\n@main\n## Focal\n\n---\n\nlayout: title-slide\n@title\n## Title`;
+  it("does not restrict colors to a palette", () => {
+    const md = `layout: header-content\nbackground: #ff5c5c\n@header\n## Slide\n\n@main\n- One\n- Two\n- Three`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("background: #0f172a");
-    expect(result).toContain("background: #06b6d4");
-    expect(result).toContain("background: #ffffff");
-  });
-
-  it("downgrades accent to base or highlight on content layouts with lists", () => {
-    const md = `layout: header-content\ntheme: light\nbackground: #06b6d4\n@header\n## Slide\n\n@main\n- One\n- Two\n- Three`;
-    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).not.toContain("background: #06b6d4");
-    expect(result).toMatch(/^background:\s*#[0-9a-f]{6}$/m);
-    expect(result).toMatch(/^theme:\s*(light|dark)$/m);
-  });
-
-  it("downgrades accent to base or highlight on two-column slides with tables", () => {
-    const md = `layout: two-column\ntheme: light\nbackground: #06b6d4\n@header\n## Coverage\n\n@main\nText\n\n@media\n| Signal | Question |\n|---|---|\n| A | B |`;
-    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).not.toContain("background: #06b6d4");
-    expect(result).toMatch(/^background:\s*#[0-9a-f]{6}$/m);
-  });
-
-  it("keeps accent on a short focus slide", () => {
-    const md = `layout: focus\nbackground: #06b6d4\n@main\n## One strong takeaway.`;
-    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("background: #06b6d4");
+    expect(result).toContain("background: #ff5c5c");
     expect(result).toContain("theme: light");
   });
 
-  it("downgrades accent to base on a dense focus slide", () => {
+  it("does not downgrade accent colors on dense content slides", () => {
     const md = `layout: focus\nbackground: #06b6d4\n@main\n## Title\n\n1. First\n2. Second\n3. Third\n4. Fourth`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("background: #0f172a");
-    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #06b6d4");
+    expect(result).toContain("theme: light");
   });
 });

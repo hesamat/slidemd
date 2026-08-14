@@ -2,32 +2,26 @@
  * Visual System Schema
  *
  * Validates and normalizes the `visualSystem` field produced by the Outline AI.
- * The prompt asks for a minimal 3-color palette: `base`, `accent`, `highlight`.
+ * The visual system is now a set of freeform style notes (mood + styleNotes)
+ * rather than a strict 3-color palette. Legacy `palette` objects are still
+ * accepted for backwards compatibility with older saved decks.
  */
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 /**
- * @typedef {Object} VisualSystemPalette
- * @property {string} base
- * @property {string} accent
- * @property {string} highlight
- */
-
-/**
  * @typedef {Object} VisualSystem
- * @property {VisualSystemPalette} palette
+ * @property {string} mood
+ * @property {string} styleNotes
  */
 
 /**
  * @type {VisualSystem}
  */
 export const DEFAULT_VISUAL_SYSTEM = {
-  palette: {
-    base: "#0f172a",
-    accent: "#06b6d4",
-    highlight: "#ffffff",
-  },
+  mood: "Neutral, professional, and readable.",
+  styleNotes:
+    "Use a dark or neutral background for most continuation and content slides. Use a bright or light background sparingly for punctuation, transition, climax, and call-to-action moments. Use a light background for the title slide and agenda. Use kept images in full-image or media-span layouts for emotional/atmospheric beats.",
 };
 
 /**
@@ -40,37 +34,44 @@ function isValidHex(v) {
 }
 
 /**
- * Validate the palette. All 3 colors must be valid hex.
- * @param {unknown} palette
- * @returns {boolean}
- */
-function isValidPalette(palette) {
-  if (typeof palette !== "object" || palette === null) return false;
-  const { base, accent, highlight } = palette;
-  return isValidHex(base) && isValidHex(accent) && isValidHex(highlight);
-}
-
-/**
  * Validate and normalize a visual system object from the Outline AI.
  *
- * Returns a normalized `VisualSystem` if valid, or `null` if the palette
- * is missing or invalid. Callers should fall back to `DEFAULT_VISUAL_SYSTEM`
- * when this returns `null`.
+ * Accepts either the new descriptive shape (`mood` + `styleNotes`) or a legacy
+ * `palette` object. Legacy palettes are converted into style notes so the rest
+ * of the pipeline can treat them as a freeform direction.
+ *
+ * Returns `null` if the object is not a valid visual system. Callers should
+ * fall back to `DEFAULT_VISUAL_SYSTEM` when this returns `null`.
  *
  * @param {unknown} obj
  * @returns {VisualSystem|null}
  */
 export function validateVisualSystem(obj) {
   if (typeof obj !== "object" || obj === null) return null;
-  if (!isValidPalette(obj.palette)) return null;
 
-  return {
-    palette: {
-      base: obj.palette.base,
-      accent: obj.palette.accent,
-      highlight: obj.palette.highlight,
-    },
-  };
+  // New descriptive shape.
+  if (typeof obj.mood === "string" || typeof obj.styleNotes === "string") {
+    const mood = String(obj.mood ?? "").trim();
+    const styleNotes = String(obj.styleNotes ?? "").trim();
+    if (!mood && !styleNotes) return null;
+    return { mood, styleNotes };
+  }
+
+  // Legacy palette shape — convert to style notes but do not enforce.
+  if (typeof obj.palette === "object" && obj.palette !== null) {
+    const { base, accent, highlight } = obj.palette;
+    const baseColor = isValidHex(base) ? base : "";
+    const accentColor = isValidHex(accent) ? accent : "";
+    const highlightColor = isValidHex(highlight) ? highlight : "";
+    if (baseColor || accentColor || highlightColor) {
+      return {
+        mood: `Legacy palette: ${baseColor || "(none)"} base, ${accentColor || "(none)"} accent, ${highlightColor || "(none)"} highlight.`,
+        styleNotes: `The source deck used a 3-color palette. Use ${baseColor || "dark/neutral backgrounds"} for continuation and content slides, ${accentColor || "bright accents"} for punctuation, transition, CTA, or high-energy moments, and ${highlightColor || "light backgrounds"} for title/agenda slides.`,
+      };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -89,7 +90,10 @@ export function parseVisualSystem(obj) {
  * @returns {string}
  */
 export function visualSystemToComment(visualSystem) {
-  return `<!-- visual-system: ${JSON.stringify({ palette: visualSystem.palette })} -->`;
+  return `<!-- visual-system: ${JSON.stringify({
+    mood: visualSystem.mood,
+    styleNotes: visualSystem.styleNotes,
+  })} -->`;
 }
 
 /**

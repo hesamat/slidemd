@@ -11,6 +11,7 @@ import { LayoutData } from "../layout-data.js";
 import { splitBackgroundValue, findFencedRanges } from "../image-markdown-parser.js";
 import { splitSlides } from "../markdown-parser.js";
 import { extractVisualSystemFromMarkdown } from "./visual-system-schema.js";
+import { isColorDark } from "../pptx-color-utils.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -179,7 +180,8 @@ export function buildRemixFlowGuidance(flow) {
  * Build the {{visualStylingNote}} substitution for generate prompts.
  * Variant selection:
  * - "present" — a visual system is provided (reimagine): emit `theme:` and
- *   `background:` for every slide using only the 3 palette colors.
+ *   `background:` for every slide, using the visual direction below for
+ *   layout/background choices but picking any professional colors or images.
  * - "absent-preserve" — no visual system, but the deck's existing identity
  *   must be kept (remix preserve mode): keep the original theme/background/
  *   color directives instead of emitting neutral styling.
@@ -211,13 +213,16 @@ export function buildDensityBudgets(variant) {
 
 /**
  * Build a compact JSON serialization of the visual system for the breakdown
- * prompt's `{{visualSystem}}` placeholder. Only the 3-color palette is included.
+ * prompt's `{{visualSystem}}` placeholder. Includes the new freeform style
+ * notes and any legacy palette for backwards compatibility.
  * @param {import("./visual-system-schema.js").VisualSystem|null} vs
  * @returns {string}
  */
 export function serializeVisualSystemForBreakdown(vs) {
   if (!vs) return "{}";
-  return JSON.stringify({ palette: vs.palette });
+  const out = { mood: vs.mood, styleNotes: vs.styleNotes };
+  if (vs.palette) out.palette = vs.palette;
+  return JSON.stringify(out, null, 2);
 }
 
 /**
@@ -250,8 +255,9 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 
 /**
  * Build the minimal visual system brief for the generate prompt's options
- * suffix. When a visual system is present, this provides the 3-color palette
- * to use for `theme:` and `background:` on every slide.
+ * suffix. When a visual system is present, this provides the freeform visual
+ * direction (mood and style notes) to inform the model's `layout:`, `theme:`,
+ * and `background:` choices.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.
@@ -262,15 +268,12 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 export function buildVisualSystemBrief(vs) {
   if (!vs) return "";
 
-  const palette = Object.entries(vs.palette || {})
-    .map(([name, color]) => `  - ${name}: ${color}`)
-    .join("\n");
-
   return `
-Visual system — use this 3-color palette for every slide's \`theme:\` and \`background:\`.
+Visual direction for this deck:
 
-Palette (use only these colors):
-${palette}
+Mood: ${vs.mood}
+
+Style notes: ${vs.styleNotes}
 `;
 }
 
@@ -362,106 +365,55 @@ export function stripVisualIdentity(markdown) {
 }
 
 /**
- * Restrict visual-identity directives to values from the generated visual
- * system. Used in reimagine so the model can emit `theme:`/`background:` from
- * the palette but cannot invent arbitrary colors or gradients.
+ * Returns a readable theme for a solid-hex background.
+ * @param {string} color
+ * @returns {"light"|"dark"|null}
+ */
+function themeForColor(color) {
+  let hex = String(color || "")
+    .trim()
+    .toLowerCase();
+  if (!hex.startsWith("#")) return null;
+
+  const digits = hex.slice(1);
+  if (digits.length === 3) {
+    hex = hex
+      .slice(1)
+      .split("")
+      .map((c) => c + c)
+      .join("");
+    hex = `#${hex}`;
+  } else if (digits.length !== 6 && digits.length !== 8) {
+    return null;
+  }
+
+  return isColorDark(hex) ? "dark" : "light";
+}
+
+/**
+ * Apply a visual system to generated markdown. The visual system is now a
+ * descriptive style guide, not a strict color palette, so this pass does not
+ * restrict colors. It only:
  *
- * Rules:
- * - `theme:` must be `light`, `dark`, or a palette color.
- * - `background:` colors must be a palette color (or `none`/`transparent`).
- * - `background:` images (`url(...)`) are kept as-is; `stripFabricatedImages`
- *   is responsible for validating image sources.
- * - Mixed `background: <color> url(...)` keeps the color only when it is in
- *   the palette; otherwise the color is dropped and only the image remains.
- * - Gradients that include non-palette colors are stripped down to the image
- *   part or removed entirely.
+ * - leaves `theme:` and `background:` values (including arbitrary colors,
+ *   gradients, and images) untouched,
+ * - infers `theme:` from a solid-hex `background:` when `theme:` is missing or
+ *   obviously mismatched,
+ * - adds `theme: dark` and `background: transparent` as a neutral fallback when
+ *   either directive is missing.
  *
  * @param {string} markdown
  * @param {import("./visual-system-schema.js").VisualSystem} visualSystem
  * @returns {string}
  */
 export function applyVisualSystemIdentity(markdown, visualSystem) {
-  if (!visualSystem?.palette) return markdown;
+  if (!visualSystem) return markdown;
 
-  const palette = visualSystem.palette;
-  const paletteColors = new Set(Object.values(palette).map((c) => c.trim().toLowerCase()));
-  const colorToTheme = new Map([
-    [palette.base.toLowerCase(), "dark"],
-    [palette.accent.toLowerCase(), "light"],
-    [palette.highlight.toLowerCase(), "light"],
-  ]);
+  const slides = splitSlides(markdown);
 
-  const allowedThemes = new Set(["light", "dark"]);
-
-  // Step 1: restrict existing directives to the palette and allowed theme names.
-  const restricted = stripDirectivesWith(markdown, (line) => {
-    const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
-    if (!match) return false;
-
-    const key = match[1].toLowerCase();
-    const value = match[2].trim();
-
-    if (key === "theme") {
-      const v = value.toLowerCase();
-      return allowedThemes.has(v) ? false : true;
-    }
-
-    const { colorPart, imagePart, hasImage } = splitBackgroundValue(value);
-    const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
-
-    if (!hasImage) {
-      if (firstColor && paletteColors.has(firstColor)) {
-        return `background: ${firstColor}`;
-      }
-      return true;
-    }
-
-    if (!colorPart) return false;
-
-    if (firstColor && paletteColors.has(firstColor)) {
-      return `background: ${firstColor} ${imagePart}`.trim();
-    }
-    return `background: ${imagePart}`;
-  });
-
-  // Helpers to avoid the accent color being used as a full background on
-  // content-heavy slides.
-  const contentLayouts = new Set([
-    "header-content",
-    "two-column",
-    "media-span-left",
-    "media-span-right",
-    "chapter",
-    "title-only",
-  ]);
-
-  const isDenseContent = (body) => {
-    const text = body.join("\n");
-    if (!text.trim()) return false;
-
-    const tableRows = (text.match(/^\|[^|]+\|/gm) || []).length;
-    const codeFences = (text.match(/^```[\s\S]*?^```$/gm) || []).length;
-
-    const listItemRe = /^\s*(?:[-*]|\d+\.)\s+/m;
-    const listLines = body.filter((line) => listItemRe.test(line));
-
-    // Tables, fenced code, or more than 2 list items are dense content.
-    if (tableRows >= 2 || codeFences > 0 || listLines.length > 2) return true;
-
-    // More than one major heading in the body also suggests dense content.
-    const headings = (text.match(/^#{1,2}\s+/gm) || []).length;
-    if (headings > 1) return true;
-
-    return false;
-  };
-
-  // Step 2: ensure every slide has a palette background and a contrasting theme.
-  const slides = splitSlides(restricted);
-
-  const fixed = slides.map((slide, index) => {
+  const fixed = slides.map((slide) => {
     const lines = slide.split("\n");
     const commentLines = [];
-    const directiveLines = [];
     const directiveOrder = [];
     const directiveMap = new Map();
     const body = [];
@@ -477,7 +429,6 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
       }
       const match = line.match(anyDirective);
       if (inLeading && match) {
-        directiveLines.push(line);
         const name = match[1].toLowerCase();
         directiveOrder.push(name);
         directiveMap.set(name, { line, value: match[2].trim() });
@@ -487,79 +438,32 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
       body.push(line);
     }
 
-    const layoutValue = directiveMap.get("layout")?.value.toLowerCase() || "";
     let backgroundValue = directiveMap.get("background")?.value;
     let themeValue = directiveMap.get("theme")?.value;
-    let bgColor = null;
 
-    let imagePart = "";
+    // If a solid hex background is present, make sure `theme:` is legible.
     if (backgroundValue) {
-      const split = splitBackgroundValue(backgroundValue);
-      imagePart = split.imagePart;
-      if (split.colorPart) {
-        const firstColor = split.colorPart.split(/\s+/)[0]?.toLowerCase() || "";
-        if (paletteColors.has(firstColor)) bgColor = firstColor;
-      }
-    }
-
-    const dense = isDenseContent(body);
-
-    // If the model used the accent color as a full background on a content
-    // slide, downgrade it. Accent should be reserved for short emphasis slides.
-    if (bgColor && bgColor === palette.accent.toLowerCase()) {
-      let replacement = null;
-      if (layoutValue === "title-slide" || contentLayouts.has(layoutValue)) {
-        replacement = index % 2 === 0 ? palette.base : palette.highlight;
-      } else if ((layoutValue === "focus" || layoutValue === "full-image") && dense) {
-        replacement = palette.base;
-      }
-      if (replacement) {
-        backgroundValue = imagePart ? `${replacement} ${imagePart}`.trim() : replacement;
-        bgColor = null;
-      }
-    }
-
-    if (!backgroundValue) {
-      if (layoutValue === "title-slide") {
-        backgroundValue = palette.highlight;
-      } else if (layoutValue === "full-image") {
-        backgroundValue = palette.accent;
-      } else if (layoutValue === "focus") {
-        backgroundValue = dense ? palette.base : palette.accent;
-      } else if (contentLayouts.has(layoutValue)) {
-        // Content slides alternate base/highlight to preserve variety without
-        // defaulting to the accent color.
-        backgroundValue = index % 2 === 0 ? palette.base : palette.highlight;
-      } else {
-        backgroundValue = index % 3 === 0 ? palette.base : palette.highlight;
-      }
-      bgColor = null;
-    }
-
-    // Resolve the theme from the final background color.
-    if (!bgColor) {
       const { colorPart } = splitBackgroundValue(backgroundValue);
-      const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
-      bgColor = paletteColors.has(firstColor) ? firstColor : null;
+      const firstColor = colorPart.split(/\s+/)[0] || "";
+      const inferred = themeForColor(firstColor);
+
+      if (inferred && (!themeValue || themeValue.toLowerCase() !== inferred)) {
+        themeValue = inferred;
+      }
     }
 
-    if (bgColor) {
-      themeValue = colorToTheme.get(bgColor) || "dark";
-    } else if (!themeValue) {
-      themeValue = "dark";
-    }
+    // Fall back to a neutral dark theme if the model omitted directives.
+    if (!backgroundValue) backgroundValue = "transparent";
+    if (!themeValue) themeValue = "dark";
 
     const leading = [...commentLines];
-    if (directiveMap.has("layout")) {
-      leading.push(directiveMap.get("layout").line);
+    for (const name of directiveOrder) {
+      if (name === "theme" || name === "background") continue;
+      leading.push(directiveMap.get(name).line);
     }
+    // Ensure theme comes before background in the leading block.
     leading.push(`theme: ${themeValue}`);
     leading.push(`background: ${backgroundValue}`);
-    for (const name of directiveOrder) {
-      if (name !== "layout" && name !== "theme" && name !== "background") {
-        leading.push(directiveMap.get(name).line);
-      }
-    }
 
     if (body.length === 0 && leading.length === 0) return slide.trim();
     if (body.length === 0) return leading.join("\n").trim();

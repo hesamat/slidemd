@@ -8,31 +8,27 @@
 
 <!-- variant: present -->
 
-- A visual system with a specific 3-color palette is provided in the instructions below. You MUST use it for every slide.
-- The palette is `base` (dark), `accent` (pop/attention), and `highlight` (light). Use only these three hex colors for `background:` and for any `color`/`backgroundColor` text-block directives.
+- A visual direction is provided below. It describes the mood and the rules of thumb for choosing `layout:`, `theme:`, and `background:`. You are free to pick any professional colors, gradients, or kept images that match the direction. Do not feel constrained to a specific 3-color palette.
 - For EVERY slide, the frontmatter must include both `theme:` and `background:`. Do not omit either.
-- `theme:` is a color scheme, not a palette color. It tells the renderer what ink color to use:
-  - `theme: light` = light background, dark text and UI elements.
+- `theme:` is a color scheme, not a color. It tells the renderer what ink color to use:
+  - `theme: light` = light/bright background, dark text and UI elements.
   - `theme: dark` = dark background, light text and UI elements.
-- Pair `theme:` with `background:` for contrast:
-  - `background: <base>` (dark) → `theme: dark`
-  - `background: <accent>` (bright) → `theme: light`
-  - `background: <highlight>` (white) → `theme: light`
-- Correct examples:
-  - `background: #0f172a` with `theme: dark`
-  - `background: #06b6d4` with `theme: light`
-  - `background: #ffffff` with `theme: light`
-- Use only the 3 palette hex colors for `background: <hex>`, or use `background: url(<kept-image-path>)` for a kept image. Do not invent colors. Vary `background:` across the deck — do not make every slide `base`.
-- Reserve the `accent` color for emphasis, not as the default background. `accent` should only be used as a full-slide `background:` for punctuation, transition, emotional, divider, climax, or call-to-action moments. For the main content beats (continuation, example, practice, context, problem, solution, evidence, comparison), use `base` (`theme: dark`) or `highlight` (`theme: light`).
-- Do not use `accent` as the background on `header-content`, `two-column`, or `media-span` slides unless the brief explicitly calls for a high-energy punctuation, transition, or call-to-action moment. Those layouts are for content and should normally use `base` or `highlight`.
-- For colored callouts, panels, tables, code, or emphasized text, you may use `::: text-block { markdown=true color="<hex>" backgroundColor="<hex>" } ... :::`. Only use the 3 palette colors for `color` and `backgroundColor`.
+- Pair `theme:` with `background:` for readable contrast:
+  - dark background (`#0f172a` or similar) → `theme: dark`
+  - light/bright background (`#ffffff`, a bright accent, etc.) → `theme: light`
+  - kept image as background → choose `theme:` based on whether the image is mostly dark or light
+- You may use any hex color, but avoid harsh or low-contrast combinations. Vary `background:` across the deck — do not use the same background on every slide.
+- Reserve bright, light, or image backgrounds for emphasis; do not put them on every slide. Content-heavy slides (`header-content`, `two-column`, `media-span` with text/code) should usually use a dark or neutral background so the content is readable.
 - Beat treatment: each slide brief includes `| beat: <beat>, energy: ..., contrast: ..., relationship: ... |`. Use it to shape density, hierarchy, layout, and imagery:
-  - `continuation` — the default. Maintain normal content density and the established visual language.
-  - `transition` — signal a chapter or idea change. Reduce density, shift hierarchy, and consider a `background:` change.
-  - `punctuation` — one strong takeaway. Use `focus` only when the takeaway is a single short statement; if it is a list or has multiple points, use `header-content` with `base` or `highlight` and add `accent` as an inline emphasis or small callout. Reserve the `accent` `background:` for the most important 1–2 punctuation/CTA moments.
-  - `emotional` — imagery or atmosphere carries the message. Prefer a `full-image` or `media-span` layout when an image is available; keep text restrained.
+  - `continuation` — the default. Use `header-content` or `two-column`. Stick to the deck's default background style (usually dark/neutral).
+  - `example` / `practice` — code, tables, or step-by-step content. Use `two-column` or `header-content`; a dark background often works well for code.
+  - `punctuation` — one strong takeaway. Use `focus` only for a single short statement; if it is a list or has multiple points, use `header-content` with a bright, light, or image background.
+  - `transition` — signal a chapter or idea change. Reduce density, shift hierarchy, and consider a `background:` or `theme:` change.
+  - `emotional` — imagery or atmosphere carries the message. Prefer a `full-image` or `media-span` layout when an image is available; otherwise use `header-content` with an atmospheric background.
   - `divider` — a chapter/section marker. Use minimal content, a large heading, and a clear `background:` or `theme:` change.
 - Apply `energy`, `contrast`, and `relationship` as modifiers:
   - `energy: high` permits stronger hierarchy and more visual emphasis; `energy: low` favors quieter, text-heavy treatment.
   - `contrast: strong` permits a deliberate departure from the previous slide; `contrast: subtle` favors continuity.
   - `relationship: break` should produce a noticeable but intentional visual departure from the previous slide; `relationship: continue` should preserve visual continuity.
+
+Use the visual direction provided in the prompt to choose colors and images, but trust your judgement.

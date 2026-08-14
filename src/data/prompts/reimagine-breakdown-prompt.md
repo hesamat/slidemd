@@ -153,22 +153,26 @@ Success criteria:
 - Each slide has a distinct purpose within its chapter.
 - The slide intents are specific enough to guide full slide generation.
 - The visual beats create rhythm — high-impact beats are used sparingly and not repeated on adjacent slides.
-- Image queries (when present) are consistent with the chosen palette and theme.
+- Image queries (when present) are consistent with the chosen visual direction.
 - The JSON is valid and parseable.
 
-Visual system:
+Visual direction:
+
 {{visualSystem}}
 
-Use the 3-color palette for every slide's `theme:` and `background:` choices.
+Use the direction above to assign a sensible `visualBeat` and image query to each slide. The later generate AI will turn these into concrete `layout:`, `theme:`, and `background:` choices. Do not treat the direction as a strict palette; the generate AI is free to pick any professional colors or kept images that fit.
 
-Color usage:
+Background / layout guidance by beat:
 
-- `base` — dark background for most continuation/transition/content slides.
-- `accent` — pop/attention color for emphasis, pivots, calls-to-action, or punctuation slides.
-- `highlight` — light background for the title slide, agenda, and light focal slides. Use `theme: dark` with `highlight`.
-- Vary backgrounds across the deck; do not put `base` on every slide.
+- `continuation` — default content beat. Use `header-content` or `two-column` for dense content; keep to the deck's default background style (usually dark/neutral).
+- `example` / `practice` — code, tables, or step-by-step content. Use `two-column` or `header-content`; a dark background often works well for code.
+- `punctuation` — a high-emphasis moment. Use `focus` only for a single short takeaway; otherwise use `header-content` with a bright, light, or image background.
+- `transition` — bridge between chapters. Use a deliberate background/theme shift; `header-content` or `focus`.
+- `emotional` — imagery or atmosphere. Use `full-image` or `media-span` with a kept image when available; otherwise use `header-content` with an atmospheric background.
+- `divider` — a section marker. Minimal content, a large heading, and a strong background/theme change. `title-slide` or `header-content`.
+- Title/agenda (first two slides of the first chapter) — `title-slide` for the title and `header-content` or `title-slide` for the agenda, with a light or dramatic dark background.
 
-Do not invent colors.
+Vary backgrounds across the deck; do not use the same background for every slide.
 
 Finalized chapter outline:
 {{chapters}}

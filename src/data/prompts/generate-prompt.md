@@ -69,7 +69,7 @@ Success criteria:
 
 - Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
-- `theme:`, `background:`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for `theme:` and `background:`; preserve mode keeps the originals; otherwise do not emit custom color directives.
+- `theme:`, `background:`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals; the default guidance uses neutral app styling; and when a visual direction is provided, choose professional colors, gradients, or kept images that match the mood and style notes.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.

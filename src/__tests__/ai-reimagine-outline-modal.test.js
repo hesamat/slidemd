@@ -20,11 +20,9 @@ const SAMPLE_OUTLINE = {
     },
   ],
   visualSystem: {
-    palette: {
-      base: "#0f172a",
-      accent: "#06b6d4",
-      highlight: "#ffffff",
-    },
+    mood: "Dark, technical, with bright accent walls for key moments.",
+    styleNotes:
+      "Use dark or neutral backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
   },
   keepImages: [0, 2],
   firstSlideIdentity: "COMP 1510 202630",
@@ -272,34 +270,30 @@ describe("AiReimagineOutlineModal", () => {
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
     expect(result.visualSystem).not.toBeNull();
-    expect(result.visualSystem.palette.base).toBe("#0f172a");
-    expect(result.visualSystem.palette.accent).toBe("#06b6d4");
-    expect(result.visualSystem.palette.highlight).toBe("#ffffff");
-    expect(Object.keys(result.visualSystem)).toEqual(["palette"]);
+    expect(result.visualSystem.mood).toBe(SAMPLE_OUTLINE.visualSystem.mood);
+    expect(result.visualSystem.styleNotes).toBe(SAMPLE_OUTLINE.visualSystem.styleNotes);
+    expect(Object.keys(result.visualSystem)).toEqual(["mood", "styleNotes"]);
   });
 
-  it("edits the palette colors and returns the edited visual system", async () => {
+  it("edits the mood and style notes and returns the edited visual system", async () => {
     const outline = JSON.parse(JSON.stringify(SAMPLE_OUTLINE));
     const promise = AiReimagineOutlineModal.show(outline);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const inputs = dialog.querySelectorAll(".ai-reimagine-outline-modal__swatch-input");
-    expect(inputs).toHaveLength(3);
 
-    // base
-    inputs[0].value = "#111827";
-    inputs[0].dispatchEvent(new Event("input"));
-    // accent
-    inputs[1].value = "#3b82f6";
-    inputs[1].dispatchEvent(new Event("input"));
-    // highlight
-    inputs[2].value = "#f3f4f6";
-    inputs[2].dispatchEvent(new Event("input"));
+    const moodInput = dialog.querySelector(".ai-reimagine-outline-modal__mood-input");
+    const styleNotesInput = dialog.querySelector(".ai-reimagine-outline-modal__style-notes-input");
+    expect(moodInput).not.toBeNull();
+    expect(styleNotesInput).not.toBeNull();
+
+    moodInput.value = "Bright and friendly.";
+    moodInput.dispatchEvent(new Event("input"));
+    styleNotesInput.value = "Use light backgrounds for title and agenda.";
+    styleNotesInput.dispatchEvent(new Event("input"));
 
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
-    expect(result.visualSystem.palette.base).toBe("#111827");
-    expect(result.visualSystem.palette.accent).toBe("#3b82f6");
-    expect(result.visualSystem.palette.highlight).toBe("#f3f4f6");
+    expect(result.visualSystem.mood).toBe("Bright and friendly.");
+    expect(result.visualSystem.styleNotes).toBe("Use light backgrounds for title and agenda.");
   });
 
   it("renders a fallback when no visual direction is provided", async () => {
@@ -318,11 +312,12 @@ describe("AiReimagineOutlineModal", () => {
     const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
     expect(visualSystemEl).not.toBeNull();
 
-    const swatches = visualSystemEl.querySelectorAll(".ai-reimagine-outline-modal__palette-swatch");
-    expect(swatches).toHaveLength(3);
-
-    const baseSwatchColor = swatches[0].querySelector(".ai-reimagine-outline-modal__swatch-color");
-    expect(baseSwatchColor.style.backgroundColor).toBe("rgb(15, 23, 42)");
+    const moodInput = visualSystemEl.querySelector(".ai-reimagine-outline-modal__mood-input");
+    const styleNotesInput = visualSystemEl.querySelector(
+      ".ai-reimagine-outline-modal__style-notes-input",
+    );
+    expect(moodInput.value).toBe(SAMPLE_OUTLINE.visualSystem.mood);
+    expect(styleNotesInput.value).toBe(SAMPLE_OUTLINE.visualSystem.styleNotes);
 
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
@@ -451,11 +446,8 @@ describe("AiReimagineOutlineModal", () => {
       plan: "Regenerated plan.",
       chapters: SAMPLE_OUTLINE.chapters,
       visualSystem: {
-        palette: {
-          base: "#111111",
-          accent: "#333333",
-          highlight: "#555555",
-        },
+        mood: "Regenerated mood.",
+        styleNotes: "Regenerated style notes.",
       },
       keepImages: [1],
       firstSlideIdentity: "Updated identity",
@@ -467,12 +459,12 @@ describe("AiReimagineOutlineModal", () => {
     dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn").click();
 
     await vi.waitFor(() => {
-      const swatches = dialog.querySelectorAll(".ai-reimagine-outline-modal__palette-swatch");
-      expect(swatches).toHaveLength(3);
+      const moodInput = dialog.querySelector(".ai-reimagine-outline-modal__mood-input");
+      expect(moodInput.value).toBe("Regenerated mood.");
     });
 
-    const baseSwatch = dialog.querySelector(".ai-reimagine-outline-modal__swatch-color");
-    expect(baseSwatch.style.backgroundColor).toBe("rgb(17, 17, 17)");
+    const styleNotesInput = dialog.querySelector(".ai-reimagine-outline-modal__style-notes-input");
+    expect(styleNotesInput.value).toBe("Regenerated style notes.");
 
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;

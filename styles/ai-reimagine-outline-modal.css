@@ -502,8 +502,9 @@
 .ai-reimagine-outline-modal__visual-system-section {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
+  width: 100%;
 }
 
 .ai-reimagine-outline-modal__visual-system-label {
@@ -512,49 +513,37 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-medium, #6b7280);
-  text-align: center;
+  text-align: left;
 }
 
-.ai-reimagine-outline-modal__visual-system-value {
-  color: var(--text-high, #111827);
-  line-height: 1.45;
-  text-align: center;
-}
-
-/* Palette swatches */
-.ai-reimagine-outline-modal__palette {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 14px;
-}
-
-.ai-reimagine-outline-modal__palette-swatch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  min-width: 56px;
-}
-
-.ai-reimagine-outline-modal__swatch-color {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.12));
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.05),
-    0 0 0 1px rgba(255, 255, 255, 0.5) inset;
-}
-
-.ai-reimagine-outline-modal__swatch-name {
+.ai-reimagine-outline-modal__mood-input,
+.ai-reimagine-outline-modal__style-notes-input {
   width: 100%;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-medium, #6b7280);
-  text-align: center;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-high, #111827);
+  background: var(--surface-bg, #ffffff);
+  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
+  border-radius: 8px;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.ai-reimagine-outline-modal__mood-input {
+  min-height: 0;
+}
+
+.ai-reimagine-outline-modal__style-notes-input {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.ai-reimagine-outline-modal__mood-input:focus,
+.ai-reimagine-outline-modal__style-notes-input:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.12));
 }
 
 /* Error message */
@@ -563,36 +552,6 @@
   font-size: 0.875rem;
   min-height: 1.2em;
   margin: 12px 0 0;
-}
-
-/* ── Editable palette swatches ───────────────────────────────────────────── */
-
-.ai-reimagine-outline-modal__palette-swatch--editable {
-  align-items: center;
-}
-
-.ai-reimagine-outline-modal__swatch-input {
-  width: 80px;
-  padding: 4px 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
-  color: var(--text-high, #111827);
-  background: var(--surface-bg, #ffffff);
-  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
-  border-radius: 6px;
-  text-align: center;
-  box-sizing: border-box;
-}
-
-.ai-reimagine-outline-modal__swatch-input:focus {
-  outline: none;
-  border-color: var(--accent, #6366f1);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-}
-
-.ai-reimagine-outline-modal__swatch-input--invalid {
-  border-color: #ef4444;
-  background: #fef2f2;
 }
 
 .ai-reimagine-outline-modal__badge--editable {

@@ -14,13 +14,16 @@ The presentation flow is **{{flow}}**. Choose storytelling techniques that fit t
 
 ## Visual system
 
-Alongside the narrative outline, design a minimal 3-color **visual system**. The visual system is used to choose `theme:` and `background:` colors for each slide.
+Alongside the narrative outline, design a **visual direction** as freeform style notes. The direction is used by the later generation AI to choose `layout:`, `theme:`, and `background:` for each slide. It should describe the mood and the rules of thumb, not a strict color palette. The model is free to pick any professional colors, gradients, or kept images that match the direction.
 
-- Keep the visual system minimal. A 3-color palette (`base`, `accent`, `highlight`) is enough.
-- `base` — dark background for most continuation and content slides.
-- `accent` — pop/attention color for the most important punctuation, transition, call-to-action, or high-energy emotional moments. Do not use it as the default background for content-heavy slides.
-- `highlight` — light background for the title slide, agenda, and any light focal slides. Use `theme: light` with `highlight`.
-- Use all 3 colors across the deck. Do not put `base` on every slide, and do not put `accent` on every slide. Most slides should use `base` or `highlight`; `accent` is for a few emphasis moments.
+- `mood` — one sentence describing the overall feel (e.g. "Dark, technical, with bright accent walls for key moments" or "Bright, friendly, and high-contrast").
+- `styleNotes` — 2-4 sentences describing how to choose layouts and backgrounds across the deck. Cover:
+  - The default background style for continuation and content slides.
+  - When to use a bright, light, or image background (punctuation, transition, climax, CTA, emotional beats).
+  - The background for the title slide and agenda.
+  - When to use `full-image` or `media-span` layouts with kept images.
+
+The AI is free to choose exact hex colors. Always pair `theme:` with `background:` so text remains readable: `theme: dark` for dark backgrounds and `theme: light` for light/bright backgrounds.
 
 Output format:
 
@@ -28,11 +31,8 @@ Output format:
 {
   "plan": "1-3 sentence statement of the deck's core message, the fresh editorial angle, and the narrative structure you chose (e.g. 'Reframe the deck around outcomes. Open with historical context, build tension around the current gap, present the approach with evidence, close with a call to action.').",
   "visualSystem": {
-    "palette": {
-      "base": "#0f172a",
-      "accent": "#06b6d4",
-      "highlight": "#ffffff"
-    }
+    "mood": "Dark, technical, with bright accent walls for key moments.",
+    "styleNotes": "Use dark or neutral backgrounds for continuation, example, and code-heavy slides. Use a bright or light background sparingly for punctuation, transition, climax, and call-to-action moments. Use a light or dramatic dark background for the title slide and agenda. Use kept images in full-image or media-span layouts for emotional or atmospheric beats."
   },
   "keepImages": [0, 2],
   "firstSlideIdentity": "COMP 1510 202630",
@@ -57,13 +57,10 @@ Rules:
 
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.
 - `plan` — 1-3 sentences combining: the deck's core message, the fresh angle you propose, and the narrative structure you chose with a brief justification.
-- `visualSystem` — a minimal deck-wide visual system:
-  - `palette` — 3 hex colors (`#rrggbb`):
-    - `base` — dark background for most content slides.
-    - `accent` — pop/attention color for emphasis, pivots, calls-to-action.
-    - `highlight` — light background for title, agenda, or focal slides.
-  - Use all 3 colors across the deck. Do NOT make every slide `base`.
-  - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Slides can switch between `base`, `accent`, and `highlight` backgrounds as the content demands.
+- `visualSystem` — a deck-wide visual direction in freeform text:
+  - `mood` — one sentence describing the overall visual feel.
+  - `styleNotes` — 2-4 sentences describing how to choose layouts and backgrounds across beats and slide types. Do not list a strict color palette; describe the _kind_ of background (dark/neutral, bright/light, image, etc.) to use for each beat.
+  - Do NOT design a linear progression. Slides can switch backgrounds as the content demands, but keep the direction coherent.
 - `keepImages` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
 - `firstSlideIdentity` — a short string (1-2 lines) extracted EXCLUSIVELY from the "First slide (preserve its identifying info)" text provided above. Do NOT look at other slides for this. Extract the identifying text from the first slide's footer, header, or title (e.g. course code + term, event name, author). Keep it concise: do not include the full institutional description or repeated course names. If the first slide has no identifying information beyond the title heading, use the title itself. Do NOT mention this field or the footer in the plan text — just extract the value into this field.
 - `chapters` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
@@ -81,7 +78,7 @@ Rules:
 Success criteria:
 
 - The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
-- The visual system is minimal: a 3-color palette. It is not a linear progression.
+- The visual system is a coherent visual direction (mood + styleNotes). It is not a linear progression.
 - The chapters form a clear narrative arc from opening to close.
 - The total suggested slide count is within {{minSlides}}-{{maxSlides}} ({{sourceCount}} source slides).
 - Each chapter summary is specific enough to guide slide generation without the user needing to see individual slides.

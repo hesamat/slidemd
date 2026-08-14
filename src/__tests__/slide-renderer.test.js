@@ -186,7 +186,7 @@ describe("SlideRenderer", () => {
     expect(mediaArea.style.gridColumn).toBe("1 / -1");
   });
 
-  it("applies palette CSS variables from the deck visual system", () => {
+  it("does not apply palette CSS variables when the visual system uses style notes", () => {
     const slide = {
       id: "palette",
       title: "Palette",
@@ -195,17 +195,14 @@ describe("SlideRenderer", () => {
     const deck = {
       slides: [slide],
       visualSystem: {
-        palette: {
-          base: "#0f172a",
-          accent: "#06b6d4",
-          highlight: "#ffffff",
-        },
+        mood: "Dark, technical.",
+        styleNotes: "Use dark backgrounds for content, bright for emphasis.",
       },
     };
     const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
-    expect(el.style.getPropertyValue("--palette-base")).toBe("#0f172a");
-    expect(el.style.getPropertyValue("--palette-accent")).toBe("#06b6d4");
-    expect(el.style.getPropertyValue("--palette-highlight")).toBe("#ffffff");
-    expect(el.style.getPropertyValue("--palette-accent-light")).toBe("rgba(6, 182, 212, 0.15)");
+    expect(el.style.getPropertyValue("--palette-base")).toBe("");
+    expect(el.style.getPropertyValue("--palette-accent")).toBe("");
+    expect(el.style.getPropertyValue("--palette-highlight")).toBe("");
+    expect(el.style.getPropertyValue("--palette-accent-light")).toBe("");
   });
 });

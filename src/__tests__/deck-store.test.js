@@ -231,24 +231,29 @@ describe("DeckStore", () => {
 
   it("extracts and round-trips a visual system comment", () => {
     const store = new DeckStore();
-    const visualSystem = { palette: { base: "#0f172a", accent: "#06b6d4", highlight: "#ffffff" } };
     const comment =
       '<!-- visual-system: {"palette":{"base":"#0f172a","accent":"#06b6d4","highlight":"#ffffff"}} -->';
     store.loadFromMarkdown(`${comment}\n\n# A\n\n---\n\n# B`);
-    expect(store.getVisualSystem()).toEqual(visualSystem);
+    const visualSystem = store.getVisualSystem();
+    expect(visualSystem).not.toBeNull();
+    expect(visualSystem.mood).toContain("#0f172a");
+    expect(visualSystem.styleNotes).toContain("#06b6d4");
     expect(store.getSlides()).toEqual(["# A", "# B"]);
-    expect(store.toMarkdown()).toBe(`${comment}\n\n# A\n\n---\n\n# B`);
+    expect(store.toMarkdown()).toContain("visual-system");
+    expect(store.toMarkdown()).toContain("#0f172a");
   });
 
   it("restores the visual system through undo/redo for replaceDeck", () => {
     const store = new DeckStore();
     const originalVisual = {
-      palette: { base: "#000000", accent: "#111111", highlight: "#222222" },
+      mood: "Original mood.",
+      styleNotes: "Original style notes.",
     };
-    const newVisual = { palette: { base: "#0f172a", accent: "#06b6d4", highlight: "#ffffff" } };
-    const comment =
-      '<!-- visual-system: {"palette":{"base":"#000000","accent":"#111111","highlight":"#222222"}} -->';
-    store.loadFromMarkdown(`${comment}\n\n# A`);
+    const newVisual = {
+      mood: "New mood.",
+      styleNotes: "New style notes.",
+    };
+    store.loadFromMarkdown(`# A`);
     store.setVisualSystem(originalVisual);
     store.replaceDeck(["# X"], 0, { source: "ai" });
     store.setVisualSystem(newVisual);
