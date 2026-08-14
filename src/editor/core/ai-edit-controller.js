@@ -370,7 +370,7 @@ export class AiEditController {
         });
         this._setCurrentSlideIndex(0);
         this._loadSlideIntoEditor();
-        this._getPreviewUpdater()?.update();
+        await this._getPreviewUpdater()?.update();
         saveManager?.updateButton();
         Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
       }
