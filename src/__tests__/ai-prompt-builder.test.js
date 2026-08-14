@@ -10,6 +10,7 @@ import {
   stripFrontmatter,
   stripThemeAndBackground,
   stripVisualIdentity,
+  applyVisualSystemIdentity,
 } from "../data/ai/ai-prompt-builder.js";
 
 describe("buildMessages", () => {
@@ -549,5 +550,66 @@ describe("splitSlidesForAi", () => {
 describe("BATCH_SIZE", () => {
   it("is 8", () => {
     expect(BATCH_SIZE).toBe(8);
+  });
+});
+
+const TEST_VISUAL_SYSTEM = {
+  palette: {
+    base: "#0f172a",
+    surface: "#1e293b",
+    accent: "#06b6d4",
+    contrast: "#f59e0b",
+    highlight: "#ffffff",
+  },
+};
+
+describe("applyVisualSystemIdentity", () => {
+  it("keeps allowed theme and palette background colors", () => {
+    const md = `layout: header-content\ntheme: dark\nbackground: #0f172a\n@header\n## Title`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #0f172a");
+  });
+
+  it("strips non-palette colors and keeps image backgrounds", () => {
+    const md = `layout: full-image\ntheme: dark\nbackground: #1a1a2e\nbackground: url(images/hero.png) center/cover\n@main\n<img src="images/hero.png">`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+    expect(result).not.toContain("background: #1a1a2e");
+    expect(result).toContain("background: url(images/hero.png) center/cover");
+  });
+
+  it("strips invalid theme values", () => {
+    const md = `layout: header-content\ntheme: purple\nbackground: #0f172a\n@main\n- Item`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).not.toContain("theme: purple");
+    expect(result).toContain("background: #0f172a");
+  });
+
+  it("keeps mixed color+image backgrounds when the color is in the palette", () => {
+    const md = `layout: full-image\nbackground: #0f172a url(images/hero.png) center/cover\n@main\n## Hero`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: #0f172a url(images/hero.png) center/cover");
+  });
+
+  it("drops smuggled non-palette colors from mixed backgrounds", () => {
+    const md = `layout: full-image\nbackground: #1a1a2e url(images/hero.png) center/cover\n@main\n## Hero`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("background: url(images/hero.png) center/cover");
+    expect(result).not.toContain("#1a1a2e");
+  });
+
+  it("leaves body text untouched", () => {
+    const md = `layout: header-content\n@main\n- theme: the main theme\n- background: the war began`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: the main theme");
+    expect(result).toContain("background: the war began");
+  });
+
+  it("is a no-op when no palette is provided", () => {
+    const md = `layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@main\n- Item`;
+    const result = applyVisualSystemIdentity(md, { typography: {} });
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #1a1a2e");
   });
 });

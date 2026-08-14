@@ -296,12 +296,32 @@ describe("AiReimagineOutlineModal", () => {
     ]);
   });
 
-  it("does not render a visual system section or palette dropdown", async () => {
+  it("renders a fallback when no visual direction is provided", async () => {
+    const promise = AiReimagineOutlineModal.show({ ...SAMPLE_OUTLINE, visualSystem: null });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
+    expect(visualSystemEl.textContent).toContain("No visual direction provided");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("renders the visual direction summary from the outline", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    expect(dialog.querySelector(".ai-reimagine-outline-modal__visual-system")).toBeNull();
-    expect(dialog.querySelector(".ai-reimagine-outline-modal__palette-select")).toBeNull();
-    expect(dialog.querySelector(".ai-reimagine-outline-modal__swatch")).toBeNull();
+
+    const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
+    expect(visualSystemEl).not.toBeNull();
+
+    const swatches = visualSystemEl.querySelectorAll(".ai-reimagine-outline-modal__palette-swatch");
+    expect(swatches).toHaveLength(5);
+
+    const baseSwatchColor = swatches[0].querySelector(".ai-reimagine-outline-modal__swatch-color");
+    expect(baseSwatchColor.style.backgroundColor).toBe("rgb(15, 23, 42)");
+
+    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.visualSystem.imagery.mood);
+    expect(visualSystemEl.textContent).toContain(SAMPLE_OUTLINE.firstSlideIdentity);
+    expect(visualSystemEl.textContent).toContain("2 source images selected to keep");
+
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
@@ -419,6 +439,45 @@ describe("AiReimagineOutlineModal", () => {
 
     // Plan should be updated to the AI's new plan
     expect(planInput.value).toBe("New plan from AI.");
+
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("re-renders the visual direction after regeneration", async () => {
+    const newOutline = {
+      plan: "Regenerated plan.",
+      chapters: SAMPLE_OUTLINE.chapters,
+      visualSystem: {
+        ...SAMPLE_OUTLINE.visualSystem,
+        palette: {
+          base: "#111111",
+          surface: "#222222",
+          accent: "#333333",
+          contrast: "#444444",
+          highlight: "#555555",
+        },
+      },
+      keepImages: [1],
+      firstSlideIdentity: "Updated identity",
+    };
+    const onRegenerate = vi.fn().mockResolvedValue(newOutline);
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE, { onRegenerate });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+
+    dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn").click();
+
+    await vi.waitFor(() => {
+      const swatches = dialog.querySelectorAll(".ai-reimagine-outline-modal__palette-swatch");
+      expect(swatches).toHaveLength(5);
+    });
+
+    const visualSystemEl = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
+    expect(visualSystemEl.textContent).toContain("Updated identity");
+    expect(visualSystemEl.textContent).toContain("1 source image selected to keep");
+
+    const baseSwatch = dialog.querySelector(".ai-reimagine-outline-modal__swatch-color");
+    expect(baseSwatch.style.backgroundColor).toBe("rgb(17, 17, 17)");
 
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;

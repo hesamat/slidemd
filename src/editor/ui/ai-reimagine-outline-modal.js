@@ -51,11 +51,7 @@ const FLOW_TAGS = [
 /**
  * @typedef {Object} VisualSystem
  * @property {VisualSystemPalette} palette
- * @property {{character: string, headline: string, body: string}} typography
- * @property {{density: string, whitespace: string, alignment: string}} composition
- * @property {{role: string, mood: string, treatment: string}} imagery
- * @property {string[]} motifs
- * @property {string[]} contrastRules
+ * @property {{mood?: string}} [imagery]
  */
 
 /**
@@ -89,30 +85,41 @@ export class AiReimagineOutlineModal {
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
-        <h2 class="${P}title">Reimagine: Review plan</h2>
-        <p class="${P}subtitle">The AI proposed a new direction with a narrative arc. Review the chapter structure below, then generate the full deck.</p>
+        <div class="${P}header">
+          <h2 class="${P}title">Reimagine: Review plan</h2>
+          <p class="${P}subtitle">The AI proposed a new direction. Review the creative plan, visual direction, and chapter structure before generating the full deck.</p>
+        </div>
 
-        <div class="${P}summary-section">
-          <div class="${P}field">
-            <label class="${P}label" for="${P}plan-input">Plan</label>
-            <div class="${P}plan-row">
-              <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
+        <div class="${P}top-grid">
+          <div class="${P}card ${P}plan-card">
+            <div class="${P}card-header">
+              <label class="${P}label" for="${P}plan-input">Creative plan</label>
               ${
                 opts.onRegenerate
-                  ? `<button type="button" class="${P}btn ${P}btn--secondary" id="${P}regenerate-btn" title="Regenerate chapters based on the edited plan">Regenerate chapters</button>`
+                  ? `<button type="button" class="${P}btn ${P}btn--secondary ${P}btn--small" id="${P}regenerate-btn" title="Regenerate chapters based on the edited plan">Regenerate chapters</button>`
                   : ""
               }
             </div>
+            <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
           </div>
-          <div id="${P}stats" class="${P}stats"></div>
+
+          <div class="${P}card ${P}visual-system-card" role="region" aria-label="Visual direction" aria-readonly="true">
+            <div class="${P}card-header">
+              <span class="${P}label">Visual direction</span>
+              <span class="${P}badge ${P}badge--readonly" role="note" aria-label="read-only">read-only</span>
+            </div>
+            <div id="${P}visual-system" class="${P}visual-system" role="region" aria-label="Visual direction details"></div>
+          </div>
         </div>
+
+        <div id="${P}stats" class="${P}stats"></div>
 
         <div class="${P}chapters-header">
           <span class="${P}label">Chapters</span>
         </div>
         <div id="${P}chapters-list" class="${P}chapters-list"></div>
 
-        <p class="${P}error" style="color: #e53935; font-size: 0.875rem; min-height: 1.2em; margin: 0;"></p>
+        <p class="${P}error" role="alert" aria-live="polite"></p>
 
         <div class="${P}actions">
           <button type="button" class="${P}btn" data-action="cancel">Cancel</button>
@@ -126,6 +133,7 @@ export class AiReimagineOutlineModal {
 
       const chaptersList = dialog.querySelector(`#${P}chapters-list`);
       const statsEl = dialog.querySelector(`#${P}stats`);
+      const visualSystemEl = dialog.querySelector(`#${P}visual-system`);
       const errorEl = dialog.querySelector(`.${P}error`);
       const planInput = dialog.querySelector(`#${P}plan-input`);
       const regenerateBtn = dialog.querySelector(`#${P}regenerate-btn`);
@@ -160,6 +168,62 @@ export class AiReimagineOutlineModal {
               ? `<span class="${P}stat ${inRange ? "" : P + "stat--warn"}">target ${minTarget}\u2013${maxTarget} (from ${sourceCount})</span>`
               : ""
           }
+        `;
+      };
+
+      /**
+       * Render the read-only visual direction summary.
+       */
+      const renderVisualSystem = () => {
+        if (!visualSystem) {
+          visualSystemEl.innerHTML = `<p class="${P}visual-system-empty">No visual direction provided.</p>`;
+          return;
+        }
+        const { palette, imagery } = visualSystem;
+        const swatches = Object.entries(palette || {})
+          .map(
+            ([name, color]) => `
+            <div class="${P}palette-swatch">
+              <span class="${P}swatch-color" style="background-color: ${escapeAttr(String(color))};" title="${escapeAttr(name)}" aria-label="${escapeAttr(name)}: ${escapeAttr(String(color))}"></span>
+              <span class="${P}swatch-name">${escapeHtml(name)}</span>
+              <span class="${P}swatch-value">${escapeHtml(String(color))}</span>
+            </div>
+          `,
+          )
+          .join("");
+
+        const identityText = firstSlideIdentity ? escapeHtml(firstSlideIdentity) : "None";
+        const keptCount = keepImages.length;
+        const keptImagesText =
+          keptCount > 0
+            ? `${keptCount} source image${keptCount === 1 ? "" : "s"} selected to keep`
+            : "None";
+
+        visualSystemEl.innerHTML = `
+          <div class="${P}visual-system-section">
+            <div class="${P}visual-system-label">Palette</div>
+            <div class="${P}palette">${swatches}</div>
+          </div>
+
+          ${
+            imagery?.mood
+              ? `<div class="${P}visual-system-section">
+            <div class="${P}visual-system-label">Imagery mood</div>
+            <div class="${P}visual-system-value">${escapeHtml(imagery.mood)}</div>
+          </div>`
+              : ""
+          }
+
+          <div class="${P}visual-system-meta">
+            <div class="${P}visual-system-meta-item">
+              <span class="${P}visual-system-meta-label">First slide identity</span>
+              <span class="${P}visual-system-meta-value">${identityText}</span>
+            </div>
+            <div class="${P}visual-system-meta-item">
+              <span class="${P}visual-system-meta-label">Source images kept</span>
+              <span class="${P}visual-system-meta-value">${keptImagesText}</span>
+            </div>
+          </div>
         `;
       };
 
@@ -250,6 +314,7 @@ export class AiReimagineOutlineModal {
         chaptersList.appendChild(addBtn);
       };
       renderChapters();
+      renderVisualSystem();
 
       // Regenerate chapters: re-run the outline AI with the edited plan.
       if (regenerateBtn && opts.onRegenerate) {
@@ -282,6 +347,7 @@ export class AiReimagineOutlineModal {
               }
               renderChapters();
               renderStats();
+              renderVisualSystem();
               planInput.value = newOutline.plan;
             }
           } catch (err) {
@@ -296,13 +362,6 @@ export class AiReimagineOutlineModal {
       // Focus the first chapter title input so keyboard users have an entry point.
       const firstTitleInput = dialog.querySelector(`.${P}chapter-title-input`);
       if (firstTitleInput) firstTitleInput.focus();
-
-      const close = (result) => {
-        backdrop.remove();
-        modalClosed();
-        document.removeEventListener("keydown", onKeydown);
-        resolve(result);
-      };
 
       const onKeydown = (e) => {
         if (e.key !== "Escape") return;
@@ -322,10 +381,23 @@ export class AiReimagineOutlineModal {
         close(null);
       };
 
-      backdrop.addEventListener("click", (e) => {
+      const onBackdropClick = (e) => {
         if (e.target === backdrop) close(null);
-      });
-      backdrop.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
+      };
+
+      const onBackdropWheel = (e) => e.stopPropagation();
+
+      const close = (result) => {
+        backdrop.removeEventListener("click", onBackdropClick);
+        backdrop.removeEventListener("wheel", onBackdropWheel);
+        backdrop.remove();
+        modalClosed();
+        document.removeEventListener("keydown", onKeydown);
+        resolve(result);
+      };
+
+      backdrop.addEventListener("click", onBackdropClick);
+      backdrop.addEventListener("wheel", onBackdropWheel, { passive: true });
 
       dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
 

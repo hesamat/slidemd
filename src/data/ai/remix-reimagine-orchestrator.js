@@ -16,6 +16,7 @@ import {
   splitSlidesForAi,
   stripThemeAndBackground,
   stripVisualIdentity,
+  applyVisualSystemIdentity,
 } from "./ai-prompt-builder.js";
 import { splitSlides } from "../markdown-parser.js";
 import { extractAll } from "./slide-image-extractor.js";
@@ -29,7 +30,11 @@ import {
   buildKeptImagesList,
   buildAvailableImagesBrief,
 } from "./ai-prompt-fragments.js";
-import { collectOwnImageSources, extractTopLevelDirectiveValues } from "./ai-output-validator.js";
+import {
+  collectOwnImageSources,
+  extractTopLevelDirectiveValues,
+  stripFabricatedImages,
+} from "./ai-output-validator.js";
 import { stripLeadingDirectives } from "./ai-directive-utils.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
@@ -496,12 +501,15 @@ export class RemixReimagineOrchestrator {
     // The generate path gap-fills directives positionally when the slide
     // count matches. For reimagine the virtual deck has no original
     // directives, so there's nothing to gap-fill — return the result as-is.
-    // Reimagine always discards visual identity, so strip any theme/color
-    // directives the AI echoed back — image backgrounds (background: url(...))
-    // are kept because the validator guarantees they are deck images — and
-    // remove any fabricated image references the model insisted on (the
-    // validator only repairs; it never hard-fails).
-    const cleaned = stripFabricatedImages(stripVisualIdentity(result), keptImageSrcs, onLog);
+    // When a visual system was generated, allow theme/background to be driven
+    // by the palette (applyVisualSystemIdentity restricts colors to the
+    // palette). When no visual system is present, fall back to stripping any
+    // model-emitted identity. Remove any fabricated image references the model
+    // insisted on (the validator only repairs; it never hard-fails).
+    const rawIdentity = editedOutline.visualSystem
+      ? applyVisualSystemIdentity(result, editedOutline.visualSystem)
+      : stripVisualIdentity(result);
+    const cleaned = stripFabricatedImages(rawIdentity, keptImageSrcs, onLog);
     const slides = splitSlides(cleaned);
     const collapsed = slides.map((slide) => collapseBackgroundDirectives(slide));
     return collapsed.join("\n\n---\n\n");
@@ -1713,95 +1721,4 @@ function collapseBackgroundDirectives(markdown) {
     lines.splice(bgIndices[j], 1);
   }
   return lines.join("\n");
-}
-
-/**
- * Mechanical backstop behind FABRICATED_IMAGE_SRC: remove `<img>` tags and
- * `background: url(...)` directives whose srcs are not in the allowed set.
- * Validation only drives the repair loop and accepts the last response after
- * two attempts, so without this a persistent model's broken image reference
- * would still land in the final deck.
- *
- * Fence-aware and multiline-safe: fenced code blocks are untouched (code
- * samples may illustrate `<img>` tags, including multiline HTML), and
- * multiline `<img>` tags outside fences are removed as a single range. A
- * `background:` directive is dropped only when it references at least one
- * disallowed image url; allowed image backgrounds are kept by stripVisualIdentity
- * or, in preserve mode, are legitimate identity.
- *
- * No blank-line collapse is applied — unlike directive stripping, removals
- * here leave ordinary blank lines that are harmless in markdown, and a global
- * collapse would reformat blank runs inside fences.
- *
- * Src comparison is normalized (leading `./` stripped, percent-encoding
- * decoded) rather than literal: `allowedSrcs` is built from exact source
- * strings (`collectImageSources` in ai-output-validator), so a model that
- * reuses a real deck image
- * but writes it slightly differently — `./images/a.png` vs `images/a.png`,
- * or a URL-encoded space — would otherwise fail the literal comparison, get
- * flagged as FABRICATED_IMAGE_SRC by validation, survive the repair loop's
- * two-attempt cap, and then have this backstop silently delete it, leaving a
- * media area or `full-image` slide with no visual.
- *
- * @param {string} markdown
- * @param {string[]} allowedSrcs — srcs the deck may reference (rewritten +
- *   kept sources for remix, kept image paths for reimagine)
- * @param {(msg: string, level?: string) => void} [onLog] — logs each removed
- *   image/background so a silently emptied media area is not a silent
- *   failure mode.
- * @returns {string}
- */
-function stripFabricatedImages(markdown, allowedSrcs, onLog) {
-  const allowed = new Set(allowedSrcs.map(normalizeImageSrc));
-  // Collect removal ranges (byte offsets into the markdown) in document
-  // order, then apply them in reverse so earlier offsets don't shift.
-  const removals = [];
-
-  // Multiline <img> and markdown images outside fences.
-  for (const img of parseAllImagesOutsideFences(markdown)) {
-    if (!allowed.has(normalizeImageSrc(img.src))) {
-      removals.push({ start: img.start, end: img.end });
-      onLog?.(`Removing fabricated image reference not in the allowed set: ${img.src}`, "warn");
-    }
-  }
-
-  // background: url(...) directives outside fences. A directive line is
-  // dropped entirely when it references at least one disallowed url; mixed
-  // layers with any disallowed url are dropped too (the validator already
-  // flagged them, so the backstop mirrors that strictness).
-  const lines = markdown.split("\n");
-  const fences = findFencedRanges(markdown);
-  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
-  let offset = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineStart = offset;
-    const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
-    if (!inFenceAt(lineStart)) {
-      const bgMatch = line.match(/^\s*background\s*:\s*(.+)$/i);
-      if (bgMatch) {
-        const urls = [...bgMatch[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)].map(
-          (m) => m[1],
-        );
-        const disallowed = urls.filter((u) => !allowed.has(normalizeImageSrc(u)));
-        if (disallowed.length > 0) {
-          removals.push({ start: lineStart, end: lineEnd });
-          onLog?.(
-            `Removing background referencing fabricated image(s) not in the allowed set: ${disallowed.join(", ")}`,
-            "warn",
-          );
-        }
-      }
-    }
-    offset = lineEnd;
-  }
-
-  if (removals.length === 0) return markdown;
-  removals.sort((a, b) => a.start - b.start);
-  let result = markdown;
-  for (let i = removals.length - 1; i >= 0; i--) {
-    const { start, end } = removals[i];
-    result = result.slice(0, start) + result.slice(end);
-  }
-  return result.trim();
 }

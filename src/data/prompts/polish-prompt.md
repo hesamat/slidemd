@@ -14,6 +14,7 @@ What to do:
 - Use tables for 2-3 item comparisons.
 - Preserve each slide's `theme:` and `background:` directives and the existing color scheme.
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
+- Keep the exact filename and path of every image you keep; do not rename or invent new image URLs.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
 - Respect per-area density budgets when choosing layouts and tightening wording. {{densityBudgets}}
