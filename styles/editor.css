@@ -149,7 +149,7 @@
 }
 
 [data-theme="dark"] .insert-dropdown__content {
-  background-color: rgb(30, 41, 59);
+  background-color: var(--surface-elevated);
 }
 
 .insert-dropdown__group + .insert-dropdown__group {
@@ -406,7 +406,7 @@
 }
 
 [data-theme="dark"] .markdown-format-context-menu {
-  background-color: rgb(30, 41, 59);
+  background-color: var(--surface-elevated);
 }
 
 .markdown-format-context-menu__item {
@@ -500,17 +500,17 @@
 
 [data-theme="dark"] .markdown-editor-codemirror {
   --cm-token-heading: rgba(125, 211, 252, 0.98);
-  --cm-token-strong: rgba(226, 232, 240, 0.98);
-  --cm-token-emphasis: rgba(148, 163, 184, 0.98);
+  --cm-token-strong: var(--text-high);
+  --cm-token-emphasis: var(--text-medium);
   --cm-token-keyword: rgba(196, 181, 253, 0.98);
   --cm-token-atom: rgba(253, 230, 138, 0.98);
   --cm-token-string: rgba(134, 239, 172, 0.98);
-  --cm-token-comment: rgba(148, 163, 184, 0.8);
+  --cm-token-comment: var(--text-low);
   --cm-token-link: rgba(147, 197, 253, 0.98);
   --cm-token-url: rgba(96, 165, 250, 0.98);
   --cm-token-code: rgba(251, 113, 133, 0.98);
-  --cm-token-list: rgba(226, 232, 240, 0.98);
-  --cm-token-quote: rgba(148, 163, 184, 0.9);
+  --cm-token-list: var(--text-high);
+  --cm-token-quote: var(--text-medium);
   --cm-token-meta: rgba(253, 186, 116, 0.98);
 }
 
@@ -528,10 +528,10 @@
 }
 
 [data-theme="dark"] .markdown-editor-codemirror .cm-tooltip {
-  background: rgb(30, 41, 59);
-  border-color: rgba(148, 163, 184, 0.2);
+  background: var(--surface-elevated);
+  border-color: var(--border-medium);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  color: var(--text-high, rgba(226, 232, 240, 0.98));
+  color: var(--text-high);
 }
 
 .markdown-editor-codemirror .cm-tooltip-autocomplete ul {
@@ -563,7 +563,7 @@
 }
 
 [data-theme="dark"] .markdown-editor-codemirror .cm-completionDetail {
-  color: var(--text-low, rgba(148, 163, 184, 0.6));
+  color: var(--text-low);
 }
 
 .markdown-editor-codemirror .cm-completionMatchedText {
@@ -578,7 +578,7 @@
 }
 
 [data-theme="dark"] .markdown-editor-codemirror .cm-completionIcon {
-  color: var(--text-medium, rgba(148, 163, 184, 0.8));
+  color: var(--text-medium);
 }
 
 .markdown-editor-codemirror .cm-tooltip.cm-tooltip-above {

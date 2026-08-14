@@ -51,6 +51,11 @@
   background: rgba(0, 0, 0, 0.03);
 }
 
+.settings-modal__card-header:focus-visible {
+  outline: 2px solid var(--accent, #6366f1);
+  outline-offset: -2px;
+}
+
 .settings-modal__chevron {
   display: inline-block;
   width: 0;
@@ -309,4 +314,108 @@
 
 .settings-modal__btn--accent:hover {
   background: var(--accent-hover, #4f46e5);
+}
+
+/* ── Appearance card ── */
+.settings-modal__theme-mode-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.settings-modal__theme-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  background: var(--surface-bg, #fff);
+  color: var(--text-medium, #666);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.settings-modal__theme-mode-btn:hover {
+  border-color: var(--border-strong, rgba(0, 0, 0, 0.25));
+  color: var(--text-high, #111);
+}
+
+.settings-modal__theme-mode-btn--active {
+  border-color: var(--accent, #6366f1);
+  background: var(--accent-bg, rgba(99, 102, 241, 0.12));
+  color: var(--accent-text, #6366f1);
+}
+
+.settings-modal__theme-mode-icon {
+  display: flex;
+  align-items: center;
+}
+
+.settings-modal__variant-label {
+  margin-top: 4px;
+  display: block;
+}
+
+.settings-modal__variant-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.settings-modal__variant-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  background: var(--surface-bg, #fff);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.settings-modal__variant-btn:hover {
+  border-color: var(--border-strong, rgba(0, 0, 0, 0.25));
+}
+
+.settings-modal__variant-btn--active {
+  border-color: var(--accent, #6366f1);
+  background: var(--accent-bg, rgba(99, 102, 241, 0.12));
+}
+
+.settings-modal__variant-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Variant swatches — preview the palette's surface + accent */
+.settings-modal__variant-swatch--warm-graphite {
+  background: linear-gradient(135deg, #1e1d1b 0%, #383735 50%, #b39ddb 100%);
+}
+
+.settings-modal__variant-swatch--indigo {
+  background: linear-gradient(135deg, #1a1b22 0%, #232429 50%, #a78bfa 100%);
+}
+
+.settings-modal__variant-swatch--blue-slate {
+  background: linear-gradient(135deg, #1a1e24 0%, #232830 50%, #60a5fa 100%);
+}
+
+.settings-modal__variant-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-medium, #666);
+  text-align: center;
+}
+
+.settings-modal__variant-btn--active .settings-modal__variant-name {
+  color: var(--accent-text, #6366f1);
 }

@@ -435,69 +435,62 @@
 
 [data-theme="dark"] {
   .notification-toast {
-    background: rgba(15, 23, 42, 0.72);
-    border-color: rgba(148, 163, 184, 0.2);
+    background: var(--surface-bg);
+    border-color: var(--border-medium);
   }
 
   .notification-toast--success {
     background:
-      linear-gradient(0deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.12)),
-      rgba(15, 23, 42, 0.72);
+      linear-gradient(0deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.12)), var(--surface-bg);
   }
 
   .notification-toast--error {
     background:
-      linear-gradient(0deg, rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.12)),
-      rgba(15, 23, 42, 0.72);
+      linear-gradient(0deg, rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.12)), var(--surface-bg);
   }
 
   .notification-toast--warning {
     background:
-      linear-gradient(0deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.12)),
-      rgba(15, 23, 42, 0.72);
+      linear-gradient(0deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.12)), var(--surface-bg);
   }
 
   .notification-toast--info {
     background:
-      linear-gradient(0deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.12)),
-      rgba(15, 23, 42, 0.72);
+      linear-gradient(0deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.12)), var(--surface-bg);
   }
 
   .notification-toast__action {
-    background: rgba(15, 23, 42, 0.45);
-    border-color: rgba(148, 163, 184, 0.35);
+    background: var(--surface-elevated);
+    border-color: var(--border-strong);
     color: var(--text-high);
   }
 
   .notification-toast__action:hover {
-    background: rgba(15, 23, 42, 0.6);
+    background: var(--input-bg);
   }
 
   .notification-modal {
-    background: rgba(15, 23, 42, 0.9);
-    border-color: rgba(148, 163, 184, 0.22);
+    background: var(--surface-bg);
+    border-color: var(--border-medium);
   }
 
   .notification-modal--success {
     background:
-      linear-gradient(0deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.14)),
-      rgba(15, 23, 42, 0.9);
+      linear-gradient(0deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.14)), var(--surface-bg);
   }
 
   .notification-modal--error {
     background:
-      linear-gradient(0deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.14)), rgba(15, 23, 42, 0.9);
+      linear-gradient(0deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.14)), var(--surface-bg);
   }
 
   .notification-modal--warning {
     background:
-      linear-gradient(0deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.14)),
-      rgba(15, 23, 42, 0.9);
+      linear-gradient(0deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.14)), var(--surface-bg);
   }
 
   .notification-modal--info {
     background:
-      linear-gradient(0deg, rgba(59, 130, 246, 0.14), rgba(59, 130, 246, 0.14)),
-      rgba(15, 23, 42, 0.9);
+      linear-gradient(0deg, rgba(59, 130, 246, 0.14), rgba(59, 130, 246, 0.14)), var(--surface-bg);
   }
 }
