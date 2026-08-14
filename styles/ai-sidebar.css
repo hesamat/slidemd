@@ -447,11 +447,11 @@
 /* ── Dark mode ──────────────────────────────────────────────── */
 [data-theme="dark"] .ai-sidebar__panel,
 .ai-sidebar__panel[data-theme="dark"] {
-  --ai-bg: #1e1e2e;
-  --ai-surface: #252536;
-  --ai-border: rgba(255, 255, 255, 0.08);
-  --ai-text: #e2e2f0;
-  --ai-text-secondary: #a0a0b8;
+  --ai-bg: var(--theme-bg);
+  --ai-surface: var(--surface-elevated);
+  --ai-border: var(--border-subtle);
+  --ai-text: var(--text-high);
+  --ai-text-secondary: var(--text-medium);
   --ai-notice-bg: #422006;
   --ai-notice-text: #fbbf24;
   --ai-success: #4ade80;

@@ -286,7 +286,7 @@
 }
 
 [data-theme="dark"] .slide-context-menu {
-  background-color: rgb(30, 41, 59);
+  background-color: var(--surface-elevated);
 }
 
 .slide-context-menu__item {
