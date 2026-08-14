@@ -59,6 +59,7 @@ deckDir = path.dirname(path.resolve(inDeck));
 
 function readTextIfExists(filePath) {
     if (!fs.existsSync(filePath)) return "";
+    if (filePath.includes('..') || path.isAbsolute(filePath)) throw new Error("Invalid file path");
     return fs.readFileSync(filePath, "utf8");
 }
 
@@ -84,6 +85,8 @@ function resolveCssImports(entryFilePath, { _seen = new Set() } = {}) {
         if (isRemoteCssImport(specifier)) return full;
 
         const importedAbs = path.resolve(dir, specifier);
+        const relativeCheck = path.relative(dir, importedAbs);
+        if (relativeCheck.startsWith('..') || path.isAbsolute(relativeCheck)) return full;
         if (!fs.existsSync(importedAbs)) return full;
 
         const importedCss = resolveCssImports(importedAbs, { _seen });
@@ -192,6 +195,7 @@ function toDataUri(filePath) {
     const ext = path.extname(filePath);
     const mime = mimeForExt(ext);
     if (!mime) return null;
+    if (filePath.includes('..') || path.isAbsolute(filePath)) return null;
     const buf = fs.readFileSync(filePath);
     const b64 = buf.toString("base64");
     return `data:${mime};base64,${b64}`;

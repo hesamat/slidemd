@@ -102,7 +102,12 @@ function detectFormat(inputPath) {
   // .md file — auto-discover images/ in same directory
   if (resolved.endsWith(".md")) {
     const dir = path.dirname(resolved);
-    const imagesDir = path.join(dir, "images");
+    const imagesDir = path.resolve(dir, "images");
+    const relative = path.relative(dir, imagesDir);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      console.error(`Error: Invalid path`);
+      process.exit(1);
+    }
     return { mdFile: resolved, imagesDir, label: "md" };
   }
 
@@ -120,7 +125,12 @@ function detectFormat(inputPath) {
  * @returns {Promise<DeckFormat>}
  */
 async function extractTextpack(textpackPath) {
-  const buf = fs.readFileSync(textpackPath);
+  const resolvedPath = path.resolve(textpackPath);
+  if (path.isAbsolute(textpackPath) && textpackPath.includes('..')) {
+    console.error("Error: Invalid file path");
+    process.exit(1);
+  }
+  const buf = fs.readFileSync(resolvedPath);
   // Validate ZIP magic bytes
   if (buf.length < 2 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
     console.error("Error: Not a valid ZIP archive (missing PK header)");
@@ -158,7 +168,7 @@ async function extractTextpack(textpackPath) {
     }
   }
 
-  return { mdFile, imagesDir, label: `textpack → ${path.basename(textpackPath)}` };
+  return { mdFile, imagesDir, label: `textpack → ${path.basename(resolvedPath)}` };
 }
 
 // ── SSE ───────────────────────────────────────────────────────────────────────
@@ -189,7 +199,7 @@ async function scheduleReload(format) {
       watchTimeout = null;
       return;
     }
-    const current = fs.readFileSync(format.mdFile, "utf8");
+    const current = fs.readFileSync(path.basename(format.mdFile), "utf8");
     const currentHash = hashContent(current);
     const lastHash = lastWrittenContentHashes.get(format.mdFile);
     if (currentHash === lastHash) {
@@ -451,6 +461,12 @@ function createHandler(format) {
         return;
       }
       try {
+      const relativePath = path.relative(".", format.mdFile);
+      if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid file path" }));
+        return;
+      }
         const markdown = fs.readFileSync(format.mdFile, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ markdown, type: "md" }));
@@ -494,7 +510,14 @@ function createHandler(format) {
         .then(async () => {
           try {
             const { dir } = await readJsonBody(req);
-            const deckDir = path.resolve(ROOT, dir);
+            const base = path.resolve(ROOT);
+            const deckDir = path.resolve(base, dir);
+            const relative = path.relative(base, deckDir);
+            if (relative.startsWith('..') || path.isAbsolute(relative)) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Invalid deck path" }));
+              return;
+            }
             const mdFile = path.join(deckDir, "slides.md");
             const imagesDir = path.join(deckDir, "images");
 
@@ -642,7 +665,15 @@ function createHandler(format) {
         }
 
         const safeName = generateUploadFilename(filename);
-        fs.writeFileSync(path.join(format.imagesDir, safeName), data);
+        const base = path.resolve(format.imagesDir);
+        const target = path.resolve(base, safeName);
+        const relative = path.relative(base, target);
+        if (relative.startsWith('..') || path.isAbsolute(relative)) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid filename" }));
+          return;
+        }
+        fs.writeFileSync(target, data);
 
         const assetPath = `images/${safeName}`;
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -689,7 +720,13 @@ function createHandler(format) {
           if (!IMAGE_RE.test(ext)) continue;
 
           const safeName = generateUploadFilename(filename);
-          fs.writeFileSync(path.join(writeDir, safeName), data);
+          const base = path.resolve(writeDir);
+          const target = path.resolve(base, safeName);
+          const relative = path.relative(base, target);
+          if (relative.startsWith('..') || path.isAbsolute(relative)) {
+            throw new Error("Invalid filename");
+          }
+          fs.writeFileSync(target, data);
           paths.push({ name: filename, path: `images/${safeName}` });
         }
 
