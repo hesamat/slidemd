@@ -1,6 +1,10 @@
 import { splitSlides } from "../markdown-parser.js";
 import { DeckHistory } from "./deck-history.js";
 import { isInsert, isDelete, isNoOp } from "./slide-patch.js";
+import {
+  visualSystemToComment,
+  extractVisualSystemFromMarkdown,
+} from "../ai/visual-system-schema.js";
 
 /**
  * Canonical source of truth for slide markdown and active index.
@@ -12,6 +16,7 @@ export class DeckStore {
     this._activeIndex = 0;
     this._history = new DeckHistory({ maxEntries: maxHistory });
     this._listeners = new Map();
+    this._visualSystem = null;
 
     this._structuralRevision = 0;
     this._structuralListeners = new Set();
@@ -47,7 +52,9 @@ export class DeckStore {
   }
 
   loadFromMarkdown(markdown, activeIndex = 0) {
-    this._slides = splitSlides(markdown);
+    const { visualSystem, markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
+    this._slides = splitSlides(withoutComment);
+    this._visualSystem = visualSystem;
     this._activeIndex = this._clampIndex(activeIndex);
     this._history.clear();
     // Never reset the structural revision; always bump on a new deck load so a
@@ -70,11 +77,13 @@ export class DeckStore {
   replaceDeck(slides, activeIndex = 0, patch) {
     const slidesBefore = [...this._slides];
     const activeIndexBefore = this._activeIndex;
+    const visualSystemBefore = this._visualSystem;
     this._slides = [...slides];
     this._activeIndex = this._clampIndex(activeIndex);
     this._history.push(
       slidesBefore,
       activeIndexBefore,
+      visualSystemBefore,
       patch || { index: 0, before: null, after: null, source: "ai", timestamp: Date.now() },
     );
     this._bumpStructuralRevision();
@@ -173,7 +182,7 @@ export class DeckStore {
       this._activeIndex = this._clampIndex(activeIndexAfterMove);
     }
 
-    this._history.push(slidesBefore, activeIndexBefore, validPatches[0]);
+    this._history.push(slidesBefore, activeIndexBefore, this._visualSystem, validPatches[0]);
     if (isStructural) {
       this._bumpStructuralRevision();
     }
@@ -189,10 +198,11 @@ export class DeckStore {
   }
 
   undo() {
-    const entry = this._history.popUndo(this._slides, this._activeIndex);
+    const entry = this._history.popUndo(this._slides, this._activeIndex, this._visualSystem);
     if (!entry) return false;
     this._slides = entry.slides;
     this._activeIndex = entry.activeIndex;
+    this._visualSystem = entry.visualSystem ?? null;
     if (isInsert(entry.patch) || isDelete(entry.patch)) {
       this._bumpStructuralRevision();
     }
@@ -203,10 +213,11 @@ export class DeckStore {
   }
 
   redo() {
-    const entry = this._history.popRedo(this._slides, this._activeIndex);
+    const entry = this._history.popRedo(this._slides, this._activeIndex, this._visualSystem);
     if (!entry) return false;
     this._slides = entry.slides;
     this._activeIndex = entry.activeIndex;
+    this._visualSystem = entry.visualSystem ?? null;
     if (isInsert(entry.patch) || isDelete(entry.patch)) {
       this._bumpStructuralRevision();
     }
@@ -224,7 +235,35 @@ export class DeckStore {
   }
 
   toMarkdown() {
-    return this._slides.join("\n\n---\n\n");
+    const body = this._slides.join("\n\n---\n\n");
+    if (this._visualSystem) {
+      return `${visualSystemToComment(this._visualSystem)}\n\n${body}`;
+    }
+    return body;
+  }
+
+  /**
+   * Return the currently stored deck-wide visual system, if any.
+   * @returns {import("../data/ai/visual-system-schema.js").VisualSystem|null}
+   */
+  getVisualSystem() {
+    return this._visualSystem;
+  }
+
+  /**
+   * Set (or clear) the deck-wide visual system.
+   * @param {import("../data/ai/visual-system-schema.js").VisualSystem|null} visualSystem
+   */
+  setVisualSystem(visualSystem) {
+    this._visualSystem = visualSystem;
+  }
+
+  /**
+   * Return the serialized visual-system comment for persistence, or null.
+   * @returns {string|null}
+   */
+  getVisualSystemComment() {
+    return this._visualSystem ? visualSystemToComment(this._visualSystem) : null;
   }
 
   on(event, callback) {

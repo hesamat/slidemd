@@ -3,6 +3,8 @@ import {
   validateVisualSystem,
   parseVisualSystem,
   DEFAULT_VISUAL_SYSTEM,
+  visualSystemToComment,
+  extractVisualSystemFromMarkdown,
 } from "../data/ai/visual-system-schema.js";
 
 const VALID_PALETTE = {
@@ -89,5 +91,40 @@ describe("parseVisualSystem", () => {
   it("falls back to DEFAULT_VISUAL_SYSTEM for undefined", () => {
     const result = parseVisualSystem(undefined);
     expect(result).toBe(DEFAULT_VISUAL_SYSTEM);
+  });
+});
+
+describe("visualSystemToComment", () => {
+  it("serializes a valid visual system as a top-of-markdown HTML comment", () => {
+    const comment = visualSystemToComment(VALID_SYSTEM);
+    expect(comment).toMatch(/^<!-- visual-system: /);
+    expect(comment).toMatch(/ -->$/);
+    expect(comment).toContain('"base"');
+    expect(comment).toContain('"#0f172a"');
+  });
+});
+
+describe("extractVisualSystemFromMarkdown", () => {
+  it("extracts the visual system and removes the comment", () => {
+    const comment = visualSystemToComment(VALID_SYSTEM);
+    const markdown = `${comment}\n\n# Slide 1\n\n---\n\n# Slide 2`;
+    const { visualSystem, markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
+    expect(visualSystem).toEqual(VALID_SYSTEM);
+    expect(withoutComment).not.toContain("visual-system");
+    expect(withoutComment.startsWith("# Slide 1")).toBe(true);
+  });
+
+  it("returns null and original markdown when no comment is present", () => {
+    const markdown = "# Slide 1\n\n---\n\n# Slide 2";
+    const { visualSystem, markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
+    expect(visualSystem).toBeNull();
+    expect(withoutComment).toBe(markdown);
+  });
+
+  it("ignores invalid visual-system comments", () => {
+    const markdown = "<!-- visual-system: not-json -->\n# Slide 1";
+    const { visualSystem, markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
+    expect(visualSystem).toBeNull();
+    expect(withoutComment).toBe(markdown);
   });
 });

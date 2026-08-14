@@ -291,9 +291,12 @@ export class SaveManager {
    * @returns {string}
    */
   getFullMarkdown(deckStoreSlides) {
-    return this.getFullSlides(deckStoreSlides)
+    const body = this.getFullSlides(deckStoreSlides)
       .map((s) => (typeof s === "string" ? s : (s.markdown ?? "")))
       .join("\n\n---\n\n");
+    const deckStore = this._getDeckStore?.();
+    const comment = deckStore?.getVisualSystemComment?.() || "";
+    return comment ? `${comment}\n\n${body}` : body;
   }
 
   /**

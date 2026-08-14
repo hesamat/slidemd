@@ -185,4 +185,27 @@ describe("SlideRenderer", () => {
     expect(mediaArea.style.gridArea).toBe("");
     expect(mediaArea.style.gridColumn).toBe("1 / -1");
   });
+
+  it("applies palette CSS variables from the deck visual system", () => {
+    const slide = {
+      id: "palette",
+      title: "Palette",
+      areas: { main: "<p>Body</p>" },
+    };
+    const deck = {
+      slides: [slide],
+      visualSystem: {
+        palette: {
+          base: "#0f172a",
+          accent: "#06b6d4",
+          highlight: "#ffffff",
+        },
+      },
+    };
+    const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
+    expect(el.style.getPropertyValue("--palette-base")).toBe("#0f172a");
+    expect(el.style.getPropertyValue("--palette-accent")).toBe("#06b6d4");
+    expect(el.style.getPropertyValue("--palette-highlight")).toBe("#ffffff");
+    expect(el.style.getPropertyValue("--palette-accent-light")).toBe("rgba(6, 182, 212, 0.15)");
+  });
 });

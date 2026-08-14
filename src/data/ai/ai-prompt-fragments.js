@@ -9,6 +9,7 @@
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
 import { splitBackgroundValue, findFencedRanges } from "../image-markdown-parser.js";
+import { extractVisualSystemFromMarkdown } from "./visual-system-schema.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -437,16 +438,20 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
  * @returns {string}
  */
 export function stripFrontmatter(markdown, mode) {
+  // Remove the top-level visual-system HTML comment if present; the prompt
+  // builder injects the visual system separately via opts.visualSystem.
+  const { markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
+
   if (mode === "generate") {
     // Generate mode: keep background and theme so AI sees the originals
     return stripDirectives(
-      markdown,
+      withoutComment,
       /^\s*(layout|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
     );
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
   return stripDirectives(
-    markdown,
+    withoutComment,
     /^\s*(theme|background|media-full-bleed|media-span|hidden|code-font-size)\s*:\s*.*$/i,
   );
 }

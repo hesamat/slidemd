@@ -12,6 +12,7 @@ import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { uploadImagesInBatches } from "../../core/image-batch-uploader.js";
 import { setImageUploadPromise } from "../../core/image-upload-promise.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { extractVisualSystemFromMarkdown } from "../../data/ai/visual-system-schema.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImagePicker } from "../image/image-picker.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
@@ -307,8 +308,11 @@ export class OpenDeckModal {
 
             if (editCtrl?.deckStore) {
               try {
-                const newSlides = new MarkdownParser().splitSlides(serverMarkdown);
+                const { visualSystem, markdown: serverMarkdownWithoutComment } =
+                  extractVisualSystemFromMarkdown(serverMarkdown);
+                const newSlides = new MarkdownParser().splitSlides(serverMarkdownWithoutComment);
                 editCtrl.deckStore.syncSlides(newSlides, editCtrl.deckStore.getActiveIndex());
+                editCtrl.deckStore.setVisualSystem(visualSystem);
                 const updatedDeck = await DeckLoader.parseMarkdown(serverMarkdown);
                 if (reloadManager?.replaceDeck) {
                   await reloadManager.replaceDeck(updatedDeck, {

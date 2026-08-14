@@ -82,3 +82,35 @@ export function validateVisualSystem(obj) {
 export function parseVisualSystem(obj) {
   return validateVisualSystem(obj) ?? DEFAULT_VISUAL_SYSTEM;
 }
+
+/**
+ * Serialize a visual system as a top-of-markdown HTML comment.
+ * @param {VisualSystem} visualSystem
+ * @returns {string}
+ */
+export function visualSystemToComment(visualSystem) {
+  return `<!-- visual-system: ${JSON.stringify({ palette: visualSystem.palette })} -->`;
+}
+
+/**
+ * Extract a visual system comment from the top of markdown.
+ * Returns the parsed visual system and the markdown with the comment removed.
+ * @param {string} markdown
+ * @returns {{ visualSystem: VisualSystem|null, markdown: string }}
+ */
+export function extractVisualSystemFromMarkdown(markdown) {
+  const trimmed = String(markdown || "").replace(/\r\n?/g, "\n");
+  const match = trimmed.match(/^\s*<!--\s*visual-system:\s*([\s\S]*?)-->\s*/);
+  if (!match) return { visualSystem: null, markdown };
+
+  try {
+    const parsed = JSON.parse(match[1].trim());
+    const visualSystem = validateVisualSystem(parsed);
+    if (!visualSystem) return { visualSystem: null, markdown };
+
+    const withoutComment = trimmed.slice(match[0].length).replace(/^\n*/, "");
+    return { visualSystem, markdown: withoutComment };
+  } catch {
+    return { visualSystem: null, markdown };
+  }
+}

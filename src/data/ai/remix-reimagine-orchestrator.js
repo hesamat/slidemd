@@ -46,7 +46,7 @@ import {
 } from "../image-markdown-parser.js";
 
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
-import { parseVisualSystem } from "./visual-system-schema.js";
+import { parseVisualSystem, visualSystemToComment } from "./visual-system-schema.js";
 import { normalizeBeats } from "./beat-normalizer.js";
 import { extractJsonObject } from "./ai-response-parser.js";
 
@@ -512,7 +512,11 @@ export class RemixReimagineOrchestrator {
     const cleaned = stripFabricatedImages(rawIdentity, keptImageSrcs, onLog);
     const slides = splitSlides(cleaned);
     const collapsed = slides.map((slide) => collapseBackgroundDirectives(slide));
-    return collapsed.join("\n\n---\n\n");
+    const body = collapsed.join("\n\n---\n\n");
+    if (editedOutline.visualSystem) {
+      return `${visualSystemToComment(editedOutline.visualSystem)}\n\n${body}`;
+    }
+    return body;
   }
 
   /**
