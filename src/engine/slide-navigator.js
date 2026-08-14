@@ -128,7 +128,11 @@ export class SlideNavigator extends EventEmitter {
 
     const url = new URL(window.location.href);
     url.hash = `#slide-${this.currentIndex + 1}`;
-    history.replaceState({}, "", url.toString());
+    if (window.location.protocol === "file:") {
+      window.location.hash = url.hash;
+    } else {
+      history.replaceState({}, "", url.toString());
+    }
 
     this.dispatchEvent("slidechange", { index: this.currentIndex });
     return this.currentIndex;
