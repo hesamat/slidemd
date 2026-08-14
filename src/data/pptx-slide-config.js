@@ -105,6 +105,10 @@ export const CONFIG = {
   // many elements for the focus layout — short bulleted content benefits from
   // centered presentation even with 4-6 items.
   maxFocusElements: 6,
+  // Minimum non-empty lines in a wide code element for it to be treated as
+  // merged two-column code (uses two-column layout). Shorter code blocks use
+  // focus even when wide, since two-column would just downgrade to header-content.
+  minMergedCodeLines: 10,
   headerThinRatio: 0.4,
   maxHeaderHeightRatio: 0.35,
   centerToleranceRatio: 0.1,

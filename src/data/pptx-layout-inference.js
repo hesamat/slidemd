@@ -392,9 +392,15 @@ export function inferLayout(
       });
       if (looksLikeCode) {
         // If the code element spans most of the slide width, it's likely merged
-        // from two columns — use two-column layout so content can be distributed
+        // from two columns — use two-column layout so content can be distributed.
+        // But if the code is short (few lines), FOCUS is better: a short wide
+        // code block is a single snippet, not merged columns, and TWO_COLUMN
+        // would just get downgraded to HEADER_CONTENT after a failed split.
         const codeWidth = codeEl?.width || 0;
-        if (codeWidth > slideWidth * 0.8) return LAYOUT.TWO_COLUMN;
+        const codeLines = (codeEl?.content || "").split("\n").filter((l) => l.trim()).length;
+        if (codeWidth > slideWidth * 0.8 && codeLines >= CONFIG.minMergedCodeLines) {
+          return LAYOUT.TWO_COLUMN;
+        }
         return LAYOUT.FOCUS;
       }
       // Short body content benefits from focus layout even with a non-thin header.

@@ -2179,6 +2179,101 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@main");
   });
 
+  it("uses focus for header + short wide code block instead of two-column", () => {
+    // A short code block (<300 chars) that spans >80% of the slide width
+    // should use focus, not two-column. Two-column would downgrade to
+    // header-content after a failed split, which is worse than focus.
+    const code = [
+      "```python",
+      "def make_username(first_name, last_name):",
+      "    initial = first_name[0]",
+      "    return f'{initial}{last_name}'.lower()",
+      "```",
+    ].join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Code Example",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Example: Out of scope",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000, // below bodyThreshold (22% of 5143500 = 1131570)
+            width: 9000000, // >80% of slide width (9144000)
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("make_username");
+  });
+
+  it("uses two-column for header + long wide code block", () => {
+    // A code block with 10+ non-empty lines that spans >80% of the slide width
+    // should still use two-column so the content can be split across columns.
+    // Uses raw code (no fences) to match how PPTX merged-column code arrives.
+    const code = [
+      "products = [",
+      "    'Keyboard',",
+      "    'Mouse',",
+      "    'Monitor',",
+      "    'Webcam',",
+      "]",
+      "inventory = {",
+      "    product: 0",
+      "    for product in products",
+      "}",
+      "words = [",
+      "    'algorithm',",
+      "    'loop',",
+      "    'dictionary',",
+      "    'function'",
+      "]",
+    ].join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Long Code",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Long Code Example",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000, // below bodyThreshold
+            width: 9000000,
+            height: 4000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+  });
+
   it("upgrades header-content to two-column when the body overflows", () => {
     // Mirrors a real Week 04 slide ("Assert, assert, assert!"): a title and a
     // single body box with 14 large-font (28pt) lines that cannot fit one
