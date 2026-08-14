@@ -30,6 +30,9 @@
   --surface-hover: rgba(var(--color-slate), 0.06);
   --theme-bg: rgba(var(--color-primary), 0.08);
 
+  /* Input/textfield surface (defaults to elevated surface; overridden in dark) */
+  --input-bg: var(--surface-elevated);
+
   /* --- ACCENT STATES --- */
   --accent: rgba(var(--color-primary), 0.95);
   --accent-bg: rgba(var(--color-primary), 0.12);
@@ -84,6 +87,8 @@ body {
   font-size: var(--ui-font-size);
   line-height: var(--ui-line-height);
   background: var(--theme-bg);
+  background-image: var(--theme-bg-gradient, none);
+  background-attachment: fixed;
   color: var(--text-high);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -107,36 +112,142 @@ html[data-embedded="true"] body {
 
 /* ========================================================================
    Dark Theme
+   ========================================================================
+   The base [data-theme="dark"] block sets shared structural values that
+   are common to every dark variant (color-scheme, text opacity ratios,
+   border opacity ratios, hover overlay). Each variant then overrides the
+   palette-specific variables: --color-slate, --color-primary, surface
+   tones, --input-bg, and accent derivatives.
+
+   Variant selection uses [data-dark-variant="..."] on the same element
+   that carries [data-theme="dark"] (document.documentElement).
    ======================================================================== */
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* --- DARK MODE COLORS --- */
-  --color-slate: 226, 232, 240;
-
-  /* Text colors - lighter for dark backgrounds */
+  /* Text opacity ratios (shared across variants) */
   --text-high: rgba(var(--color-slate), 0.95);
-  --text-medium: rgba(var(--color-slate), 0.88);
-  --text-low: rgba(var(--color-slate), 0.72);
-  --text-muted: rgba(var(--color-slate), 0.58);
+  --text-medium: rgba(var(--color-slate), 0.82);
+  --text-low: rgba(var(--color-slate), 0.62);
+  --text-muted: rgba(var(--color-slate), 0.48);
 
-  /* Borders - lighter and more visible on dark */
-  --border-subtle: rgba(255, 255, 255, 0.15);
-  --border-medium: rgba(255, 255, 255, 0.3);
-  --border-strong: rgba(255, 255, 255, 0.4);
+  /* Border opacity ratios (shared across variants) */
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-medium: rgba(255, 255, 255, 0.18);
+  --border-strong: rgba(255, 255, 255, 0.28);
 
-  /* Surfaces - dark backgrounds */
-  --surface-bg: rgba(15, 23, 42, 0.95);
-  --surface-elevated: rgba(30, 41, 59, 0.98);
-  --surface-hover: rgba(255, 255, 255, 0.1);
+  /* Hover overlay (shared) */
+  --surface-hover: rgba(255, 255, 255, 0.08);
 
-  /* Theme background */
-  --theme-bg: rgba(7, 10, 19, 0.98);
-
-  /* Accent states for dark mode */
+  /* Accent opacity ratios (shared; --color-primary differs per variant) */
   --accent-bg: rgba(var(--color-primary), 0.2);
   --accent-border: rgba(var(--color-primary), 0.5);
   --accent-text: rgba(var(--color-primary), 0.95);
-  --accent: rgba(186, 205, 222, 0.9);
+  --accent: rgba(var(--color-primary), 0.85);
+}
+
+/* ── Variant: Warm Graphite (default) ──────────────────────────────
+   Warm charcoal with subtle brown undertones. Accent: warm indigo.
+   Input surface is ~18 levels lighter than elevated — clearly editable. */
+
+[data-theme="dark"][data-dark-variant="warm-graphite"] {
+  --color-slate: 232, 234, 237;
+  --color-primary: 179, 157, 219;
+  --color-secondary: 179, 157, 219;
+
+  --surface-bg: rgba(30, 29, 27, 0.98);
+  --surface-elevated: rgba(38, 37, 35, 0.98);
+  --input-bg: rgba(56, 54, 50, 0.98);
+  --theme-bg: rgba(20, 19, 18, 0.98);
+  --theme-bg-gradient: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    rgba(179, 157, 219, 0.06) 0%,
+    transparent 60%
+  );
+}
+
+/* ── Variant: Cool Indigo-Gray ─────────────────────────────────────
+   Subtle indigo undertone throughout. Accent: brighter indigo.
+   Input surface is ~16 levels lighter than elevated. */
+
+[data-theme="dark"][data-dark-variant="indigo-gray"] {
+  --color-slate: 232, 234, 237;
+  --color-primary: 167, 139, 250;
+  --color-secondary: 167, 139, 250;
+
+  --surface-bg: rgba(26, 27, 34, 0.98);
+  --surface-elevated: rgba(35, 36, 41, 0.98);
+  --input-bg: rgba(51, 53, 62, 0.98);
+  --theme-bg: rgba(16, 17, 22, 0.98);
+  --theme-bg-gradient: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    rgba(167, 139, 250, 0.07) 0%,
+    transparent 60%
+  );
+}
+
+/* ── Variant: Blue Slate ───────────────────────────────────────────
+   Refined slate with blue undertones. Accent: sky blue.
+   Input surface is ~16 levels lighter than elevated. */
+
+[data-theme="dark"][data-dark-variant="blue-slate"] {
+  --color-slate: 226, 232, 240;
+  --color-primary: 96, 165, 250;
+  --color-secondary: 96, 165, 250;
+
+  --surface-bg: rgba(26, 30, 36, 0.98);
+  --surface-elevated: rgba(35, 40, 48, 0.98);
+  --input-bg: rgba(51, 58, 68, 0.98);
+  --theme-bg: rgba(16, 19, 24, 0.98);
+  --theme-bg-gradient: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    rgba(96, 165, 250, 0.07) 0%,
+    transparent 60%
+  );
+}
+
+/* ========================================================================
+   Dark Theme — Textfield Surfaces
+   Textfields use a lighter surface (--input-bg) so they read as recessed
+   wells against the darker modal/panel backgrounds, clearly signaling
+   editable regions.
+   ======================================================================== */
+
+[data-theme="dark"] .go-to-slide__input,
+[data-theme="dark"] .slide-search__input,
+[data-theme="dark"] .settings-modal__input,
+[data-theme="dark"] .settings-modal__select,
+[data-theme="dark"] .ai-generate-modal__textarea,
+[data-theme="dark"] .ai-generate-modal__select,
+[data-theme="dark"] .ai-reimagine-outline-modal__plan-input,
+[data-theme="dark"] .ai-reimagine-outline-modal__flow-tag-select,
+[data-theme="dark"] .ai-reimagine-outline-modal__swatch-input,
+[data-theme="dark"] .command-palette__input,
+[data-theme="dark"] .image-picker-url-input,
+[data-theme="dark"] .image-picker-size-input,
+[data-theme="dark"] .layout-picker-custom-form__input,
+[data-theme="dark"] .notification-modal__input,
+[data-theme="dark"] .markdown-editor-textarea,
+[data-theme="dark"] .image-properties-panel__input,
+[data-theme="dark"] .image-properties-panel__text,
+[data-theme="dark"] .text-properties-panel__input,
+[data-theme="dark"] .text-properties-panel__textarea,
+[data-theme="dark"] .conflict-modal__select,
+[data-theme="dark"] .conversion-modal__select {
+  background: var(--input-bg);
+}
+
+/* Readonly inputs keep their muted surface (not the lighter input-bg). */
+[data-theme="dark"] .settings-modal__input--readonly {
+  background: var(--surface-hover);
+}
+
+/* Inputs whose :focus rules change background to --surface-bg would revert
+   to the modal background colour on focus, making them invisible. Keep the
+   lighter --input-bg on focus in dark mode. */
+[data-theme="dark"] .go-to-slide__input:focus,
+[data-theme="dark"] .slide-search__input:focus,
+[data-theme="dark"] .markdown-editor-textarea:focus {
+  background: var(--input-bg);
 }
