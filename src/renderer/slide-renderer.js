@@ -44,7 +44,7 @@ const PURIFY_CONFIG = {
 
 let _purify;
 let _configuredPurifiers = new WeakSet();
-let _domPurifyWarned = false;
+let _rendererPurifyWarned = false;
 
 function configureDOMPurify(purify) {
   if (!purify || _configuredPurifiers.has(purify)) return purify;
@@ -84,8 +84,8 @@ function getDOMPurify() {
 function sanitizeAreaHtml(html) {
   const purify = getDOMPurify();
   if (!purify) {
-    if (!_domPurifyWarned) {
-      _domPurifyWarned = true;
+    if (!_rendererPurifyWarned) {
+      _rendererPurifyWarned = true;
       Logger.warn("DOMPurify not available; rendering slide HTML as text");
     }
     return escapeHtml(html);

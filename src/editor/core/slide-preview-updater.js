@@ -240,8 +240,11 @@ export class SlidePreviewUpdater {
           if (slideData?.headerStyle)
             slideEl.setAttribute("data-header-style", slideData.headerStyle);
           else slideEl.removeAttribute("data-header-style");
-          if (slideData?.background) slideEl.style.background = slideData.background;
-          else slideEl.style.background = "";
+          if (slideData?.background) {
+            slideEl.style.background = slideData.background;
+          } else {
+            slideEl.style.background = "";
+          }
           if (slideData?.areaStyle) slideEl.setAttribute("data-has-borders", "");
           else slideEl.removeAttribute("data-has-borders");
 

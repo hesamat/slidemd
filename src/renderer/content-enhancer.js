@@ -57,25 +57,28 @@ function normalizeEmojiText(rootEl) {
   roots.forEach(normalizeEmojiTextInRoot);
 }
 
-let _purify;
-let _domPurifyWarned = false;
+// Use module-specific names to avoid duplicate declaration errors when the
+// runtime HTML export path concatenates this file with slide-renderer.js
+// (which has its own _purify / getDOMPurify) into a single IIFE scope.
+let _enhancerPurify;
+let _enhancerPurifyWarned = false;
 
-function getDOMPurify() {
-  if (_purify !== undefined) return _purify;
+function getEnhancerDOMPurify() {
+  if (_enhancerPurify !== undefined) return _enhancerPurify;
 
   if (typeof createDOMPurify !== "undefined") {
     try {
-      _purify = createDOMPurify(window);
+      _enhancerPurify = createDOMPurify(window);
     } catch {
-      _purify = null;
+      _enhancerPurify = null;
     }
   }
 
-  if (!_purify && typeof window !== "undefined" && window.DOMPurify) {
-    _purify = window.DOMPurify;
+  if (!_enhancerPurify && typeof window !== "undefined" && window.DOMPurify) {
+    _enhancerPurify = window.DOMPurify;
   }
 
-  return _purify;
+  return _enhancerPurify;
 }
 
 /**
@@ -107,10 +110,10 @@ const MERMAID_SVG_PURIFY_CONFIG = {
 };
 
 export function sanitizeMermaidSvg(svg) {
-  const purify = getDOMPurify();
+  const purify = getEnhancerDOMPurify();
   if (!purify) {
-    if (!_domPurifyWarned) {
-      _domPurifyWarned = true;
+    if (!_enhancerPurifyWarned) {
+      _enhancerPurifyWarned = true;
       Logger.warn("DOMPurify not available; rendering Mermaid source as text");
     }
     return null;
