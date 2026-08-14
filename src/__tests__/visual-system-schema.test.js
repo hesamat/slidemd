@@ -44,15 +44,17 @@ describe("validateVisualSystem", () => {
   it("treats a legacy palette as a valid visual direction", () => {
     const result = validateVisualSystem({ palette: LEGACY_PALETTE });
     expect(result).not.toBeNull();
-    expect(result.visualDirection).toContain("#0f172a");
-    expect(result.visualDirection).toContain("#06b6d4");
-    expect(result.visualDirection).toContain("#ffffff");
+    expect(result.visualDirection).not.toContain("#0f172a");
+    expect(result.visualDirection).not.toContain("#06b6d4");
+    expect(result.visualDirection).not.toContain("#ffffff");
+    expect(result.visualDirection).toMatch(/dark|light|bright/i);
   });
 
   it("ignores an empty or partial legacy palette", () => {
     const result = validateVisualSystem({ palette: { base: "#0f172a" } });
     expect(result).not.toBeNull();
-    expect(result.visualDirection).toContain("#0f172a");
+    expect(result.visualDirection).not.toContain("#0f172a");
+    expect(result.visualDirection).toMatch(/dark/i);
   });
 
   it("returns null for non-object input", () => {
@@ -81,8 +83,9 @@ describe("parseVisualSystem", () => {
 
   it("converts a legacy palette into a visual direction", () => {
     const result = parseVisualSystem({ palette: LEGACY_PALETTE });
-    expect(result.visualDirection).toContain("#0f172a");
-    expect(result.visualDirection).toContain("#06b6d4");
+    expect(result.visualDirection).not.toContain("#0f172a");
+    expect(result.visualDirection).not.toContain("#06b6d4");
+    expect(result.visualDirection).toMatch(/dark|light|bright/i);
   });
 
   it("falls back to DEFAULT_VISUAL_SYSTEM for invalid input", () => {

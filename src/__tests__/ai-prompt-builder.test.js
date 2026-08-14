@@ -742,4 +742,43 @@ describe("applyVisualSystemIdentity", () => {
     expect(result).not.toContain("expression");
     expect(result).toMatch(/^background: .*#1a1a2e/m);
   });
+
+  it("drops AI-generated visual-system comments from slide content", () => {
+    const md = `<!-- visual-system: {"palette":{"base":"#0f172a","accent":"#06b6d4"}} -->\nlayout: header-content\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).not.toContain("visual-system");
+    expect(result).not.toContain("palette");
+    expect(result).toContain("layout: header-content");
+  });
+
+  it("overrides mismatched theme to match background color", () => {
+    const md = `layout: header-content\ntheme: light\nbackground: #0f172a\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #0f172a");
+  });
+
+  it("overrides mismatched dark theme to match light background", () => {
+    const md = `layout: focus\ntheme: dark\nbackground: #ffffff\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    expect(result).toContain("theme: light");
+    expect(result).toContain("background: #ffffff");
+  });
+
+  it("deduplicates repeated layout directives from AI output", () => {
+    const md = `layout: title-slide\nlayout: title-slide\ntheme: dark\nbackground: #1a1a2e\n@title\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    const layoutMatches = result.match(/^layout: /gm);
+    expect(layoutMatches).toHaveLength(1);
+    expect(result).toContain("layout: title-slide");
+  });
+
+  it("deduplicates any repeated directive from AI output", () => {
+    const md = `layout: two-column\nlayout: two-column\ncode-font-size: 18\ncode-font-size: 18\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide`;
+    const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
+    const layoutMatches = result.match(/^layout: /gm);
+    const fontSizeMatches = result.match(/^code-font-size: /gm);
+    expect(layoutMatches).toHaveLength(1);
+    expect(fontSizeMatches).toHaveLength(1);
+  });
 });

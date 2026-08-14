@@ -529,17 +529,25 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     let inLeading = true;
     const anyDirective = /^\s*([a-zA-Z][\w-]*)\s*:\s*(.*)$/i;
     const htmlComment = /^\s*<!--/;
+    const visualSystemComment = /^\s*<!--\s*visual-system:/i;
 
     for (const line of lines) {
       if (inLeading && line.trim() === "") continue;
       if (inLeading && htmlComment.test(line)) {
+        // Drop AI-generated visual-system comments — the correct comment is
+        // prepended by the orchestrator via visualSystemToComment().
+        if (visualSystemComment.test(line)) continue;
         commentLines.push(line);
         continue;
       }
       const match = line.match(anyDirective);
       if (inLeading && match) {
         const name = match[1].toLowerCase();
-        directiveOrder.push(name);
+        // Avoid duplicating directives when the AI emits the same directive
+        // twice (e.g. `layout: title-slide` on two consecutive lines).
+        // directiveMap.set overwrites the value, but directiveOrder must not
+        // record the name a second time or the rebuild loop will emit it twice.
+        if (!directiveMap.has(name)) directiveOrder.push(name);
         directiveMap.set(name, { line, value: match[2].trim() });
         continue;
       }

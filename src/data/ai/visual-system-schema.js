@@ -10,6 +10,8 @@
  * single-field format.
  */
 
+import { isColorDark } from "../pptx-color-utils.js";
+
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 /**
@@ -68,14 +70,24 @@ export function validateVisualSystem(obj) {
   }
 
   // Legacy palette shape — convert to a visual direction string.
+  // Do NOT forward specific hex colors to the generation AI; describe the
+  // _kind_ of background (dark, light, accent) so the model picks its own
+  // professional colors instead of reusing the stale palette verbatim.
   if (typeof obj.palette === "object" && obj.palette !== null) {
     const { base, accent, highlight } = obj.palette;
     const baseColor = isValidHex(base) ? base : "";
     const accentColor = isValidHex(accent) ? accent : "";
     const highlightColor = isValidHex(highlight) ? highlight : "";
     if (baseColor || accentColor || highlightColor) {
+      const baseTone = baseColor ? (isColorDark(baseColor) ? "dark" : "light") : "neutral";
+      const accentTone = accentColor ? (isColorDark(accentColor) ? "dark" : "bright") : "bright";
+      const highlightTone = highlightColor
+        ? isColorDark(highlightColor)
+          ? "dark"
+          : "light"
+        : "light";
       return {
-        visualDirection: `Legacy palette: ${baseColor || "(none)"} base, ${accentColor || "(none)"} accent, ${highlightColor || "(none)"} highlight. Use ${baseColor || "neutral backgrounds"} for continuation and content slides, ${accentColor || "bright accents"} for punctuation, transition, CTA, or high-energy moments, and ${highlightColor || "light backgrounds"} for title/agenda slides.`,
+        visualDirection: `Professional and varied. Use ${baseTone} backgrounds for most content and continuation slides. Use ${accentTone} accent backgrounds for punctuation, transition, CTA, or high-energy moments. Use ${highlightTone} backgrounds for title and agenda slides. Vary backgrounds across the deck so no single color dominates. Always pair theme: with background: for readable contrast.`,
       };
     }
   }
