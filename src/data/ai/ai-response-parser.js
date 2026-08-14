@@ -21,9 +21,11 @@ export function slidesToMarkdown(slides) {
       if (slide.background) parts.push(`background: ${slide.background}`);
       if (slide.theme) parts.push(`theme: ${slide.theme}`);
       if (slide.mediaFullBleed) parts.push("media-full-bleed: true");
-      // Strip SLIDE INDEX / SLIDE n comments from content. Models often
-      // omit the word "INDEX" or vary the parenthetical text.
-      const slideCommentRe = /<!--\s*SLIDE(?:\s+INDEX)?\s+\d+(?:\s*\([^)]*\))?\s*-->\n?/gi;
+      // Strip a leading SLIDE INDEX / SLIDE n marker comment from content.
+      // Models often prepend this as a navigation aid; it is not part of the
+      // slide body. Only strip the leading occurrence so legitimate comments
+      // inside code examples are preserved.
+      const slideCommentRe = /^<!--\s*SLIDE(?:\s+INDEX)?\s+\d+(?:\s*\([^)]*\))?\s*-->\n?/i;
       const content = (slide.content || "").replace(slideCommentRe, "");
       if (parts.length > 0) parts.push("");
       parts.push(content);

@@ -177,25 +177,36 @@ export class AiReimagineOutlineModal {
        * Render the editable visual direction summary.
        */
       const renderVisualSystem = () => {
+        visualSystemEl.textContent = "";
         if (!visualSystem) {
-          visualSystemEl.innerHTML = `<p class="${P}visual-system-empty">No visual direction provided.</p>`;
+          const empty = document.createElement("p");
+          empty.className = `${P}visual-system-empty`;
+          empty.textContent = "No visual direction provided.";
+          visualSystemEl.appendChild(empty);
           return;
         }
 
-        visualSystemEl.innerHTML = `
-          <div class="${P}visual-system-section">
-            <label class="${P}visual-system-label" for="${P}visual-direction-input">Visual direction</label>
-            <textarea id="${P}visual-direction-input" class="${P}visual-direction-input" rows="4">${escapeHtml(visualSystem.visualDirection)}</textarea>
-          </div>
-        `;
+        const section = document.createElement("div");
+        section.className = `${P}visual-system-section`;
 
-        const directionInput = visualSystemEl.querySelector(`#${P}visual-direction-input`);
+        const label = document.createElement("label");
+        label.className = `${P}visual-system-label`;
+        label.htmlFor = `${P}visual-direction-input`;
+        label.textContent = "Visual direction";
 
-        if (directionInput) {
-          directionInput.addEventListener("input", (e) => {
-            visualSystem.visualDirection = e.target.value;
-          });
-        }
+        const textarea = document.createElement("textarea");
+        textarea.id = `${P}visual-direction-input`;
+        textarea.className = `${P}visual-direction-input`;
+        textarea.rows = 4;
+        textarea.value = visualSystem.visualDirection || "";
+
+        textarea.addEventListener("input", (e) => {
+          visualSystem.visualDirection = e.target.value;
+        });
+
+        section.appendChild(label);
+        section.appendChild(textarea);
+        visualSystemEl.appendChild(section);
       };
 
       /**

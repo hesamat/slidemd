@@ -171,6 +171,31 @@ describe("slidesToMarkdown", () => {
     expect(md).toContain("layout: two-column");
     expect(md).toContain("@header");
   });
+
+  it("preserves SLIDE INDEX comments inside code examples", () => {
+    const slides = [
+      {
+        content: "@main\n```html\n<!-- SLIDE INDEX 3 (example) -->\n<div>Content</div>\n```",
+      },
+    ];
+    const md = slidesToMarkdown(slides);
+    // The comment inside the code block must survive
+    expect(md).toContain("<!-- SLIDE INDEX 3 (example) -->");
+    expect(md).toContain("<div>Content</div>");
+  });
+
+  it("only strips the leading SLIDE marker, not ones later in content", () => {
+    const slides = [
+      {
+        content:
+          "<!-- SLIDE 1 (return this) -->\n@header\n## Title\n\n@main\n<!-- SLIDE 2 (note) -->\nText",
+      },
+    ];
+    const md = slidesToMarkdown(slides);
+    expect(md).not.toMatch(/^<!-- SLIDE 1/m);
+    // The second SLIDE comment is not a leading marker, so it stays
+    expect(md).toContain("<!-- SLIDE 2 (note) -->");
+  });
 });
 
 describe("areasToMarkdown", () => {
