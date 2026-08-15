@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.10.1 (2026-08-15)
+
+### Security
+
+- Pin third-party GitHub Actions to immutable commit SHAs in the release workflow, mitigating mutable-tag supply-chain risk.
+- Restrict GitHub Actions workflow-level permissions to `permissions: {}` and grant minimum required scopes (`contents: write`, `pull-requests: write`) only at the job level in `release.yml` and `branch-cleanup.yml`.
+- Add path-traversal validation to `tools/build.mjs` and `tools/dev-server.mjs` to reject file paths containing `..` sequences or absolute paths before filesystem operations, mitigating file inclusion attacks.
+- Sanitize SAST-flagged `innerHTML`/`outerHTML`/`document.write` sinks: Mermaid-rendered SVGs are passed through DOMPurify before insertion, and the image picker, area context menu, reimagine outline stats, and notification icons are built with safe DOM construction (`textContent`, `createElement`) instead of interpolated HTML strings.
+
+### Reimagine & Visual System
+
+- Replace the strict 3-color palette with a freeform `visualDirection` string threaded through the outline, breakdown, and generate prompts; stop serializing the visual system as a top-of-markdown HTML comment and remove `DeckStore.getVisualSystem()`/`setVisualSystem()` and `DeckHistory` visual-system snapshots.
+- Add flow-specific technique menus (instructional, story, technical, persuasive) replacing the fixed 7-item list, and extend the `flowTag` vocabulary with instructional (`objectives`, `steps`, `practice`, `recap`) and technical (`assertion`, `implication`) tags. Thread flow tags into the breakdown prompt so they inform beat assignment and density.
+- Show a read-only visual direction panel in the reimagine outline review modal with palette swatches, imagery mood, first-slide identity, and kept source images.
+- Enforce polish-mode image-source restrictions: reject `<img>` and `background: url(...)` references that do not match a source image or `reuse:<path>` directive.
+- Add a concept-level guard so outline, breakdown, and generate prompts instruct the AI not to introduce concepts more advanced than the source deck.
+- Make Mermaid diagrams opt-in (branches/decisions/loops/parallel paths only), capped at two per chapter or five content slides, limited to 3–7 nodes.
+- Fix `applyVisualSystemIdentity` to replace `background: transparent`/`none`/missing with a real color so slides are never see-through; fix `themeForColor` to handle gradients and avoid truncating 6-digit hex to 3-digit.
+- Fix Mermaid diagram label text being stripped by DOMPurify by adding `foreignObject` to `ADD_TAGS` and registering it in `HTML_INTEGRATION_POINTS`.
+- Harden Reimagine batch generation against truncation and malformed JSON; add beat treatment, voice, and density budget guidance to prompts.
+- Emit advisory visual-system validation warnings from `AiOutputValidator` for invalid theme values, malformed background directives, and results that ignore the visual direction; `applyVisualSystemIdentity` fixes them deterministically.
+- Add 5 pipeline tests covering per-flow technique menus, flowTag threading, and extended vocabulary acceptance, plus 15 `AiOutputValidator` unit tests for visual-system compliance warnings.
+
+### Editor & UI
+
+- Restructure the dark theme into a shared base plus three selectable palette variants: Warm Graphite (default), Cool Indigo-Gray, and Blue Slate. Add an Appearance card to the Settings modal with Light/Dark toggle and live-preview variant swatches. Each variant has lighter `--input-bg` surfaces so textfields read as editable recessed wells. Replace hardcoded dark-mode colors across dropdowns, context menus, notifications, and the AI sidebar with CSS variables.
+- Add per-code-block centering via the `{ center }` fence info-string keyword (e.g. ` ```js { center } `), wired in both `MarkdownParser` and the build-time `md-to-deck.mjs` renderer.
+- Allow short bulleted content (up to 6 elements) and header + short body to use the `focus` layout for centered presentation instead of falling through to `header-content`.
+- Restrict model auto-fetch to hosted providers (OpenRouter, OpenAI); local providers (Ollama, LM Studio) now require an explicit Fetch click, eliminating `ERR_CONNECTION_REFUSED` console spam when the local service isn't running. Mark the model-dropdown `wheel` listener as `passive: true` to silence the Chrome non-passive-event-listener violation. Fix persisted reasoning preference restoration for local providers on modal init. Add 13 settings-modal tests covering auto-fetch gating, Fetch button visibility, provider-switch behavior, and persisted reasoning restoration.
+
+### PPTX Import
+
+- Stop escaping `>` to `&gt;` in markdown output; only `<` is escaped, since `>` has no special meaning in markdown except at line start (blockquote).
+
+### Exported HTML
+
+- Fix `ReferenceError: isModalOpen is not defined` in exported HTML by adding `src/core/modal-state.js` to the runtime bundle order.
+- Prevent exported HTML from dynamically importing `node_modules` KaTeX/Prism/markdown-it resources by adding `window.__WEBDECK_EXPORTED__` early-return guards in `AssetLoader`.
+- Use `window.location.hash` instead of `history.replaceState` on `file:` protocol, eliminating the unsafe frame warning when navigating slides in an exported file.
+
 ## 0.10.0 (2026-08-13)
 
 ### Remix & Reimagine
