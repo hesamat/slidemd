@@ -207,17 +207,30 @@ describe("SettingsModal persisted reasoning restoration", () => {
     await cancelModal(promise);
   });
 
-  it("does not check reasoning when the saved model does not support reasoning", async () => {
+  it("keeps reasoning checked for a model not in the heuristic when saved=true (unknown support)", async () => {
     localStorage.setItem("webdeck_ai_provider", "Ollama");
     localStorage.setItem("webdeck_ai_base_url", "http://localhost:11434/v1");
-    // A plain model id that guessReasoningForModel won't flag.
+    // A plain model id that guessReasoningForModel won't flag. The model's
+    // reasoning support is unknown (no metadata, no heuristic match), so
+    // a saved true preference should be preserved, not erased.
     sessionStorage.setItem("webdeck_ai_model_ollama", "llama3");
     sessionStorage.setItem("webdeck_ai_reasoning_ollama", "true");
     globalThis.fetch = vi.fn();
     const { promise, reasoningCheckbox } = await openModal();
-    // Even though saved=true, the model doesn't support reasoning.
+    // Saved=true and support is unknown → checkbox stays checked and enabled.
+    expect(reasoningCheckbox.checked).toBe(true);
+    expect(reasoningCheckbox.disabled).toBe(false);
+    await cancelModal(promise);
+  });
+
+  it("unchecks reasoning when saved=false regardless of model support", async () => {
+    localStorage.setItem("webdeck_ai_provider", "Ollama");
+    localStorage.setItem("webdeck_ai_base_url", "http://localhost:11434/v1");
+    sessionStorage.setItem("webdeck_ai_model_ollama", "deepseek-r1");
+    sessionStorage.setItem("webdeck_ai_reasoning_ollama", "false");
+    globalThis.fetch = vi.fn();
+    const { promise, reasoningCheckbox } = await openModal();
     expect(reasoningCheckbox.checked).toBe(false);
-    expect(reasoningCheckbox.disabled).toBe(true);
     await cancelModal(promise);
   });
 
@@ -384,5 +397,30 @@ describe("SettingsModal provider switch restores reasoning preference", () => {
     expect(result.reasoning).toBe(true);
     expect(result.provider).toBe("OpenAI");
     expect(sessionStorage.getItem("webdeck_ai_reasoning_openai")).toBe("true");
+  });
+
+  it("preserves reasoning=true for a metadata-only model when saving before fetch (no heuristic match)", async () => {
+    // A model that doesn't match guessReasoningForModel but had reasoning=true
+    // saved from a previous fetch that returned provider metadata.
+    localStorage.setItem("webdeck_ai_provider", "OpenRouter");
+    sessionStorage.setItem("webdeck_ai_model_openrouter", "openai/gpt-4o");
+    sessionStorage.setItem("webdeck_ai_reasoning_openrouter", "true");
+    sessionStorage.setItem("webdeck_ai_key_openrouter", "sk-test");
+
+    // Never-resolving fetch — simulates saving before metadata arrives.
+    globalThis.fetch = vi.fn(() => new Promise(() => {}));
+
+    const { promise, dialog, reasoningCheckbox } = await openModal();
+    // gpt-4o doesn't match the heuristic, so without metadata the map is
+    // empty. The checkbox should still be checked (unknown support) so the
+    // saved preference isn't erased.
+    expect(reasoningCheckbox.checked).toBe(true);
+    expect(reasoningCheckbox.disabled).toBe(false);
+
+    // Save before fetch completes — reasoning should be preserved.
+    dialog.querySelector('[data-action="save"]').click();
+    const result = await promise;
+    expect(result.reasoning).toBe(true);
+    expect(sessionStorage.getItem("webdeck_ai_reasoning_openrouter")).toBe("true");
   });
 });

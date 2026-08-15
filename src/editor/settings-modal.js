@@ -628,8 +628,13 @@ export class SettingsModal {
           if (guessed) this._modelReasoningMap.set(selectedModel, guessed);
         }
         const supports = this.modelSupportsReasoning(selectedModel);
-        reasoningCheckbox.disabled = !supports;
-        reasoningHint.hidden = supports;
+        // When the reasoning map has no entry for the model (neither from
+        // provider metadata nor from the heuristic), reasoning support is
+        // unknown — keep the checkbox enabled so a saved preference isn't
+        // erased. The save handler also treats this as "trust the checkbox".
+        const unknown = !this._modelReasoningMap.has(selectedModel);
+        reasoningCheckbox.disabled = !(supports || unknown);
+        reasoningHint.hidden = supports || unknown;
 
         const efforts = this.getSupportedEfforts(selectedModel);
         effortSelect.innerHTML = "";
@@ -648,18 +653,22 @@ export class SettingsModal {
         }
       };
 
-      // Restore the persisted reasoning preference into the checkbox, gated
-      // by whether the current model actually supports reasoning. Called on
-      // modal init for every provider (hosted and local) so a saved
-      // preference isn't silently dropped when the modal opens.
+      // Restore the persisted reasoning preference into the checkbox. Called
+      // on modal init and provider switch for every provider (hosted and
+      // local) so a saved preference isn't silently dropped when the modal
+      // opens or the reasoning map hasn't been populated from metadata yet.
       const restoreReasoningCheckbox = () => {
         // updateReasoningState populates _modelReasoningMap with a guessed
         // entry for the model (via guessReasoningForModel) before we check
-        // supports, so the gating below sees the right value.
+        // supports, so the gating below sees the right value. When neither
+        // metadata nor the heuristic has an entry, the model is treated as
+        // "unknown" (checkbox enabled) so a saved true preference survives
+        // until metadata arrives.
         updateReasoningState();
         const savedReasoning = this.getReasoning(selectedProvider);
         const supports = this.modelSupportsReasoning(selectedModel);
-        reasoningCheckbox.checked = savedReasoning && supports;
+        const unknown = !this._modelReasoningMap.has(selectedModel);
+        reasoningCheckbox.checked = savedReasoning && (supports || unknown);
       };
 
       const fetchModels = async () => {
@@ -847,6 +856,11 @@ export class SettingsModal {
       fetchModelsBtn.hidden = !isFetchModelsSupported();
 
       if (isAutoFetchProvider()) {
+        // Restore the reasoning preference synchronously before the fetch
+        // so the checkbox reflects the saved state immediately — if the
+        // user saves before the fetch completes, the persisted preference
+        // isn't overwritten. The callback re-restores after metadata arrives.
+        restoreReasoningCheckbox();
         this.#populateOpenRouterModels(() => {
           filterModels("");
           restoreReasoningCheckbox();
@@ -869,7 +883,13 @@ export class SettingsModal {
       saveBtn.addEventListener("click", () => {
         const apiKey = apiKeyInput.value.trim();
         const remember = rememberCheckbox.checked;
-        const reasoning = reasoningCheckbox.checked && this.modelSupportsReasoning(selectedModel);
+        // When the reasoning map has no entry for the model (metadata not yet
+        // fetched and heuristic didn't match), trust the checkbox rather than
+        // forcing false — the user's saved preference shouldn't be erased
+        // just because we haven't loaded metadata yet.
+        const reasoningKnown = this.modelSupportsReasoning(selectedModel);
+        const reasoningUnknown = !this._modelReasoningMap.has(selectedModel);
+        const reasoning = reasoningCheckbox.checked && (reasoningKnown || reasoningUnknown);
         const effort = effortSelect.value || DEFAULT_EFFORT;
 
         if (!apiKey && this.requiresApiKey(selectedProvider)) {
