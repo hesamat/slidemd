@@ -746,6 +746,13 @@ export class SettingsModal {
           // Auto-fetch for hosted providers (OpenRouter, OpenAI).
           // Local providers (Ollama, LM Studio) require an explicit Fetch
           // click so a stopped service doesn't spam ERR_CONNECTION_REFUSED.
+          // Restore the reasoning preference synchronously before the fetch
+          // so the checkbox reflects the saved state immediately — if the
+          // user clicks Save before the fetch completes, the persisted
+          // preference isn't overwritten with false. The .then() callback
+          // re-restores after the fetch repopulates the reasoning map with
+          // real metadata.
+          restoreReasoningCheckbox();
           fetchModels().then(() => {
             if (this._allModels.length > 0 && !selectedModel) {
               selectedModel = this._allModels[0].id;

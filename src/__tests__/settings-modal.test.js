@@ -338,4 +338,51 @@ describe("SettingsModal provider switch restores reasoning preference", () => {
 
     await cancelModal(promise);
   });
+
+  it("preserves reasoning=true when saving before the hosted fetch completes (race)", async () => {
+    // Start with Ollama (no auto-fetch), reasoning=true, reasoning-capable model.
+    localStorage.setItem("webdeck_ai_provider", "Ollama");
+    localStorage.setItem("webdeck_ai_base_url", "http://localhost:11434/v1");
+    sessionStorage.setItem("webdeck_ai_model_ollama", "deepseek-r1");
+    sessionStorage.setItem("webdeck_ai_reasoning_ollama", "true");
+    // OpenAI has reasoning=true and a reasoning-capable model.
+    sessionStorage.setItem("webdeck_ai_model_openai", "o3-mini");
+    sessionStorage.setItem("webdeck_ai_reasoning_openai", "true");
+    sessionStorage.setItem("webdeck_ai_key_openai", "sk-test");
+
+    // Stub fetch with a delayed response that we control. The promise won't
+    // resolve until we call _resolveFetch, simulating an in-flight request.
+    // We never call it — the test verifies behavior while the fetch is pending.
+    let _resolveFetch;
+    globalThis.fetch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          _resolveFetch = () =>
+            resolve({
+              ok: true,
+              text: async () => JSON.stringify({ data: [{ id: "o3-mini", name: "o3-mini" }] }),
+            });
+        }),
+    );
+
+    const { promise, providerSelect, dialog, reasoningCheckbox } = await openModal();
+    // Ollama init: reasoning should be checked.
+    expect(reasoningCheckbox.checked).toBe(true);
+
+    // Switch to OpenAI — auto-fetch starts but hasn't completed.
+    providerSelect.value = "OpenAI";
+    providerSelect.dispatchEvent(new Event("change"));
+
+    // The reasoning checkbox should already reflect OpenAI's saved preference
+    // (synchronous restore via guessReasoningForModel), even though the fetch
+    // hasn't resolved yet.
+    expect(reasoningCheckbox.checked).toBe(true);
+
+    // Save before the fetch completes — should preserve reasoning=true.
+    dialog.querySelector('[data-action="save"]').click();
+    const result = await promise;
+    expect(result.reasoning).toBe(true);
+    expect(result.provider).toBe("OpenAI");
+    expect(sessionStorage.getItem("webdeck_ai_reasoning_openai")).toBe("true");
+  });
 });
