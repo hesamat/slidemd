@@ -204,4 +204,21 @@ describe("SlideRenderer", () => {
     expect(el.style.getPropertyValue("--palette-highlight")).toBe("");
     expect(el.style.getPropertyValue("--palette-accent-light")).toBe("");
   });
+
+  it("strips leading-whitespace URI scheme bypasses", () => {
+    const slide = {
+      id: "uri-whitespace",
+      title: "URI Whitespace",
+      areas: {
+        main: `<img src="  data:image/svg+xml,<svg/onload=alert(1)>" />
+               <a href="  javascript:alert(1)">link</a>
+               <img src="data:image/png;base64,ZmFrZQ==" />`,
+      },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const html = el.outerHTML;
+    expect(html).not.toContain("data:image/svg+xml");
+    expect(html).not.toContain("javascript:alert");
+    expect(html).toContain("data:image/png;base64");
+  });
 });

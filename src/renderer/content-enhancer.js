@@ -106,7 +106,7 @@ const MERMAID_SVG_PURIFY_CONFIG = {
   USE_PROFILES: { svg: true, svgFilters: true, html: true },
   ADD_TAGS: ["foreignObject"],
   HTML_INTEGRATION_POINTS: { "annotation-xml": true, foreignobject: true },
-  ALLOW_DATA_ATTR: true,
+  SAFE_FOR_XML: true,
 };
 
 export function sanitizeMermaidSvg(svg) {

@@ -48,7 +48,28 @@ const COLOR_TOKEN_RE =
  * Pattern for a `url(...)` token — only quotes or unquoted paths, no
  * `javascript:` or `data:` schemes.
  */
-const URL_TOKEN_RE = /^url\(\s*['"]?(?!javascript:|data:)[^'")]+['"]?\s*\)$/i;
+/**
+ * Block dangerous URL schemes in CSS `url()` tokens. The negative lookahead
+ * permits `data:image/(avif|bmp|gif|jpeg|jpg|png|webp)` and rejects all other
+ * `data:` variants (text, html, svg, etc.).
+ */
+const DANGEROUS_BG_SCHEMES =
+  /^(javascript|vbscript|data(?![a-z]*:image\/(?:avif|bmp|gif|jpeg|jpg|png|webp)(?:[;,]|$))):/i;
+
+/**
+ * Validate a single CSS `url(...)` token. Strips optional quotes, trims
+ * whitespace, and percent-decodes `:` to catch `%3a` bypasses.
+ * @param {string} token
+ * @returns {boolean}
+ */
+function isSafeUrlToken(token) {
+  const m = token.match(/^url\(\s*(['"]?)([\s\S]*?)\1\s*\)$/i);
+  if (!m) return false;
+  const inner = m[2].trim();
+  if (!inner) return false;
+  const decoded = inner.replace(/%3a/gi, ":");
+  return !DANGEROUS_BG_SCHEMES.test(decoded);
+}
 
 /**
  * Pattern for CSS background position/size keywords and numeric values.
@@ -130,7 +151,7 @@ function validateBackgroundValue(value) {
   for (const token of tokens) {
     if (
       !COLOR_TOKEN_RE.test(token) &&
-      !URL_TOKEN_RE.test(token) &&
+      !isSafeUrlToken(token) &&
       !isGradientToken(token) &&
       !POSITION_KEYWORD_RE.test(token) &&
       !NUMERIC_RE.test(token) &&
@@ -355,10 +376,27 @@ export function buildKeptImagesList(keptImageSrcs) {
  * @param {string[]} keptImageSrcs — original markdown src paths of kept images
  * @returns {string}
  */
+const VISUAL_DIRECTION_BEGIN = "<<<USER-VISUAL-DIRECTION>>>";
+const VISUAL_DIRECTION_END = "<<<END-USER-VISUAL-DIRECTION>>>";
+
+function escapePromptUserString(s) {
+  if (!s) return "";
+  return s
+    .replace(/<<<|>>>/g, "")
+    .replace(/`/g, "'")
+    .replace(/\n+/g, " ");
+}
+
+function wrapUserString(s) {
+  const safe = escapePromptUserString(s);
+  if (!safe) return "None";
+  return `${VISUAL_DIRECTION_BEGIN}\n${safe}\n${VISUAL_DIRECTION_END}`;
+}
+
 export function buildAvailableImagesBrief(keptImageSrcs) {
   if (!keptImageSrcs || keptImageSrcs.length === 0) return "";
-  const lines = keptImageSrcs.map((src) => `- ${src}`).join("\n");
-  return `\nAvailable images from the original deck — insert with \`<img src="path">\` where appropriate (use the exact path listed):\n${lines}\n`;
+  const json = JSON.stringify(keptImageSrcs);
+  return `\nAvailable images from the original deck — insert with \`<img src="path">\` where appropriate (use the exact path listed):\n${json}\n`;
 }
 
 /**
@@ -379,7 +417,7 @@ export function buildVisualSystemBrief(vs) {
   return `
 Visual direction for this deck:
 
-${vs.visualDirection}
+${wrapUserString(vs.visualDirection)}
 `;
 }
 
@@ -562,27 +600,18 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     // Fall back to a real, legible dark theme if the model omitted directives.
     if (!themeValue) themeValue = "dark";
 
-    const { colorPart, imagePart } = splitBackgroundValue(backgroundValue || "");
-    const color = colorPart.trim().toLowerCase();
-    const isBlankColor = !color || color === "transparent" || color === "none";
+    const { imagePart } = splitBackgroundValue(backgroundValue || "");
+    const validBackground = validateBackgroundValue(backgroundValue || "");
     // Discard image parts that are just layout keywords (e.g. "none",
-    // "cover", "center") or contain javascript:/data: URLs — only keep
-    // real url(...) references.
-    const safeImagePart =
-      imagePart && /^url\(/i.test(imagePart) && !/javascript:|data:/i.test(imagePart)
-        ? imagePart
-        : "";
-    if (!backgroundValue || isBlankColor) {
+    // "cover", "center") or contain dangerous URL schemes — only keep
+    // real, validated url(...) references.
+    const safeImagePart = imagePart && isSafeUrlToken(imagePart) ? imagePart : "";
+    if (!validBackground) {
       const fallbackColor =
         themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
       backgroundValue = safeImagePart || fallbackColor;
-    } else if (!validateBackgroundValue(backgroundValue)) {
-      // The AI emitted a background value that is not a recognised safe CSS
-      // token (e.g. an expression, a javascript: URL, or malformed syntax).
-      // Replace it with a fallback color but preserve any valid image part.
-      const fallbackColor =
-        themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
-      backgroundValue = safeImagePart || fallbackColor;
+    } else {
+      backgroundValue = validBackground;
     }
 
     const leading = [...commentLines];
