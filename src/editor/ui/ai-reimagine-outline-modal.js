@@ -200,11 +200,6 @@ export class AiReimagineOutlineModal {
         const section = document.createElement("div");
         section.className = `${P}visual-system-section`;
 
-        const label = document.createElement("label");
-        label.className = `${P}visual-system-label`;
-        label.htmlFor = `${P}visual-direction-input`;
-        label.textContent = "Visual direction";
-
         const textarea = document.createElement("textarea");
         textarea.id = `${P}visual-direction-input`;
         textarea.className = `${P}visual-direction-input`;
@@ -215,7 +210,6 @@ export class AiReimagineOutlineModal {
           visualSystem.visualDirection = e.target.value;
         });
 
-        section.appendChild(label);
         section.appendChild(textarea);
         visualSystemEl.appendChild(section);
       };
