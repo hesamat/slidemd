@@ -15,6 +15,8 @@ import {
   buildRemixVisualIdentityGuidance,
   composeMessages,
   getFragment,
+  extractVariant,
+  hasVariant,
 } from "../data/ai/ai-prompt-fragments.js";
 
 const FIXTURE_DECK = `layout: title-slide
@@ -159,12 +161,17 @@ describe("composed prompt snapshots", () => {
   });
 
   it("reimagine outline", () => {
+    const flowTechniquesFragment = getFragment("reimagine-flow-techniques.md");
+    const flowTechniques = hasVariant(flowTechniquesFragment, "story")
+      ? extractVariant(flowTechniquesFragment, "story")
+      : "";
     const { system, user } = composeMessages(
       getFragment("system-prompt.md"),
       getFragment("reimagine-outline-prompt.md"),
       {
         markdown: "Deck: 3 slides.\nOutline:\n1. [title-slide] AI for Presentations",
         flow: "story",
+        flowTechniques,
         sourceCount: "3",
         minSlides: "2",
         maxSlides: "4",

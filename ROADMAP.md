@@ -647,9 +647,7 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 Goal: Make Reimagine feel like a guided editorial art director: surprising in its thinking, reassuring in its structure, and coherent in its execution.
 
-Scope note: the first slice shipped a 3-color palette; it has since been replaced by a freeform `visualDirection` field. This continuation focuses on beat-aware generation, presentation voice, flow-aware outline structure, and remaining test coverage.
-
-The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](docs/plans/reimagine-improvements.md).
+Scope note: the first slice shipped a 3-color palette; it has since been replaced by a freeform `visualDirection` field. This continuation completed beat-aware generation, presentation voice, flow-aware outline structure, visual-system validation, and end-to-end pipeline tests.
 
 ### Creative Direction & Review
 
@@ -682,17 +680,17 @@ The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](doc
 
 | Task                              | Details                                                                                                                                                                        |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [ ] Flow-specific technique menus | Replace the fixed seven-item technique list in `reimagine-outline-prompt.md` with per-flow subsets so instructional and technical decks are steered toward fitting structures. |
-| [ ] Extend flowTag vocabulary     | Add instructional (`objectives`, `steps`, `example`, `practice`, `recap`) and technical (`assertion`, `evidence`, `implication`) tags; map them through the breakdown phase.   |
-| [ ] Thread flowTag to breakdown   | The orchestrator carries `flowTag` from outline to breakdown, but the breakdown prompt never mentions it. Add it to the breakdown prompt's chapter context.                    |
+| [x] Flow-specific technique menus | Replace the fixed seven-item technique list in `reimagine-outline-prompt.md` with per-flow subsets so instructional and technical decks are steered toward fitting structures. |
+| [x] Extend flowTag vocabulary     | Add instructional (`objectives`, `steps`, `practice`, `recap`) and technical (`assertion`, `implication`) tags; map them through the breakdown phase.                          |
+| [x] Thread flowTag to breakdown   | The breakdown prompt now explains all flow tags and how they should inform beat assignment and density.                                                                        |
 
 ### Validation & Test Coverage
 
-| Task                              | Details                                                                                                                                                                                                       |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add visual-system validation  | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.    |
-| [~] Add Reimagine test fixtures   | Visual-system generation/normalization, review modal display, image reuse validation, conditional styling guidance, and Polish/Fix/Remix no-regression are covered. Beat-to-treatment and voice tests remain. |
-| [ ] Add end-to-end pipeline tests | Test that `visualDirection` appears in the breakdown prompt and generate options suffix, beats survive from breakdown to slide briefs, and the orchestrator threads `visualSystem` through all phases.        |
+| Task                              | Details                                                                                                                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Add visual-system validation  | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.              |
+| [x] Add Reimagine test fixtures   | Visual-system generation/normalization, review modal display, image reuse validation, conditional styling guidance, Polish/Fix/Remix no-regression, beat-to-treatment, and voice tests are covered.                     |
+| [x] Add end-to-end pipeline tests | `visualDirection` appears in the breakdown prompt and generate options suffix, beats survive from breakdown to slide briefs, flow-specific technique menus are injected, and `visualSystem` threads through all phases. |
 
 ### Acceptance Criteria
 
