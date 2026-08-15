@@ -931,14 +931,30 @@ export class PptxExtractor {
    */
   static #detectTopLevelDiagrams(elements) {
     const connectors = elements.filter((el) => el.type === "connector" || el.hasConnector);
-    if (connectors.length === 0) return elements;
 
-    // Bounding box of all connectors
+    // Shape-like elements: actual shapes (not text placeholders) with visual
+    // properties like fills or borders.  These seed the candidate set even
+    // when there are no connectors (e.g. Venn diagrams with nested ovals).
+    const shapeLike = elements.filter(
+      (el) =>
+        !el.placeholderType &&
+        (el.type === "shape" ||
+          el.type === "connector" ||
+          el.hasConnector ||
+          el.shapType ||
+          el.strokeOnly ||
+          (el.type === "text" && (el.borderWidth || 0) > 0)),
+    );
+
+    if (connectors.length === 0 && shapeLike.length < 2) return elements;
+
+    // Bounding box of all connectors (or shape-like elements if no connectors)
+    const seeds = connectors.length > 0 ? connectors : shapeLike;
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
-    for (const c of connectors) {
+    for (const c of seeds) {
       const cl = c.left || 0;
       const ct = c.top || 0;
       const cw = c.width || 0;
@@ -1131,7 +1147,19 @@ export class PptxExtractor {
     // Rule 1: Any connectors present → likely a diagram
     if (connectors.length > 0) return true;
 
-    // Rule 2: 3+ filled shapes in close proximity → likely a diagram
+    // Rule 2: 2+ filled shapes that overlap or are nested → likely a diagram
+    // (e.g. Venn diagrams with nested ovals)
+    if (filledShapes.length >= 2) {
+      const overlap = filledShapes.some((a, i) =>
+        filledShapes.some((b, j) => {
+          if (i >= j) return false;
+          return this.#bboxEdgeDistance(a, b) === 0;
+        }),
+      );
+      if (overlap) return true;
+    }
+
+    // Rule 3: 3+ filled shapes in close proximity → likely a diagram
     if (filledShapes.length >= 3) {
       // Check if shapes are in reasonable proximity (within 3x the average dimension)
       const avgDim =

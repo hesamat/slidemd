@@ -814,4 +814,61 @@ describe("PptxExtractor top-level diagram detection", () => {
     // Long text stays as a separate text element
     expect(texts.some((el) => el.content === longText)).toBe(true);
   });
+
+  it("detects overlapping shapes without connectors as a diagram (Venn diagram)", () => {
+    // Two overlapping ovals with short text labels, no connectors.
+    // Simulates a Venn diagram (Unicode ⊃ ASCII).
+    const oval = (content, left, top, w, h) => ({
+      type: "shape",
+      content,
+      left,
+      top,
+      width: w,
+      height: h,
+      order: Math.round(top * 10),
+      shapType: "ellipse",
+      fill: "#5B9BD5",
+      fillRaw: { type: "color", value: "#5B9BD5" },
+      borderWidth: 1,
+      borderColor: "#000000",
+    });
+    const elements = [
+      title("Unicode vs ASCII"),
+      oval("Unicode", 23, 26, 295, 443),
+      oval("ASCII", 98, 270, 145, 161),
+      textBox("Long body text ".repeat(20), 327, 100, 400, 200, {
+        shapType: undefined,
+        fill: undefined,
+        fillRaw: undefined,
+        borderWidth: 0,
+      }),
+    ];
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    const diagrams = result.filter((el) => el.type === "diagram");
+    expect(diagrams).toHaveLength(1);
+    expect(diagrams[0].shapes).toBeDefined();
+    expect(diagrams[0].shapes.length).toBe(2); // 2 ovals
+    // Title and body text stay outside
+    const texts = result.filter((el) => el.type === "text");
+    expect(texts.some((el) => el.content === "Unicode vs ASCII")).toBe(true);
+  });
+
+  it("does not create a diagram from non-overlapping shapes without connectors", () => {
+    const oval = (content, left, top, w, h) => ({
+      type: "shape",
+      content,
+      left,
+      top,
+      width: w,
+      height: h,
+      order: Math.round(top * 10),
+      shapType: "ellipse",
+      fill: "#5B9BD5",
+      fillRaw: { type: "color", value: "#5B9BD5" },
+    });
+    // Two shapes far apart, no overlap, no connectors
+    const elements = [oval("A", 0, 0, 50, 50), oval("B", 500, 500, 50, 50)];
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
+  });
 });
