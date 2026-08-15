@@ -527,6 +527,13 @@ export class SettingsModal {
 
       const isFetchModelsSupported = isModelSearchProvider;
 
+      // Auto-fetch is reserved for always-on hosted APIs. Local providers
+      // (Ollama, LM Studio) may not be running, so auto-fetching on
+      // select/focus/open spams the console with ERR_CONNECTION_REFUSED.
+      // Users click the Fetch button explicitly for those.
+      const isAutoFetchProvider = () =>
+        selectedProvider === "OpenRouter" || selectedProvider === "OpenAI";
+
       // --- Model dropdown ---
       const filterModels = (query) => {
         const q = query.toLowerCase();
@@ -621,8 +628,13 @@ export class SettingsModal {
           if (guessed) this._modelReasoningMap.set(selectedModel, guessed);
         }
         const supports = this.modelSupportsReasoning(selectedModel);
-        reasoningCheckbox.disabled = !supports;
-        reasoningHint.hidden = supports;
+        // When the reasoning map has no entry for the model (neither from
+        // provider metadata nor from the heuristic), reasoning support is
+        // unknown — keep the checkbox enabled so a saved preference isn't
+        // erased. The save handler also treats this as "trust the checkbox".
+        const unknown = !this._modelReasoningMap.has(selectedModel);
+        reasoningCheckbox.disabled = !(supports || unknown);
+        reasoningHint.hidden = supports || unknown;
 
         const efforts = this.getSupportedEfforts(selectedModel);
         effortSelect.innerHTML = "";
@@ -639,6 +651,24 @@ export class SettingsModal {
         } else {
           effortRow.hidden = true;
         }
+      };
+
+      // Restore the persisted reasoning preference into the checkbox. Called
+      // on modal init and provider switch for every provider (hosted and
+      // local) so a saved preference isn't silently dropped when the modal
+      // opens or the reasoning map hasn't been populated from metadata yet.
+      const restoreReasoningCheckbox = () => {
+        // updateReasoningState populates _modelReasoningMap with a guessed
+        // entry for the model (via guessReasoningForModel) before we check
+        // supports, so the gating below sees the right value. When neither
+        // metadata nor the heuristic has an entry, the model is treated as
+        // "unknown" (checkbox enabled) so a saved true preference survives
+        // until metadata arrives.
+        updateReasoningState();
+        const savedReasoning = this.getReasoning(selectedProvider);
+        const supports = this.modelSupportsReasoning(selectedModel);
+        const unknown = !this._modelReasoningMap.has(selectedModel);
+        reasoningCheckbox.checked = savedReasoning && (supports || unknown);
       };
 
       const fetchModels = async () => {
@@ -721,19 +751,27 @@ export class SettingsModal {
         modelInput.value = selectedModel;
         updateModelSummary();
 
-        if (isFetchModelsSupported()) {
-          // Auto-fetch for OpenRouter, OpenAI, Ollama, LM Studio.
-          // Keep the saved model unless the list comes back empty.
+        if (isAutoFetchProvider()) {
+          // Auto-fetch for hosted providers (OpenRouter, OpenAI).
+          // Local providers (Ollama, LM Studio) require an explicit Fetch
+          // click so a stopped service doesn't spam ERR_CONNECTION_REFUSED.
+          // Restore the reasoning preference synchronously before the fetch
+          // so the checkbox reflects the saved state immediately — if the
+          // user clicks Save before the fetch completes, the persisted
+          // preference isn't overwritten with false. The .then() callback
+          // re-restores after the fetch repopulates the reasoning map with
+          // real metadata.
+          restoreReasoningCheckbox();
           fetchModels().then(() => {
             if (this._allModels.length > 0 && !selectedModel) {
               selectedModel = this._allModels[0].id;
               modelInput.value = selectedModel;
               updateModelSummary();
             }
-            updateReasoningState();
+            restoreReasoningCheckbox();
           });
         } else {
-          updateReasoningState();
+          restoreReasoningCheckbox();
         }
       });
 
@@ -757,7 +795,9 @@ export class SettingsModal {
         if (isModelSearchProvider()) {
           modelInput.value = "";
           openDropdown();
-          if (this._allModels.length === 0 && !this._loadingModels) {
+          // Only auto-fetch on focus for hosted providers; local services
+          // require an explicit Fetch click to avoid connection-refused noise.
+          if (isAutoFetchProvider() && this._allModels.length === 0 && !this._loadingModels) {
             fetchModels();
           }
           filterModels("");
@@ -785,7 +825,9 @@ export class SettingsModal {
       });
 
       modelDropdown.addEventListener("click", (e) => e.stopPropagation());
-      modelDropdown.addEventListener("wheel", (e) => e.stopPropagation());
+      // passive: true — handler only calls stopPropagation(), never
+      // preventDefault(), so it can't be a scroll-blocking listener.
+      modelDropdown.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
 
       // Reposition dropdown on scroll/resize while open
       const repositionDropdown = () => {
@@ -813,16 +855,21 @@ export class SettingsModal {
       // --- Initial population ---
       fetchModelsBtn.hidden = !isFetchModelsSupported();
 
-      if (isModelSearchProvider()) {
+      if (isAutoFetchProvider()) {
+        // Restore the reasoning preference synchronously before the fetch
+        // so the checkbox reflects the saved state immediately — if the
+        // user saves before the fetch completes, the persisted preference
+        // isn't overwritten. The callback re-restores after metadata arrives.
+        restoreReasoningCheckbox();
         this.#populateOpenRouterModels(() => {
           filterModels("");
-          const savedReasoning = this.getReasoning(selectedProvider);
-          const supports = this.modelSupportsReasoning(selectedModel);
-          reasoningCheckbox.checked = savedReasoning && supports;
-          updateReasoningState();
+          restoreReasoningCheckbox();
         });
       } else {
-        updateReasoningState();
+        // Local providers (Ollama, LM Studio) and non-search providers still
+        // restore the saved reasoning preference — only the auto-fetch is
+        // skipped, not the persisted-state restoration.
+        restoreReasoningCheckbox();
       }
 
       applyProviderDefaults();
@@ -836,7 +883,13 @@ export class SettingsModal {
       saveBtn.addEventListener("click", () => {
         const apiKey = apiKeyInput.value.trim();
         const remember = rememberCheckbox.checked;
-        const reasoning = reasoningCheckbox.checked && this.modelSupportsReasoning(selectedModel);
+        // When the reasoning map has no entry for the model (metadata not yet
+        // fetched and heuristic didn't match), trust the checkbox rather than
+        // forcing false — the user's saved preference shouldn't be erased
+        // just because we haven't loaded metadata yet.
+        const reasoningKnown = this.modelSupportsReasoning(selectedModel);
+        const reasoningUnknown = !this._modelReasoningMap.has(selectedModel);
+        const reasoning = reasoningCheckbox.checked && (reasoningKnown || reasoningUnknown);
         const effort = effortSelect.value || DEFAULT_EFFORT;
 
         if (!apiKey && this.requiresApiKey(selectedProvider)) {
