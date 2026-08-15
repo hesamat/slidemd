@@ -558,7 +558,9 @@ describe("PptxExtractor ordered list start attribute injection", () => {
 });
 
 describe("PptxExtractor diagram detection", () => {
-  // Test helper to create mock elements that match ExtractedElement shape
+  // Test helper to create mock elements that match ExtractedElement shape.
+  // Includes the Phase 14.9 geometry fields (path, border, transform, fillRaw)
+  // so diagram/shape elements carry everything the shape-renderer needs.
   const makeShape = (overrides = {}) => ({
     type: "text",
     content: "",
@@ -569,8 +571,18 @@ describe("PptxExtractor diagram detection", () => {
     order: 0,
     shapType: "rect",
     fill: "FF0000",
+    fillRaw: { type: "color", value: "FF0000" },
     strokeOnly: false,
     hasConnector: false,
+    path: null,
+    pathViewBox: null,
+    borderColor: null,
+    borderWidth: 0,
+    borderType: null,
+    rotate: 0,
+    isFlipV: false,
+    isFlipH: false,
+    shadow: null,
     ...overrides,
   });
 
@@ -584,8 +596,18 @@ describe("PptxExtractor diagram detection", () => {
     order: 1,
     shapType: null,
     fill: null,
+    fillRaw: null,
     strokeOnly: true,
     hasConnector: true,
+    path: null,
+    pathViewBox: null,
+    borderColor: null,
+    borderWidth: 0,
+    borderType: null,
+    rotate: 0,
+    isFlipV: false,
+    isFlipH: false,
+    shadow: null,
     ...overrides,
   });
 
@@ -634,5 +656,162 @@ describe("PptxExtractor diagram detection", () => {
     // Empty shapes with shapType should not be null
     expect(elements[0].shapType).toBe("rect");
     expect(elements[0].fill).toBe("FF0000");
+  });
+
+  it("shape elements preserve full geometry for PNG rendering", () => {
+    const elements = [
+      makeShape({
+        shapType: "rect",
+        path: "M0,0 L100,0 L100,50 L0,50 Z",
+        pathViewBox: { x: 0, y: 0, width: 100, height: 50 },
+        borderColor: "000000",
+        borderWidth: 1,
+        borderType: "dashed",
+        rotate: 45,
+        isFlipV: true,
+        isFlipH: false,
+        shadow: { h: 2, v: 2, blur: 4, color: "000000" },
+        fillRaw: {
+          type: "gradient",
+          value: {
+            path: "line",
+            rot: 90,
+            colors: [
+              { pos: "0", color: "FF0000" },
+              { pos: "100", color: "0000FF" },
+            ],
+          },
+        },
+      }),
+    ];
+    expect(elements[0].path).toBe("M0,0 L100,0 L100,50 L0,50 Z");
+    expect(elements[0].pathViewBox).toEqual({ x: 0, y: 0, width: 100, height: 50 });
+    expect(elements[0].borderColor).toBe("000000");
+    expect(elements[0].borderWidth).toBe(1);
+    expect(elements[0].borderType).toBe("dashed");
+    expect(elements[0].rotate).toBe(45);
+    expect(elements[0].isFlipV).toBe(true);
+    expect(elements[0].isFlipH).toBe(false);
+    expect(elements[0].shadow).toEqual({ h: 2, v: 2, blur: 4, color: "000000" });
+    expect(elements[0].fillRaw.type).toBe("gradient");
+  });
+});
+
+describe("PptxExtractor top-level diagram detection", () => {
+  // Simulates the structure from a real PPTX where text boxes + arrow
+  // connectors are placed as sibling elements on the slide (not inside a
+  // group).  #detectTopLevelDiagrams should group them into a diagram.
+  // Coordinates are in points (matching pptxtojson's output for top-level
+  // elements).
+  const textBox = (content, left, top, w = 179, h = 29, overrides = {}) => ({
+    type: "text",
+    content,
+    left,
+    top,
+    width: w,
+    height: h,
+    order: Math.round(top * 10),
+    shapType: "rect",
+    fill: "#5B9BD5",
+    fillRaw: { type: "color", value: "#5B9BD5" },
+    strokeOnly: false,
+    ...overrides,
+  });
+
+  const arrow = (left, top, h = 47) => ({
+    type: "connector",
+    content: "",
+    left,
+    top,
+    width: 0,
+    height: h,
+    order: Math.round(top * 10) + 100,
+    shapType: "straightConnector1",
+    fill: "#156082",
+    fillRaw: { type: "color", value: "#156082" },
+    strokeOnly: true,
+    hasConnector: true,
+    path: "M0,0 L0,47",
+    pathViewBox: { x: 0, y: 0, width: 1, height: 47 },
+    borderColor: "#156082",
+    borderWidth: 1,
+    borderType: "solid",
+    rotate: 0,
+    isFlipV: false,
+    isFlipH: false,
+    shadow: null,
+  });
+
+  const title = (content, top = 0) => ({
+    type: "text",
+    content,
+    left: 0,
+    top,
+    width: 960,
+    height: 133,
+    order: 1000,
+  });
+
+  it("groups top-level connectors + nearby text into a diagram element", () => {
+    // 4 text boxes on the right + 4 arrows between them, plus a title at top.
+    // Coordinates match the real Presentation 2.pptx structure (in points).
+    const elements = [
+      title("# Sequence"),
+      textBox("Statement", 669, 206),
+      textBox("Statement", 669, 282),
+      textBox("Statement", 669, 362),
+      textBox("Statement", 669, 436),
+      arrow(758, 158),
+      arrow(758, 235),
+      arrow(758, 315),
+      arrow(758, 389),
+    ];
+
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    const diagrams = result.filter((el) => el.type === "diagram");
+
+    expect(diagrams).toHaveLength(1);
+    expect(diagrams[0].shapes).toBeDefined();
+    expect(diagrams[0].shapes.length).toBe(8); // 4 text + 4 arrows
+    // Title stays outside the diagram
+    const texts = result.filter((el) => el.type === "text");
+    expect(texts.some((el) => el.content === "# Sequence")).toBe(true);
+  });
+
+  it("does not create a diagram when there are no connectors", () => {
+    const elements = [title("Hello"), textBox("Body", 100, 200)];
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
+  });
+
+  it("does not create a diagram when text is far from connectors", () => {
+    // A single connector far from any other shape-like element.
+    // Title at left=0, body at left=100, connector at left=900.
+    // The connector's expanded bbox should not reach either text element.
+    const elements = [title("Hello"), textBox("Body", 100, 200), arrow(900, 200)];
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    const diagrams = result.filter((el) => el.type === "diagram");
+    expect(diagrams).toHaveLength(0);
+  });
+
+  it("excludes long body text from the diagram group", () => {
+    // Long body text near the connectors should not be swallowed into the
+    // diagram (it's body content, not a diagram label).
+    const longText = "A".repeat(250);
+    const elements = [
+      title("# Title"),
+      textBox(longText, 669, 300, 200, 100, {
+        shapType: undefined,
+        fill: undefined,
+        fillRaw: undefined,
+      }),
+      textBox("Label", 669, 206),
+      arrow(758, 158),
+      arrow(758, 235),
+    ];
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    const texts = result.filter((el) => el.type === "text");
+    // Long text stays as a separate text element
+    expect(texts.some((el) => el.content === longText)).toBe(true);
   });
 });

@@ -86,3 +86,44 @@ inline code in numbered lists (e.g., `1. print("hello")`).
 | Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column                        |
 | Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision in `inferLayout`                      |
 | Small icon/logo beside the heading                     | Treated as content image                      | Header-band filter drops small images in the shared `bodyTopRatio` band |
+
+## Shape & diagram rendering (Phase 14.9, #117)
+
+Shape groups and diagrams (detected by `PptxExtractor.#isManualDiagram()`) are
+rendered to PNG screenshots instead of flattening to bullet lists or a
+`[Diagram: ...]` marker.
+
+### Pipeline
+
+```
+PptxExtractor.extract()
+  └─ #processElement() — preserves full shape geometry (path, fill, border, transform)
+      └─ #isManualDiagram() → #shapesToDiagram() — stashes constituent shapes on the diagram element
+  └─ renderDiagramsToPng()  ← post-pass (async, after EMF/TIFF conversion)
+      └─ buildShapeSvg()   — pure: shapes → SVG string
+      └─ renderSvgToPng()  — SVG → canvas → toDataURL
+      └─ trimTransparentMargins() — crops transparent borders
+      └─ replaces diagram element with image + text fallback
+```
+
+### Files involved
+
+| File                               | Role                                                           |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `src/data/pptx-shape-renderer.js`  | `renderDiagramsToPng()`, `buildShapeSvg()`, `renderSvgToPng()` |
+| `src/data/pptx-extractor.js`       | Preserves shape geometry; stashes `shapes` on diagram elements |
+| `src/data/pptx-image-converter.js` | `trimTransparentMargins()` (shared with EMF/TIFF conversion)   |
+
+### Fallback chain
+
+1. **Renderable shapes present + canvas available** → PNG image + text fallback.
+2. **No renderable shapes** (no `path`, `shapType`, or fill) → diagram element unchanged → existing `[Diagram: ...]` → bullets path.
+3. **Canvas unavailable** (jsdom, SSR) → diagram element unchanged → same fallback.
+4. **Render fails** (SVG load error) → diagram element unchanged → same fallback.
+
+### Text fallback (Task C)
+
+When a shape group has text content, the text is preserved as a separate `text`
+element alongside the rendered image, so it remains searchable and editable.
+The image element gets `order` from the original diagram; the text element gets
+`order + 0.5` so it follows the image in the element sequence.

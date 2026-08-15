@@ -162,7 +162,7 @@ export async function convertTiffImages(slides, images) {
  * @param {string} dataUrl - PNG data URL to trim.
  * @returns {Promise<string|null>}
  */
-async function trimTransparentMargins(dataUrl) {
+export async function trimTransparentMargins(dataUrl) {
   if (typeof document === "undefined" || !document.createElement) return null;
   const ALPHA_THRESHOLD = 10;
   const PAD_THRESHOLD_PCT = 1;
