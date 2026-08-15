@@ -1594,4 +1594,180 @@ background: url(images/fake-bg.png)
       expect(result).toContain('src="images/fake.png"');
     });
   });
+
+  describe("visual-system compliance warnings", () => {
+    const vs = { visualDirection: "Dark, technical, with bright accents." };
+
+    const validateWithVs = (outputMarkdown) => {
+      const validator = new AiOutputValidator({ inputMarkdown: "" });
+      return validator.validate(outputMarkdown, "generate", { visualSystem: vs });
+    };
+
+    const goodSlide = `layout: header-content
+theme: dark
+background: #1a1a2e
+
+@header
+# Title
+
+@main
+- Point`;
+
+    it("passes without warnings when theme and background are valid", () => {
+      const result = validateWithVs(goodSlide);
+      expect(result.ok).toBe(true);
+      expect(result.warnings.filter((w) => w.code.startsWith("VISUAL_SYSTEM_"))).toHaveLength(0);
+    });
+
+    it("warns on invalid theme value", () => {
+      const output = `layout: header-content
+theme: purple
+background: #1a1a2e
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      expect(result.ok).toBe(true);
+      const vsWarnings = result.warnings.filter((w) => w.code === "VISUAL_SYSTEM_INVALID_THEME");
+      expect(vsWarnings).toHaveLength(1);
+      expect(vsWarnings[0].message).toContain("purple");
+    });
+
+    it("warns on named CSS color background", () => {
+      const output = `layout: header-content
+theme: dark
+background: red
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter(
+        (w) => w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(vsWarnings).toHaveLength(1);
+      expect(vsWarnings[0].message).toContain("red");
+    });
+
+    it("warns on transparent background", () => {
+      const output = `layout: header-content
+theme: dark
+background: transparent
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter(
+        (w) => w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(vsWarnings).toHaveLength(1);
+    });
+
+    it("warns on none background", () => {
+      const output = `layout: header-content
+theme: dark
+background: none
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter(
+        (w) => w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(vsWarnings).toHaveLength(1);
+    });
+
+    it("does not warn on valid gradient background", () => {
+      const output = `layout: header-content
+theme: dark
+background: linear-gradient(135deg, #1a1a2e, #0d1117)
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter(
+        (w) => w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(vsWarnings).toHaveLength(0);
+    });
+
+    it("does not warn on valid url() background", () => {
+      const output = `layout: full-image
+theme: dark
+background: url(images/hero.png)
+
+@main
+<img src="images/hero.png">`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter(
+        (w) => w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(vsWarnings).toHaveLength(0);
+    });
+
+    it("warns when no slide has theme or background (visual direction ignored)", () => {
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+- Point`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter((w) => w.code === "VISUAL_SYSTEM_IGNORED");
+      expect(vsWarnings).toHaveLength(1);
+      expect(vsWarnings[0].slide).toBe(-1);
+    });
+
+    it("does not warn about ignored direction when at least one slide has theme", () => {
+      const output = `layout: header-content
+theme: dark
+
+@header
+# Title
+
+---
+
+layout: header-content
+
+@header
+# Slide 2`;
+      const result = validateWithVs(output);
+      const ignored = result.warnings.filter((w) => w.code === "VISUAL_SYSTEM_IGNORED");
+      expect(ignored).toHaveLength(0);
+    });
+
+    it("does not run visual-system checks when no visualSystem is provided", () => {
+      const validator = new AiOutputValidator({ inputMarkdown: "" });
+      const result = validator.validate(goodSlide, "generate", {});
+      const vsWarnings = result.warnings.filter((w) => w.code.startsWith("VISUAL_SYSTEM_"));
+      expect(vsWarnings).toHaveLength(0);
+    });
+
+    it("does not flag individual slides merely for missing theme or background", () => {
+      const output = `layout: header-content
+theme: dark
+background: #1a1a2e
+
+@header
+# Slide 1
+
+---
+
+layout: header-content
+
+@header
+# Slide 2`;
+      const result = validateWithVs(output);
+      // Slide 2 has no theme/background, but that's not a warning —
+      // applyVisualSystemIdentity fills them in.
+      const missingWarnings = result.warnings.filter(
+        (w) =>
+          w.code === "VISUAL_SYSTEM_INVALID_THEME" || w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(missingWarnings).toHaveLength(0);
+      // The deck as a whole is not "ignored" because slide 1 has directives.
+      const ignored = result.warnings.filter((w) => w.code === "VISUAL_SYSTEM_IGNORED");
+      expect(ignored).toHaveLength(0);
+    });
+  });
 });

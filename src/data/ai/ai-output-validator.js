@@ -251,6 +251,12 @@ export class AiOutputValidator {
    *   false-positive on the batch that lost the image. The single-call path
    *   runs on the full virtual deck, and the deterministic identity enforcement
    *   (applyPreservedIdentity) catches dropped images in the final deck.
+   * @param {object} [opts.visualSystem] — when set (reimagine execute),
+   *   emit warning-level checks for invalid theme values, malformed
+   *   background directives, and results that completely ignore the visual
+   *   direction (no slide carries a `theme:` or `background:` directive).
+   *   These are warnings, not errors — `applyVisualSystemIdentity` fixes
+   *   them deterministically after validation.
    * @returns {ValidationResult}
    */
   validate(outputMarkdown, intent, opts = {}) {
@@ -398,6 +404,14 @@ export class AiOutputValidator {
       }
     }
 
+    // Visual-system compliance warnings (reimagine execute phase).
+    // These are advisory — applyVisualSystemIdentity fixes them
+    // deterministically after validation — but they surface in logs so
+    // the user and developer can see when the model ignored the direction.
+    if (opts.visualSystem) {
+      this._checkVisualSystemCompliance(slides, rawSlideTexts, opts.visualSystem, warnings);
+    }
+
     return { ok: errors.length === 0, errors, warnings, slides };
   }
 
@@ -462,6 +476,89 @@ export class AiOutputValidator {
         slide: index,
         code: "NOTES_MISSING",
         message: "Add speaker notes must produce a `<!-- notes: ... -->` block",
+      });
+    }
+  }
+
+  /**
+   * Warning-level checks for Reimagine results when a visual system is
+   * present. These do not trigger repair retries —
+   * `applyVisualSystemIdentity` fixes them deterministically after
+   * validation — but they surface in logs so the user and developer can
+   * see when the model ignored the visual direction or emitted invalid
+   * styling directives.
+   *
+   * Checks:
+   * 1. Invalid `theme:` values (not `dark` or `light`) on any slide.
+   * 2. Malformed `background:` values (named CSS colors, `transparent`,
+   *    `none`, or empty when a theme is present).
+   * 3. The result completely ignores the visual direction: no slide in
+   *    the deck carries a `theme:` or `background:` directive.
+   *
+   * Does NOT flag an individual slide merely for missing `background:` or
+   * `theme:` — `applyVisualSystemIdentity` fills those in.
+   *
+   * @param {object[]} slides — parsed slide objects from MarkdownParser
+   * @param {string[]} rawSlideTexts — raw per-slide markdown text
+   * @param {object} visualSystem — the visual system object
+   * @param {ValidationError[]} warnings
+   */
+  _checkVisualSystemCompliance(slides, rawSlideTexts, visualSystem, warnings) {
+    if (!visualSystem || !visualSystem.visualDirection) return;
+
+    let slidesWithTheme = 0;
+    let slidesWithBackground = 0;
+
+    for (let i = 0; i < slides.length; i++) {
+      const rawSlide = rawSlideTexts[i] || "";
+
+      // Check for theme directive in raw text (the parser normalizes
+      // invalid themes to "", so we check the raw text to detect
+      // non-dark/non-light values the model may have emitted).
+      const themeMatch = rawSlide.match(/^\s*theme:\s*(\S+)/im);
+      if (themeMatch) {
+        slidesWithTheme++;
+        const value = themeMatch[1].toLowerCase();
+        if (value !== "dark" && value !== "light") {
+          warnings.push({
+            slide: i,
+            code: "VISUAL_SYSTEM_INVALID_THEME",
+            message: `Slide ${i + 1} has invalid theme "${themeMatch[1]}" (expected "dark" or "light"). It will be replaced.`,
+          });
+        }
+      }
+
+      // Check for background directive in raw text.
+      const bgMatch = rawSlide.match(/^\s*background:\s*(.+)/im);
+      if (bgMatch) {
+        slidesWithBackground++;
+        const value = bgMatch[1].trim();
+        // Flag named CSS colors, transparent, none, and empty values.
+        // applyVisualSystemIdentity's validateBackgroundValue already
+        // catches these, but the warning makes the issue visible.
+        if (
+          value === "transparent" ||
+          value === "none" ||
+          value === "" ||
+          (/^[a-zA-Z]+$/.test(value) &&
+            !/^(url|linear-gradient|radial-gradient|conic-gradient)\(/i.test(value))
+        ) {
+          warnings.push({
+            slide: i,
+            code: "VISUAL_SYSTEM_INVALID_BACKGROUND",
+            message: `Slide ${i + 1} has malformed background "${value}". It will be replaced with a valid color.`,
+          });
+        }
+      }
+    }
+
+    // Check 3: the result completely ignores the visual direction.
+    if (slides.length > 0 && slidesWithTheme === 0 && slidesWithBackground === 0) {
+      warnings.push({
+        slide: -1,
+        code: "VISUAL_SYSTEM_IGNORED",
+        message:
+          "No slide in the output carries a theme: or background: directive. The visual direction may have been ignored.",
       });
     }
   }
