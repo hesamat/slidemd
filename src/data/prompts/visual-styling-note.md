@@ -17,7 +17,7 @@
   - dark background → `theme: dark`
   - light/bright background → `theme: light`
   - kept image as background → choose `theme:` based on whether the image is mostly dark or light
-- `background:` must be a solid hex color, gradient, or kept image. Do not use `transparent`, `none`, or an empty value — a see-through background makes text and diagrams (e.g. Mermaid) unreadable.
+- `background:` must be a solid hex color, gradient, or kept image. Do not use `transparent`, `none`, or an empty value — a see-through background makes text and diagrams (e.g. Mermaid) unreadable. Do not combine a color with an image in the same directive (e.g. avoid `url(images/bg.png) #1a1a2e`). Use the image by itself and choose `theme:` to match it. Do not use CSS named colors such as `red`, `white`, or `dark`; always use an explicit hex, `rgb()`, `hsl()`, or gradient value.
 - Vary `background:` across the deck. These rules are mandatory:
   - No two consecutive slides may share the same `background:` value.
   - At least 30% of slides must use `theme: light` with a light/bright `background:`.

@@ -38,11 +38,11 @@ const DEFAULT_LIGHT_BG = "#ffffff";
 
 /**
  * Pattern for a single CSS color token: hex (3/6/8 digits), rgb(), rgba(),
- * hsl(), hsla(), or a named CSS color.  This is used to validate individual
- * color components inside a `background:` value.
+ * hsl(), or hsla().  Named CSS colors are intentionally rejected — the AI
+ * should use explicit hex/rgb/hsl values or CSS gradients.
  */
 const COLOR_TOKEN_RE =
-  /^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|rgb\([^)]*\)|rgba\([^)]*\)|hsl\([^)]*\)|hsla\([^)]*\)|[a-zA-Z]+)$/;
+  /^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|rgb\([^)]*\)|rgba\([^)]*\)|hsl\([^)]*\)|hsla\([^)]*\))$/;
 
 /**
  * Pattern for a `url(...)` token — only quotes or unquoted paths, no
@@ -575,14 +575,14 @@ export function applyVisualSystemIdentity(markdown, visualSystem) {
     if (!backgroundValue || isBlankColor) {
       const fallbackColor =
         themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
-      backgroundValue = safeImagePart ? `${safeImagePart} ${fallbackColor}`.trim() : fallbackColor;
+      backgroundValue = safeImagePart || fallbackColor;
     } else if (!validateBackgroundValue(backgroundValue)) {
       // The AI emitted a background value that is not a recognised safe CSS
       // token (e.g. an expression, a javascript: URL, or malformed syntax).
       // Replace it with a fallback color but preserve any valid image part.
       const fallbackColor =
         themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
-      backgroundValue = safeImagePart ? `${safeImagePart} ${fallbackColor}`.trim() : fallbackColor;
+      backgroundValue = safeImagePart || fallbackColor;
     }
 
     const leading = [...commentLines];

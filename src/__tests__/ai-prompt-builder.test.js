@@ -696,12 +696,13 @@ describe("applyVisualSystemIdentity", () => {
     expect(result).toContain("theme: dark");
   });
 
-  it("does not crash on non-hex color names and infers theme as dark fallback", () => {
+  it("rejects named color backgrounds and falls back to a real color", () => {
     const md = `layout: header-content\nbackground: red\n@header\n## Slide`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
     expect(result).toBeDefined();
-    // "red" is a valid named CSS color, so it should be kept
-    expect(result).toContain("background: red");
+    // Named CSS colors are not accepted; use the fallback color
+    expect(result).not.toContain("background: red");
+    expect(result).toMatch(/^background: #1a1a2e$/m);
     // themeForColor returns null for non-hex, so theme defaults to "dark"
     expect(result).toContain("theme: dark");
   });
@@ -758,9 +759,9 @@ describe("applyVisualSystemIdentity", () => {
   it("preserves image part when replacing invalid color part", () => {
     const md = `layout: full-image\nbackground: expression(alert(1)) url(images/hero.png)\n@main\n<img src="images/hero.png">`;
     const result = applyVisualSystemIdentity(md, TEST_VISUAL_SYSTEM);
-    expect(result).toContain("url(images/hero.png)");
+    expect(result).toContain("background: url(images/hero.png)");
     expect(result).not.toContain("expression");
-    expect(result).toMatch(/^background: .*#1a1a2e/m);
+    expect(result).not.toContain("#1a1a2e");
   });
 
   it("drops AI-generated visual-system comments from slide content", () => {
