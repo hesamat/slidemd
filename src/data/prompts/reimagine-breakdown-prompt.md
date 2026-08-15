@@ -165,7 +165,6 @@ Use the direction above to assign a sensible `visualBeat` and image query to eac
 Background / layout guidance by beat:
 
 - `continuation` — default content beat. Use `header-content` or `two-column` for dense content; follow the visual direction's default background.
-- `example` / `practice` — code, tables, or step-by-step content. Use `two-column` or `header-content`.
 - `punctuation` — a high-emphasis moment. Use `focus` only for a single short takeaway; otherwise use `header-content` with a bright, light, or image background.
 - `transition` — bridge between chapters. Use a deliberate background/theme shift; `header-content` or `focus`.
 - `emotional` — imagery or atmosphere. Use `full-image` or `media-span` with a kept image when available; otherwise use `header-content` with an atmospheric background.
