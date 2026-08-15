@@ -438,6 +438,13 @@ export class SettingsModal {
 
       const isFetchModelsSupported = isModelSearchProvider;
 
+      // Auto-fetch is reserved for always-on hosted APIs. Local providers
+      // (Ollama, LM Studio) may not be running, so auto-fetching on
+      // select/focus/open spams the console with ERR_CONNECTION_REFUSED.
+      // Users click the Fetch button explicitly for those.
+      const isAutoFetchProvider = () =>
+        selectedProvider === "OpenRouter" || selectedProvider === "OpenAI";
+
       // --- Model dropdown ---
       const filterModels = (query) => {
         const q = query.toLowerCase();
@@ -624,9 +631,10 @@ export class SettingsModal {
         modelInput.value = selectedModel;
         updateModelSummary();
 
-        if (isFetchModelsSupported()) {
-          // Auto-fetch for OpenRouter, OpenAI, Ollama, LM Studio.
-          // Keep the saved model unless the list comes back empty.
+        if (isAutoFetchProvider()) {
+          // Auto-fetch for hosted providers (OpenRouter, OpenAI).
+          // Local providers (Ollama, LM Studio) require an explicit Fetch
+          // click so a stopped service doesn't spam ERR_CONNECTION_REFUSED.
           fetchModels().then(() => {
             if (this._allModels.length > 0 && !selectedModel) {
               selectedModel = this._allModels[0].id;
@@ -660,7 +668,9 @@ export class SettingsModal {
         if (isModelSearchProvider()) {
           modelInput.value = "";
           openDropdown();
-          if (this._allModels.length === 0 && !this._loadingModels) {
+          // Only auto-fetch on focus for hosted providers; local services
+          // require an explicit Fetch click to avoid connection-refused noise.
+          if (isAutoFetchProvider() && this._allModels.length === 0 && !this._loadingModels) {
             fetchModels();
           }
           filterModels("");
@@ -688,7 +698,9 @@ export class SettingsModal {
       });
 
       modelDropdown.addEventListener("click", (e) => e.stopPropagation());
-      modelDropdown.addEventListener("wheel", (e) => e.stopPropagation());
+      // passive: true — handler only calls stopPropagation(), never
+      // preventDefault(), so it can't be a scroll-blocking listener.
+      modelDropdown.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
 
       // Reposition dropdown on scroll/resize while open
       const repositionDropdown = () => {
@@ -716,7 +728,7 @@ export class SettingsModal {
       // --- Initial population ---
       fetchModelsBtn.hidden = !isFetchModelsSupported();
 
-      if (isModelSearchProvider()) {
+      if (isAutoFetchProvider()) {
         this.#populateOpenRouterModels(() => {
           filterModels("");
           const savedReasoning = this.getReasoning(selectedProvider);
