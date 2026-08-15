@@ -104,6 +104,10 @@ Uses a dedicated three-phase flow separate from Remix:
 | ----------- | ---------------- | --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `reimagine` | Bold             | Not preserved   | 70-120% of source (soft warn) | Take a bold editorial approach; rethink topic, examples, notes, and visuals while keeping core intent and facts. |
 
+#### Visual identity interaction
+
+When a `visualSystem` is present (Reimagine), it **overrides** the generic "Pick ONE coherent visual theme" instruction in `generate-prompt.md`. The `present` variant of `visual-styling-note.md` replaces the generic visual-styling section with specific `visualDirection` guidance, and the `discard` variant of `visual-identity-guidance.md` is skipped (it would contradict the visual direction by ordering the AI to strip all theme/background). For Remix/Polish (non-reimagine), no `visualSystem` exists, so the existing `visualIdentityGuidance` preserve/discard mechanism remains unchanged.
+
 ### Modal Options
 
 The pre-flight modal returns:

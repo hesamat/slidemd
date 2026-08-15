@@ -157,9 +157,7 @@ Do not implement in this iteration:
 
 ---
 
-## Relationship to the visual-system beat-engine plan
-
-`docs/plans/visual-system-beat-engine.md` remains the lower-level reference for the existing visual-system schema, beat metadata, normalization, and outline → breakdown → generate plumbing.
+## Implementation principle
 
 The implementation principle remains:
 
