@@ -273,3 +273,69 @@ describe("SettingsModal save preserves reasoning preference", () => {
     expect(sessionStorage.getItem("webdeck_ai_reasoning_ollama")).toBe("true");
   });
 });
+
+describe("SettingsModal provider switch restores reasoning preference", () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    localStorage.clear();
+    sessionStorage.clear();
+    SettingsModal._allModels = [];
+    SettingsModal._modelReasoningMap.clear();
+    SettingsModal._modelMaxOutputMap.clear();
+    SettingsModal._cachedProvider = null;
+    SettingsModal._loadingModels = false;
+    SettingsModal._lastModelError = "";
+  });
+
+  afterEach(() => {
+    SettingsModal.close();
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it("restores the new provider's reasoning preference when switching providers", async () => {
+    // Start with OpenRouter, reasoning=true, a reasoning-capable model.
+    localStorage.setItem("webdeck_ai_provider", "OpenRouter");
+    sessionStorage.setItem("webdeck_ai_model_openrouter", "deepseek/deepseek-r1");
+    sessionStorage.setItem("webdeck_ai_reasoning_openrouter", "true");
+    // Ollama has reasoning=false and a reasoning-capable model.
+    sessionStorage.setItem("webdeck_ai_model_ollama", "deepseek-r1");
+    sessionStorage.setItem("webdeck_ai_reasoning_ollama", "false");
+    localStorage.setItem("webdeck_ai_base_url", "http://localhost:11434/v1");
+    stubModelsFetch([{ id: "deepseek/deepseek-r1", name: "DeepSeek R1", reasoning: {} }]);
+    const { promise, providerSelect, reasoningCheckbox } = await openModal();
+    // OpenRouter init: reasoning should be checked.
+    await vi.waitFor(() => expect(reasoningCheckbox.checked).toBe(true));
+
+    // Switch to Ollama — should restore Ollama's saved reasoning=false.
+    providerSelect.value = "Ollama";
+    providerSelect.dispatchEvent(new Event("change"));
+    // Ollama doesn't auto-fetch, so the restore is synchronous.
+    expect(reasoningCheckbox.checked).toBe(false);
+
+    await cancelModal(promise);
+  });
+
+  it("does not carry over the previous provider's reasoning when switching to a provider with no saved preference", async () => {
+    localStorage.setItem("webdeck_ai_provider", "OpenRouter");
+    sessionStorage.setItem("webdeck_ai_model_openrouter", "deepseek/deepseek-r1");
+    sessionStorage.setItem("webdeck_ai_reasoning_openrouter", "true");
+    // LM Studio has a model but no saved reasoning preference (defaults to false).
+    sessionStorage.setItem("webdeck_ai_model_lm_studio", "qwen3");
+    localStorage.setItem("webdeck_ai_base_url", "http://localhost:1234/v1");
+    stubModelsFetch([{ id: "deepseek/deepseek-r1", name: "DeepSeek R1", reasoning: {} }]);
+    const { promise, providerSelect, reasoningCheckbox } = await openModal();
+    await vi.waitFor(() => expect(reasoningCheckbox.checked).toBe(true));
+
+    // Switch to LM Studio — no saved reasoning, so checkbox should be unchecked.
+    providerSelect.value = "LM Studio";
+    providerSelect.dispatchEvent(new Event("change"));
+    expect(reasoningCheckbox.checked).toBe(false);
+
+    await cancelModal(promise);
+  });
+});

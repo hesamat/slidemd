@@ -752,10 +752,10 @@ export class SettingsModal {
               modelInput.value = selectedModel;
               updateModelSummary();
             }
-            updateReasoningState();
+            restoreReasoningCheckbox();
           });
         } else {
-          updateReasoningState();
+          restoreReasoningCheckbox();
         }
       });
 
