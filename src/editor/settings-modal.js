@@ -648,6 +648,20 @@ export class SettingsModal {
         }
       };
 
+      // Restore the persisted reasoning preference into the checkbox, gated
+      // by whether the current model actually supports reasoning. Called on
+      // modal init for every provider (hosted and local) so a saved
+      // preference isn't silently dropped when the modal opens.
+      const restoreReasoningCheckbox = () => {
+        // updateReasoningState populates _modelReasoningMap with a guessed
+        // entry for the model (via guessReasoningForModel) before we check
+        // supports, so the gating below sees the right value.
+        updateReasoningState();
+        const savedReasoning = this.getReasoning(selectedProvider);
+        const supports = this.modelSupportsReasoning(selectedModel);
+        reasoningCheckbox.checked = savedReasoning && supports;
+      };
+
       const fetchModels = async () => {
         fetchModelsBtn.disabled = true;
         errorEl.hidden = true;
@@ -828,13 +842,13 @@ export class SettingsModal {
       if (isAutoFetchProvider()) {
         this.#populateOpenRouterModels(() => {
           filterModels("");
-          const savedReasoning = this.getReasoning(selectedProvider);
-          const supports = this.modelSupportsReasoning(selectedModel);
-          reasoningCheckbox.checked = savedReasoning && supports;
-          updateReasoningState();
+          restoreReasoningCheckbox();
         });
       } else {
-        updateReasoningState();
+        // Local providers (Ollama, LM Studio) and non-search providers still
+        // restore the saved reasoning preference — only the auto-fetch is
+        // skipped, not the persisted-state restoration.
+        restoreReasoningCheckbox();
       }
 
       applyProviderDefaults();
