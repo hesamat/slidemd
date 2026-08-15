@@ -647,7 +647,7 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 Goal: Make Reimagine feel like a guided editorial art director: surprising in its thinking, reassuring in its structure, and coherent in its execution.
 
-Scope note: the first slice shipped a 3-color palette; it has since been replaced by a freeform `visualDirection` field. This continuation focuses on beat-aware generation, presentation voice, flow-aware outline structure, and remaining test coverage. Visual-system validator work remains deferred.
+Scope note: the first slice shipped a 3-color palette; it has since been replaced by a freeform `visualDirection` field. This continuation focuses on beat-aware generation, presentation voice, flow-aware outline structure, and remaining test coverage.
 
 The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](docs/plans/reimagine-improvements.md).
 
@@ -669,19 +669,30 @@ The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](doc
 | [x] Improve presentation voice            | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                                                                |
 | [x] Validate image reuse                  | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                                                                             |
 
+### Background Validation
+
+| Task                                 | Details                                                                                                                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Reject CSS named colors          | `COLOR_TOKEN_RE` in `ai-prompt-fragments.js` accepts only hex, `rgb()`, `rgba()`, `hsl()`, `hsla()`, and gradients. Named colors like `red`, `white`, `dark` fall back to a real color.                                 |
+| [x] No color+image background combos | `applyVisualSystemIdentity` no longer appends a fallback color to image-only backgrounds. The prompt instructs the AI not to combine a color with an image in a single `background:` directive.                         |
+| [x] Remove phantom beat types        | The breakdown and generate prompts listed `example`/`practice` as beat types, which are not in the beat enum. Removed to keep the prompts consistent with the schema and normalizer.                                    |
+| [x] Drop arbitrary background rules  | Removed unenforced "mandatory" rules (no consecutive same background, 30% light theme, max twice reuse) from the generate prompt. Kept softer guidance to vary backgrounds and avoid defaulting to a single dark color. |
+
 ### Flow-Aware Outline Structure
 
 | Task                              | Details                                                                                                                                                                        |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [ ] Flow-specific technique menus | Replace the fixed seven-item technique list in `reimagine-outline-prompt.md` with per-flow subsets so instructional and technical decks are steered toward fitting structures. |
 | [ ] Extend flowTag vocabulary     | Add instructional (`objectives`, `steps`, `example`, `practice`, `recap`) and technical (`assertion`, `evidence`, `implication`) tags; map them through the breakdown phase.   |
+| [ ] Thread flowTag to breakdown   | The orchestrator carries `flowTag` from outline to breakdown, but the breakdown prompt never mentions it. Add it to the breakdown prompt's chapter context.                    |
 
 ### Validation & Test Coverage
 
-| Task                                        | Details                                                                                                                                                                                                       |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add visual-system validation (deferred) | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.    |
-| [~] Add Reimagine test fixtures             | Visual-system generation/normalization, review modal display, image reuse validation, conditional styling guidance, and Polish/Fix/Remix no-regression are covered. Beat-to-treatment and voice tests remain. |
+| Task                              | Details                                                                                                                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add visual-system validation  | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.    |
+| [~] Add Reimagine test fixtures   | Visual-system generation/normalization, review modal display, image reuse validation, conditional styling guidance, and Polish/Fix/Remix no-regression are covered. Beat-to-treatment and voice tests remain. |
+| [ ] Add end-to-end pipeline tests | Test that `visualDirection` appears in the breakdown prompt and generate options suffix, beats survive from breakdown to slide briefs, and the orchestrator threads `visualSystem` through all phases.        |
 
 ### Acceptance Criteria
 
