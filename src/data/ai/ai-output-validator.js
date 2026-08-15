@@ -515,7 +515,11 @@ export class AiOutputValidator {
       // Check for theme directive in raw text (the parser normalizes
       // invalid themes to "", so we check the raw text to detect
       // non-dark/non-light values the model may have emitted).
-      const themeMatch = rawSlide.match(/^\s*theme:\s*(\S+)/im);
+      // Capture the full line value (not just the first token) so that
+      // multi-word values like "dark extra" are flagged.
+      // Use [ \t]* instead of \s* so the regex doesn't consume newlines
+      // and bleed into the next line.
+      const themeMatch = rawSlide.match(/^\s*theme:[ \t]*(.*?)\s*$/im);
       if (themeMatch) {
         slidesWithTheme++;
         const value = themeMatch[1].toLowerCase();
@@ -529,24 +533,27 @@ export class AiOutputValidator {
       }
 
       // Check for background directive in raw text.
-      const bgMatch = rawSlide.match(/^\s*background:\s*(.+)/im);
+      // Use [ \t]* and (.*?) to also match empty values — `background:`
+      // with nothing after it is malformed and should be flagged.
+      const bgMatch = rawSlide.match(/^\s*background:[ \t]*(.*?)\s*$/im);
       if (bgMatch) {
         slidesWithBackground++;
-        const value = bgMatch[1].trim();
-        // Flag named CSS colors, transparent, none, and empty values.
-        // applyVisualSystemIdentity's validateBackgroundValue already
-        // catches these, but the warning makes the issue visible.
-        if (
-          value === "transparent" ||
-          value === "none" ||
-          value === "" ||
-          (/^[a-zA-Z]+$/.test(value) &&
-            !/^(url|linear-gradient|radial-gradient|conic-gradient)\(/i.test(value))
-        ) {
+        const value = bgMatch[1];
+        // Flag empty, transparent, none, and named CSS colors.
+        // Valid backgrounds start with # (hex), rgb/rgba, hsl/hsla,
+        // url(), or a gradient function. Anything else is likely a
+        // named color or other invalid value. applyVisualSystemIdentity's
+        // validateBackgroundValue catches these deterministically, but
+        // the warning makes the issue visible in the sidebar.
+        const isValidSyntax =
+          /^(#|rgba?|hsla?|url\(|linear-gradient\(|radial-gradient\(|conic-gradient\()/i.test(
+            value,
+          );
+        if (!value || value === "transparent" || value === "none" || !isValidSyntax) {
           warnings.push({
             slide: i,
             code: "VISUAL_SYSTEM_INVALID_BACKGROUND",
-            message: `Slide ${i + 1} has malformed background "${value}". It will be replaced with a valid color.`,
+            message: `Slide ${i + 1} has malformed background "${value || "(empty)"}". It will be replaced with a valid color.`,
           });
         }
       }

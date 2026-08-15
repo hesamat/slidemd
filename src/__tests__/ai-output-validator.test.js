@@ -1769,5 +1769,62 @@ layout: header-content
       const ignored = result.warnings.filter((w) => w.code === "VISUAL_SYSTEM_IGNORED");
       expect(ignored).toHaveLength(0);
     });
+
+    it("warns on multi-word theme value (e.g. 'dark extra')", () => {
+      const output = `layout: header-content
+theme: dark extra
+background: #1a1a2e
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter((w) => w.code === "VISUAL_SYSTEM_INVALID_THEME");
+      expect(vsWarnings).toHaveLength(1);
+      expect(vsWarnings[0].message).toContain("dark extra");
+    });
+
+    it("warns on empty background directive", () => {
+      const output = `layout: header-content
+theme: dark
+background:
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter(
+        (w) => w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(vsWarnings).toHaveLength(1);
+      expect(vsWarnings[0].message).toContain("empty");
+    });
+
+    it("warns on multi-word named-color background (e.g. 'red blue')", () => {
+      const output = `layout: header-content
+theme: dark
+background: red blue
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const vsWarnings = result.warnings.filter(
+        (w) => w.code === "VISUAL_SYSTEM_INVALID_BACKGROUND",
+      );
+      expect(vsWarnings).toHaveLength(1);
+      expect(vsWarnings[0].message).toContain("red blue");
+    });
+
+    it("counts malformed background as present for IGNORED check", () => {
+      // Even though the background is malformed, the directive is present,
+      // so VISUAL_SYSTEM_IGNORED should NOT fire.
+      const output = `layout: header-content
+theme: dark
+background: red
+
+@header
+# Title`;
+      const result = validateWithVs(output);
+      const ignored = result.warnings.filter((w) => w.code === "VISUAL_SYSTEM_IGNORED");
+      expect(ignored).toHaveLength(0);
+    });
   });
 });
