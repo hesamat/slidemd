@@ -2933,6 +2933,167 @@ describe("AiOrchestrator", () => {
     });
   });
 
+  describe("runWholeDeckOperation (reimagine flow-aware outline)", () => {
+    const DECK_MD =
+      "layout: header-content\n@header\n## Slide 1\n\n@main\n- Item 1\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
+    const outlineResponse = JSON.stringify({
+      plan: "Plan.",
+      visualSystem: { visualDirection: "Dark, technical." },
+      chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+    });
+    const breakdownResponse = JSON.stringify({
+      chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+    });
+    const executeResponse = JSON.stringify({
+      slides: [{ layout: "header-content", content: "@header\n## S\n\n@main\n- x" }],
+    });
+
+    it("injects instructional technique menu for instructional flow", async () => {
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "instructional",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("**instructional**");
+      expect(outlineUser).toContain("Objectives");
+      expect(outlineUser).toContain("Step-by-step");
+      expect(outlineUser).toContain("Recap");
+      // Should NOT contain story-specific techniques
+      expect(outlineUser).not.toContain("Character arc");
+      expect(outlineUser).not.toContain("Hook → Tension → Resolution");
+    });
+
+    it("injects technical technique menu for technical flow", async () => {
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "technical",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("**technical**");
+      expect(outlineUser).toContain("Assertion → Evidence");
+      expect(outlineUser).toContain("Context → Concept → Evidence → Implications");
+      // Should NOT contain instructional techniques
+      expect(outlineUser).not.toContain("Objectives");
+      expect(outlineUser).not.toContain("Step-by-step");
+    });
+
+    it("injects story technique menu for story flow", async () => {
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "story",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("**story**");
+      expect(outlineUser).toContain("Hook → Tension → Resolution");
+      expect(outlineUser).toContain("Character arc");
+      // Should NOT contain instructional or technical techniques
+      expect(outlineUser).not.toContain("Objectives");
+      expect(outlineUser).not.toContain("Assertion → Evidence");
+    });
+
+    it("threads flowTag from outline to breakdown prompt", async () => {
+      const outlineWithTag = JSON.stringify({
+        plan: "Plan.",
+        visualSystem: { visualDirection: "Dark, technical." },
+        chapters: [
+          {
+            title: "Learning objectives",
+            flowTag: "objectives",
+            summary: "What the audience will learn.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const provider = mockProviderSequence([
+        outlineWithTag,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "instructional",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const breakdownUser = provider.chat.mock.calls[1][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      // flowTag is serialized in the chapters JSON
+      expect(breakdownUser).toContain('"flowTag"');
+      expect(breakdownUser).toContain("objectives");
+      // The breakdown prompt explains flow tags
+      expect(breakdownUser).toContain("Flow tags");
+    });
+
+    it("accepts extended flowTag vocabulary in outline response", async () => {
+      const tags = ["objectives", "steps", "practice", "recap", "assertion", "implication"];
+      for (const tag of tags) {
+        const outlineWithTag = JSON.stringify({
+          plan: "Plan.",
+          visualSystem: { visualDirection: "Dark, technical." },
+          chapters: [
+            {
+              title: "Ch1",
+              flowTag: tag,
+              summary: "S.",
+              suggestedSlideCount: 1,
+            },
+          ],
+        });
+        const provider = mockProviderSequence([
+          outlineWithTag,
+          breakdownResponse,
+          executeResponse,
+          executeResponse,
+        ]);
+        const orchestrator = new AiOrchestrator({ provider });
+        const op = createOperation("generate", null, DECK_MD, {
+          mode: "reimagine",
+          flow: "instructional",
+        });
+        const outlines = [];
+        await orchestrator.runWholeDeckOperation(op, undefined, {
+          onOutline: async (outline) => {
+            outlines.push(outline);
+            return outline;
+          },
+        });
+        expect(outlines[0].chapters[0].flowTag).toBe(tag);
+      }
+    });
+  });
+
   describe("truncation handling (batched path)", () => {
     // Build a deck with >BATCH_SIZE slides so the batched path is used.
     // BATCH_SIZE is 8; we use 10 slides.
