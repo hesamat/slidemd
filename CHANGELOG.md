@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.1 (2026-08-14)
+
+### Reimagine — Flow-Aware Outline & Validation
+
+- Replace the fixed seven-item storytelling technique menu with per-flow subsets so instructional, technical, story, and persuasive decks are steered toward fitting structures. Techniques are injected via `reimagine-flow-techniques.md` variant selection.
+- Extend the `flowTag` vocabulary with instructional tags (`objectives`, `steps`, `practice`, `recap`) and technical tags (`assertion`, `implication`). The review modal dropdown and orchestrator typedef are updated.
+- Thread `flowTag` into the breakdown prompt with explanations of how each tag should inform beat assignment and density.
+- Add visual-system validation warnings: invalid theme values, malformed background directives (named CSS colors, `transparent`, `none`), and results that completely ignore the visual direction. Warnings are advisory — `applyVisualSystemIdentity` fixes them deterministically.
+- Add end-to-end pipeline tests for flow-specific technique menus, flowTag threading, extended vocabulary acceptance, and visual-system compliance warnings.
+
+### Documentation
+
+- Document the full four-phase Reimagine pipeline (outline → review → breakdown → generate → post-processing) in `docs/prompt-template.md`.
+- Delete the obsolete `docs/plans/reimagine-improvements.md` and `docs/plans/visual-system-beat-engine.md` plan files — all work is complete.
+
 ## 0.10.0 (2026-08-13)
 
 ### Remix & Reimagine
