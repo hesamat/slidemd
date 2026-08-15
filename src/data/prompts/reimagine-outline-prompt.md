@@ -4,13 +4,7 @@ If images are provided with this request, use them to assess the visual content,
 
 The presentation flow is **{{flow}}**. Choose storytelling techniques that fit this flow and the content — you may combine several:
 
-- **Problem → Solution → Benefits** — open with the gap, present the approach, show the payoff.
-- **Historical context arc** — trace how the topic evolved over time, then position the present moment.
-- **Hook → Tension → Resolution** — grab attention, build stakes, deliver the payoff.
-- **Compare → Contrast** — juxtapose alternatives, then argue for one.
-- **Past → Present → Future** — where we were, where we are, where we're going.
-- **Cause → Effect** — trace consequences from a root cause.
-- **Layered reveal** — start simple, add complexity layer by layer.
+{{flowTechniques}}
 
 ## Visual system
 
@@ -64,7 +58,7 @@ Rules:
 - `firstSlideIdentity` — a short string (1-2 lines) extracted EXCLUSIVELY from the "First slide (preserve its identifying info)" text provided above. Do NOT look at other slides for this. Extract the identifying text from the first slide's footer, header, or title (e.g. course code + term, event name, author). Keep it concise: do not include the full institutional description or repeated course names. If the first slide has no identifying information beyond the title heading, use the title itself. Do NOT mention this field or the footer in the plan text — just extract the value into this field.
 - `chapters` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
   - `title` — short chapter title.
-  - `flowTag` — one of: `hook`, `context`, `problem`, `tension`, `solution`, `evidence`, `comparison`, `example`, `transition`, `climax`, `cta`.
+  - `flowTag` — one of: `hook`, `context`, `problem`, `tension`, `solution`, `evidence`, `comparison`, `example`, `transition`, `climax`, `cta`, `objectives`, `steps`, `practice`, `recap`, `assertion`, `implication`.
   - `summary` — 2-4 sentences describing what the chapter covers, the key points it should make, and how it connects to the chapters before and after it. This is the primary input to slide generation, so be specific about the content and direction.
   - `suggestedSlideCount` — integer: how many slides this chapter should contain. Aim for the total across all chapters to be within {{minSlides}}-{{maxSlides}} (70-120% of the original {{sourceCount}} slides). Do not collapse the deck drastically — if the original is large, keep enough slides to cover the material.
 - The first chapter should open with a title slide. The first chapter's first slide should be a proper title slide — not a content slide. It should display the deck's topic title and the `firstSlideIdentity` text (course code, term, etc.) in the footer. The second slide should be an agenda/outline slide that lists the chapter titles as a roadmap for the audience. Only after these two slides should the content begin.

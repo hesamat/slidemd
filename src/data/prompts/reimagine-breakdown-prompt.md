@@ -2,6 +2,16 @@ You are given a finalized chapter outline for a presentation, along with a visua
 
 The user has reviewed and finalized the chapters — do not change chapter titles, summaries, flow tags, or ordering. Only decide how to break each chapter into slides, what each slide should cover, and what visual beat each slide should have.
 
+## Flow tags
+
+Each chapter in the outline carries a `flowTag` that describes its narrative role. Use it to guide beat assignment and density:
+
+- **Story/persuasion tags** — `hook` (grab attention), `context` (set the scene), `problem` (identify the gap), `tension` (raise the stakes), `solution` (present the approach), `evidence` (back it up), `comparison` (contrast alternatives), `example` (show it in action), `transition` (bridge to the next point), `climax` (the key moment), `cta` (call to action).
+- **Instructional tags** — `objectives` (what the audience will learn — favor a clear focal point), `steps` (walk through a process — favor continuation beats with consistent density), `practice` (apply or check understanding — favor a focused exercise or question), `recap` (summarize key points — favor a clear focal point).
+- **Technical tags** — `assertion` (state a claim — pair naturally with an adjacent `evidence` chapter), `evidence` (back it up with data), `implication` (what it means going forward — favor a punctuation or transition beat).
+
+The flow tag is a hint, not a constraint. Use it to inform beat choice and content density, but prioritize the chapter summary as the primary guide.
+
 ## Visual beats
 
 Each slide gets a `visualBeat` — its semantic visual role within the design language:

@@ -26,6 +26,8 @@ import {
   buildRemixVisualIdentityGuidance,
   composeMessages,
   getFragment,
+  extractVariant,
+  hasVariant,
   serializeVisualSystemForBreakdown,
   buildKeptImagesList,
   buildAvailableImagesBrief,
@@ -53,7 +55,7 @@ import { extractJsonObject } from "./ai-response-parser.js";
 /**
  * @typedef {Object} ReimagineOutlineChapter
  * @property {string} title
- * @property {string} flowTag — one of: hook, context, problem, tension, solution, evidence, comparison, example, transition, climax, cta
+ * @property {string} flowTag — one of: hook, context, problem, tension, solution, evidence, comparison, example, transition, climax, cta, objectives, steps, practice, recap, assertion, implication
  * @property {string} summary
  * @property {number} suggestedSlideCount
  */
@@ -659,12 +661,18 @@ export class RemixReimagineOrchestrator {
     const minSlides = Math.max(1, Math.round(sourceCount * 0.7));
     const maxSlides = Math.round(sourceCount * 1.2);
 
+    const flowTechniquesFragment = getFragment("reimagine-flow-techniques.md");
+    const flowTechniques = hasVariant(flowTechniquesFragment, flow)
+      ? extractVariant(flowTechniquesFragment, flow)
+      : extractVariant(flowTechniquesFragment, "story");
+
     const { system, user } = composeMessages(
       getFragment("system-prompt.md"),
       getFragment("reimagine-outline-prompt.md"),
       {
         markdown: deckSummary,
         flow,
+        flowTechniques,
         sourceCount: sourceCount.toString(),
         minSlides: minSlides.toString(),
         maxSlides: maxSlides.toString(),

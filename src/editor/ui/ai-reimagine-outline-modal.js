@@ -29,6 +29,12 @@ const FLOW_TAGS = [
   { value: "transition", label: "Transition — bridge to the next point" },
   { value: "climax", label: "Climax — the key moment" },
   { value: "cta", label: "Call to action — tell them what to do" },
+  { value: "objectives", label: "Objectives — what the audience will learn" },
+  { value: "steps", label: "Steps — walk through a process" },
+  { value: "practice", label: "Practice — apply or check understanding" },
+  { value: "recap", label: "Recap — summarize key points" },
+  { value: "assertion", label: "Assertion — state a claim" },
+  { value: "implication", label: "Implication — what it means going forward" },
 ];
 
 /**

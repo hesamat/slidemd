@@ -21,6 +21,7 @@ import addSpeakerNotesPrompt from "../prompts/add-speaker-notes-prompt.md?raw";
 import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
 import reimagineBreakdownPrompt from "../prompts/reimagine-breakdown-prompt.md?raw";
+import reimagineFlowTechniques from "../prompts/reimagine-flow-techniques.md?raw";
 import flowGuidance from "../prompts/flow-guidance.md?raw";
 import remixFlowGuidance from "../prompts/remix-flow-guidance.md?raw";
 import speakerNotesGuidance from "../prompts/speaker-notes-guidance.md?raw";
@@ -172,6 +173,7 @@ export const FRAGMENTS = {
   "remix-plan-prompt.md": remixPlanPrompt,
   "reimagine-outline-prompt.md": reimagineOutlinePrompt,
   "reimagine-breakdown-prompt.md": reimagineBreakdownPrompt,
+  "reimagine-flow-techniques.md": reimagineFlowTechniques,
   "flow-guidance.md": flowGuidance,
   "remix-flow-guidance.md": remixFlowGuidance,
   "speaker-notes-guidance.md": speakerNotesGuidance,
