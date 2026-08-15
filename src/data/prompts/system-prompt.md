@@ -5,10 +5,15 @@ Output format:
 ```json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\n# Title\n\n@main\n- Point 1\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\nbackground: #1e293b\n\n@header\n# Title\n\n@main\n- Point 1\n- Point 2"
+    }
   ]
 }
 ```
+
+When the visual-styling instructions below tell you to include `theme:` and `background:`, put them at the top of the `content` string (before the first `@area` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start `content` with the first `@area` marker.
 
 Rules:
 

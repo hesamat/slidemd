@@ -65,6 +65,46 @@ describe("parseAiResponse (edge cases)", () => {
     expect(result.slides[0].layout).toBe("title-slide");
   });
 
+  it("recovers from JSON with raw, unescaped newlines inside content strings", () => {
+    // Some models emit real line breaks inside JSON strings instead of \n.
+    const raw =
+      '{"slides":[{"layout":"header-content","content":"@header\n# Title\n\n@main\n- Point 1"}]}';
+    const result = parseAiResponse(raw);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].layout).toBe("header-content");
+    expect(result.slides[0].content).toContain("@main");
+    expect(result.slides[0].content).toContain("- Point 1");
+  });
+
+  it("recovers from JSON with trailing commas after object properties", () => {
+    // Models sometimes emit a trailing comma after the last property.
+    const raw = '{"slides":[{"layout":"header-content","content":"@header\\n## Title",}],}';
+    const result = parseAiResponse(raw);
+    expect(result).not.toBeNull();
+    expect(result.slides).toHaveLength(1);
+    expect(result.slides[0].layout).toBe("header-content");
+  });
+
+  it("recovers from JSON with trailing commas in nested objects and arrays", () => {
+    // Trailing comma after visualSystem object (as seen in real AI output)
+    const raw =
+      '{"plan":"Test.","visualSystem":{"visualDirection":"Dark.",},"keepImages":[0,1,],"chapters":[]}';
+    const extracted = extractJsonObject(raw, "chapters");
+    expect(extracted).not.toBeNull();
+    expect(extracted.parsed.plan).toBe("Test.");
+    expect(extracted.parsed.visualSystem.visualDirection).toBe("Dark.");
+  });
+
+  it("does not corrupt already-correct \n escapes when recovering from raw newlines", () => {
+    // Mixed: the model got some escapes right and inserted a raw newline.
+    const raw =
+      '{"slides":[{"layout":"header-content","content":"@header\\n# Title\n\n@main\\n- Point"}]}';
+    const result = parseAiResponse(raw);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].content).toContain("# Title");
+    expect(result.slides[0].content).toContain("- Point");
+  });
+
   it("handles code fence with language tag", () => {
     const input = '```json\n{"slides":[{"layout":"header-content","content":"@main"}]}\n```';
     const result = parseAiResponse(input);
@@ -81,6 +121,25 @@ describe("parseAiResponse (edge cases)", () => {
     expect(result).not.toBeNull();
     expect(result.slides[0].mediaFullBleed).toBe(true);
     expect(result.slides[0].content).not.toContain("media-span:");
+  });
+
+  it("extracts directives from markdown fallback with a leading batch comment", () => {
+    const input = `<!-- SLIDE 8 (return this) -->
+layout: two-column
+theme: light
+background: #f4f4f5
+
+@header
+# Title
+
+@main
+- Point`;
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].layout).toBe("two-column");
+    expect(result.slides[0].theme).toBe("light");
+    expect(result.slides[0].background).toBe("#f4f4f5");
+    expect(result.slides[0].content).toContain("# Title");
   });
 });
 
@@ -113,6 +172,48 @@ describe("slidesToMarkdown", () => {
     const slides = [{ layout: "media-span-right", mediaFullBleed: true, content: "@media\nImage" }];
     const md = slidesToMarkdown(slides);
     expect(md).toContain("media-full-bleed: true");
+  });
+
+  it("strips SLIDE INDEX comments from content", () => {
+    const slides = [{ content: "<!-- SLIDE INDEX 3 (return this) -->\n@header\n## Title" }];
+    const md = slidesToMarkdown(slides);
+    expect(md).not.toContain("<!-- SLIDE INDEX");
+    expect(md).toContain("@header");
+  });
+
+  it("strips SLIDE n comments that omit INDEX", () => {
+    const slides = [
+      { content: "<!-- SLIDE 8 (return this) -->\nlayout: two-column\n@header\n## Title" },
+    ];
+    const md = slidesToMarkdown(slides);
+    expect(md).not.toContain("<!-- SLIDE");
+    expect(md).toContain("layout: two-column");
+    expect(md).toContain("@header");
+  });
+
+  it("preserves SLIDE INDEX comments inside code examples", () => {
+    const slides = [
+      {
+        content: "@main\n```html\n<!-- SLIDE INDEX 3 (example) -->\n<div>Content</div>\n```",
+      },
+    ];
+    const md = slidesToMarkdown(slides);
+    // The comment inside the code block must survive
+    expect(md).toContain("<!-- SLIDE INDEX 3 (example) -->");
+    expect(md).toContain("<div>Content</div>");
+  });
+
+  it("only strips the leading SLIDE marker, not ones later in content", () => {
+    const slides = [
+      {
+        content:
+          "<!-- SLIDE 1 (return this) -->\n@header\n## Title\n\n@main\n<!-- SLIDE 2 (note) -->\nText",
+      },
+    ];
+    const md = slidesToMarkdown(slides);
+    expect(md).not.toMatch(/^<!-- SLIDE 1/m);
+    // The second SLIDE comment is not a leading marker, so it stays
+    expect(md).toContain("<!-- SLIDE 2 (note) -->");
   });
 });
 

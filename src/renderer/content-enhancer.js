@@ -57,25 +57,28 @@ function normalizeEmojiText(rootEl) {
   roots.forEach(normalizeEmojiTextInRoot);
 }
 
-let _purify;
-let _domPurifyWarned = false;
+// Use module-specific names to avoid duplicate declaration errors when the
+// runtime HTML export path concatenates this file with slide-renderer.js
+// (which has its own _purify / getDOMPurify) into a single IIFE scope.
+let _enhancerPurify;
+let _enhancerPurifyWarned = false;
 
-function getDOMPurify() {
-  if (_purify !== undefined) return _purify;
+function getEnhancerDOMPurify() {
+  if (_enhancerPurify !== undefined) return _enhancerPurify;
 
   if (typeof createDOMPurify !== "undefined") {
     try {
-      _purify = createDOMPurify(window);
+      _enhancerPurify = createDOMPurify(window);
     } catch {
-      _purify = null;
+      _enhancerPurify = null;
     }
   }
 
-  if (!_purify && typeof window !== "undefined" && window.DOMPurify) {
-    _purify = window.DOMPurify;
+  if (!_enhancerPurify && typeof window !== "undefined" && window.DOMPurify) {
+    _enhancerPurify = window.DOMPurify;
   }
 
-  return _purify;
+  return _enhancerPurify;
 }
 
 /**
@@ -85,21 +88,32 @@ function getDOMPurify() {
  * Returns `null` when DOMPurify is unavailable so the caller can fall back to
  * a text-only sink (`textContent`) instead of assigning raw SVG to `innerHTML`.
  *
- * SAFE_FOR_XML is disabled here because Mermaid arrow syntax ("A --> B") is
- * commonly reflected in legitimate attribute values; treating it as an mXSS
- * probe would strip real diagram labels.
+ * Mermaid renders flowchart/node labels inside `<foreignObject>` using HTML
+ * elements (`<div>`, `<span>`). DOMPurify strips these by default because:
+ *   1. `foreignObject` is in DOMPurify's `svgDisallowed` list.
+ *   2. `foreignObject` is not in DOMPurify's `HTML_INTEGRATION_POINTS`, so
+ *      HTML elements inside it are treated as invalid in the SVG namespace
+ *      and removed.
+ * We explicitly allow `foreignObject` and register it as an HTML integration
+ * point so the HTML labels survive sanitization.
+ *
+ * `SAFE_FOR_XML` is left at its default (true) to protect against mutation XSS
+ * (mXSS) vectors. Mermaid arrow syntax (`A --> B`) in label text is preserved
+ * correctly — DOMPurify escapes `>` to `&gt;` which renders identically in the
+ * browser.
  */
 const MERMAID_SVG_PURIFY_CONFIG = {
-  USE_PROFILES: { svg: true, svgFilters: true },
-  SAFE_FOR_XML: false,
-  ALLOW_DATA_ATTR: true,
+  USE_PROFILES: { svg: true, svgFilters: true, html: true },
+  ADD_TAGS: ["foreignObject"],
+  HTML_INTEGRATION_POINTS: { "annotation-xml": true, foreignobject: true },
+  SAFE_FOR_XML: true,
 };
 
-function sanitizeMermaidSvg(svg) {
-  const purify = getDOMPurify();
+export function sanitizeMermaidSvg(svg) {
+  const purify = getEnhancerDOMPurify();
   if (!purify) {
-    if (!_domPurifyWarned) {
-      _domPurifyWarned = true;
+    if (!_enhancerPurifyWarned) {
+      _enhancerPurifyWarned = true;
       Logger.warn("DOMPurify not available; rendering Mermaid source as text");
     }
     return null;

@@ -279,6 +279,16 @@ describe("MarkdownParser.extractDirective", () => {
     expect(result.found).toBe(false);
     expect(result.markdown).toBe("");
   });
+
+  it("extracts directives after an HTML batch comment", () => {
+    const md =
+      "<!-- SLIDE 8 (return this) -->\nlayout: two-column\ntheme: light\n@header\n## Title";
+    const result = parser.extractDirective(md, "layout");
+    expect(result.found).toBe(true);
+    expect(result.value).toBe("two-column");
+    expect(result.markdown).toContain("<!-- SLIDE 8 (return this) -->");
+    expect(result.markdown).not.toContain("layout: two-column");
+  });
 });
 
 describe("MarkdownParser.escapeKatexBracketDelimiters", () => {

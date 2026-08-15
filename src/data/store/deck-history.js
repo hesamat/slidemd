@@ -5,7 +5,6 @@
  * @typedef {Object} HistoryEntry
  * @property {string[]} slides - Snapshot before the patch was applied
  * @property {number} activeIndex - Active index before the patch was applied
- * @property {import('./visual-system-schema.js').VisualSystem|null} [visualSystem] - Visual system snapshot before the patch
  * @property {import('./slide-patch.js').SlidePatch} patch - Applied patch metadata
  */
 export class DeckHistory {
@@ -15,33 +14,31 @@ export class DeckHistory {
     this._maxEntries = Math.max(0, maxEntries);
   }
 
-  push(slides, activeIndex, visualSystem, patch) {
+  push(slides, activeIndex, patch) {
     this._redoStack = [];
     if (this._maxEntries === 0) return;
-    this._undoStack.push({ slides: [...slides], activeIndex, visualSystem, patch });
+    this._undoStack.push({ slides: [...slides], activeIndex, patch });
     if (this._undoStack.length > this._maxEntries) this._undoStack.shift();
   }
 
-  popUndo(currentSlides, currentActiveIndex, currentVisualSystem) {
+  popUndo(currentSlides, currentActiveIndex) {
     const entry = this._undoStack.pop();
     if (!entry) return null;
     this._redoStack.push({
       slides: [...currentSlides],
       activeIndex: currentActiveIndex,
-      visualSystem: currentVisualSystem,
       patch: entry.patch,
     });
     if (this._redoStack.length > this._maxEntries) this._redoStack.shift();
     return entry;
   }
 
-  popRedo(currentSlides, currentActiveIndex, currentVisualSystem) {
+  popRedo(currentSlides, currentActiveIndex) {
     const entry = this._redoStack.pop();
     if (!entry) return null;
     this._undoStack.push({
       slides: [...currentSlides],
       activeIndex: currentActiveIndex,
-      visualSystem: currentVisualSystem,
       patch: entry.patch,
     });
     if (this._undoStack.length > this._maxEntries) this._undoStack.shift();
