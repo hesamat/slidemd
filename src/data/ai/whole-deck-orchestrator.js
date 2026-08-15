@@ -236,9 +236,18 @@ export class WholeDeckOrchestrator {
             ? collectOwnImageSources(context)
             : operation.opts?.allowedImageSrcs,
         onlyExplicitImageSources: operation.opts?.onlyExplicitImageSources === true,
+        visualSystem: operation.opts?.visualSystem,
       });
 
       if (result.ok) {
+        // Log visual-system warnings even on success so the user can see
+        // when the model ignored the direction (applyVisualSystemIdentity
+        // fixes them, but the warning makes the issue visible).
+        for (const w of result.warnings) {
+          if (w.code.startsWith("VISUAL_SYSTEM_")) {
+            onLog?.(`Warning: ${w.message}`, "warn");
+          }
+        }
         onLog?.("Generated full deck");
         return enhancedMarkdown;
       }
@@ -406,6 +415,7 @@ export class WholeDeckOrchestrator {
               ? collectOwnImageSources(context)
               : operation.opts?.allowedImageSrcs,
           onlyExplicitImageSources: operation.opts?.onlyExplicitImageSources === true,
+          visualSystem: operation.opts?.visualSystem,
           // Images may legitimately move across batch boundaries (the
           // full-deck allowlist accepts cross-batch reuse), so a per-batch
           // positional preserved-image check would false-positive on the
@@ -550,6 +560,14 @@ export class WholeDeckOrchestrator {
             slides: batchResult.slides,
           });
           completedSlides += batch.end - batch.start;
+          // Log visual-system warnings from the batch (advisory).
+          if (batchResult.warnings) {
+            for (const w of batchResult.warnings) {
+              if (w.code.startsWith("VISUAL_SYSTEM_")) {
+                onLog?.(`Batch ${batch.index + 1} warning: ${w.message}`, "warn");
+              }
+            }
+          }
           const nextBatch = queue.length > 0 ? queue[0] : null;
           onProgress?.(completedSlides, totalSlides, nextBatch);
           onLog?.(`Batch ${batch.index + 1}: slides ${batch.start + 1}–${batch.end} done`);
@@ -617,6 +635,7 @@ export class WholeDeckOrchestrator {
     onlyExplicitImageSources = false,
     skipPreservedImageCheck = false,
     visionImages = null,
+    visualSystem = null,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
 
@@ -721,6 +740,7 @@ export class WholeDeckOrchestrator {
         allowedImageSrcs,
         onlyExplicitImageSources,
         skipPreservedImageCheck,
+        visualSystem,
       });
 
       if (!result.ok) {
@@ -740,7 +760,15 @@ export class WholeDeckOrchestrator {
         };
       }
 
-      return { slides: parsed.slides, duration };
+      // Log visual-system warnings (advisory — applyVisualSystemIdentity
+      // fixes them deterministically after validation).
+      for (const w of result.warnings) {
+        if (w.code.startsWith("VISUAL_SYSTEM_")) {
+          // onLog is not available in #processBatch; propagate via return.
+        }
+      }
+
+      return { slides: parsed.slides, duration, warnings: result.warnings };
     } catch (err) {
       if (err.name === "AbortError" || err.name === "AiAbortError") return null;
       // Token exhaustion and refusals are deterministic — retrying would

@@ -9,7 +9,9 @@
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
 import { splitBackgroundValue, findFencedRanges } from "../image-markdown-parser.js";
+import { splitSlides } from "../markdown-parser.js";
 import { extractVisualSystemFromMarkdown } from "./visual-system-schema.js";
+import { isColorDark } from "../pptx-color-utils.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -19,6 +21,7 @@ import addSpeakerNotesPrompt from "../prompts/add-speaker-notes-prompt.md?raw";
 import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
 import reimagineBreakdownPrompt from "../prompts/reimagine-breakdown-prompt.md?raw";
+import reimagineFlowTechniques from "../prompts/reimagine-flow-techniques.md?raw";
 import flowGuidance from "../prompts/flow-guidance.md?raw";
 import remixFlowGuidance from "../prompts/remix-flow-guidance.md?raw";
 import speakerNotesGuidance from "../prompts/speaker-notes-guidance.md?raw";
@@ -31,6 +34,136 @@ import creativeGuidance from "../prompts/creative-guidance.md?raw";
 import repairMessage from "../prompts/repair-message.md?raw";
 import densityBudgets from "../prompts/density-budgets.md?raw";
 
+const DEFAULT_DARK_BG = "#1a1a2e";
+const DEFAULT_LIGHT_BG = "#ffffff";
+
+/**
+ * Pattern for a single CSS color token: hex (3/6/8 digits), rgb(), rgba(),
+ * hsl(), or hsla().  Named CSS colors are intentionally rejected — the AI
+ * should use explicit hex/rgb/hsl values or CSS gradients.
+ */
+const COLOR_TOKEN_RE =
+  /^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|rgb\([^)]*\)|rgba\([^)]*\)|hsl\([^)]*\)|hsla\([^)]*\))$/;
+
+/**
+ * Pattern for a `url(...)` token — only quotes or unquoted paths, no
+ * `javascript:` or `data:` schemes.
+ */
+/**
+ * Block dangerous URL schemes in CSS `url()` tokens. The negative lookahead
+ * permits `data:image/(avif|bmp|gif|jpeg|jpg|png|webp)` and rejects all other
+ * `data:` variants (text, html, svg, etc.).
+ */
+const DANGEROUS_BG_SCHEMES =
+  /^(javascript|vbscript|data(?![a-z]*:image\/(?:avif|bmp|gif|jpeg|jpg|png|webp)(?:[;,]|$))):/i;
+
+/**
+ * Validate a single CSS `url(...)` token. Strips optional quotes, trims
+ * whitespace, and percent-decodes `:` to catch `%3a` bypasses.
+ * @param {string} token
+ * @returns {boolean}
+ */
+function isSafeUrlToken(token) {
+  const m = token.match(/^url\(\s*(['"]?)([\s\S]*?)\1\s*\)$/i);
+  if (!m) return false;
+  const inner = m[2].trim();
+  if (!inner) return false;
+  const decoded = inner.replace(/%3a/gi, ":");
+  return !DANGEROUS_BG_SCHEMES.test(decoded);
+}
+
+/**
+ * Pattern for CSS background position/size keywords and numeric values.
+ * These are valid in the `background:` shorthand alongside colors and images
+ * (e.g. `url(img.png) center/cover #fff`).
+ */
+const POSITION_KEYWORD_RE =
+  /^(repeat-x|repeat-y|no-repeat|repeat|round|space|cover|contain|center|top|bottom|left|right|fixed|local|scroll|border-box|padding-box|content-box|auto|initial|inherit|unset)$/i;
+const NUMERIC_RE = /^[\d.]+(%|px|em|rem|vh|vw)?$/i;
+// Position/size shorthand: `center/cover`, `50%/cover`, `left 50%/100px`, etc.
+const POSITION_SIZE_RE = /^[\w.]+(%|px|em|rem|vh|vw)?\/[\w.]+(%|px|em|rem|vh|vw|auto)?$/i;
+
+/**
+ * Check if a token is a CSS gradient with potentially nested function calls
+ * (e.g. `linear-gradient(135deg, rgba(0,0,0,.5), transparent)`).
+ * The simple regex `[^)]*` fails on nested parens, so we do a structural check:
+ * the token starts with a gradient function name followed by `(`, the
+ * parentheses are balanced, and the content does not contain dangerous
+ * schemes (`javascript:`, `data:`, `expression(`).
+ *
+ * @param {string} token
+ * @returns {boolean}
+ */
+function isGradientToken(token) {
+  const match = token.match(/^(linear-gradient|radial-gradient|conic-gradient)\(/i);
+  if (!match) return false;
+  let depth = 0;
+  for (const ch of token) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (depth < 0) return false;
+  }
+  if (depth !== 0) return false;
+  // Reject gradients that embed dangerous URL schemes or expression().
+  if (/javascript:|data:|expression\(/i.test(token)) return false;
+  return true;
+}
+
+/**
+ * Validate a `background:` value from AI output before writing it into
+ * markdown.  Accepts:
+ * - Solid hex colors (`#abc`, `#aabbcc`, `#aabbccff`)
+ * - `rgb()`, `rgba()`, `hsl()`, `hsla()` colors
+ * - Named CSS colors (`white`, `red`, etc.)
+ * - CSS gradients (`linear-gradient(...)`, etc.) with nested functions
+ * - `url(...)` image references (no `javascript:` or `data:` schemes)
+ * - Background position/size keywords (`center`, `cover`, `top`, etc.)
+ * - Numeric position values (`50%`, `100px`, etc.)
+ * - Position/size shorthand (`50%/cover`, `center/cover`, etc.)
+ * - Combinations of the above separated by spaces
+ *
+ * Returns the value if valid, or `null` if it contains anything that is not
+ * a recognised safe CSS background token.  Callers should replace `null`
+ * with a fallback color.
+ *
+ * @param {string} value
+ * @returns {string|null}
+ */
+function validateBackgroundValue(value) {
+  const v = String(value || "").trim();
+  if (!v) return null;
+
+  // Split on whitespace but respect parentheses (gradients, url(), rgb()).
+  const tokens = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of v) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === " " && depth === 0) {
+      if (current) tokens.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current) tokens.push(current);
+
+  for (const token of tokens) {
+    if (
+      !COLOR_TOKEN_RE.test(token) &&
+      !isSafeUrlToken(token) &&
+      !isGradientToken(token) &&
+      !POSITION_KEYWORD_RE.test(token) &&
+      !NUMERIC_RE.test(token) &&
+      !POSITION_SIZE_RE.test(token)
+    ) {
+      return null;
+    }
+  }
+  return v;
+}
+
 export const FRAGMENTS = {
   "system-prompt.md": systemPrompt,
   "fix-prompt.md": fixPrompt,
@@ -40,6 +173,7 @@ export const FRAGMENTS = {
   "remix-plan-prompt.md": remixPlanPrompt,
   "reimagine-outline-prompt.md": reimagineOutlinePrompt,
   "reimagine-breakdown-prompt.md": reimagineBreakdownPrompt,
+  "reimagine-flow-techniques.md": reimagineFlowTechniques,
   "flow-guidance.md": flowGuidance,
   "remix-flow-guidance.md": remixFlowGuidance,
   "speaker-notes-guidance.md": speakerNotesGuidance,
@@ -178,7 +312,8 @@ export function buildRemixFlowGuidance(flow) {
  * Build the {{visualStylingNote}} substitution for generate prompts.
  * Variant selection:
  * - "present" — a visual system is provided (reimagine): emit `theme:` and
- *   `background:` for every slide using only the 3 palette colors.
+ *   `background:` for every slide, using the visual direction below for
+ *   layout/background choices but picking any professional colors or images.
  * - "absent-preserve" — no visual system, but the deck's existing identity
  *   must be kept (remix preserve mode): keep the original theme/background/
  *   color directives instead of emitting neutral styling.
@@ -210,13 +345,15 @@ export function buildDensityBudgets(variant) {
 
 /**
  * Build a compact JSON serialization of the visual system for the breakdown
- * prompt's `{{visualSystem}}` placeholder. Only the 3-color palette is included.
+ * prompt's `{{visualSystem}}` placeholder. Includes the freeform visual
+ * direction string.
  * @param {import("./visual-system-schema.js").VisualSystem|null} vs
  * @returns {string}
  */
 export function serializeVisualSystemForBreakdown(vs) {
   if (!vs) return "{}";
-  return JSON.stringify({ palette: vs.palette });
+  const out = { visualDirection: vs.visualDirection };
+  return JSON.stringify(out, null, 2);
 }
 
 /**
@@ -241,16 +378,34 @@ export function buildKeptImagesList(keptImageSrcs) {
  * @param {string[]} keptImageSrcs — original markdown src paths of kept images
  * @returns {string}
  */
+const VISUAL_DIRECTION_BEGIN = "<<<USER-VISUAL-DIRECTION>>>";
+const VISUAL_DIRECTION_END = "<<<END-USER-VISUAL-DIRECTION>>>";
+
+function escapePromptUserString(s) {
+  if (!s) return "";
+  return s
+    .replace(/<<<|>>>/g, "")
+    .replace(/`/g, "'")
+    .replace(/\n+/g, " ");
+}
+
+function wrapUserString(s) {
+  const safe = escapePromptUserString(s);
+  if (!safe) return "None";
+  return `${VISUAL_DIRECTION_BEGIN}\n${safe}\n${VISUAL_DIRECTION_END}`;
+}
+
 export function buildAvailableImagesBrief(keptImageSrcs) {
   if (!keptImageSrcs || keptImageSrcs.length === 0) return "";
-  const lines = keptImageSrcs.map((src) => `- ${src}`).join("\n");
-  return `\nAvailable images from the original deck — insert with \`<img src="path">\` where appropriate (use the exact path listed):\n${lines}\n`;
+  const json = JSON.stringify(keptImageSrcs);
+  return `\nAvailable images from the original deck — insert with \`<img src="path">\` where appropriate (use the exact path listed):\n${json}\n`;
 }
 
 /**
  * Build the minimal visual system brief for the generate prompt's options
- * suffix. When a visual system is present, this provides the 3-color palette
- * to use for `theme:` and `background:` on every slide.
+ * suffix. When a visual system is present, this provides the freeform visual
+ * direction to inform the model's `layout:`, `theme:`, and `background:`
+ * choices.
  *
  * Returns an empty string when no visual system is provided so the existing
  * generic visual-styling guidance applies.
@@ -261,15 +416,10 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 export function buildVisualSystemBrief(vs) {
   if (!vs) return "";
 
-  const palette = Object.entries(vs.palette || {})
-    .map(([name, color]) => `  - ${name}: ${color}`)
-    .join("\n");
-
   return `
-Visual system — use this 3-color palette for every slide's \`theme:\` and \`background:\`.
+Visual direction for this deck:
 
-Palette (use only these colors):
-${palette}
+${wrapUserString(vs.visualDirection)}
 `;
 }
 
@@ -361,67 +511,126 @@ export function stripVisualIdentity(markdown) {
 }
 
 /**
- * Restrict visual-identity directives to values from the generated visual
- * system. Used in reimagine so the model can emit `theme:`/`background:` from
- * the palette but cannot invent arbitrary colors or gradients.
+ * Returns a readable theme for a solid-hex background or the first hex color
+ * found in a gradient/string.
+ * @param {string} color
+ * @returns {"light"|"dark"|null}
+ */
+function themeForColor(color) {
+  const value = String(color || "").trim();
+  if (!value) return null;
+  // isColorDark handles both solid hex colors and gradient strings (it
+  // extracts all hex colors from a gradient and picks the darkest one).
+  // Passing the full value avoids the previous behavior of matching only
+  // the first hex color in a gradient, which could misclassify a gradient
+  // whose first stop is light but whose overall mass is dark.
+  // Return null for values with no hex color so callers keep the existing theme.
+  if (!/#[0-9a-f]{3}([0-9a-f]{3})?([0-9a-f]{2})?/i.test(value)) return null;
+  return isColorDark(value) ? "dark" : "light";
+}
+
+/**
+ * Apply a visual system to generated markdown. The visual system is now a
+ * descriptive style guide, not a strict color palette, so this pass does not
+ * restrict colors. It only:
  *
- * Rules:
- * - `theme:` must be `light`, `dark`, or a palette color.
- * - `background:` colors must be a palette color (or `none`/`transparent`).
- * - `background:` images (`url(...)`) are kept as-is; `stripFabricatedImages`
- *   is responsible for validating image sources.
- * - Mixed `background: <color> url(...)` keeps the color only when it is in
- *   the palette; otherwise the color is dropped and only the image remains.
- * - Gradients that include non-palette colors are stripped down to the image
- *   part or removed entirely.
+ * - leaves `theme:` and `background:` values (including arbitrary colors,
+ *   gradients, and images) untouched,
+ * - infers `theme:` from the first hex color in a `background:` gradient/color
+ *   when `theme:` is missing or obviously mismatched,
+ * - adds a sensible fallback (`theme: dark` and a real dark background color)
+ *   when either directive is missing, and replaces invalid values such as
+ *   `transparent` or `none` so slides do not end up see-through.
  *
  * @param {string} markdown
  * @param {import("./visual-system-schema.js").VisualSystem} visualSystem
  * @returns {string}
  */
 export function applyVisualSystemIdentity(markdown, visualSystem) {
-  if (!visualSystem?.palette) return markdown;
+  if (!visualSystem) return markdown;
 
-  const paletteColors = new Set(
-    Object.values(visualSystem.palette).map((c) => c.trim().toLowerCase()),
-  );
-  const allowedThemes = new Set(["light", "dark"]);
+  const slides = splitSlides(markdown);
 
-  return stripDirectivesWith(markdown, (line) => {
-    const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
-    if (!match) return false;
+  const fixed = slides.map((slide) => {
+    const lines = slide.split("\n");
+    const commentLines = [];
+    const directiveOrder = [];
+    const directiveMap = new Map();
+    const body = [];
+    let inLeading = true;
+    const anyDirective = /^\s*([a-zA-Z][\w-]*)\s*:\s*(.*)$/i;
+    const htmlComment = /^\s*<!--/;
+    const visualSystemComment = /^\s*<!--\s*visual-system:/i;
 
-    const key = match[1].toLowerCase();
-    const value = match[2].trim();
-
-    if (key === "theme") {
-      const v = value.toLowerCase();
-      return allowedThemes.has(v) ? false : true;
-    }
-
-    const { colorPart, imagePart, hasImage } = splitBackgroundValue(value);
-    const firstColor = colorPart.split(/\s+/)[0]?.toLowerCase() || "";
-
-    if (!hasImage) {
-      // Pure color/gradient. Keep only if the first color token is in the palette;
-      // otherwise strip the whole line. We do not parse gradient stops.
-      if (firstColor && paletteColors.has(firstColor)) {
-        return `background: ${firstColor}`;
+    for (const line of lines) {
+      if (inLeading && line.trim() === "") continue;
+      if (inLeading && htmlComment.test(line)) {
+        // Drop any stray AI-generated visual-system comments so they do not
+        // leak into the rendered slide body.
+        if (visualSystemComment.test(line)) continue;
+        commentLines.push(line);
+        continue;
       }
-      return true;
+      const match = line.match(anyDirective);
+      if (inLeading && match) {
+        const name = match[1].toLowerCase();
+        // Avoid duplicating directives when the AI emits the same directive
+        // twice (e.g. `layout: title-slide` on two consecutive lines).
+        // directiveMap.set overwrites the value, but directiveOrder must not
+        // record the name a second time or the rebuild loop will emit it twice.
+        if (!directiveMap.has(name)) directiveOrder.push(name);
+        directiveMap.set(name, { line, value: match[2].trim() });
+        continue;
+      }
+      inLeading = false;
+      body.push(line);
     }
 
-    if (!colorPart) {
-      // Pure image background — keep as-is (images already validated).
-      return false;
+    let backgroundValue = directiveMap.get("background")?.value;
+    let themeValue = directiveMap.get("theme")?.value;
+
+    // If a background color/gradient is present, make sure `theme:` is legible.
+    if (backgroundValue) {
+      const { colorPart } = splitBackgroundValue(backgroundValue);
+      const inferred = themeForColor(colorPart);
+
+      if (inferred && (!themeValue || themeValue.toLowerCase() !== inferred)) {
+        themeValue = inferred;
+      }
     }
 
-    // Mixed color + image. Keep the color only if its first token is allowed.
-    if (firstColor && paletteColors.has(firstColor)) {
-      return `background: ${firstColor} ${imagePart}`.trim();
+    // Fall back to a real, legible dark theme if the model omitted directives.
+    if (!themeValue) themeValue = "dark";
+
+    const { imagePart } = splitBackgroundValue(backgroundValue || "");
+    const validBackground = validateBackgroundValue(backgroundValue || "");
+    // Discard image parts that are just layout keywords (e.g. "none",
+    // "cover", "center") or contain dangerous URL schemes — only keep
+    // real, validated url(...) references.
+    const safeImagePart = imagePart && isSafeUrlToken(imagePart) ? imagePart : "";
+    if (!validBackground) {
+      const fallbackColor =
+        themeValue.toLowerCase() === "light" ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
+      backgroundValue = safeImagePart || fallbackColor;
+    } else {
+      backgroundValue = validBackground;
     }
-    return `background: ${imagePart}`;
+
+    const leading = [...commentLines];
+    for (const name of directiveOrder) {
+      if (name === "theme" || name === "background") continue;
+      leading.push(directiveMap.get(name).line);
+    }
+    // Ensure theme comes before background in the leading block.
+    leading.push(`theme: ${themeValue}`);
+    leading.push(`background: ${backgroundValue}`);
+
+    if (body.length === 0 && leading.length === 0) return slide.trim();
+    if (body.length === 0) return leading.join("\n").trim();
+    return [...leading, "", ...body].join("\n").trim();
   });
+
+  return fixed.join("\n\n---\n\n");
 }
 
 /**

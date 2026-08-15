@@ -67,7 +67,13 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   const visualIdentityGuidance = getFragment("visual-identity-guidance.md");
   if (opts.preserveVisualIdentity) {
     parts.push(`\n${extractVariant(visualIdentityGuidance, "preserve")}`);
-  } else if (opts.preserveVisualIdentity === false) {
+  } else if (opts.preserveVisualIdentity === false && !opts.visualSystem) {
+    // When a visual system is present, the "present" visual-styling note
+    // (injected into generate-prompt.md) and the visual system brief below
+    // are the authority on the new visual identity. The "discard" fragment
+    // would contradict them by ordering the AI to strip all theme/background
+    // and introduce no new ones, so it must be skipped here. "discard" only
+    // applies when the app falls back to its own neutral styling.
     parts.push(`\n${extractVariant(visualIdentityGuidance, "discard")}`);
   }
   if (opts.visualSystem) {
@@ -222,10 +228,16 @@ export function buildBatchMessages(
   // Use the fence-aware split so `---` inside code blocks doesn't create
   // phantom slides and misalign indices with the orchestrator's slide list.
   const allSlides = new MarkdownParser().splitSlides(cleaned);
-  const chunk = allSlides.slice(startIdx, endIdx).join("\n\n---\n\n");
   const actualCount = allSlides.slice(startIdx, endIdx).length;
 
-  // Add neighbor context slides for fix mode with explicit indices
+  // Add explicit indices to each slide in the chunk. In fix mode the model has
+  // already seen these slides; in generate mode the index anchors the batch
+  // prompt on exact slide count and ordering.
+  const indexedSlides = allSlides.slice(startIdx, endIdx).map((slide, i) => {
+    return `<!-- SLIDE INDEX ${startIdx + i} (return this) -->\n${slide}`;
+  });
+  const indexedChunk = indexedSlides.join("\n\n---\n\n");
+
   let contentForPrompt;
   if (mode === "fix") {
     const parts = [];
@@ -234,11 +246,7 @@ export function buildBatchMessages(
         `<!-- CONTEXT SLIDE — DO NOT INCLUDE IN OUTPUT (index ${startIdx - 1}) -->\n${allSlides[startIdx - 1]}`,
       );
     }
-    // Add explicit indices to each slide in the chunk
-    const indexedSlides = allSlides.slice(startIdx, endIdx).map((slide, i) => {
-      return `<!-- SLIDE INDEX ${startIdx + i} (return this) -->\n${slide}`;
-    });
-    parts.push(indexedSlides.join("\n\n---\n\n"));
+    parts.push(indexedChunk);
     if (endIdx < totalSlides) {
       parts.push(
         `<!-- CONTEXT SLIDE — DO NOT INCLUDE IN OUTPUT (index ${endIdx}) -->\n${allSlides[endIdx]}`,
@@ -246,7 +254,7 @@ export function buildBatchMessages(
     }
     contentForPrompt = parts.join("\n\n---\n\n");
   } else {
-    contentForPrompt = chunk;
+    contentForPrompt = indexedChunk;
   }
 
   // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even

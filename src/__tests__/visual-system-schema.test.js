@@ -3,55 +3,57 @@ import {
   validateVisualSystem,
   parseVisualSystem,
   DEFAULT_VISUAL_SYSTEM,
-  visualSystemToComment,
   extractVisualSystemFromMarkdown,
 } from "../data/ai/visual-system-schema.js";
 
-const VALID_PALETTE = {
+const VALID_VISUAL_SYSTEM = {
+  visualDirection:
+    "Dark, technical, with bright accent walls. Use dark backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
+};
+
+const LEGACY_MOOD_STYLE = {
+  mood: "Dark, technical, with bright accent walls.",
+  styleNotes:
+    "Use dark backgrounds for continuation and content slides. Use bright or light backgrounds sparingly for punctuation, transition, climax, and call-to-action moments.",
+};
+
+const LEGACY_PALETTE = {
   base: "#0f172a",
   accent: "#06b6d4",
   highlight: "#ffffff",
 };
 
-const VALID_SYSTEM = {
-  palette: VALID_PALETTE,
-};
-
 describe("validateVisualSystem", () => {
-  it("returns a normalized visual system for valid input", () => {
-    const result = validateVisualSystem(VALID_SYSTEM);
+  it("returns a normalized visual system for the new visualDirection shape", () => {
+    const result = validateVisualSystem(VALID_VISUAL_SYSTEM);
     expect(result).not.toBeNull();
-    expect(result.palette.base).toBe("#0f172a");
-    expect(result.palette.accent).toBe("#06b6d4");
-    expect(result.palette.highlight).toBe("#ffffff");
+    expect(result.visualDirection).toBe(VALID_VISUAL_SYSTEM.visualDirection);
+    expect(result.palette).toBeUndefined();
   });
 
-  it("returns null for missing palette", () => {
-    const result = validateVisualSystem({});
-    expect(result).toBeNull();
-  });
-
-  it("returns null for invalid hex color in palette", () => {
-    const result = validateVisualSystem({
-      palette: { ...VALID_PALETTE, base: "not-a-hex" },
-    });
-    expect(result).toBeNull();
-  });
-
-  it("accepts 3-digit and 8-digit hex colors", () => {
-    const result = validateVisualSystem({
-      palette: { ...VALID_PALETTE, base: "#fff", accent: "#ffffff00" },
-    });
+  it("merges a legacy {mood, styleNotes} input into a single visualDirection", () => {
+    const result = validateVisualSystem(LEGACY_MOOD_STYLE);
     expect(result).not.toBeNull();
-    expect(result.palette.base).toBe("#fff");
-    expect(result.palette.accent).toBe("#ffffff00");
+    expect(result.visualDirection).toContain(LEGACY_MOOD_STYLE.mood);
+    expect(result.visualDirection).toContain(LEGACY_MOOD_STYLE.styleNotes);
+    expect(result.mood).toBeUndefined();
+    expect(result.styleNotes).toBeUndefined();
   });
 
-  it("returns null for missing palette color", () => {
-    const result = validateVisualSystem({
-      palette: { base: "#0f172a", accent: "#06b6d4" },
-    });
-    expect(result).toBeNull();
+  it("treats a legacy palette as a valid visual direction", () => {
+    const result = validateVisualSystem({ palette: LEGACY_PALETTE });
+    expect(result).not.toBeNull();
+    expect(result.visualDirection).not.toContain("#0f172a");
+    expect(result.visualDirection).not.toContain("#06b6d4");
+    expect(result.visualDirection).not.toContain("#ffffff");
+    expect(result.visualDirection).toMatch(/dark|light|bright/i);
+  });
+
+  it("ignores an empty or partial legacy palette", () => {
+    const result = validateVisualSystem({ palette: { base: "#0f172a" } });
+    expect(result).not.toBeNull();
+    expect(result.visualDirection).not.toContain("#0f172a");
+    expect(result.visualDirection).toMatch(/dark/i);
   });
 
   it("returns null for non-object input", () => {
@@ -61,21 +63,28 @@ describe("validateVisualSystem", () => {
     expect(validateVisualSystem(undefined)).toBeNull();
   });
 
-  it("ignores extra fields beyond the palette", () => {
+  it("ignores extra fields beyond visualDirection", () => {
     const result = validateVisualSystem({
-      palette: VALID_PALETTE,
+      ...VALID_VISUAL_SYSTEM,
       typography: { character: "bold" },
       imagery: { mood: "moody" },
     });
     expect(result).not.toBeNull();
-    expect(Object.keys(result)).toEqual(["palette"]);
+    expect(Object.keys(result)).toEqual(["visualDirection"]);
   });
 });
 
 describe("parseVisualSystem", () => {
-  it("returns the parsed visual system for valid input", () => {
-    const result = parseVisualSystem(VALID_SYSTEM);
-    expect(result.palette.base).toBe("#0f172a");
+  it("returns the parsed visual system for valid visualDirection input", () => {
+    const result = parseVisualSystem(VALID_VISUAL_SYSTEM);
+    expect(result.visualDirection).toBe(VALID_VISUAL_SYSTEM.visualDirection);
+  });
+
+  it("converts a legacy palette into a visual direction", () => {
+    const result = parseVisualSystem({ palette: LEGACY_PALETTE });
+    expect(result.visualDirection).not.toContain("#0f172a");
+    expect(result.visualDirection).not.toContain("#06b6d4");
+    expect(result.visualDirection).toMatch(/dark|light|bright/i);
   });
 
   it("falls back to DEFAULT_VISUAL_SYSTEM for invalid input", () => {
@@ -83,7 +92,7 @@ describe("parseVisualSystem", () => {
     expect(result).toBe(DEFAULT_VISUAL_SYSTEM);
   });
 
-  it("falls back to DEFAULT_VISUAL_SYSTEM for missing palette", () => {
+  it("falls back to DEFAULT_VISUAL_SYSTEM for empty input", () => {
     const result = parseVisualSystem({});
     expect(result).toBe(DEFAULT_VISUAL_SYSTEM);
   });
@@ -94,22 +103,12 @@ describe("parseVisualSystem", () => {
   });
 });
 
-describe("visualSystemToComment", () => {
-  it("serializes a valid visual system as a top-of-markdown HTML comment", () => {
-    const comment = visualSystemToComment(VALID_SYSTEM);
-    expect(comment).toMatch(/^<!-- visual-system: /);
-    expect(comment).toMatch(/ -->$/);
-    expect(comment).toContain('"base"');
-    expect(comment).toContain('"#0f172a"');
-  });
-});
-
 describe("extractVisualSystemFromMarkdown", () => {
   it("extracts the visual system and removes the comment", () => {
-    const comment = visualSystemToComment(VALID_SYSTEM);
+    const comment = `<!-- visual-system: {"visualDirection":"${VALID_VISUAL_SYSTEM.visualDirection}"} -->`;
     const markdown = `${comment}\n\n# Slide 1\n\n---\n\n# Slide 2`;
     const { visualSystem, markdown: withoutComment } = extractVisualSystemFromMarkdown(markdown);
-    expect(visualSystem).toEqual(VALID_SYSTEM);
+    expect(visualSystem).toEqual(VALID_VISUAL_SYSTEM);
     expect(withoutComment).not.toContain("visual-system");
     expect(withoutComment.startsWith("# Slide 1")).toBe(true);
   });

@@ -17,7 +17,7 @@ Available from "Refine all slides" in the AI dropdown:
 
 - **Polish** — fix formatting, wording, and layouts. Keeps the slide count and order.
 - **Remix** — two-phase plan→execute flow: a planning call produces a restructuring plan (polish/rewrite/merge), then the execute phase generates the new deck. Moderate creative freedom; preserves visual identity by default.
-- **Reimagine** — same two-phase flow, with the freedom to rethink the topic, examples, notes, and visuals for a fresh deck. The AI's outline is editable before generation.
+- **Reimagine** — a four-phase flow (outline → review → breakdown → generate) with the freedom to rethink the topic, examples, notes, and visuals for a fresh deck. The AI proposes a creative plan, a freeform visual direction (mood, background rules), and a chapter outline with flow tags. The user reviews and edits all of these before generation. A breakdown phase assigns each slide a visual beat (continuation, transition, punctuation, emotional, divider) for rhythm. The technique menu and flow tags adapt to the chosen flow (instructional, story, technical, persuasive).
 
 ### Options
 

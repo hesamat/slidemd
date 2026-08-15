@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeAll } from "vitest";
 import markdownit from "markdown-it";
 import { AiOrchestrator, isVisionError } from "../data/ai/ai-orchestrator.js";
 import { createOperation } from "../data/ai/ai-operation.js";
+import { DEFAULT_VISUAL_SYSTEM } from "../data/ai/visual-system-schema.js";
 
 // The output validator renders markdown through markdown-it (window.markdownit),
 // which is only defined in jsdom. With it available, validation runs for real;
@@ -1745,11 +1746,8 @@ describe("AiOrchestrator", () => {
 
     it("reimagine threads visualSystem from outline through breakdown to generate", async () => {
       const visualSystem = {
-        palette: {
-          base: "#1a1a2e",
-          accent: "#e94560",
-          highlight: "#ffffff",
-        },
+        visualDirection:
+          "Dark, dramatic, with red accents for emphasis. Use dark backgrounds for continuation slides. Use red accent backgrounds for punctuation and climax moments. Use white or light backgrounds for title and agenda.",
       };
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
@@ -1794,23 +1792,20 @@ describe("AiOrchestrator", () => {
       // visualSystem is passed through the onOutline callback
       expect(outlines).toHaveLength(1);
       expect(outlines[0].visualSystem).not.toBeNull();
-      expect(outlines[0].visualSystem.palette.base).toBe("#1a1a2e");
-      expect(outlines[0].visualSystem.palette.accent).toBe("#e94560");
-      expect(outlines[0].visualSystem.palette.highlight).toBe("#ffffff");
+      expect(outlines[0].visualSystem.visualDirection).toBe(visualSystem.visualDirection);
 
-      // Breakdown prompt receives the 3-color palette
+      // Breakdown prompt receives the visual direction
       const breakdownUser = provider.chat.mock.calls[1][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      expect(breakdownUser).toContain("#1a1a2e");
+      expect(breakdownUser).toContain(visualSystem.visualDirection);
 
-      // Generate prompt receives the visual system brief
+      // Generate prompt receives the visual direction brief
       const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("Palette");
-      expect(execUser).not.toContain("Imagery mood");
+      expect(execUser).toContain("Visual direction");
+      expect(execUser).toContain(visualSystem.visualDirection);
 
       // Brief includes the beat suffix (punctuation on slide 1 is normalized
       // to continuation by the beat normalizer)
@@ -1847,14 +1842,14 @@ describe("AiOrchestrator", () => {
       });
       // Falls back to default visual system
       expect(outlines[0].visualSystem).not.toBeNull();
-      expect(outlines[0].visualSystem.palette.base).toBe("#0f172a");
+      expect(outlines[0].visualSystem.visualDirection).toBe(DEFAULT_VISUAL_SYSTEM.visualDirection);
 
-      // Generate prompt still receives the visual system brief (from default)
+      // Generate prompt still receives the visual direction brief (from default)
       const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("Palette (use only these colors)");
+      expect(execUser).toContain("Visual direction");
+      expect(execUser).toContain(DEFAULT_VISUAL_SYSTEM.visualDirection);
     });
 
     it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when visualSystem is invalid", async () => {
@@ -1884,7 +1879,7 @@ describe("AiOrchestrator", () => {
           return outline;
         },
       });
-      expect(outlines[0].visualSystem.palette.base).toBe("#0f172a");
+      expect(outlines[0].visualSystem.visualDirection).toBe(DEFAULT_VISUAL_SYSTEM.visualDirection);
     });
 
     it("reimagine includes imageQuery in brief serialization for generate AI", async () => {
@@ -2772,7 +2767,7 @@ describe("AiOrchestrator", () => {
       expect(provider.chat).toHaveBeenCalledTimes(4);
     });
 
-    it("strips echoed theme/background directives from the reimagine result", async () => {
+    it("keeps AI-chosen theme/background colors in the reimagine result", async () => {
       const provider = mockProviderSequence([
         OUTLINE_WITH_KEEP,
         BREAKDOWN_RESPONSE,
@@ -2797,11 +2792,11 @@ describe("AiOrchestrator", () => {
         onOutline: async (outline) => outline,
       });
 
-      // Reimagine keeps allowed visual identity (theme light/dark, palette
-      // colors) and strips non-palette colors.
+      // Reimagine no longer enforces a strict palette, so AI-chosen colors are
+      // preserved and the theme is inferred/confirmed to remain legible.
       expect(result).toContain("Slide A");
       expect(result).toContain("theme: dark");
-      expect(result).not.toContain("background: #1a1a2e");
+      expect(result).toContain("background: #1a1a2e");
     });
 
     it("removes fabricated images from the reimagine result mechanically", async () => {
@@ -2873,7 +2868,7 @@ describe("AiOrchestrator", () => {
             {
               layout: "full-image",
               content:
-                'theme: dark\nbackground: #1a1a2e\nbackground: url(images/a.png) center/cover\n@main\n<img src="images/a.png">',
+                'theme: dark\nbackground: #0f172a\nbackground: url(images/a.png) center/cover\n@main\n<img src="images/a.png">',
             },
             { layout: "header-content", content: "@header\n## Slide B\n\n@main\n- B" },
           ],
@@ -2894,7 +2889,7 @@ describe("AiOrchestrator", () => {
       expect(provider.chat).toHaveBeenCalledTimes(3);
       expect(result).toContain("background: url(images/a.png) center/cover");
       expect(result).toContain("theme: dark");
-      expect(result).not.toContain("background: #1a1a2e");
+      expect(result).not.toContain("background: #0f172a");
     });
 
     it("allows kept images in the execute output when briefs carry no reuse: refs", async () => {
@@ -2935,6 +2930,167 @@ describe("AiOrchestrator", () => {
       // execute = 3 calls, no repair round-trip.
       expect(provider.chat).toHaveBeenCalledTimes(3);
       expect(result).toContain('src="images/a.png"');
+    });
+  });
+
+  describe("runWholeDeckOperation (reimagine flow-aware outline)", () => {
+    const DECK_MD =
+      "layout: header-content\n@header\n## Slide 1\n\n@main\n- Item 1\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
+    const outlineResponse = JSON.stringify({
+      plan: "Plan.",
+      visualSystem: { visualDirection: "Dark, technical." },
+      chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+    });
+    const breakdownResponse = JSON.stringify({
+      chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+    });
+    const executeResponse = JSON.stringify({
+      slides: [{ layout: "header-content", content: "@header\n## S\n\n@main\n- x" }],
+    });
+
+    it("injects instructional technique menu for instructional flow", async () => {
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "instructional",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("**instructional**");
+      expect(outlineUser).toContain("Objectives");
+      expect(outlineUser).toContain("Step-by-step");
+      expect(outlineUser).toContain("Recap");
+      // Should NOT contain story-specific techniques
+      expect(outlineUser).not.toContain("Character arc");
+      expect(outlineUser).not.toContain("Hook → Tension → Resolution");
+    });
+
+    it("injects technical technique menu for technical flow", async () => {
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "technical",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("**technical**");
+      expect(outlineUser).toContain("Assertion → Evidence");
+      expect(outlineUser).toContain("Context → Concept → Evidence → Implications");
+      // Should NOT contain instructional techniques
+      expect(outlineUser).not.toContain("Objectives");
+      expect(outlineUser).not.toContain("Step-by-step");
+    });
+
+    it("injects story technique menu for story flow", async () => {
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "story",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("**story**");
+      expect(outlineUser).toContain("Hook → Tension → Resolution");
+      expect(outlineUser).toContain("Character arc");
+      // Should NOT contain instructional or technical techniques
+      expect(outlineUser).not.toContain("Objectives");
+      expect(outlineUser).not.toContain("Assertion → Evidence");
+    });
+
+    it("threads flowTag from outline to breakdown prompt", async () => {
+      const outlineWithTag = JSON.stringify({
+        plan: "Plan.",
+        visualSystem: { visualDirection: "Dark, technical." },
+        chapters: [
+          {
+            title: "Learning objectives",
+            flowTag: "objectives",
+            summary: "What the audience will learn.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const provider = mockProviderSequence([
+        outlineWithTag,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, DECK_MD, {
+        mode: "reimagine",
+        flow: "instructional",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const breakdownUser = provider.chat.mock.calls[1][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      // flowTag is serialized in the chapters JSON
+      expect(breakdownUser).toContain('"flowTag"');
+      expect(breakdownUser).toContain("objectives");
+      // The breakdown prompt explains flow tags
+      expect(breakdownUser).toContain("Flow tags");
+    });
+
+    it("accepts extended flowTag vocabulary in outline response", async () => {
+      const tags = ["objectives", "steps", "practice", "recap", "assertion", "implication"];
+      for (const tag of tags) {
+        const outlineWithTag = JSON.stringify({
+          plan: "Plan.",
+          visualSystem: { visualDirection: "Dark, technical." },
+          chapters: [
+            {
+              title: "Ch1",
+              flowTag: tag,
+              summary: "S.",
+              suggestedSlideCount: 1,
+            },
+          ],
+        });
+        const provider = mockProviderSequence([
+          outlineWithTag,
+          breakdownResponse,
+          executeResponse,
+          executeResponse,
+        ]);
+        const orchestrator = new AiOrchestrator({ provider });
+        const op = createOperation("generate", null, DECK_MD, {
+          mode: "reimagine",
+          flow: "instructional",
+        });
+        const outlines = [];
+        await orchestrator.runWholeDeckOperation(op, undefined, {
+          onOutline: async (outline) => {
+            outlines.push(outline);
+            return outline;
+          },
+        });
+        expect(outlines[0].chapters[0].flowTag).toBe(tag);
+      }
     });
   });
 

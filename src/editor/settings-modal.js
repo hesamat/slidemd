@@ -546,7 +546,15 @@ export class SettingsModal {
           item.className = `${P}model-item`;
           if (m.id === selectedModel) item.classList.add(`${P}model-item--selected`);
           item.dataset.value = m.id;
-          item.innerHTML = `<span class="${P}model-name">${this.#escHtml(m.name)}</span><span class="${P}model-id">${this.#escHtml(m.id)}</span>`;
+          // Build model item via DOM construction (Hard Rule 6).
+          const nameSpan = document.createElement("span");
+          nameSpan.className = `${P}model-name`;
+          nameSpan.textContent = m.name;
+          const idSpan = document.createElement("span");
+          idSpan.className = `${P}model-id`;
+          idSpan.textContent = m.id;
+          item.appendChild(nameSpan);
+          item.appendChild(idSpan);
           item.addEventListener("mousedown", (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -1159,13 +1167,5 @@ export class SettingsModal {
       </div>
     `;
     return backdrop;
-  }
-
-  static #escHtml(s) {
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 }

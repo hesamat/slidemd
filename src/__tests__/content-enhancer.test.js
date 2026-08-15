@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { ContentEnhancer } from "../renderer/content-enhancer.js";
+import { ContentEnhancer, sanitizeMermaidSvg } from "../renderer/content-enhancer.js";
 
 describe("ContentEnhancer", () => {
   beforeAll(() => {
@@ -8,9 +8,12 @@ describe("ContentEnhancer", () => {
     if (!document.body) document.body = document.createElement("body");
 
     // Stub Mermaid: render returns a stable SVG and binds functions.
+    // The SVG must not contain raw source with --> (arrow syntax) in
+    // attribute values, because DOMPurify with SAFE_FOR_XML correctly
+    // strips attributes containing potential mXSS vectors like -->.
     const fakeMermaid = {
-      render: vi.fn(async (_id, source) => ({
-        svg: `<svg data-source="${source}"><text>diagram</text></svg>`,
+      render: vi.fn(async (_id, _source) => ({
+        svg: `<svg><text>diagram</text></svg>`,
         bindFunctions: vi.fn(),
       })),
     };
@@ -62,7 +65,7 @@ describe("ContentEnhancer", () => {
     expect(div).toBeTruthy();
     expect(ContentEnhancer.getMermaidSource(div)).toBe("graph TD\nA --> B");
     expect(div.dataset.mermaidSource).toMatch(/^b64:/);
-    expect(div.innerHTML).toContain('data-source="graph TD\nA --> B"');
+    expect(div.innerHTML).toContain("<svg>");
     expect(mermaid.render).toHaveBeenCalledTimes(1);
     expect(div.dataset.mermaidProcessed).toBe("1");
   });
@@ -179,5 +182,66 @@ describe("ContentEnhancer", () => {
 
     window.__WEBDECK_MERMAID__ = saved;
     window.mermaid = savedMermaid;
+  });
+});
+
+describe("sanitizeMermaidSvg", () => {
+  it("preserves foreignObject with HTML label content", () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg"><g class="label"><foreignObject width="100" height="30"><div xmlns="http://www.w3.org/1999/xhtml" class="nodeLabel"><span>Hello World</span></div></foreignObject></g></svg>`;
+    const result = sanitizeMermaidSvg(svg);
+    expect(result).toBeTruthy();
+    expect(result).toContain("foreignObject");
+    expect(result).toContain("Hello World");
+  });
+
+  it("strips <script> tags from Mermaid SVG", () => {
+    const svg = `<svg><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">Label</div></foreignObject><script>alert(1)</script></svg>`;
+    const result = sanitizeMermaidSvg(svg);
+    expect(result).toBeTruthy();
+    expect(result).not.toContain("<script");
+    expect(result).not.toContain("alert(1)");
+  });
+
+  it("strips event handler attributes (onerror, onclick, etc.)", () => {
+    const svg = `<svg><foreignObject><div xmlns="http://www.w3.org/1999/xhtml" onerror="alert(1)" onclick="alert(2)">Label</div></foreignObject></svg>`;
+    const result = sanitizeMermaidSvg(svg);
+    expect(result).toBeTruthy();
+    expect(result).not.toContain("onerror");
+    expect(result).not.toContain("onclick");
+    expect(result).toContain("Label");
+  });
+
+  it("strips <iframe> tags", () => {
+    const svg = `<svg><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">Label</div></foreignObject><iframe src="javascript:alert(1)"></iframe></svg>`;
+    const result = sanitizeMermaidSvg(svg);
+    expect(result).toBeTruthy();
+    expect(result).not.toContain("<iframe");
+    expect(result).not.toContain("javascript:");
+  });
+
+  it("strips javascript: URLs from href attributes", () => {
+    const svg = `<svg><a href="javascript:alert(1)"><text>link</text></a></svg>`;
+    const result = sanitizeMermaidSvg(svg);
+    expect(result).toBeTruthy();
+    expect(result).not.toContain("javascript:");
+  });
+
+  it("preserves Mermaid arrow syntax in label text", () => {
+    const svg = `<svg><foreignObject><div xmlns="http://www.w3.org/1999/xhtml" class="nodeLabel">A --&gt; B</div></foreignObject></svg>`;
+    const result = sanitizeMermaidSvg(svg);
+    expect(result).toBeTruthy();
+    // The > may be escaped as &gt; but the text content is preserved
+    expect(result).toContain("A");
+    expect(result).toContain("B");
+  });
+
+  it("preserves SVG structure (defs, markers, paths)", () => {
+    const svg = `<svg><defs><marker id="arrowhead" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333"></path></marker></defs><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">Label</div></foreignObject></svg>`;
+    const result = sanitizeMermaidSvg(svg);
+    expect(result).toBeTruthy();
+    expect(result).toContain("<defs>");
+    expect(result).toContain("<marker");
+    expect(result).toContain("<path");
+    expect(result).toContain("foreignObject");
   });
 });
