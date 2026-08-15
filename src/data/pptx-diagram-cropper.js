@@ -11,8 +11,8 @@
  * containers).
  *
  * Common Microsoft fonts that are not available on Linux/macOS browsers are
- * aliased to metrically-compatible Google Fonts via injected `@font-face`
- * rules so text metrics match the original PPTX as closely as possible.
+ * replaced in the rendered DOM with metrically-compatible Google Fonts so
+ * text metrics match the original PPTX as closely as possible.
  */
 import {
   PptxViewer,
@@ -40,121 +40,152 @@ const POSITION_TOLERANCE_PX = 3;
  * Mapping of common Microsoft / proprietary PPTX fonts to metrically-compatible
  * Google Fonts.  When the original font is not installed on the user's system,
  * the browser falls back to a generic sans-serif with different metrics,
- * causing text overflow.  We inject `@font-face` rules that alias the original
- * font name to the Google Font's woff2 files so text metrics are preserved.
- *
- * The Google Font CSS API URLs are used to fetch the actual font file URLs.
+ * causing text overflow.  After rendering, we walk the DOM and replace any
+ * occurrence of the Microsoft font name with the Google Font equivalent.
  */
-const FONT_ALIASES = {
-  "Tw Cen MT": { googleName: "Jost", weights: [400, 500, 600, 700] },
-  "Tw Cen MT Condensed": { googleName: "Jost", weights: [400, 500, 600, 700] },
-  "Century Gothic": { googleName: "Jost", weights: [400, 500, 600, 700] },
-  Calibri: { googleName: "Carlito", weights: [400, 700] },
-  "Calibri Light": { googleName: "Carlito", weights: [300] },
-  Cambria: { googleName: "Caladea", weights: [400, 700] },
-  "Cambria Math": { googleName: "Caladea", weights: [400] },
-  "Segoe UI": { googleName: "Open Sans", weights: [400, 600, 700] },
-  "Segoe UI Light": { googleName: "Open Sans", weights: [300] },
-  "Trebuchet MS": { googleName: "Verdana", weights: [400, 700] },
-  Verdana: { googleName: "Verdana", weights: [400, 700] },
-  Tahoma: { googleName: "Verdana", weights: [400, 700] },
+const FONT_REPLACEMENTS = {
+  "tw cen mt": "Jost",
+  "tw cen mt condensed": "Jost",
+  "century gothic": "Jost",
+  calibri: "Carlito",
+  "calibri light": "Carlito",
+  cambria: "Caladea",
+  "cambria math": "Caladea",
+  "segoe ui": "Open Sans",
+  "segoe ui light": "Open Sans",
+  "trebuchet ms": "Verdana",
+  tahoma: "Verdana",
+  // "Aptos" is the new Microsoft default; Carlito is metric-compatible with
+  // Calibri which is close enough.
+  aptos: "Carlito",
+  "aptos display": "Carlito",
 };
 
-/** Cache of already-loaded font alias CSS so we don't re-fetch Google Fonts
- * for every diagram on the same slide deck. */
-let fontAliasCache = null;
+/** Google Fonts CSS URL for loading all replacement fonts in one request. */
+const GOOGLE_FONTS_URL =
+  "https://fonts.googleapis.com/css2?" +
+  "family=Caladea:ital,wght@0,400;0,700;1,400&" +
+  "family=Carlito:ital,wght@0,400;0,700;1,400;1,700&" +
+  "family=Jost:wght@400;500;600;700&" +
+  "family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400&" +
+  "family=Verdana:wght@400;700&display=swap";
+
+/** Track whether the Google Fonts <link> has been injected. */
+let fontsLinkInjected = false;
 
 /**
- * Fetch the Google Fonts CSS for a given font, extract the woff2 URLs, and
- * build `@font-face` rules that alias the original Microsoft font name to
- * those files.
- *
- * @returns {Promise<string>} CSS text with @font-face rules
- */
-async function getFontAliasCSS() {
-  if (fontAliasCache) return fontAliasCache;
-
-  const rules = [];
-  for (const [msName, { googleName, weights }] of Object.entries(FONT_ALIASES)) {
-    for (const weight of weights) {
-      const italic = false;
-      const cssUrl = `https://fonts.googleapis.com/css2?family=${googleName}:wght@${weight}&display=swap`;
-      try {
-        const resp = await fetch(cssUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
-        });
-        if (!resp.ok) continue;
-        const css = await resp.text();
-        // Extract the woff2 URL from the @font-face block
-        const woff2Match = css.match(/src:\s*url\((https:\/\/[^)]+\.woff2)\)/);
-        if (!woff2Match) continue;
-        const woff2Url = woff2Match[1];
-        rules.push(`@font-face {
-  font-family: "${msName}";
-  font-weight: ${weight};
-  font-style: ${italic ? "italic" : "normal"};
-  font-display: block;
-  src: url(${woff2Url}) format("woff2");
-}`);
-      } catch {
-        // Skip this font if Google Fonts is unreachable
-      }
-    }
-  }
-
-  fontAliasCache = rules.join("\n");
-  return fontAliasCache;
-}
-
-/**
- * Inject `@font-face` alias rules into the document head and explicitly load
- * each aliased font so the browser fetches the woff2 files before we
- * rasterize.  Without this, fonts load on-demand (only when text using them
- * is painted), which means the first rasterization would still use the
- * fallback font.
+ * Inject a `<link>` tag to load all replacement Google Fonts and wait for
+ * them to be available in the browser's font cache.
  *
  * @returns {Promise<void>}
  */
-async function injectFontAliases() {
-  const css = await getFontAliasCSS();
-  if (!css) return;
+async function loadReplacementFonts() {
+  if (!fontsLinkInjected) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = GOOGLE_FONTS_URL;
+    document.head.appendChild(link);
+    fontsLinkInjected = true;
+  }
 
-  // Inject into <head> so the rules are available to html-to-image's clone.
-  const style = document.createElement("style");
-  style.setAttribute("data-pptx-font-aliases", "");
-  style.textContent = css;
-  document.head.appendChild(style);
-
-  // Explicitly trigger font loading for each alias so the woff2 files are
-  // fetched before rasterization.  document.fonts.load() resolves when the
-  // font face is loaded (or fails).
+  // Wait for the replacement fonts to load.  We load each one explicitly so
+  // the browser fetches the woff2 files before we rasterize.
   if (document.fonts && document.fonts.load) {
-    const loadPromises = Object.keys(FONT_ALIASES).map((msName) => {
-      const weights = FONT_ALIASES[msName].weights;
-      return Promise.all(
-        weights.map((w) =>
-          document.fonts.load(`${w} 16px "${msName}"`).catch(() => {
-            // Font load failed — continue with fallback
-          }),
-        ),
-      );
-    });
+    const googleFonts = [...new Set(Object.values(FONT_REPLACEMENTS))];
+    const loadPromises = googleFonts.flatMap((font) => [
+      document.fonts.load(`400 16px "${font}"`).catch(() => {}),
+      document.fonts.load(`700 16px "${font}"`).catch(() => {}),
+    ]);
     await Promise.all(loadPromises);
   }
+}
+
+/**
+ * Walk the rendered DOM tree and replace any Microsoft font name in
+ * `font-family` CSS properties with the corresponding Google Font.
+ *
+ * @param {HTMLElement} root - The root element to walk
+ */
+function replaceFontsInDOM(root) {
+  /** @param {HTMLElement} el */
+  function walk(el) {
+    const ff = el.style.fontFamily;
+    if (ff) {
+      let replaced = ff;
+      for (const [msName, googleName] of Object.entries(FONT_REPLACEMENTS)) {
+        // Case-insensitive replacement of the quoted or unquoted font name.
+        const re = new RegExp(
+          `(["']?)${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["']?)`,
+          "gi",
+        );
+        replaced = replaced.replace(re, `"$googleName"`);
+      }
+      if (replaced !== ff) {
+        el.style.fontFamily = replaced;
+      }
+    }
+    for (const child of el.children) {
+      walk(/** @type {HTMLElement} */ (child));
+    }
+  }
+  walk(root);
+}
+
+/**
+ * Recursively collect font-family values and positions from a rendered DOM
+ * subtree.  Used only when a diagnostics object is passed.
+ *
+ * @param {HTMLElement} root
+ * @returns {Array<{tag: string, text: string, left: number, top: number, fontFamily: string}>}
+ */
+function collectFontInfo(root) {
+  /** @type {Array<{tag: string, text: string, left: number, top: number, fontFamily: string}>} */
+  const out = [];
+  /** @param {HTMLElement} el */
+  function walk(el) {
+    const ff = el.style.fontFamily || "";
+    const text = (el.textContent || "").slice(0, 120);
+    if (ff || text) {
+      out.push({
+        tag: el.tagName,
+        text,
+        left: parseFloat(el.style.left) || 0,
+        top: parseFloat(el.style.top) || 0,
+        fontFamily: ff,
+      });
+    }
+    for (const child of el.children) {
+      walk(/** @type {HTMLElement} */ (child));
+    }
+  }
+  walk(root);
+  return out;
 }
 
 /**
  * Render a single slide, hide non-diagram elements, then crop to the diagram
  * bounding box.  Returns a PNG data URL or null on failure.
  *
+ * When a `diagnostics` object is passed, it is populated with intermediate
+ * PNGs and metadata for debugging.  Its presence does not change the
+ * returned value.
+ *
  * @param {ArrayBuffer|Uint8Array} pptxBuffer
  * @param {number} slideIndex
  * @param {{left: number, top: number, width: number, height: number}} bbox - in points
  * @param {import('./pptx-extractor.js').ExtractedElement[]} [shapes]
  * @param {number} [scale=1] - render scale; 1 = 96 DPI
+ * @param {Object} [diagnostics] - Optional object to fill with debug data.
  * @returns {Promise<string|null>} PNG data URL or null on failure
  */
-export async function cropSlideToDiagram(pptxBuffer, slideIndex, bbox, shapes, scale = 1) {
+export async function cropSlideToDiagram(
+  pptxBuffer,
+  slideIndex,
+  bbox,
+  shapes,
+  scale = 1,
+  diagnostics = null,
+) {
   if (typeof document === "undefined") return null;
 
   const offscreen = document.createElement("div");
@@ -168,9 +199,9 @@ export async function cropSlideToDiagram(pptxBuffer, slideIndex, bbox, shapes, s
 
   let viewer = null;
   try {
-    // Inject font aliases before rendering so the renderer's text
+    // Load replacement Google Fonts before rendering so the renderer's text
     // measurements use the correct fonts.
-    await injectFontAliases();
+    await loadReplacementFonts();
 
     const parsed = await parseZip(pptxBuffer, RECOMMENDED_ZIP_LIMITS);
     const presentation = await buildPresentation(parsed);
@@ -191,9 +222,27 @@ export async function cropSlideToDiagram(pptxBuffer, slideIndex, bbox, shapes, s
     if (!handle) throw new Error("renderSlideToContainer returned null");
     await handle.ready;
 
+    // Force layout so the browser has calculated all boxes before we read
+    // styles or rasterize.
+    handle.element.getBoundingClientRect();
+
     // Clear the slide background that the renderer painted on the container.
     handle.element.style.backgroundColor = "transparent";
     handle.element.style.background = "transparent";
+
+    // Capture font info before replacement when running in diagnostic mode.
+    /** @type {any} */
+    const d = diagnostics;
+    const fontInfoBefore = d ? collectFontInfo(handle.element) : null;
+
+    // Replace Microsoft font names with Google Font equivalents in the
+    // rendered DOM so text metrics match the original PPTX.
+    replaceFontsInDOM(handle.element);
+
+    // Force another layout + a frame so the browser recalculates text with the
+    // replacement fonts before rasterization.
+    handle.element.getBoundingClientRect();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
 
     // Build a set of expected positions (in CSS pixels at the render scale)
     // for each diagram shape.  We match DOM elements to shapes by position.
@@ -202,12 +251,28 @@ export async function cropSlideToDiagram(pptxBuffer, slideIndex, bbox, shapes, s
       y: (s.top || 0) * PT_TO_PX * scale,
       w: (s.width || 0) * PT_TO_PX * scale,
       h: (s.height || 0) * PT_TO_PX * scale,
+      shape: s,
     }));
+
+    // Capture an initial full-slide PNG before hiding elements (diagnostic).
+    /** @type {string|null} */
+    let fullBeforeHide = null;
+    if (d) {
+      fullBeforeHide = await toCanvas(handle.element, {
+        pixelRatio: 1,
+        backgroundColor: undefined,
+        width: widthPx,
+        height: heightPx,
+        skipFonts: true,
+      }).then((c) => c.toDataURL("image/png"));
+    }
 
     // Hide every direct child of the slide element whose position does not
     // match any diagram shape.  This removes body text, titles, and other
     // non-diagram elements while keeping the diagram's own shapes (including
     // overflowing text, since shape containers use `overflow: visible`).
+    /** @type {Array<any>} */
+    const childMatches = [];
     const children = handle.element.children;
     for (const child of children) {
       const el = /** @type {HTMLElement} */ (child);
@@ -216,7 +281,7 @@ export async function cropSlideToDiagram(pptxBuffer, slideIndex, bbox, shapes, s
       const width = parseFloat(el.style.width) || 0;
       const height = parseFloat(el.style.height) || 0;
 
-      const matches = shapePositions.some(
+      const matchedShape = shapePositions.find(
         (sp) =>
           Math.abs(left - sp.x) <= POSITION_TOLERANCE_PX &&
           Math.abs(top - sp.y) <= POSITION_TOLERANCE_PX &&
@@ -224,12 +289,56 @@ export async function cropSlideToDiagram(pptxBuffer, slideIndex, bbox, shapes, s
           Math.abs(height - sp.h) <= POSITION_TOLERANCE_PX,
       );
 
-      if (!matches) {
+      if (d) {
+        childMatches.push({
+          tag: el.tagName,
+          left,
+          top,
+          width,
+          height,
+          text: (el.textContent || "").slice(0, 80),
+          fontFamily: el.style.fontFamily || getComputedStyle(el).fontFamily || "",
+          matched: !!matchedShape,
+          matchedShape: matchedShape
+            ? {
+                type: matchedShape.shape.type,
+                content: matchedShape.shape.content,
+                shapType: matchedShape.shape.shapType,
+                placeholderType: matchedShape.shape.placeholderType,
+                left: matchedShape.shape.left,
+                top: matchedShape.shape.top,
+                width: matchedShape.shape.width,
+                height: matchedShape.shape.height,
+                fill: matchedShape.shape.fill,
+                borderWidth: matchedShape.shape.borderWidth,
+              }
+            : null,
+        });
+      }
+
+      if (!matchedShape) {
         el.style.display = "none";
       }
     }
 
+    // Capture a full-slide PNG after hiding non-diagram elements (diagnostic).
+    /** @type {string|null} */
+    let fullAfterHide = null;
+    if (d) {
+      fullAfterHide = await toCanvas(handle.element, {
+        pixelRatio: 1,
+        backgroundColor: undefined,
+        width: widthPx,
+        height: heightPx,
+        skipFonts: true,
+      }).then((c) => c.toDataURL("image/png"));
+    }
+
     // Rasterize the full slide (with non-diagram elements hidden).
+    // skipFonts: true prevents html-to-image from trying to embed web fonts
+    // (which would fetch and inline @font-face CSS).  The Google Fonts are
+    // already loaded in the browser's font cache, so the canvas rendering
+    // will use them correctly.
     const fullCanvas = await toCanvas(handle.element, {
       pixelRatio: 1,
       backgroundColor: undefined,
@@ -259,7 +368,58 @@ export async function cropSlideToDiagram(pptxBuffer, slideIndex, bbox, shapes, s
     if (!ctx) return null;
     ctx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-    return crop.toDataURL("image/png");
+    const dataUrl = crop.toDataURL("image/png");
+
+    if (d) {
+      d.fullBeforeHide = fullBeforeHide;
+      d.fullAfterHide = fullAfterHide;
+      d.finalCrop = dataUrl;
+      d.cropRect = { x: cropX, y: cropY, w: cropW, h: cropH };
+      d.shapePositions = shapePositions.map((sp) => ({ x: sp.x, y: sp.y, w: sp.w, h: sp.h }));
+      d.shapes = (shapes || []).map((s) => ({
+        type: s.type,
+        content: s.content,
+        shapType: s.shapType,
+        placeholderType: s.placeholderType,
+        left: s.left,
+        top: s.top,
+        width: s.width,
+        height: s.height,
+        fill: s.fill,
+        borderWidth: s.borderWidth,
+      }));
+      d.childMatches = childMatches;
+      d.fontInfo = fontInfoBefore || [];
+      d.presentationSize = { width: widthPx, height: heightPx };
+    }
+
+    if (typeof window !== "undefined" && window.__pptxCropCollectDiagnostics) {
+      const diag = d || {};
+      diag.fullBeforeHide = fullBeforeHide;
+      diag.fullAfterHide = fullAfterHide;
+      diag.finalCrop = dataUrl;
+      diag.cropRect = { x: cropX, y: cropY, w: cropW, h: cropH };
+      diag.shapePositions = shapePositions.map((sp) => ({ x: sp.x, y: sp.y, w: sp.w, h: sp.h }));
+      diag.shapes = (shapes || []).map((s) => ({
+        type: s.type,
+        content: s.content,
+        shapType: s.shapType,
+        placeholderType: s.placeholderType,
+        left: s.left,
+        top: s.top,
+        width: s.width,
+        height: s.height,
+        fill: s.fill,
+        borderWidth: s.borderWidth,
+      }));
+      diag.childMatches = childMatches;
+      diag.fontInfo = fontInfoBefore || [];
+      diag.presentationSize = { width: widthPx, height: heightPx };
+      if (!window.__pptxCropDiagnostics) window.__pptxCropDiagnostics = [];
+      window.__pptxCropDiagnostics.push(diag);
+    }
+
+    return dataUrl;
   } catch (err) {
     Logger.warn("Diagram crop failed:", err);
     return null;

@@ -948,6 +948,12 @@ export class PptxExtractor {
 
     if (connectors.length === 0 && shapeLike.length < 2) return elements;
 
+    // Connector-based clusters should be tight (arrows point between shapes).
+    // Shape-only clusters (e.g. concept maps with scattered ovals, Venn diagrams)
+    // can be much looser; without this, diagrams like the COMP 1510 "Raw strings"
+    // slide — four ovals across the top and one on the right — are never linked.
+    const CLUSTER_GAP_PT = connectors.length > 0 ? 5 : 120;
+
     // Bounding box of all connectors (or shape-like elements if no connectors)
     const seeds = connectors.length > 0 ? connectors : shapeLike;
     let minX = Infinity,
@@ -1008,6 +1014,17 @@ export class PptxExtractor {
 
       if (!inBox) continue;
 
+      // Never include photographic / pre-rendered images as diagram candidates.
+      // pptxtojson sometimes rasterizes complex shapes (e.g. multi-line code
+      // blocks) as `type: "image"`; those must not be swallowed by the diagram.
+      if (el.type === "image" && !isShapeLike) continue;
+
+      // Code blocks disguised as bordered shapes (e.g. a roundRect with
+      // `print(...)` examples) are not diagram labels; keep them out of the
+      // diagram group so they render as slide body text instead of being
+      // cropped into the diagram image.
+      if (isShapeLike && this.#isCodeBlockLike(el)) continue;
+
       // Text elements inside the box: only include if they're short (diagram
       // labels are typically a few words) and not in the header band (which
       // is likely the slide title).  Long body text, code blocks, and titles
@@ -1038,9 +1055,8 @@ export class PptxExtractor {
     if (near.length === 0) return elements;
 
     // Split the candidates into connected components based on edge distance.
-    // Each component is a maximal set where every element is within 5 pt of
-    // at least one other element in the same component (via the transitive
-    // closure of the 5 pt edge distance relation).
+    // Each component is a maximal set where every element is within CLUSTER_GAP_PT
+    // of at least one other element in the same component.
     const components = [];
     const seen = new Set();
     for (const start of near) {
@@ -1053,7 +1069,7 @@ export class PptxExtractor {
         component.push(cur);
         for (const other of near) {
           if (seen.has(other)) continue;
-          if (this.#bboxEdgeDistance(cur, other) < 5) {
+          if (this.#bboxEdgeDistance(cur, other) < CLUSTER_GAP_PT) {
             seen.add(other);
             stack.push(other);
           }
@@ -1124,6 +1140,26 @@ export class PptxExtractor {
     const dx = Math.max(0, Math.max(aLeft - bRight, bLeft - aRight));
     const dy = Math.max(0, Math.max(aTop - bBottom, bTop - aBottom));
     return Math.hypot(dx, dy);
+  }
+
+  /**
+   * Heuristic to detect shapes that are really code blocks, not diagram labels.
+   * @static
+   * @param {ExtractedElement} el
+   * @returns {boolean}
+   */
+  static #isCodeBlockLike(el) {
+    if (!el.content) return false;
+    const text = el.content;
+    // Triple-backtick fenced code blocks.
+    if (/```/s.test(text)) return true;
+    // Numbered list items that are mostly inline code, e.g.:
+    //   1. `print("Hello\\nworld")`
+    if (/^\s*\d+\.\s*(?:`[^`]+`|\*[^\*]+\*).*/s.test(text)) return true;
+    // Fallback: a lot of backticks relative to total length (code snippets).
+    const backticks = (text.match(/`/g) || []).length;
+    if (backticks >= 4 && backticks / text.length > 0.02) return true;
+    return false;
   }
 
   /**
