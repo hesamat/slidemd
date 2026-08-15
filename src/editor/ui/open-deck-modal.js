@@ -308,11 +308,10 @@ export class OpenDeckModal {
 
             if (editCtrl?.deckStore) {
               try {
-                const { visualSystem, markdown: serverMarkdownWithoutComment } =
+                const { markdown: serverMarkdownWithoutComment } =
                   extractVisualSystemFromMarkdown(serverMarkdown);
                 const newSlides = new MarkdownParser().splitSlides(serverMarkdownWithoutComment);
                 editCtrl.deckStore.syncSlides(newSlides, editCtrl.deckStore.getActiveIndex());
-                editCtrl.deckStore.setVisualSystem(visualSystem);
                 const updatedDeck = await DeckLoader.parseMarkdown(serverMarkdown);
                 if (reloadManager?.replaceDeck) {
                   await reloadManager.replaceDeck(updatedDeck, {

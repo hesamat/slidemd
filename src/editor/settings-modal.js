@@ -15,6 +15,7 @@
 
 import { validateAiBaseUrl, KEY_REQUIRED_PROVIDERS } from "../data/ai/ai-provider-client.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
+import { ThemeManager, PALETTES, PALETTE_LABELS } from "../renderer/theme-manager.js";
 
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
 const STORAGE_KEY_BASE_OVERRIDE = "webdeck_ai_base_override";
@@ -25,6 +26,9 @@ const DEFAULT_EFFORT = "high";
 const DEFAULT_PROVIDER = "OpenRouter";
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 const P = "settings-modal__";
+
+const SUN_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+const MOON_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
 
 // Legacy key — used for one-time migration to per-provider storage
 const LEGACY_KEY_API = "webdeck_openrouter_api_key";
@@ -292,6 +296,71 @@ export class SettingsModal {
       const dialog = backdrop.querySelector(`.${P}dialog`);
       const errorEl = backdrop.querySelector(`.${P}error`);
 
+      // --- Appearance card ---
+      const appearanceCard = backdrop.querySelector(`.${P}card--appearance`);
+      const appearanceHeader = appearanceCard.querySelector(`.${P}card-header`);
+      const appearanceBody = appearanceCard.querySelector(`.${P}card-body`);
+      const appearanceSummary = appearanceCard.querySelector(`.${P}card-summary-text`);
+      const themeModeBtns = appearanceBody.querySelectorAll("[data-theme-mode]");
+      const variantBtns = appearanceBody.querySelectorAll("[data-palette]");
+
+      /** @type {"light"|"dark"} */
+      let selectedTheme = ThemeManager.getCurrentTheme();
+      /** @type {string} */
+      let selectedPalette = ThemeManager.getPalette();
+
+      const updateAppearanceSummary = () => {
+        const themeLabel = selectedTheme === "dark" ? "Dark" : "Light";
+        appearanceSummary.textContent = `${themeLabel} · ${PALETTE_LABELS[selectedPalette]}`;
+        appearanceSummary.hidden = false;
+      };
+
+      const updateThemeModeButtons = () => {
+        themeModeBtns.forEach((btn) => {
+          btn.classList.toggle(
+            `${P}theme-mode-btn--active`,
+            btn.dataset.themeMode === selectedTheme,
+          );
+        });
+      };
+
+      const updateVariantButtons = () => {
+        variantBtns.forEach((btn) => {
+          btn.classList.toggle(`${P}variant-btn--active`, btn.dataset.palette === selectedPalette);
+        });
+      };
+
+      const applyAppearanceLive = () => {
+        // Live preview: apply immediately so user sees the change
+        localStorage.setItem(ThemeManager.THEME_KEY, selectedTheme);
+        ThemeManager.applyTheme(selectedTheme);
+        ThemeManager.setPalette(selectedPalette);
+        updateThemeModeButtons();
+        updateVariantButtons();
+        updateAppearanceSummary();
+      };
+
+      themeModeBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          selectedTheme = /** @type {"light"|"dark"} */ (btn.dataset.themeMode);
+          applyAppearanceLive();
+        });
+      });
+
+      variantBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          selectedPalette = btn.dataset.palette;
+          applyAppearanceLive();
+        });
+      });
+
+      // Card fold/unfold — uses toggleCard for keyboard accessibility
+      // (defined below, before the Connection/Model cards are wired).
+      // Initialize appearance state
+      updateThemeModeButtons();
+      updateVariantButtons();
+      updateAppearanceSummary();
+
       // --- Connection card ---
       const connCard = backdrop.querySelector(`.${P}card--connection`);
       const connHeader = connCard.querySelector(`.${P}card-header`);
@@ -359,15 +428,35 @@ export class SettingsModal {
           // Always refresh summary so it's populated whether open or collapsed
           updateSummary();
         };
-        header.addEventListener("click", () => {
+        const toggle = () => {
           open = !open;
           apply();
+        };
+        header.addEventListener("click", toggle);
+        // Keyboard accessibility: make header focusable and toggle on Enter/Space
+        header.setAttribute("role", "button");
+        header.setAttribute("tabindex", "0");
+        header.setAttribute("aria-expanded", String(open));
+        header.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+            header.setAttribute("aria-expanded", String(open));
+          }
         });
         apply();
       };
 
       const wasConfigured = this.isConfigured();
 
+      toggleCard(
+        appearanceCard,
+        appearanceHeader,
+        appearanceBody,
+        appearanceSummary,
+        updateAppearanceSummary,
+        true, // appearance card open by default
+      );
       toggleCard(
         connCard,
         connHeader,
@@ -464,7 +553,15 @@ export class SettingsModal {
           item.className = `${P}model-item`;
           if (m.id === selectedModel) item.classList.add(`${P}model-item--selected`);
           item.dataset.value = m.id;
-          item.innerHTML = `<span class="${P}model-name">${this.#escHtml(m.name)}</span><span class="${P}model-id">${this.#escHtml(m.id)}</span>`;
+          // Build model item via DOM construction (Hard Rule 6).
+          const nameSpan = document.createElement("span");
+          nameSpan.className = `${P}model-name`;
+          nameSpan.textContent = m.name;
+          const idSpan = document.createElement("span");
+          idSpan.className = `${P}model-id`;
+          idSpan.textContent = m.id;
+          item.appendChild(nameSpan);
+          item.appendChild(idSpan);
           item.addEventListener("mousedown", (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -951,7 +1048,40 @@ export class SettingsModal {
     backdrop.className = `${P}backdrop`;
     backdrop.innerHTML = `
       <div class="${P}dialog">
-        <h2 class="${P}title">AI Settings</h2>
+        <h2 class="${P}title">Settings</h2>
+
+        <!-- Appearance card -->
+        <div class="${P}card ${P}card--appearance">
+          <div class="${P}card-header">
+            <span class="${P}chevron"></span>
+            <span class="${P}card-title">Appearance</span>
+            <span class="${P}card-summary-text" hidden></span>
+          </div>
+          <div class="${P}card-body" hidden>
+            <label class="${P}label">Theme</label>
+            <div class="${P}theme-mode-row">
+              <button type="button" class="${P}theme-mode-btn" data-theme-mode="light">
+                <span class="${P}theme-mode-icon">${SUN_ICON}</span>
+                <span>Light</span>
+              </button>
+              <button type="button" class="${P}theme-mode-btn" data-theme-mode="dark">
+                <span class="${P}theme-mode-icon">${MOON_ICON}</span>
+                <span>Dark</span>
+              </button>
+            </div>
+
+            <label class="${P}label ${P}variant-label">Palette</label>
+            <div class="${P}variant-grid" data-palette-grid>
+              ${PALETTES.map(
+                (v) => `
+                <button type="button" class="${P}variant-btn" data-palette="${v}">
+                  <span class="${P}variant-swatch ${P}variant-swatch--${v}"></span>
+                  <span class="${P}variant-name">${PALETTE_LABELS[v]}</span>
+                </button>`,
+              ).join("")}
+            </div>
+          </div>
+        </div>
 
         <!-- Connection card -->
         <div class="${P}card ${P}card--connection">
@@ -1049,13 +1179,5 @@ export class SettingsModal {
       </div>
     `;
     return backdrop;
-  }
-
-  static #escHtml(s) {
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 }

@@ -15,11 +15,22 @@ Content strategy:
 - Drop images that are low quality, redundant, or don't add value to the slide — unless the visual-styling instructions below say to preserve the deck's visual identity. In that case, keep every image from the input slide (as `<img>` or `background: url(...)`); do not drop it for quality or relevance reasons.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- The brief may include `| beat: ..., energy: ..., contrast: ..., relationship: ... |` after the intent. When a visual system is present, use the beat-treatment guidance in the visual-styling instructions below to choose density, hierarchy, layout, and imagery for that slide.
 - The brief may include `| image: <query>` at the end. Only honor the query if it is a `reuse:<path>` directive (e.g. `reuse:images/team-photo.jpg`). In that case, insert `<img src="path">` on that slide using the exact path. If the query is anything other than `reuse:<path>` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's `@footer` area (not in `@main`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
 - Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
+
+Presentation voice:
+
+- Write as if speaking to the audience, not writing an encyclopedia entry. Use a conversational, presentable tone.
+- Headlines should be short, intriguing phrases — not full-sentence labels. Let the headline create interest and the body deliver the point.
+- Keep bullets short and limited to one idea each. Prefer phrases over complete sentences; avoid dense paragraphs.
+- Vary bullet openings and sentence structure so the deck does not feel repetitive.
+- Use concrete examples, analogies, comparisons, and real-world references where they make a point clearer.
+- Put supporting detail, narration, transitions, and likely audience questions in speaker notes (`<!-- notes: ... -->`) when they do not belong on the slide.
+- Do not pack more text onto a slide just because voice guidance was applied. Respect the density budgets below.
 
 Visual styling:
 
@@ -56,14 +67,15 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
-- `theme:`, `background:`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for `theme:` and `background:`; preserve mode keeps the originals; otherwise do not emit custom color directives.
+- `theme:`, `background:`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals; the default guidance uses neutral app styling; and when a visual direction is provided, choose professional colors, gradients, or kept images that match the visual direction.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every `<img>` and `background: url(...)` in the output references an image from the input deck or a `reuse:<path>` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use `\n` escapes for line breaks inside the `content` strings.
 
 Input markdown:
 {{markdown}}

@@ -59,7 +59,7 @@
     "interactjs": "^1.10.27",
     "jszip": "^3.10.1",
     "localforage": "^1.10.0",
-    "mermaid": "^11.14.0",
+    "mermaid": "^11.16.1",
     "pptxtojson": "^2.0.6",
     "utif2": "^4.1.0"
   },
@@ -71,7 +71,7 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
-    "katex": "^0.16.27",
+    "katex": "^0.18.4",
     "markdown-it": "^14.1.0",
     "prettier": "^3.8.4",
     "prismjs": "^1.30.0",

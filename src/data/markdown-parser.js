@@ -282,7 +282,16 @@ export class MarkdownParser {
       this.md.renderer.rules[ruleName] = function (tokens, idx, options, env, slf) {
         const token = tokens[idx];
         addSourceLineAttr(token);
-        return originalRule(tokens, idx, options, env, slf);
+        let html = originalRule(tokens, idx, options, env, slf);
+        // Per-code-block centering: if the fence info string contains a
+        // curly-brace attribute block with the `center` keyword (mirroring
+        // the text-block directive syntax, e.g. ```js { center }), add a CSS
+        // class to the <pre> tag so it can be centered via CSS regardless of
+        // the slide layout.
+        if (ruleName === "fence" && /\{[^}]*\bcenter\b[^}]*\}/i.test(token.info || "")) {
+          html = html.replace(/<pre/, '<pre class="code-centered"');
+        }
+        return html;
       };
     }
   }
@@ -410,6 +419,9 @@ export class MarkdownParser {
           inLeadingBlock = false;
         } else if (line.trim() === "") {
           // Blank lines stay in the leading block.
+        } else if (/^\s*<!--/.test(line)) {
+          // HTML comments (including batch slide-index markers) are not body
+          // content and should not terminate the leading directive block.
         } else {
           const match = line.match(pattern);
           if (match) {
@@ -423,7 +435,7 @@ export class MarkdownParser {
           // Another directive (not the one we're looking for) stays in the
           // leading block but is kept in the output.
           if (!anyDirective.test(line)) {
-            // First non-blank, non-directive line ends the leading block.
+            // First non-blank, non-directive, non-comment line ends the leading block.
             inLeadingBlock = false;
           }
         }
@@ -835,7 +847,7 @@ export class MarkdownParser {
   parseDeckMarkdown(markdownText) {
     this.ensureMarkdownIt();
 
-    const { visualSystem, markdown } = extractVisualSystemFromMarkdown(markdownText);
+    const { markdown } = extractVisualSystemFromMarkdown(markdownText);
     const slideTexts = this.splitSlides(markdown);
     const usedIds = new Map();
 
@@ -1033,7 +1045,6 @@ export class MarkdownParser {
         stage: { ...DESIGN_SIZE },
       },
       slides,
-      visualSystem,
     };
   }
 }

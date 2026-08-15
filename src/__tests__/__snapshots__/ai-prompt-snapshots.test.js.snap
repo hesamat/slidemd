@@ -9,10 +9,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -140,10 +145,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -314,10 +324,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -377,11 +392,22 @@ Content strategy:
 - Drop images that are low quality, redundant, or don't add value to the slide — unless the visual-styling instructions below say to preserve the deck's visual identity. In that case, keep every image from the input slide (as \`<img>\` or \`background: url(...)\`); do not drop it for quality or relevance reasons.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a \`<!-- brief: ... -->\` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- The brief may include \`| beat: ..., energy: ..., contrast: ..., relationship: ... |\` after the intent. When a visual system is present, use the beat-treatment guidance in the visual-styling instructions below to choose density, hierarchy, layout, and imagery for that slide.
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
 - Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
+
+Presentation voice:
+
+- Write as if speaking to the audience, not writing an encyclopedia entry. Use a conversational, presentable tone.
+- Headlines should be short, intriguing phrases — not full-sentence labels. Let the headline create interest and the body deliver the point.
+- Keep bullets short and limited to one idea each. Prefer phrases over complete sentences; avoid dense paragraphs.
+- Vary bullet openings and sentence structure so the deck does not feel repetitive.
+- Use concrete examples, analogies, comparisons, and real-world references where they make a point clearer.
+- Put supporting detail, narration, transitions, and likely audience questions in speaker notes (\`<!-- notes: ... -->\`) when they do not belong on the slide.
+- Do not pack more text onto a slide just because voice guidance was applied. Respect the density budgets below.
 
 Visual styling:
 
@@ -425,16 +451,18 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
-- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
+- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals; the default guidance uses neutral app styling; and when a visual direction is provided, choose professional colors, gradients, or kept images that match the visual direction.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every \`<img>\` and \`background: url(...)\` in the output references an image from the input deck or a \`reuse:<path>\` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use \`\\n\` escapes for line breaks inside the \`content\` strings.
 
 Input markdown:
+<!-- SLIDE INDEX 1 (return this) -->
 @header
 
 ## Why SlideMD
@@ -451,6 +479,7 @@ Input markdown:
 
 ---
 
+<!-- SLIDE INDEX 2 (return this) -->
 @header
 
 ## Roadmap
@@ -467,7 +496,14 @@ console.log(x);
 - Export PDF
 
 
-Return exactly 2 slide(s) as JSON. Fix or organize these slides within the context of the full deck.",
+CRITICAL: Return exactly 2 slide(s) as JSON — one for each "SLIDE INDEX" comment in the input (indices 1 through 2). Do NOT return context slides, do NOT split a brief into multiple slides, and do NOT merge briefs into fewer slides.
+
+Output format: a single JSON object with a "slides" array. Each slide object must have:
+
+- "layout": one of the allowed layouts.
+- "content": the SlideMD body as a JSON string. Use \`\\n\` for all line breaks inside this string.
+
+The first line of each "content" string must be the same \`<!-- SLIDE INDEX n (return this) -->\` comment from the input, where n matches the slide index.",
 }
 `;
 
@@ -480,10 +516,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -565,10 +606,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -622,11 +668,22 @@ Content strategy:
 - Drop images that are low quality, redundant, or don't add value to the slide — unless the visual-styling instructions below say to preserve the deck's visual identity. In that case, keep every image from the input slide (as \`<img>\` or \`background: url(...)\`); do not drop it for quality or relevance reasons.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a \`<!-- brief: ... -->\` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- The brief may include \`| beat: ..., energy: ..., contrast: ..., relationship: ... |\` after the intent. When a visual system is present, use the beat-treatment guidance in the visual-styling instructions below to choose density, hierarchy, layout, and imagery for that slide.
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
 - Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
+
+Presentation voice:
+
+- Write as if speaking to the audience, not writing an encyclopedia entry. Use a conversational, presentable tone.
+- Headlines should be short, intriguing phrases — not full-sentence labels. Let the headline create interest and the body deliver the point.
+- Keep bullets short and limited to one idea each. Prefer phrases over complete sentences; avoid dense paragraphs.
+- Vary bullet openings and sentence structure so the deck does not feel repetitive.
+- Use concrete examples, analogies, comparisons, and real-world references where they make a point clearer.
+- Put supporting detail, narration, transitions, and likely audience questions in speaker notes (\`<!-- notes: ... -->\`) when they do not belong on the slide.
+- Do not pack more text onto a slide just because voice guidance was applied. Respect the density budgets below.
 
 Visual styling:
 
@@ -670,14 +727,15 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
-- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
+- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals; the default guidance uses neutral app styling; and when a visual direction is provided, choose professional colors, gradients, or kept images that match the visual direction.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every \`<img>\` and \`background: url(...)\` in the output references an image from the input deck or a \`reuse:<path>\` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use \`\\n\` escapes for line breaks inside the \`content\` strings.
 
 Input markdown:
 background: #1a1a2e
@@ -736,10 +794,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -793,11 +856,22 @@ Content strategy:
 - Drop images that are low quality, redundant, or don't add value to the slide — unless the visual-styling instructions below say to preserve the deck's visual identity. In that case, keep every image from the input slide (as \`<img>\` or \`background: url(...)\`); do not drop it for quality or relevance reasons.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a \`<!-- brief: ... -->\` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- The brief may include \`| beat: ..., energy: ..., contrast: ..., relationship: ... |\` after the intent. When a visual system is present, use the beat-treatment guidance in the visual-styling instructions below to choose density, hierarchy, layout, and imagery for that slide.
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - If the brief asks to "preserve the existing closing message" or the slide is the deck's closing/recap slide, keep the original sign-off, thank-you, and call-to-action text verbatim. Add any requested recap content (outcomes, next steps) around or beneath the original closing message, not as a replacement for it.
 - Do not introduce concepts that are more advanced than the source slide. Keep the same terminology, conceptual depth, and expected prior knowledge.
 - Follow the mode and visual-identity instructions that follow this prompt.
+
+Presentation voice:
+
+- Write as if speaking to the audience, not writing an encyclopedia entry. Use a conversational, presentable tone.
+- Headlines should be short, intriguing phrases — not full-sentence labels. Let the headline create interest and the body deliver the point.
+- Keep bullets short and limited to one idea each. Prefer phrases over complete sentences; avoid dense paragraphs.
+- Vary bullet openings and sentence structure so the deck does not feel repetitive.
+- Use concrete examples, analogies, comparisons, and real-world references where they make a point clearer.
+- Put supporting detail, narration, transitions, and likely audience questions in speaker notes (\`<!-- notes: ... -->\`) when they do not belong on the slide.
+- Do not pack more text onto a slide just because voice guidance was applied. Respect the density budgets below.
 
 Visual styling:
 
@@ -841,14 +915,15 @@ Slide density and overflow prevention:
 
 Success criteria:
 
+- Return the same number of slides as the input. Do NOT split one slide into multiple slides and do NOT merge multiple slides into one slide.
 - Every slide has an appropriate layout with valid area markers.
-- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: if a visual system is provided, use only the palette colors for \`theme:\` and \`background:\`; preserve mode keeps the originals; otherwise do not emit custom color directives.
+- \`theme:\`, \`background:\`, and color directives follow the visual-styling instructions above: preserve mode keeps the originals; the default guidance uses neutral app styling; and when a visual direction is provided, choose professional colors, gradients, or kept images that match the visual direction.
 - Headers use the correct hierarchy.
 - All \`[Diagram:]\` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every \`<img>\` and \`background: url(...)\` in the output references an image from the input deck or a \`reuse:<path>\` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
-- The JSON is valid and parseable.
+- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- The JSON is valid and parseable; use \`\\n\` escapes for line breaks inside the \`content\` strings.
 
 Input markdown:
 background: #1a1a2e
@@ -907,10 +982,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -1042,10 +1122,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -1098,14 +1183,16 @@ The presentation flow is **story**. Choose storytelling techniques that fit this
 
 ## Visual system
 
-Alongside the narrative outline, design a minimal 3-color **visual system**. The visual system is used to choose \`theme:\` and \`background:\` colors for each slide.
+Alongside the narrative outline, design a **visual direction** as a single freeform paragraph. The direction is used by the later generation AI to choose \`layout:\`, \`theme:\`, and \`background:\` for each slide. It should describe the mood and the rules of thumb for backgrounds, not a strict color palette. The model is free to pick any professional colors, gradients, or kept images that match the direction.
 
-- Keep the visual system minimal. A 3-color palette (\`base\`, \`accent\`, \`highlight\`) is enough.
-- \`base\` — dark background for most continuation and content slides.
-- \`accent\` — pop/attention color for emphasis, pivots, calls-to-action, or high-energy punctuation slides.
-- \`highlight\` — light background for the title slide, agenda, and any light focal slides. Use \`theme: dark\` with \`highlight\`.
-- Use all 3 colors across the deck. Do not put \`base\` on every slide.
-- Do not design a linear "slide 1 dark, slide 2 slightly lighter" ramp. The same deck may have a dark slide right after a light slide because the content demands contrast.
+- \`visualDirection\` — 2-5 sentences describing the overall feel and how to choose backgrounds across the deck. Cover:
+  - The overall mood (e.g. "Clean, technical, and high-contrast" or "Warm, editorial, with atmospheric imagery").
+  - The default background style for most content slides.
+  - When to use a different background (light, bright, image) for emphasis, transitions, title, and agenda.
+  - When to use \`full-image\` or \`media-span\` layouts with kept images.
+  - A reminder to vary backgrounds so no single color dominates the deck.
+
+The AI is free to choose exact hex colors. Always pair \`theme:\` with \`background:\` so text remains readable: \`theme: dark\` for dark backgrounds and \`theme: light\` for light/bright backgrounds.
 
 Output format:
 
@@ -1113,11 +1200,7 @@ Output format:
 {
   "plan": "1-3 sentence statement of the deck's core message, the fresh editorial angle, and the narrative structure you chose (e.g. 'Reframe the deck around outcomes. Open with historical context, build tension around the current gap, present the approach with evidence, close with a call to action.').",
   "visualSystem": {
-    "palette": {
-      "base": "#0f172a",
-      "accent": "#06b6d4",
-      "highlight": "#ffffff"
-    }
+    "visualDirection": "Clean, technical, and high-contrast. Vary backgrounds across the deck — mix dark, neutral, and light slides so no single color dominates. Use light or bright backgrounds for the title, agenda, punctuation, and transition slides. Use neutral or dark backgrounds for code-heavy slides. Use kept images in full-image or media-span layouts for emotional or atmospheric beats."
   },
   "keepImages": [0, 2],
   "firstSlideIdentity": "COMP 1510 202630",
@@ -1142,13 +1225,10 @@ Rules:
 
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.
 - \`plan\` — 1-3 sentences combining: the deck's core message, the fresh angle you propose, and the narrative structure you chose with a brief justification.
-- \`visualSystem\` — a minimal deck-wide visual system:
-  - \`palette\` — 3 hex colors (\`#rrggbb\`):
-    - \`base\` — dark background for most content slides.
-    - \`accent\` — pop/attention color for emphasis, pivots, calls-to-action.
-    - \`highlight\` — light background for title, agenda, or focal slides.
-  - Use all 3 colors across the deck. Do NOT make every slide \`base\`.
-  - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Slides can switch between \`base\`, \`accent\`, and \`highlight\` backgrounds as the content demands.
+- \`visualSystem\` — a deck-wide visual direction in freeform text:
+  - \`visualDirection\` — 2-5 sentences describing the overall mood and how to choose backgrounds across beats and slide types. Do not list a strict color palette; describe the _kind_ of background (dark/neutral, bright/light, image, etc.) to use for each beat.
+  - Do NOT design a linear progression. Slides can switch backgrounds as the content demands, but keep the direction coherent.
+  - Vary backgrounds across the deck — do not default to a single dark color for every slide.
 - \`keepImages\` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
 - \`firstSlideIdentity\` — a short string (1-2 lines) extracted EXCLUSIVELY from the "First slide (preserve its identifying info)" text provided above. Do NOT look at other slides for this. Extract the identifying text from the first slide's footer, header, or title (e.g. course code + term, event name, author). Keep it concise: do not include the full institutional description or repeated course names. If the first slide has no identifying information beyond the title heading, use the title itself. Do NOT mention this field or the footer in the plan text — just extract the value into this field.
 - \`chapters\` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
@@ -1166,7 +1246,7 @@ Rules:
 Success criteria:
 
 - The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
-- The visual system is minimal: a 3-color palette. It is not a linear progression.
+- The visual system is a coherent visual direction (visualDirection). It is not a linear progression.
 - The chapters form a clear narrative arc from opening to close.
 - The total suggested slide count is within 2-4 (3 source slides).
 - Each chapter summary is specific enough to guide slide generation without the user needing to see individual slides.
@@ -1189,10 +1269,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 
@@ -1316,10 +1401,15 @@ Output format:
 \`\`\`json
 {
   "slides": [
-    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+    {
+      "layout": "header-content",
+      "content": "theme: dark\\nbackground: #1e293b\\n\\n@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
   ]
 }
 \`\`\`
+
+When the visual-styling instructions below tell you to include \`theme:\` and \`background:\`, put them at the top of the \`content\` string (before the first \`@area\` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start \`content\` with the first \`@area\` marker.
 
 Rules:
 

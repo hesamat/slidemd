@@ -46,7 +46,7 @@ import {
 } from "../image-markdown-parser.js";
 
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
-import { parseVisualSystem, visualSystemToComment } from "./visual-system-schema.js";
+import { parseVisualSystem } from "./visual-system-schema.js";
 import { normalizeBeats } from "./beat-normalizer.js";
 import { extractJsonObject } from "./ai-response-parser.js";
 
@@ -501,9 +501,9 @@ export class RemixReimagineOrchestrator {
     // The generate path gap-fills directives positionally when the slide
     // count matches. For reimagine the virtual deck has no original
     // directives, so there's nothing to gap-fill — return the result as-is.
-    // When a visual system was generated, allow theme/background to be driven
-    // by the palette (applyVisualSystemIdentity restricts colors to the
-    // palette). When no visual system is present, fall back to stripping any
+    // When a visual system was generated, applyVisualSystemIdentity keeps the
+    // model's theme/background/color choices and only infers a missing or
+    // mismatched theme. When no visual system is present, fall back to stripping
     // model-emitted identity. Remove any fabricated image references the model
     // insisted on (the validator only repairs; it never hard-fails).
     const rawIdentity = editedOutline.visualSystem
@@ -512,11 +512,7 @@ export class RemixReimagineOrchestrator {
     const cleaned = stripFabricatedImages(rawIdentity, keptImageSrcs, onLog);
     const slides = splitSlides(cleaned);
     const collapsed = slides.map((slide) => collapseBackgroundDirectives(slide));
-    const body = collapsed.join("\n\n---\n\n");
-    if (editedOutline.visualSystem) {
-      return `${visualSystemToComment(editedOutline.visualSystem)}\n\n${body}`;
-    }
-    return body;
+    return collapsed.join("\n\n---\n\n");
   }
 
   /**

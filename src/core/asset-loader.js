@@ -31,6 +31,7 @@ export class AssetLoader {
    * @returns {Promise<void>}
    */
   static async ensureMarkdownItLoaded() {
+    if (window.__WEBDECK_EXPORTED__) return;
     if (typeof window.markdownit === "function") return;
 
     await this.once("markdown-it", async () => {
@@ -48,6 +49,7 @@ export class AssetLoader {
    * @returns {Promise<void>}
    */
   static async ensurePrismLoaded() {
+    if (window.__WEBDECK_EXPORTED__) return;
     if (window.Prism && typeof window.Prism.highlightElement === "function") return;
 
     await this.once("prism", async () => {
@@ -117,6 +119,7 @@ export class AssetLoader {
    * @returns {Promise<void>}
    */
   static async ensureKatexLoaded() {
+    if (window.__WEBDECK_EXPORTED__) return;
     if (typeof window.renderMathInElement === "function") return;
 
     await this.once("katex", async () => {
@@ -207,6 +210,7 @@ export class AssetLoader {
    * @returns {Promise<void>}
    */
   static async ensureRichTextEnhancers() {
+    if (window.__WEBDECK_EXPORTED__) return;
     // Never throw: the deck should still render without optional enhancers.
     // Mermaid is loaded on-demand by ContentEnhancer so Prism/KaTeX do not
     // block waiting for a diagram library that the deck may not even use.

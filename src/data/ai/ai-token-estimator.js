@@ -30,7 +30,17 @@ export function estimateMaxTokens(markdown, mode, opts) {
   // thinking and return content: null with finish_reason: "length". OpenAI
   // recommends reserving ~25k+ for reasoning+output; community reports
   // suggest 30k+ for non-trivial tasks. Use 32k for medium, 40k for high.
-  const floor = effort === "high" ? 40000 : effort === "medium" ? 32000 : 16000;
+  let floor;
+  if (effort === "high") {
+    floor = 40000;
+  } else if (effort === "medium") {
+    floor = 32000;
+  } else {
+    // Generate batch responses can be long (full slide bodies, code, notes,
+    // plus JSON overhead). Use a 32k floor so 8-slide batches do not hit
+    // the cap and truncate. Fix/polish single-slide responses are shorter.
+    floor = mode === "generate" ? 32000 : 16000;
+  }
   return Math.min(Math.max(floor, estimated), opts?.modelMaxOutput || 128000);
 }
 

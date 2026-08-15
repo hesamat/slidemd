@@ -121,7 +121,7 @@ describe("DeckLoader.normalizeDeck", () => {
 
   it("preserves the visual system", () => {
     const visualSystem = {
-      palette: { base: "#0f172a", accent: "#06b6d4", highlight: "#ffffff" },
+      visualDirection: "Dark, technical. Use dark backgrounds for content, bright for emphasis.",
     };
     const deck = {
       meta: { title: "Test" },

@@ -2,10 +2,15 @@ import { describe, it, expect } from "vitest";
 import { estimateMaxTokens, estimateTokenCounts } from "../data/ai/ai-token-estimator.js";
 
 describe("estimateMaxTokens", () => {
-  it("returns at least 16000 without reasoning", () => {
+  it("returns at least 16000 without reasoning for fix/polish", () => {
     const md =
       "layout: header-content\n@header\n## Hi\n\n---\n\nlayout: header-content\n@header\n## Bye";
     expect(estimateMaxTokens(md, "fix")).toBeGreaterThanOrEqual(16000);
+  });
+
+  it("returns at least 32000 without reasoning for generate", () => {
+    const md = "a".repeat(1000);
+    expect(estimateMaxTokens(md, "generate")).toBeGreaterThanOrEqual(32000);
   });
 
   it("returns at least 40000 with high reasoning", () => {

@@ -63,28 +63,49 @@ export function sanitizeCssColor(color) {
 }
 
 /**
+ * Normalize a hex color to 6 digits (expands 3-digit hex like `#abc` to
+ * `#aabbcc`). Strips the leading `#` and any 2-digit alpha suffix.
+ * @param {string} hex
+ * @returns {string} 6-digit hex without `#`, or "" if invalid
+ */
+function normalizeHex(hex) {
+  let h = hex.replace("#", "");
+  if (h.length === 3) {
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  }
+  // Strip 2-digit alpha (e.g. #0f172aff → 0f172a)
+  if (h.length === 8) h = h.slice(0, 6);
+  return h.length === 6 ? h : "";
+}
+
+/**
  * Determine if a color is dark based on luminance.
  * Handles gradients by finding the darkest color.
+ * Accepts 3-digit (#abc), 6-digit (#aabbcc), and 8-digit (#aabbccff) hex.
+ * Also handles mixed values like `#0f172a url(images/hero.png) center/cover`
+ * by extracting the first hex color.
  *
- * @param {string} colorHex - Hex color or CSS gradient string
+ * @param {string} colorHex - Hex color, CSS gradient, or mixed background string
  * @returns {boolean}
  */
 export function isColorDark(colorHex) {
   if (!colorHex) return false;
 
-  // Handle gradients: extract all hex colors, pick darkest
-  if (!colorHex.startsWith("#")) {
-    const matches = colorHex.match(/#[0-9a-fA-F]{6}/g);
-    if (!matches) return false;
-    // Find the color with lowest luminance (darkest)
-    let darkestLum = Infinity;
-    for (const m of matches) {
-      const lum = hexToLuminance(m.replace("#", ""));
-      if (lum < darkestLum) darkestLum = lum;
-    }
-    return darkestLum < LUMINANCE.DARK_THRESHOLD;
-  }
+  // Extract all hex colors (3, 6, or 8 digit) from the string.
+  // For solid colors this yields one match; for gradients and mixed
+  // values (e.g. `#0f172a url(...) center/cover`) it yields all hex colors.
+  const matches = String(colorHex).match(/#[0-9a-fA-F]{8}\b|#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g);
+  if (!matches) return false;
 
-  const hex = colorHex.replace("#", "");
-  return hexToLuminance(hex) < LUMINANCE.DARK_THRESHOLD;
+  let darkestLum = Infinity;
+  for (const m of matches) {
+    const h = normalizeHex(m);
+    if (!h) continue;
+    const lum = hexToLuminance(h);
+    if (lum < darkestLum) darkestLum = lum;
+  }
+  return darkestLum < LUMINANCE.DARK_THRESHOLD;
 }
