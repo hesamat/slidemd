@@ -18,9 +18,9 @@ export class HtmlExportManager {
   // (e.g. node_modules is not served by the host). Keep in sync with package.json.
   static FALLBACK_VENDOR_VERSIONS = {
     prismjs: "1.30.0",
-    katex: "0.16.27",
-    mermaid: "11.14.0",
-    dompurify: "3.4.12",
+    katex: "0.18.4",
+    mermaid: "11.16.1",
+    dompurify: "3.4.13",
   };
 
   /**
