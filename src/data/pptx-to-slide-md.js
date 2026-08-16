@@ -202,6 +202,24 @@ function convertSlide(
 ) {
   const parts = [];
 
+  // Deduplicate identical images within a slide. PowerPoint authors paste the
+  // same icon multiple times (e.g. one warning icon per error line) at slightly
+  // different offsets; in the flow-based layouts those render as a stack of
+  // identical images. Keep the first occurrence of each (ref, size) pair.
+  {
+    const seenImages = new Set();
+    const deduped = [];
+    for (const el of slide.elements) {
+      if (el.type === ELEMENT_TYPES.IMAGE && el.ref) {
+        const key = `${el.ref}|${el.width}|${el.height}`;
+        if (seenImages.has(key)) continue;
+        seenImages.add(key);
+      }
+      deduped.push(el);
+    }
+    slide = { ...slide, elements: deduped };
+  }
+
   // Detect full-page background images BEFORE stripping images or filtering,
   // so they are always found regardless of the importImages setting.
   // Background images are always uploaded as files (never inlined as data URLs)
@@ -868,10 +886,11 @@ function convertSlide(
   }
 
   if (footerElements.length > 0) {
-    const footerText = footerElements
-      .map((el) => el.content?.trim())
-      .filter(Boolean)
-      .join(" ");
+    // Deduplicate identical footer texts — a slide can carry the same footer
+    // placeholder twice (slide layout + slide), which would otherwise repeat.
+    const footerText = [
+      ...new Set(footerElements.map((el) => el.content?.trim()).filter(Boolean)),
+    ].join(" ");
     if (footerText) {
       parts.push("");
       parts.push(MARKDOWN_TAGS.FOOTER);

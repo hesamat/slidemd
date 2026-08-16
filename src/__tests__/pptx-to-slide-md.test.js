@@ -3233,3 +3233,210 @@ describe("flex-row rendering", () => {
     expect(md).toContain("image22-0bac.jpeg");
   });
 });
+
+describe("convertToSlideMd table / image / footer edge cases", () => {
+  it("renders a merged table title row as a bold caption", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "table",
+            rows: [
+              [{ text: "Memory table", colSpan: 2 }, { text: "" }],
+              [{ text: "Address" }, { text: "Value" }],
+              [{ text: "4399779840" }, { text: "0" }],
+              [{ text: "4399779872" }, { text: "1" }],
+            ],
+            order: 5,
+            left: 1000000,
+            top: 1500000,
+            width: 6000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("**Memory table**");
+    expect(md).toContain("| Address | Value |");
+    expect(md).not.toContain("| Memory table |");
+  });
+
+  it("orders diagram shape texts in reading order", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "diagram",
+            content: "Step 3, Step 1, Step 2",
+            order: 5,
+            left: 1000000,
+            top: 2000000,
+            width: 3000000,
+            height: 1500000,
+            shapes: [
+              { type: "text", content: "Step 3", left: 100, top: 300 },
+              { type: "text", content: "Step 1", left: 100, top: 100 },
+              { type: "text", content: "Step 2", left: 100, top: 200 },
+            ],
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("[Diagram: Step 1, Step 2, Step 3]");
+  });
+
+  it("strips markdown markers from diagram shape texts", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "diagram",
+            content: "A, B",
+            order: 5,
+            left: 1000000,
+            top: 2000000,
+            width: 3000000,
+            height: 1500000,
+            shapes: [
+              { type: "text", content: "### Pair Programming", left: 100, top: 100 },
+              { type: "text", content: "***bold node***", left: 100, top: 200 },
+            ],
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("[Diagram: Pair Programming, bold node]");
+  });
+
+  it("adds on-light modifier for light-filled grid cells and keeps unfilled cells unmodified", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "table",
+            rows: [
+              [
+                { text: "A", fillColor: "#d9d9d9" },
+                { text: "B", fillColor: "#0f172a" },
+              ],
+              [
+                { text: "C", fillColor: "" },
+                { text: "D", fillColor: "#0f172a" },
+              ],
+            ],
+            order: 5,
+            left: 0,
+            top: 0,
+            width: 9000000,
+            height: 5000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain(
+      'class="fullpage-grid__cell fullpage-grid__cell--on-light" style="background:#d9d9d9"',
+    );
+    expect(md).toContain(
+      'fullpage-grid__cell fullpage-grid__cell--on-color" style="background:#0f172a"',
+    );
+    expect(md).toContain('class="fullpage-grid__cell" style="background:transparent"');
+  });
+
+  it("deduplicates identical footer texts", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Header",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "COMP 1510 202630",
+            placeholderType: "footer",
+            left: 0,
+            top: 0,
+            width: 1000,
+            height: 100,
+          },
+          {
+            type: "text",
+            content: "COMP 1510 202630",
+            placeholderType: "footer",
+            left: 0,
+            top: 0,
+            width: 1000,
+            height: 100,
+          },
+          { type: "text", content: "Header", left: 0, top: 0, width: 8000, height: 500 },
+          { type: "text", content: "Body text", left: 0, top: 1500, width: 8000, height: 1000 },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain("COMP 1510 202630 COMP 1510 202630");
+    expect(md.match(/COMP 1510 202630/g)?.length).toBe(1);
+  });
+
+  it("deduplicates identical repeated images within a slide", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "images/icon.png",
+            width: 600000,
+            height: 600000,
+            left: 100,
+            top: 100,
+            order: 1,
+          },
+          {
+            type: "image",
+            ref: "images/icon.png",
+            width: 600000,
+            height: 600000,
+            left: 200,
+            top: 200,
+            order: 2,
+          },
+          {
+            type: "image",
+            ref: "images/icon.png",
+            width: 600000,
+            height: 600000,
+            left: 300,
+            top: 300,
+            order: 3,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md.match(/images\/icon\.png/g)?.length).toBe(1);
+  });
+});

@@ -27,19 +27,21 @@ describe("isColorDark", () => {
     expect(isColorDark("#ffffff00")).toBe(false);
   });
 
-  it("returns false for non-hex strings without hex colors", () => {
+  it("returns false for non-hex strings without colors", () => {
     expect(isColorDark("red")).toBe(false);
-    expect(isColorDark("rgb(0,0,0)")).toBe(false);
     expect(isColorDark("transparent")).toBe(false);
   });
 
-  it("classifies gradients by the darkest color", () => {
-    // First stop is light, second is dark → should be dark
-    expect(isColorDark("linear-gradient(#96b23c 0%, #768c2f 97%)")).toBe(true);
+  it("classifies gradients by the dominant color", () => {
+    // First stop is light and dominates → should be light, even though the
+    // last stop is dark (a thin dark edge must not force a dark theme).
+    expect(isColorDark("linear-gradient(#96b23c 0%, #768c2f 97%)")).toBe(false);
     // Both stops are light → should be light
     expect(isColorDark("linear-gradient(#ffffff 0%, #f1f5f9 100%)")).toBe(false);
     // Both stops are dark → should be dark
     expect(isColorDark("linear-gradient(#0f172a, #1e293b)")).toBe(true);
+    // A mostly-dark gradient with a small light stop stays dark
+    expect(isColorDark("linear-gradient(#0f172a 0%, #1e293b 80%, #ffffff 100%)")).toBe(true);
   });
 
   it("classifies gradients with 3-digit hex stops", () => {
@@ -50,6 +52,12 @@ describe("isColorDark", () => {
   it("classifies mixed color+image backgrounds by the hex color", () => {
     expect(isColorDark("#0f172a url(images/hero.png) center/cover")).toBe(true);
     expect(isColorDark("#ffffff url(images/hero.png) center/cover")).toBe(false);
+  });
+
+  it("classifies rgb()/rgba() fills", () => {
+    expect(isColorDark("rgb(0,0,0)")).toBe(true);
+    expect(isColorDark("rgb(255,255,255)")).toBe(false);
+    expect(isColorDark("rgba(15, 23, 42, 0.8)")).toBe(true);
   });
 });
 

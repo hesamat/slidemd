@@ -228,9 +228,17 @@ export function formatTable(table, slideWidth, slideHeight) {
         // Strip HTML tags then escape to prevent XSS from entity-decoded content
         const text = escapeHtml(stripHtml(cell.text || "").trim());
         const bg = sanitizeCssColor(cell.fillColor);
+        // Cells with an explicit fill get a text color chosen for the fill so
+        // the grid stays readable on both light and dark slides. Unfilled
+        // cells inherit the slide's theme ink via CSS.
         const isDarkBg = isColorDark(bg);
+        const textClass = isDarkBg
+          ? " fullpage-grid__cell--on-color"
+          : bg !== "transparent"
+            ? " fullpage-grid__cell--on-light"
+            : "";
         cells.push(
-          `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${bg}">${text}</div>`,
+          `<div class="fullpage-grid__cell${textClass}" style="background:${bg}">${text}</div>`,
         );
       }
     }
@@ -244,9 +252,25 @@ export function formatTable(table, slideWidth, slideHeight) {
       .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
       .trim();
   const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
-  const separator = table.rows[0].map(() => "---").join(" | ");
-  const rows = table.rows.map(formatRow);
+
+  // A leading row with a single filled cell is a merged title row (e.g. the
+  // "Memory table" caption above a two-column value grid). Render it as a bold
+  // caption instead of a two-column row with an empty cell.
+  let startRow = 0;
+  let caption = "";
+  if (table.rows.length > 1) {
+    const firstRow = table.rows[0];
+    const filled = firstRow.filter((cell) => (cell.text || "").trim());
+    if (filled.length === 1 && firstRow.length > 1) {
+      caption = stripHtml(filled[0].text).trim();
+      startRow = 1;
+    }
+  }
+
+  const rows = table.rows.slice(startRow).map(formatRow);
+  const separator = table.rows[startRow].map(() => "---").join(" | ");
   const parts = [];
+  if (caption) parts.push(`**${escapeCell(caption)}**`);
   parts.push(`| ${rows[0]} |`);
   parts.push(`| ${separator} |`);
   for (let i = 1; i < rows.length; i++) {
@@ -282,14 +306,36 @@ export function formatChart(chart) {
 /**
  * Format a diagram element as a [Diagram: ...] marker.
  *
+ * The diagram's constituent shapes carry geometry, so when they are available
+ * the shape texts are emitted in reading order (top-to-bottom, then
+ * left-to-right) instead of pptxtojson's raw element order — a flow whose
+ * boxes were authored out of sequence otherwise reads in a jumbled order.
+ *
  * @param {object} diagram - Diagram element with content
  * @returns {string} Diagram marker or plain text
  */
 export function formatDiagram(diagram) {
   if (!diagram.content) return "";
 
-  const items = diagram.content
-    .split(", ")
+  // Prefer position-ordered shape texts; fall back to the raw comma-joined
+  // content for diagrams without shape geometry (synthetic fixtures, etc.).
+  // Shape content is markdown (headings, emphasis) — strip the markers so the
+  // diagram marker reads as plain node labels.
+  const cleanShapeText = (md) =>
+    (md || "")
+      .replace(/^#{1,3}\s+/gm, "")
+      .replace(/`/g, "")
+      .replace(/\*+/g, "")
+      .trim();
+  const shapeTexts = (diagram.shapes || [])
+    .filter((s) => s.type === "text" && s.content?.trim())
+    .sort((a, b) => a.top - b.top || a.left - b.left)
+    .map((s) => cleanShapeText(s.content))
+    .filter(Boolean);
+  const rawItems = shapeTexts.length > 0 ? shapeTexts : diagram.content.split(", ");
+
+  const items = rawItems
+    .flatMap((item) => item.split("\n"))
     .map((item) => item.trim())
     .filter(Boolean);
 

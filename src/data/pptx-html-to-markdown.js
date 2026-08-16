@@ -178,18 +178,89 @@ function getLargestFontSize(element) {
 
 /**
  * Check if all text content in a DOM element is monospace.
- * Returns true if every span with text has a monospace font-family.
+ * Returns true when the element contains at least one monospace span and every
+ * non-whitespace text node / span / inline child is monospace. A paragraph
+ * mixing prose with monospace runs is therefore not treated as code, while a
+ * code line with highlighted runs (all monospace) is.
  * @param {Element} element
  * @returns {boolean}
  */
 function isAllMonospace(element) {
-  const spans = element.querySelectorAll("span");
-  if (spans.length === 0) return false;
-  for (const span of spans) {
-    const style = span.getAttribute("style") || "";
-    if (!MONOSPACE_PATTERN.test(style)) return false;
+  let sawMono = false;
+  const check = (node) => {
+    if (node.nodeType === 3) {
+      // Plain text outside a span breaks the code-only property, but
+      // whitespace-only runs (e.g. blank spacer lines) are fine.
+      return node.textContent.trim() === "";
+    }
+    if (node.nodeType !== 1) return true;
+    if (node.tagName === "BR") return true;
+    if (node.tagName === "SPAN") {
+      const style = node.getAttribute("style") || "";
+      if (!MONOSPACE_PATTERN.test(style)) return false;
+      sawMono = true;
+      return true;
+    }
+    if (node.tagName === "A") return false;
+    for (const child of node.childNodes) {
+      if (!check(child)) return false;
+    }
+    return true;
+  };
+  for (const child of element.childNodes) {
+    if (!check(child)) return false;
   }
-  return true;
+  return sawMono;
+}
+
+/**
+ * Render a single line of code as inline code, using double-backtick
+ * delimiters when the text itself contains a backtick (so the span stays
+ * valid markdown).
+ * @param {string} text
+ * @returns {string}
+ */
+function renderInlineCode(text) {
+  return text.includes("`") ? "`` " + text + " ``" : "`" + text + "`";
+}
+
+/**
+ * Join the parts produced by processBlockNodes into markdown. Parts are plain
+ * strings (paragraphs, lists, headings) or `{ code: string }` objects emitted
+ * for all-monospace paragraphs. Consecutive code parts are grouped into a
+ * single fenced code block; a lone code part stays inline code unless it is
+ * long enough to warrant a fence.
+ * @param {Array<string | { code: string }>} parts
+ * @returns {string}
+ */
+function assembleOutput(parts) {
+  const out = [];
+  let fence = null;
+  const flushFence = () => {
+    if (!fence) return;
+    if (fence.length === 1) {
+      const line = fence[0];
+      if (line.length <= 80) {
+        out.push(renderInlineCode(line) + "\n\n");
+      } else {
+        out.push("```\n" + line + "\n```\n\n");
+      }
+    } else {
+      out.push("```\n" + fence.join("\n") + "\n```\n\n");
+    }
+    fence = null;
+  };
+  for (const part of parts) {
+    if (part && typeof part === "object" && typeof part.code === "string") {
+      if (!fence) fence = [];
+      fence.push(part.code);
+    } else {
+      flushFence();
+      out.push(part);
+    }
+  }
+  flushFence();
+  return out.join("");
 }
 
 /**
@@ -221,57 +292,8 @@ export function htmlToMarkdown(html) {
 
   const result = [];
   processBlockNodes(body.childNodes, result);
-  let md = result.join("");
+  let md = assembleOutput(result);
   md = md.replace(/\n{3,}/g, "\n\n");
-
-  // Group consecutive backtick-wrapped lines into fenced code blocks.
-  // Match any line that starts and ends with backtick (inline code),
-  // including lines with backticks inside (e.g., `id``(test_value)`).
-  const lines = md.split("\n");
-  const grouped = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const trimmedLine = line.trim();
-    const isBacktickLine = /^`.+`$/.test(trimmedLine);
-    if (isBacktickLine) {
-      const codeLines = [];
-      while (i < lines.length) {
-        const t = lines[i].trim();
-        if (/^`.+`$/.test(t)) {
-          // Preserve indentation by extracting content between backticks
-          // without trimming the original line.  Strip all leading/trailing
-          // backticks to handle both single and double backtick lines.
-          const content = lines[i].replace(/^\s*`+/, "").replace(/`+\s*$/, "");
-          codeLines.push(content);
-          i++;
-        } else if (t === "") {
-          // Allow single blank lines within code, but double-empty separates blocks
-          let lookahead = i + 1;
-          while (lookahead < lines.length && lines[lookahead].trim() === "") lookahead++;
-          if (lookahead - i >= 2) break;
-          i++;
-        } else {
-          break;
-        }
-      }
-      if (codeLines.length >= 2) {
-        grouped.push("```\n" + codeLines.join("\n") + "\n```");
-      } else if (codeLines.length === 1) {
-        // Long single backtick lines are likely code blocks that lost their
-        // newlines during PPTX extraction — convert to fenced code blocks.
-        if (codeLines[0].length > 80) {
-          grouped.push("```\n" + codeLines[0] + "\n```");
-        } else {
-          grouped.push(trimmedLine);
-        }
-      }
-    } else {
-      grouped.push(line);
-      i++;
-    }
-  }
-  md = grouped.join("\n");
 
   // Collapse duplicate whitespace (trailing spaces, tabs, nbsp runs) outside
   // fenced code blocks and backtick-wrapped inline code.
@@ -444,6 +466,23 @@ function processBlockNodes(nodes, out) {
     }
 
     if (tag === "P" || tag === "DIV") {
+      // A paragraph whose content is entirely monospace is code. Render it as
+      // a verbatim code line (no per-run inline-code markers, no bullet or
+      // marker rewriting) so highlighted multi-run code and leading indentation
+      // survive. Consecutive such paragraphs are grouped into a fenced block by
+      // assembleOutput. Mixed paragraphs (prose + inline code) fall through to
+      // the normal inline handling below.
+      const allMono = isAllMonospace(node);
+      if (allMono) {
+        const codeInline = [];
+        processInlineNodes(node.childNodes, codeInline, { code: true });
+        const codeLine = codeInline.join("").replace(/[ \t\u00a0]+$/, "");
+        if (codeLine) {
+          lastOutputWasBullet = false;
+          out.push({ code: codeLine });
+        }
+        continue;
+      }
       const inline = [];
       processInlineNodes(node.childNodes, inline);
       // Turn literal bullet glyphs into markdown bullets, and skip paragraphs
@@ -458,48 +497,40 @@ function processBlockNodes(nodes, out) {
       const trimmed = merged.trim();
       const isResidue = isMarkerOnly(trimmed) && !isDivider;
       if (trimmed && !isResidue) {
-        // Skip heading detection if all content is monospace code —
-        // these paragraphs should be treated as code, not headings.
-        const allMono = isAllMonospace(node);
-        if (allMono) {
+        // Detect headings by font size — use band-specific heading level
+        // but only if the text is short enough to be a heading. This must
+        // run on the *un-escaped* text, because # literals below are
+        // escaped and would otherwise leak a backslash into the heading.
+        const fontSize = getLargestFontSize(node);
+        const headingBand = HEADING_BANDS.find((b) => fontSize >= b.min);
+        if (headingBand && !isBulletLine(trimmed) && trimmed.length <= 80) {
           lastOutputWasBullet = false;
-          out.push(merged + "\n\n");
-        } else {
-          // Detect headings by font size — use band-specific heading level
-          // but only if the text is short enough to be a heading. This must
-          // run on the *un-escaped* text, because # literals below are
-          // escaped and would otherwise leak a backslash into the heading.
-          const fontSize = getLargestFontSize(node);
-          const headingBand = HEADING_BANDS.find((b) => fontSize >= b.min);
-          if (headingBand && !isBulletLine(trimmed) && trimmed.length <= 80) {
-            lastOutputWasBullet = false;
-            out.push(`${headingBand.prefix}${trimmed}\n\n`);
-            continue;
-          }
-          // Escape # at start of lines so PPTX text like "# Print using..."
-          // is preserved as literal text. Skip lines inside fenced code blocks
-          // and lines starting with backticks (inline code).
-          const lines = merged.split("\n");
-          let inCodeBlock = false;
-          merged = lines
-            .map((line) => {
-              const t = line.trim();
-              if (t === "```") {
-                inCodeBlock = !inCodeBlock;
-                return line;
-              }
-              if (inCodeBlock || /^`/.test(t)) return line;
-              return line.replace(/^#/gm, "\\#");
-            })
-            .join("\n");
-          const isGlyphBullet = isBulletLine(trimmed) && !isDivider;
-          // Consecutive glyph-bullet paragraphs must form a tight list: drop
-          // the previous bullet's trailing blank line so markdown-it does not
-          // wrap every item in <p> like real PowerPoint bullets would.
-          if (isGlyphBullet) tightenPreviousBullet(out, lastOutputWasBullet);
-          out.push(merged + "\n\n");
-          lastOutputWasBullet = isGlyphBullet;
+          out.push(`${headingBand.prefix}${trimmed}\n\n`);
+          continue;
         }
+        // Escape # at start of lines so PPTX text like "# Print using..."
+        // is preserved as literal text. Skip lines inside fenced code blocks
+        // and lines starting with backticks (inline code).
+        const lines = merged.split("\n");
+        let inCodeBlock = false;
+        merged = lines
+          .map((line) => {
+            const t = line.trim();
+            if (t === "```") {
+              inCodeBlock = !inCodeBlock;
+              return line;
+            }
+            if (inCodeBlock || /^`/.test(t)) return line;
+            return line.replace(/^#/gm, "\\#");
+          })
+          .join("\n");
+        const isGlyphBullet = isBulletLine(trimmed) && !isDivider;
+        // Consecutive glyph-bullet paragraphs must form a tight list: drop
+        // the previous bullet's trailing blank line so markdown-it does not
+        // wrap every item in <p> like real PowerPoint bullets would.
+        if (isGlyphBullet) tightenPreviousBullet(out, lastOutputWasBullet);
+        out.push(merged + "\n\n");
+        lastOutputWasBullet = isGlyphBullet;
       }
       continue;
     }
@@ -619,8 +650,11 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
  * Process inline-level nodes, accumulating markdown text.
  * @param {NodeList} nodes
  * @param {string[]} out
+ * @param {{ code?: boolean }} [opts] — When `code` is true, run text is
+ *   preserved verbatim (no inline-code markers, no bold/italic emphasis) so
+ *   all-monospace code paragraphs keep their exact text and indentation.
  */
-function processInlineNodes(nodes, out) {
+function processInlineNodes(nodes, out, opts = {}) {
   for (const node of nodes) {
     if (node.nodeType === 3) {
       out.push(node.textContent.replace(/\u00a0/g, " "));
@@ -629,6 +663,17 @@ function processInlineNodes(nodes, out) {
     if (node.nodeType !== 1) continue;
 
     const tag = node.tagName;
+
+    if (opts.code) {
+      // Code mode: span and emphasis tags carry no meaning in code — keep
+      // their raw text (including whitespace-only runs and indentation).
+      if (tag === "SPAN" || tag === "STRONG" || tag === "B" || tag === "EM" || tag === "I") {
+        const inner = [];
+        processInlineNodes(node.childNodes, inner, opts);
+        out.push(inner.join(""));
+        continue;
+      }
+    }
 
     if (tag === "STRONG" || tag === "B") {
       const inner = [];
@@ -741,6 +786,11 @@ function mergeAdjacentMarkers(text) {
   let s = text;
   for (let i = 0; i < 10; i++) {
     const prev = s;
+    // Adjacent emphasis spans with no separator ("*a**b*") render
+    // ambiguously in markdown — insert a space so markdown-it sees two valid
+    // emphasis spans. The leading lookbehind keeps this from firing inside a
+    // bold run ("**bold** …"), whose closing half is also `*text**`.
+    s = s.replace(/(?<!\*)\*([^*]+)\*\*(?!\*)([^*]+)\*/g, "*$1* *$2*");
     s = s.replace(/\*\*\*([^*]+?)\*\*\*(\s*)\*\*\*(?!\*)/g, "***$1$2");
     if (s === prev) break;
   }

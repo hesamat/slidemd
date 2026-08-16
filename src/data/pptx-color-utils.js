@@ -88,6 +88,13 @@ function normalizeHex(hex) {
  * Also handles mixed values like `#0f172a url(images/hero.png) center/cover`
  * by extracting the first hex color.
  *
+ * For CSS gradient strings with explicit stop positions (e.g. the
+ * `linear-gradient(#96b23c 0%, #7e9632 69%, …)` backgrounds the PPTX
+ * extractor emits), the DOMINANT colour decides darkness — a mostly-light
+ * gradient must not force a dark theme just because its darkest stop is dark.
+ * Stop luminance is weighted by the distance to the next stop, so a thin dark
+ * edge at the end does not flip the result.
+ *
  * @param {string} colorHex - Hex color, CSS gradient, or mixed background string
  * @returns {boolean}
  */
@@ -98,7 +105,48 @@ export function isColorDark(colorHex) {
   // For solid colors this yields one match; for gradients and mixed
   // values (e.g. `#0f172a url(...) center/cover`) it yields all hex colors.
   const matches = String(colorHex).match(/#[0-9a-fA-F]{8}\b|#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g);
-  if (!matches) return false;
+  if (!matches) {
+    // No hex colors — a pure rgb()/rgba() fill can still be judged.
+    const rgbMatch = String(colorHex).match(
+      /rgba?\(\s*(\d{1,3})\s*[,/]\s*(\d{1,3})\s*[,/]\s*(\d{1,3})/i,
+    );
+    if (rgbMatch) {
+      const lum =
+        (Number(rgbMatch[1]) * LUMINANCE.RED_COEFF +
+          Number(rgbMatch[2]) * LUMINANCE.GREEN_COEFF +
+          Number(rgbMatch[3]) * LUMINANCE.BLUE_COEFF) /
+        LUMINANCE.SCALE_DIVISOR;
+      return lum < LUMINANCE.DARK_THRESHOLD;
+    }
+    return false;
+  }
+
+  // Gradient stops carry an explicit percentage position. When present, judge
+  // by the position-weighted average luminance instead of the darkest stop.
+  const stopRe = /#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b(?:\s+(\d+(?:\.\d+)?)%)?/g;
+  const stops = [];
+  let stopMatch;
+  while ((stopMatch = stopRe.exec(String(colorHex))) !== null) {
+    const h = normalizeHex(`#${stopMatch[1]}`);
+    if (!h) continue;
+    const lum = hexToLuminance(h);
+    if (lum === Infinity) continue;
+    stops.push({ lum, pos: stopMatch[2] != null ? parseFloat(stopMatch[2]) : null });
+  }
+  const gradientStops = stops.filter((s) => s.pos != null).sort((a, b) => a.pos - b.pos);
+  if (gradientStops.length >= 2) {
+    let weighted = 0;
+    let totalWeight = 0;
+    for (let i = 0; i < gradientStops.length - 1; i++) {
+      const gap = gradientStops[i + 1].pos - gradientStops[i].pos;
+      if (gap <= 0) continue;
+      weighted += gradientStops[i].lum * gap;
+      totalWeight += gap;
+    }
+    if (totalWeight > 0) {
+      return weighted / totalWeight < LUMINANCE.DARK_THRESHOLD;
+    }
+  }
 
   let darkestLum = Infinity;
   for (const m of matches) {
@@ -107,5 +155,8 @@ export function isColorDark(colorHex) {
     const lum = hexToLuminance(h);
     if (lum < darkestLum) darkestLum = lum;
   }
-  return darkestLum < LUMINANCE.DARK_THRESHOLD;
+  if (darkestLum !== Infinity) {
+    return darkestLum < LUMINANCE.DARK_THRESHOLD;
+  }
+  return false;
 }

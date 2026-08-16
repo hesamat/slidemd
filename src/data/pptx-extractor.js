@@ -138,6 +138,10 @@ export class PptxExtractor {
       orderedRawSlides = orderedRawSlides.slice(0, limit);
     }
 
+    // Text-box paragraph data (with <a:br/> breaks) keyed by slide file number,
+    // used to restore line breaks that pptxtojson drops.
+    const xmlTexts = await this.#extractSlideXmlTexts(buffer);
+
     // Build a fallback fileNum→index map for the OL start value lookup when
     // #extractSlideOrder returned null. This keeps the olKey consistent: the
     // OL start values are keyed by file number minus one, not array position,
@@ -163,7 +167,16 @@ export class PptxExtractor {
       const olKey = slideOrderInfo
         ? slideOrderInfo.order[index] - 1
         : (fallbackFileNums?.[index] ?? index + 1) - 1;
-      return this.#processSlide(slide, index, images, olStartValues.get(olKey) || []);
+      const fileNum = slideOrderInfo
+        ? slideOrderInfo.order[index]
+        : (fallbackFileNums?.[index] ?? index + 1);
+      return this.#processSlide(
+        slide,
+        index,
+        images,
+        olStartValues.get(olKey) || [],
+        xmlTexts.get(fileNum) || null,
+      );
     });
 
     // Convert EMF/WMF images to PNG
@@ -207,15 +220,28 @@ export class PptxExtractor {
   }
 
   /**
+   * Test-only wrapper for the private #injectBrBreaks method.
+   * @static
+   * @param {string} html
+   * @param {Array<{flatText: string, paragraphs: Array<{xmlWithBreaks: string, hasBreak: boolean}>}>} [textBoxes]
+   * @returns {string}
+   */
+  static injectBrBreaksForTest(html, textBoxes) {
+    return this.#injectBrBreaks(html, textBoxes);
+  }
+
+  /**
    * Process a single raw pptxtojson slide into an ExtractedSlide.
    * @static
    * @param {Object} slide
    * @param {number} index
    * @param {ExtractedImage[]} imagesAccum
    * @param {number[]} [olStartValues] - Ordered list start values for this slide.
+   * @param {Array<{flatText: string, paragraphs: Array<{xmlWithBreaks: string, hasBreak: boolean}>}>} [slideXmlTexts]
+   *   XML text-box data for this slide (from #extractSlideXmlTexts).
    * @returns {ExtractedSlide}
    */
-  static #processSlide(slide, index, imagesAccum, olStartValues = []) {
+  static #processSlide(slide, index, imagesAccum, olStartValues = [], slideXmlTexts = null) {
     // Process layout elements first (backgrounds, placeholders), then content
     const raw = [];
     // Track which start values have been consumed so each <ol> gets the right one.
@@ -225,6 +251,7 @@ export class PptxExtractor {
       if (el.type === "image") continue;
       const extracted = this.#processElement(el, index, imagesAccum, olStartValues, {
         startIdxRef: { value: startIdx },
+        slideXmlTexts,
       });
       if (extracted) {
         // Update startIdx from the mutable ref after processing.
@@ -236,6 +263,7 @@ export class PptxExtractor {
     for (const el of slide.elements || []) {
       const extracted = this.#processElement(el, index, imagesAccum, olStartValues, {
         startIdxRef: { value: startIdx },
+        slideXmlTexts,
       });
       if (extracted) {
         startIdx = extracted._startIdx ?? startIdx;
@@ -455,6 +483,9 @@ export class PptxExtractor {
 
     if (el.type === "text" || el.type === "shape") {
       let html = el.content || "";
+      // Reinsert <a:br/> line breaks that pptxtojson drops (code boxes typed
+      // with Shift+Enter collapse into one merged paragraph otherwise).
+      html = this.#injectBrBreaks(html, opts?.slideXmlTexts);
       // Inject <ol start="X"> attributes from raw PPTX XML.
       // pptxtojson drops the start attribute, so we reconstruct it here.
       if (html.includes("<ol") && olStartValues.length > 0 && opts?.startIdxRef) {
@@ -886,6 +917,164 @@ export class PptxExtractor {
       if (startVal <= 1) return fullMatch;
       return `<ol start="${startVal}"${attrs || ""}>`;
     });
+  }
+
+  /**
+   * Extract text-box paragraph data from the raw slide XML. pptxtojson drops
+   * `<a:br/>` line breaks (a code box typed with Shift+Enter collapses into
+   * one merged paragraph), so the breaks are reconstructed here.
+   *
+   * @static
+   * @param {ArrayBuffer} buffer - PPTX file buffer.
+   * @returns {Promise<Map<number, Array<{flatText: string, paragraphs: Array<{xmlWithBreaks: string, hasBreak: boolean}>}>>>}
+   *   Keyed by 1-based slide file number. Each text box records the flat text
+   *   (breaks removed, matching what pptxtojson produces) and per-paragraph
+   *   text with `\n` substituted at every `<a:br/>`.
+   */
+  static async #extractSlideXmlTexts(buffer) {
+    const map = new Map();
+    try {
+      const zip = await JSZip.loadAsync(buffer);
+      const slideFiles = Object.keys(zip.files).filter(
+        (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir,
+      );
+      slideFiles.sort((a, b) => {
+        const na = Number(a.match(/slide(\d+)\.xml/)[1]);
+        const nb = Number(b.match(/slide(\d+)\.xml/)[1]);
+        return na - nb;
+      });
+
+      for (const slideFile of slideFiles) {
+        const fileNum = Number(slideFile.match(/slide(\d+)\.xml/)[1]);
+        const xml = await zip.files[slideFile].async("text");
+        const textBoxes = [];
+        for (const spMatch of xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/gi)) {
+          const sp = spMatch[0];
+          const txBody = sp.match(/<p:txBody>[\s\S]*?<\/p:txBody>/i);
+          if (!txBody) continue;
+          const paragraphs = [];
+          let flat = "";
+          for (const pMatch of txBody[0].matchAll(/<a:p>[\s\S]*?<\/a:p>/gi)) {
+            const p = pMatch[0];
+            let paraText = "";
+            let hasBreak = false;
+            for (const seg of p.matchAll(/<a:r>[\s\S]*?<\/a:r>|<a:br(?:\s[^>]*)?>/gi)) {
+              if (seg[0].startsWith("<a:br")) {
+                paraText += "\n";
+                hasBreak = true;
+              } else {
+                const t = seg[0].match(/<a:t[^>]*>([\s\S]*?)<\/a:t>/i);
+                if (t) paraText += PptxExtractor.#decodeXmlText(t[1]);
+              }
+            }
+            flat += paraText.replace(/\n/g, "");
+            paragraphs.push({ xmlWithBreaks: paraText, hasBreak });
+          }
+          if (flat) {
+            textBoxes.push({ flatText: flat, paragraphs });
+          }
+        }
+        if (textBoxes.length > 0) {
+          map.set(fileNum, textBoxes);
+        }
+      }
+    } catch {
+      // Corrupted ZIP or unreadable XML — leave the map empty and fall back
+      // to pptxtojson's merged line breaks.
+    }
+    return map;
+  }
+
+  /**
+   * Decode XML character references in a run's text so it can be compared with
+   * pptxtojson's HTML output (which decodes entities).
+   * @static
+   * @param {string} text - Raw `<a:t>` content.
+   * @returns {string}
+   */
+  static #decodeXmlText(text) {
+    return (text || "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, "&")
+      .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(Number(code)))
+      .replace(/&#x([0-9a-fA-F]+);/g, (_m, code) => String.fromCodePoint(parseInt(code, 16)));
+  }
+
+  /**
+   * Reinsert `<a:br/>` line breaks that pptxtojson dropped (it flattens them
+   * into spaces), working from the raw XML paragraph text. Matches the
+   * element's HTML to an XML text box by whitespace-stripped flat text (unique
+   * match required); matching paragraphs are rebuilt from the XML text with
+   * `<br>` at every break. On any mismatch the HTML is returned untouched (no
+   * worse than today).
+   *
+   * @static
+   * @param {string} html - HTML content from pptxtojson.
+   * @param {Array<{flatText: string, paragraphs: Array<{xmlWithBreaks: string, hasBreak: boolean}>}>} [textBoxes]
+   *   XML text-box data for this slide (from #extractSlideXmlTexts).
+   * @returns {string} HTML with <br> breaks reinserted.
+   */
+  static #injectBrBreaks(html, textBoxes) {
+    if (!html || !textBoxes?.length) return html;
+
+    let doc;
+    try {
+      doc = new DOMParser().parseFromString(html, "text/html");
+    } catch {
+      return html;
+    }
+    const stripAll = (s) => (s || "").replace(/[\u00a0\s]/g, "");
+    const flat = stripAll(doc.body.textContent || "");
+    if (!flat) return html;
+
+    const candidates = textBoxes.filter((tb) => stripAll(tb.flatText) === flat);
+    if (candidates.length !== 1) return html;
+    const textBox = candidates[0];
+    if (!textBox.paragraphs.some((p) => p.hasBreak)) return html;
+
+    const ps = Array.from(doc.body.querySelectorAll("p"));
+    if (ps.length !== textBox.paragraphs.length) return html;
+
+    let changed = false;
+    for (let i = 0; i < ps.length; i++) {
+      const para = textBox.paragraphs[i];
+      if (!para.hasBreak) continue;
+      if (stripAll(ps[i].textContent || "") !== stripAll(para.xmlWithBreaks)) continue;
+      PptxExtractor.#rebuildParagraphWithBreaks(ps[i], para.xmlWithBreaks);
+      changed = true;
+    }
+    return changed ? doc.body.innerHTML : html;
+  }
+
+  /**
+   * Rebuild a paragraph's content from the XML text, inserting `<br>` at every
+   * `\n` (which corresponds to an `<a:br/>` in the source). The first span's
+   * style is preserved so code keeps its font. Text is inserted via text nodes,
+   * never as unescaped HTML.
+   * @static
+   * @param {HTMLElement} p - A `<p>` element parsed from the pptxtojson HTML.
+   * @param {string} xmlWithBreaks - XML paragraph text with `\n` at breaks.
+   * @returns {void}
+   */
+  static #rebuildParagraphWithBreaks(p, xmlWithBreaks) {
+    const doc = p.ownerDocument;
+    let spanStyle = "";
+    const firstSpan = p.querySelector("span");
+    if (firstSpan) {
+      spanStyle = firstSpan.getAttribute("style") || "";
+    }
+    const span = doc.createElement("span");
+    if (spanStyle) span.setAttribute("style", spanStyle);
+    const lines = xmlWithBreaks.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (i > 0) span.appendChild(doc.createElement("br"));
+      span.appendChild(doc.createTextNode(lines[i].replace(/\u00a0/g, " ")));
+    }
+    p.textContent = "";
+    p.appendChild(span);
   }
 
   /**

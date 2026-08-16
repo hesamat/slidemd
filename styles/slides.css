@@ -1225,9 +1225,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 /* When a cell has a colored fill, switch to high-contrast text.
-   The converter adds this modifier for dark fills. */
+   The converter adds these modifiers based on the fill's luminance:
+   dark fills get white text, light fills get dark text. */
 .slide__area .fullpage-grid__cell--on-color {
   color: #fff;
+}
+
+.slide__area .fullpage-grid__cell--on-light {
+  color: var(--slide-ink-light);
 }
 
 /* ==========================================================================

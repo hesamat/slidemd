@@ -168,6 +168,20 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("**a b**");
   });
 
+  it("repairs adjacent emphasis spans instead of leaking a stray **", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      "<p>We <i>eschew</i><i> global variables</i> in favour</p>",
+    );
+    expect(result).toContain("We *eschew global variables* in favour");
+    expect(result).not.toContain("** global");
+    expect(result).not.toContain("*eschew**");
+  });
+
+  it("does not merge bold runs into one giant bold span", () => {
+    const result = PptxExtractor.htmlToMarkdown("<p>Use <b>in</b> and <b>not in</b> operators</p>");
+    expect(result).toContain("**in** and **not in**");
+  });
+
   it("handles span with font-weight bold style", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="font-weight: bold">hello</span></p>',
@@ -870,5 +884,85 @@ describe("PptxExtractor top-level diagram detection", () => {
     const elements = [oval("A", 0, 0, 50, 50), oval("B", 500, 500, 50, 50)];
     const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
     expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
+  });
+});
+
+describe("PptxExtractor code extraction", () => {
+  it("preserves indentation from whitespace-only monospace spans", () => {
+    const html =
+      '<p><span style="font-family: Consolas;">&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="font-family: Consolas;">global x</span></p>' +
+      '<p><span style="font-family: Consolas;">&nbsp;&nbsp;&nbsp;&nbsp;name = input()</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("```\n    global x\n    name = input()\n```");
+  });
+
+  it("keeps highlighted multi-run code clean (no backtick residue)", () => {
+    const html =
+      '<p><span style="font-family: Consolas; color:#C00000;">student_name </span><span style="font-family: Consolas; color:#FFFFFF;">= \'N/A\'</span></p>' +
+      '<p><span style="font-family: Consolas;">def get_name():</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("```\nstudent_name = 'N/A'\ndef get_name():\n```");
+    expect(result).not.toContain("`` =");
+    expect(result).not.toContain("student_name ``");
+  });
+
+  it("does not treat prose with monospace runs as a code block", () => {
+    const html =
+      '<p>Use <span style="font-family: Consolas;">a</span>    <span style="font-family: Consolas;">b</span> here</p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("`a` `b`");
+    expect(result).not.toContain("```");
+  });
+
+  it("groups a br-containing code paragraph into one fence", () => {
+    const html =
+      '<p><span style="font-family: Consolas;">def divide(dividend, divisor):<br>    return dividend / divisor<br>quotient = divide(1, 2)</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain(
+      "```\ndef divide(dividend, divisor):\n    return dividend / divisor\nquotient = divide(1, 2)\n```",
+    );
+  });
+});
+
+describe("PptxExtractor <a:br/> reconstruction", () => {
+  it("reinserts line breaks that pptxtojson flattens into spaces", () => {
+    const html =
+      '<p style="text-align:left;"><span style="font-family: Consolas;">def divide(dividend, divisor):    return dividend / divisor   quotient = divide(1, 2) print(result)</span></p>';
+    const textBoxes = [
+      {
+        flatText:
+          "def divide(dividend, divisor):    return dividend / divisor   quotient = divide(1, 2) print(result)",
+        paragraphs: [
+          {
+            xmlWithBreaks:
+              "def divide(dividend, divisor):\n    return dividend / divisor\nquotient = divide(1, 2)\nprint(result)",
+            hasBreak: true,
+          },
+        ],
+      },
+    ];
+    const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
+    expect(injected).toContain("<br>");
+    const md = PptxExtractor.htmlToMarkdown(injected);
+    expect(md).toContain(
+      "```\ndef divide(dividend, divisor):\n    return dividend / divisor\nquotient = divide(1, 2)\nprint(result)\n```",
+    );
+  });
+
+  it("leaves HTML untouched when the XML text box does not match", () => {
+    const html = '<p><span style="font-family: Consolas;">unrelated code</span></p>';
+    const textBoxes = [
+      {
+        flatText: "def divide(dividend, divisor):    return dividend / divisor",
+        paragraphs: [
+          {
+            xmlWithBreaks: "def divide(dividend, divisor):\n    return dividend / divisor",
+            hasBreak: true,
+          },
+        ],
+      },
+    ];
+    const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
+    expect(injected).toBe(html);
   });
 });
