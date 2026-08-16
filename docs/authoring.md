@@ -33,6 +33,7 @@ Directives go at the top of each slide, before any `@area` markers.
 | `layout:`           | Layout preset or custom grid  | `layout: two-column`     |
 | `theme:`            | Slide color scheme            | `theme: dark`            |
 | `background:`       | Full-slide background         | `background: #1a1a2e`    |
+| `area-bg-<name>:`   | Background for one area       | `area-bg-media: #1e293b` |
 | `hidden:`           | Skip slide in presentation    | `hidden: true`           |
 | `media-full-bleed:` | Media area touches slide edge | `media-full-bleed: true` |
 
@@ -47,6 +48,35 @@ background: url(https://example.com/hero.png)
 ```
 
 Combine with `theme: dark` for overlay effects on image backgrounds.
+
+Image backgrounds support sizing, positioning, and repetition in the CSS
+shorthand:
+
+```yaml
+background: url(images/hero.png) top left / contain repeat-x
+background: url(images/hero.png) center / 100% 100% no-repeat # fit
+```
+
+The editor's Slide Styles panel (Insert → Slide Styles) exposes Cover /
+Contain / Fit / Auto, a 9-point position grid, and Repeat options, and
+persists the result into the `background:` value. `fit` maps to `100% 100%`.
+
+### Per-Area Backgrounds
+
+Set a background on a single layout area (e.g. one column) without affecting
+the rest of the slide:
+
+```yaml
+layout: two-column
+background: #0d1117
+area-bg-main: #1e293b
+area-bg-media: url(images/screenshot.png) center / cover no-repeat
+```
+
+`area-bg-<name>:` uses the same value syntax as `background:` (colors,
+gradients, or image URLs with size/position/repeat). The `<name>` must match
+an area in the layout. Use it sparingly — typically to give one column a
+distinct color or image background while the slide background covers the rest.
 
 ### Media Full-Bleed
 
