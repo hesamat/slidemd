@@ -286,8 +286,13 @@ export class SlidePreviewUpdater {
             }
 
             if (newGlobal) SlideRenderer._applyAreaStyle(areaEl, newGlobal);
-            if (newPerArea) SlideRenderer._applyAreaStyle(areaEl, newPerArea);
-            areaEl.dataset.appliedAreaStyle = [newGlobal, newPerArea].filter(Boolean).join("; ");
+            if (newPerArea) areaEl.style.setProperty("background", newPerArea);
+            areaEl.dataset.appliedAreaStyle = [
+              newGlobal,
+              newPerArea && `background: ${newPerArea}`,
+            ]
+              .filter(Boolean)
+              .join("; ");
 
             // Build a temporary off-screen container with the new HTML
             const temp = document.createElement("div");

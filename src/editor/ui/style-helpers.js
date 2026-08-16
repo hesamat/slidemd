@@ -204,22 +204,9 @@ export function buildSwatchHtml() {
  * preview.  The size/position controls are only relevant for image
  * backgrounds; callers toggle their visibility via syncBgState.
  */
-export function buildBackgroundPanelHtml() {
-  return `
-    <div class="style-inline-section">
-      <div class="style-color-row">
-        <span class="style-label">Color</span>
-        <div class="style-swatch-grid">${buildSwatchHtml()}</div>
-      </div>
-    </div>
-    <div class="style-hex-row" style="display:none">
-      <input type="text" class="style-hex-input" data-field="bg-hex" spellcheck="false" placeholder="#000000" maxlength="7" />
-    </div>
-    <div class="style-opacity-row" style="display:none">
-      <span class="style-label">Transparency</span>
-      <input type="range" class="style-range" data-field="bg-opacity" min="0" max="100" value="0" />
-      <span class="style-control-value" data-display="bg-opacity">0%</span>
-    </div>
+export function buildBackgroundPanelHtml({ image = true } = {}) {
+  const imageSection = image
+    ? `
     <div class="style-inline-section">
       <div class="style-image-row">
         <span class="style-image-label">Image</span>
@@ -255,7 +242,23 @@ export function buildBackgroundPanelHtml() {
           <button class="style-btn-option" data-bg-position="bottom right" type="button">↘</button>
         </div>
       </div>
+    </div>`
+    : "";
+  return `
+    <div class="style-inline-section">
+      <div class="style-color-row">
+        <span class="style-label">Color</span>
+        <div class="style-swatch-grid">${buildSwatchHtml()}</div>
+      </div>
     </div>
+    <div class="style-hex-row" style="display:none">
+      <input type="text" class="style-hex-input" data-field="bg-hex" spellcheck="false" placeholder="#000000" maxlength="7" />
+    </div>
+    <div class="style-opacity-row" style="display:none">
+      <span class="style-label">Transparency</span>
+      <input type="range" class="style-range" data-field="bg-opacity" min="0" max="100" value="0" />
+      <span class="style-control-value" data-display="bg-opacity">0%</span>
+    </div>${imageSection}
     <div class="style-inline-section">
       <span class="style-label">Preview</span>
       <div class="style-bg-preview"></div>
@@ -415,6 +418,54 @@ export function syncBgState(rootEl, state) {
 }
 
 /**
+ * Split a string on top-level commas, respecting nested parentheses and
+ * quoted strings.  Used by parseBackgroundValue to separate CSS background
+ * layers (e.g. "linear-gradient(...), url(...) center / cover no-repeat").
+ * @param {string} text
+ * @returns {string[]}
+ */
+function splitTopLevelCommas(text) {
+  const parts = [];
+  let current = "";
+  let parenDepth = 0;
+  let inString = false;
+  let stringChar = null;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      current += ch;
+      if (ch === "\\" && i + 1 < text.length) {
+        current += text[++i];
+      } else if (ch === stringChar) {
+        inString = false;
+        stringChar = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = true;
+      stringChar = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === "(") {
+      parenDepth++;
+    } else if (ch === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+    }
+    if (ch === "," && parenDepth === 0) {
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+/**
  * Parse image background from a raw background CSS value.
  *
  * Extracts the image path, dark-overlay opacity, and background-size /
@@ -441,15 +492,19 @@ export function parseBackgroundValue(rawBg) {
     const overlayMatch = text.match(/rgba\(0,0,0,([\d.]+)\)/);
     const overlay = overlayMatch ? Math.round(parseFloat(overlayMatch[1]) * 100) : 0;
 
-    // The image layer is the part after the overlay gradient (if any).
-    // It uses the CSS background shorthand: url(...) position / size repeat
-    const imageLayer = text.split(/,\s*(?![^()]*\))/).pop() || text;
+    // Split on top-level commas (respecting nested parens and strings) to
+    // separate the overlay gradient from the image layer.
+    // buildImageBackground writes: "gradient, url(...) pos / size repeat"
+    // but older decks may have the layers in reverse order, so find the
+    // layer that contains url(...).
+    const layers = splitTopLevelCommas(text);
+    const imageLayer = layers.find((l) => /url\(/i.test(l)) || layers[layers.length - 1] || text;
 
     // Position and size are separated by ` / ` in the shorthand.
     // Position can be 1–2 words (center, top left, …).
     const afterUrl = imageLayer.replace(/url\([^)]+\)\s*/, "").trim();
     const slashIdx = afterUrl.indexOf("/");
-    let position = "center";
+    let position;
     let sizeRepeat = "";
     if (slashIdx >= 0) {
       position = afterUrl.slice(0, slashIdx).trim() || "center";

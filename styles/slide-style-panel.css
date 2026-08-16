@@ -109,12 +109,6 @@
   padding: 0;
 }
 
-/* The modal is wider than the area popover, so the background preview
-   gets a taller aspect ratio here for a clearer visual. */
-.slide-style-panel-modal__body .style-bg-preview {
-  height: 140px;
-}
-
 .slide-style-panel-modal__tab-panel {
   display: none;
   padding: 18px 20px;

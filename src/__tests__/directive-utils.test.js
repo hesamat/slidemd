@@ -5,8 +5,8 @@ import {
   updateBackgroundDirective,
   updateThemeDirective,
   updateAreaStyleDirective,
-  updateAreaStyleForAreaDirective,
-  removeAreaStylePropertyForAreaDirective,
+  updateAreaBgForAreaDirective,
+  removeAreaBgForAreaDirective,
   updateHeaderStyleDirective,
   removeAreaFromLayout,
   describeBackground,
@@ -360,76 +360,47 @@ describe("updateAreaStyleDirective", () => {
   });
 });
 
-describe("updateAreaStyleForAreaDirective", () => {
+describe("updateAreaBgForAreaDirective", () => {
   it("inserts a new per-area directive when none exists", () => {
     const md = "# Hello\n@main\ncontent";
-    const result = updateAreaStyleForAreaDirective(md, "media", "background: #f1f5f9");
-    expect(result).toMatch(/^area-style-media: background: #f1f5f9\n/);
+    const result = updateAreaBgForAreaDirective(md, "media", "#f1f5f9");
+    expect(result).toMatch(/^area-bg-media: #f1f5f9\n/);
     expect(result).toContain("# Hello");
   });
 
-  it("merges new declarations into an existing per-area value", () => {
-    const md = "area-style-media: border: 1px solid red\n# Hello";
-    const result = updateAreaStyleForAreaDirective(md, "media", "background: #f1f5f9");
-    expect(result).toMatch(/^area-style-media: /);
-    expect(result).toContain("border: 1px solid red");
-    expect(result).toContain("background: #f1f5f9");
-  });
-
-  it("overrides an existing property with the new value", () => {
-    const md = "area-style-media: background: #ffffff\n# Hello";
-    const result = updateAreaStyleForAreaDirective(md, "media", "background: #f1f5f9");
-    expect(result).toMatch(/^area-style-media: background: #f1f5f9\n/);
+  it("replaces an existing per-area background value", () => {
+    const md = "area-bg-media: #ffffff\n# Hello";
+    const result = updateAreaBgForAreaDirective(md, "media", "#f1f5f9");
+    expect(result).toMatch(/^area-bg-media: #f1f5f9\n/);
     expect(result).not.toContain("#ffffff");
   });
 
-  it("removes the directive entirely when cssText is empty", () => {
-    const md = "area-style-media: background: #f1f5f9\n# Hello";
-    const result = updateAreaStyleForAreaDirective(md, "media", "");
-    expect(result).not.toContain("area-style-media:");
+  it("removes the directive entirely when bgValue is empty", () => {
+    const md = "area-bg-media: #f1f5f9\n# Hello";
+    const result = updateAreaBgForAreaDirective(md, "media", "");
+    expect(result).not.toContain("area-bg-media:");
     expect(result).toContain("# Hello");
   });
 
   it("normalizes the area name to lowercase in the directive key", () => {
     const md = "# Hello";
-    const result = updateAreaStyleForAreaDirective(md, "Media", "background: #f1f5f9");
-    expect(result).toMatch(/^area-style-media: /);
+    const result = updateAreaBgForAreaDirective(md, "Media", "#f1f5f9");
+    expect(result).toMatch(/^area-bg-media: /);
   });
 });
 
-describe("removeAreaStylePropertyForAreaDirective", () => {
-  it("strips only the named property, preserving other declarations", () => {
-    const md = "area-style-media: background: #f1f5f9; border: 1px solid red\n# Hello";
-    const result = removeAreaStylePropertyForAreaDirective(md, "media", "background");
-    expect(result).not.toContain("background");
-    expect(result).toContain("border: 1px solid red");
-    expect(result).toMatch(/^area-style-media: border: 1px solid red\n/);
-  });
-
-  it("drops the directive entirely when no declarations remain", () => {
-    const md = "area-style-media: background: #f1f5f9\n# Hello";
-    const result = removeAreaStylePropertyForAreaDirective(md, "media", "background");
-    expect(result).not.toContain("area-style-media:");
+describe("removeAreaBgForAreaDirective", () => {
+  it("drops the directive entirely", () => {
+    const md = "area-bg-media: #f1f5f9\n# Hello";
+    const result = removeAreaBgForAreaDirective(md, "media");
+    expect(result).not.toContain("area-bg-media:");
     expect(result).toContain("# Hello");
   });
 
   it("is a no-op when the directive does not exist", () => {
     const md = "# Hello\n@main\ncontent";
-    const result = removeAreaStylePropertyForAreaDirective(md, "media", "background");
+    const result = removeAreaBgForAreaDirective(md, "media");
     expect(result).toBe(md);
-  });
-
-  it("is a no-op when the property is not present", () => {
-    const md = "area-style-media: border: 1px solid red\n# Hello";
-    const result = removeAreaStylePropertyForAreaDirective(md, "media", "background");
-    expect(result).toBe(md);
-  });
-
-  it("matches the property name case-insensitively", () => {
-    const md = "area-style-media: BACKGROUND: #f1f5f9; border: 1px\n# Hello";
-    const result = removeAreaStylePropertyForAreaDirective(md, "media", "background");
-    expect(result).not.toContain("BACKGROUND");
-    expect(result).toContain("border: 1px");
   });
 });
 

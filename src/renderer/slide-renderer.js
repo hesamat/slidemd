@@ -282,12 +282,14 @@ export class SlideRenderer {
         this._applyAreaStyle(area, areaStyle);
       }
 
-      const perAreaStyle = perAreaStyles[name];
-      if (perAreaStyle && name !== "footer") {
-        this._applyAreaStyle(area, perAreaStyle);
+      const perAreaBg = perAreaStyles[name];
+      if (perAreaBg && name !== "footer") {
+        area.style.setProperty("background", perAreaBg);
       }
 
-      area.dataset.appliedAreaStyle = [areaStyle, perAreaStyle].filter(Boolean).join("; ");
+      area.dataset.appliedAreaStyle = [areaStyle, perAreaBg && `background: ${perAreaBg}`]
+        .filter(Boolean)
+        .join("; ");
 
       // Custom focus grids set the main column width via grid tracks, so the
       // per-element line-max cap must be disabled for the main area contents.

@@ -29,8 +29,6 @@ export class AreaContextMenu {
    *   Called with the full CSS `background:` value (color, gradient, or
    *   image layer string). An empty string means "remove the background".
    * @param {(areaName: string) => void} opts.onToggleFullBleed
-   * @param {(onSelect: (path: string) => void) => void} [opts.onPickImage]
-   *   Image picker callback; receives a function that gets the chosen path.
    * @param {() => HTMLElement|null} [opts.getAreaElement]
    *   Returns the area element for the currently-open menu, used for live
    *   preview while the background popover is open.
@@ -42,7 +40,6 @@ export class AreaContextMenu {
     onAlignMain,
     onSetBackground,
     onToggleFullBleed,
-    onPickImage,
     getAreaElement,
   }) {
     this._onDeleteArea = onDeleteArea;
@@ -51,7 +48,6 @@ export class AreaContextMenu {
     this._onAlignMain = onAlignMain;
     this._onSetBackground = onSetBackground;
     this._onToggleFullBleed = onToggleFullBleed;
-    this._onPickImage = onPickImage;
     this._getAreaElement = getAreaElement;
     this._menuEl = null;
     this._popoverEl = null;
@@ -288,7 +284,7 @@ export class AreaContextMenu {
     // returns a static string with no interpolation, so innerHTML is safe here.
     const body = document.createElement("div");
     body.className = "area-bg-popover__body";
-    body.innerHTML = buildBackgroundPanelHtml();
+    body.innerHTML = buildBackgroundPanelHtml({ image: false });
     popover.appendChild(body);
 
     // The shared panel includes a "Dark theme" toggle, but area-level
@@ -409,7 +405,9 @@ export class AreaContextMenu {
       });
     }
 
-    // Overlay slider (image backgrounds)
+    // Overlay slider (image backgrounds) — not present in the area popover
+    // (image backgrounds are only offered at the slide level), but kept for
+    // safety in case the element exists.
     const overlaySlider = popover.querySelector('[data-field="bg-overlay"]');
     if (overlaySlider) {
       overlaySlider.addEventListener("input", (e) => {
@@ -446,46 +444,6 @@ export class AreaContextMenu {
           this._bgState.opacity = 0;
           this._syncPopoverUI();
         }
-      });
-    }
-
-    // Background size buttons (cover/contain/auto)
-    popover.querySelectorAll("[data-bg-size]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        popover.querySelectorAll("[data-bg-size]").forEach((b) => b.classList.remove("selected"));
-        btn.classList.add("selected");
-        this._bgState.size = btn.dataset.bgSize;
-        this._syncPopoverUI();
-      });
-    });
-
-    // Background position buttons (9-point grid)
-    popover.querySelectorAll("[data-bg-position]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        popover
-          .querySelectorAll("[data-bg-position]")
-          .forEach((b) => b.classList.remove("selected"));
-        btn.classList.add("selected");
-        this._bgState.position = btn.dataset.bgPosition;
-        this._syncPopoverUI();
-      });
-    });
-
-    // Image picker
-    const pickBtn = popover.querySelector('[data-action="pick-image"]');
-    if (pickBtn) {
-      pickBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (!this._onPickImage) return;
-        this._onPickImage((path) => {
-          if (!this._popoverEl) return; // popover was closed
-          this._bgState.imagePath = path;
-          this._bgState.bg = "";
-          this._bgState.imageBlobUrl = "";
-          this._syncPopoverUI();
-        });
       });
     }
 
