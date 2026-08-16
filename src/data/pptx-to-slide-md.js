@@ -398,6 +398,16 @@ function convertSlide(
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
     );
+    // Catch unclassified elements that straddle the midpoint — assign to
+    // the column whose center is closer.  Without this, a wide image that
+    // spans both columns causes a false downgrade to header-content.
+    const classified = new Set([...leftEls, ...rightEls]);
+    for (const el of bodyElements) {
+      if (classified.has(el)) continue;
+      const elCenterX = (el.left || 0) + (el.width || 0) / 2;
+      if (elCenterX < midX) leftEls.push(el);
+      else rightEls.push(el);
+    }
     if (leftEls.length === 0 || rightEls.length === 0) {
       // Keep TWO_COLUMN if there's a single element that can be content-split:
       // a wide element (merged code from PPTX) or an overflowing body. The
@@ -521,13 +531,24 @@ function convertSlide(
     const leftEls = bodyElements.filter(
       (el) =>
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
     );
     const rightEls = bodyElements.filter(
       (el) =>
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
     );
+
+    // Catch unclassified elements (e.g. an image straddling the midpoint)
+    // that don't clear the 1.2x threshold for either side. Assign to the
+    // column whose center is closer to the element's center.
+    const classified = new Set([...leftEls, ...rightEls]);
+    for (const el of bodyElements) {
+      if (classified.has(el)) continue;
+      const elCenterX = (el.left || 0) + (el.width || 0) / 2;
+      if (elCenterX < midX) leftEls.push(el);
+      else rightEls.push(el);
+    }
     // If the position split leaves one side empty, check for a single element
     // that spans both columns (merged code from PPTX extraction) or overflows
     // the column area. Split its content at a safe boundary — not inside a
@@ -714,7 +735,15 @@ function convertSlide(
         parts.push("");
         parts.push(MARKDOWN_TAGS.MEDIA);
         parts.push("");
-        parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+        parts.push(
+          rightEls
+            .map((el) => {
+              if (el.type === ELEMENT_TYPES.IMAGE && el.ref)
+                return formatImage(el, deckName, { fitColumn: true });
+              return formatSingleElement(el);
+            })
+            .join(REGEX.DOUBLE_NEWLINE),
+        );
       }
     }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
