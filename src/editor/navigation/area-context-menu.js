@@ -283,9 +283,12 @@ export class AreaContextMenu {
 
     // Body — reuse the shared background panel markup.  buildBackgroundPanelHtml
     // returns a static string with no interpolation, so innerHTML is safe here.
+    // The area popover's real preview is the area element itself (updated live
+    // in _syncPopoverUI) — it composites over the actual slide background, which
+    // a standalone preview box cannot.  Skip the static preview box entirely.
     const body = document.createElement("div");
     body.className = "area-bg-popover__body";
-    body.innerHTML = buildBackgroundPanelHtml({ image: false });
+    body.innerHTML = buildBackgroundPanelHtml({ image: false, preview: false });
     popover.appendChild(body);
 
     // The shared panel includes a "Dark theme" toggle, but area-level
@@ -293,16 +296,6 @@ export class AreaContextMenu {
     // directive — so the toggle is misleading here.  Hide it.
     const themeRow = body.querySelector(".style-row--between");
     if (themeRow) themeRow.style.display = "none";
-
-    // The shared panel includes a static preview box, but the area popover's
-    // real preview is the area element itself (updated live in _syncPopoverUI)
-    // — it composites over the actual slide background, which a standalone box
-    // cannot.  Remove the box so it never shows a misleading neutral-surface
-    // swatch.
-    const previewSection = body
-      .querySelector(".style-bg-preview")
-      ?.closest(".style-inline-section");
-    if (previewSection) previewSection.remove();
 
     // Seed the hidden custom-color input with the current background so the
     // native picker opens at the existing color, not always at #ffffff.

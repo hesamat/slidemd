@@ -223,6 +223,21 @@
 }
 
 /* ── Background preview ── */
+.style-bg-main-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.style-bg-preview-col {
+  flex: 0 0 170px;
+}
+
+.style-bg-controls-col {
+  flex: 1;
+  min-width: 0;
+}
+
 .style-bg-preview {
   width: 100%;
   aspect-ratio: 16 / 9;

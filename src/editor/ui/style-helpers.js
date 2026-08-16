@@ -212,11 +212,7 @@ export function buildSwatchHtml() {
  * preview.  The size/position controls are only relevant for image
  * backgrounds; callers toggle their visibility via syncBgState.
  */
-export function buildBackgroundPanelHtml({ image = true } = {}) {
-  // Source row (color swatches / image browse) stays grouped at the top.
-  // The preview sits right below it — above the overlay/size/position/repeat
-  // controls — so it stays visible while the user adjusts image options
-  // instead of being pushed below the fold.
+export function buildBackgroundPanelHtml({ image = true, preview = true } = {}) {
   const imageSourceRow = image
     ? `
     <div class="style-inline-section">
@@ -269,6 +265,16 @@ export function buildBackgroundPanelHtml({ image = true } = {}) {
       </div>
     </div>`
     : "";
+  // The preview sits beside the image controls in a two-column row so a
+  // full-width 16:9 preview never pushes the overlay/size/position/repeat
+  // controls below the fold — both stay visible without scrolling.
+  const previewColumn = preview
+    ? `
+    <div class="style-bg-preview-col">
+      <span class="style-label">Preview</span>
+      <div class="style-bg-preview"></div>
+    </div>`
+    : "";
   return `
     <div class="style-inline-section">
       <div class="style-color-row">
@@ -284,10 +290,10 @@ export function buildBackgroundPanelHtml({ image = true } = {}) {
       <input type="range" class="style-range" data-field="bg-opacity" min="0" max="100" value="0" />
       <span class="style-control-value" data-display="bg-opacity">0%</span>
     </div>${imageSourceRow}
-    <div class="style-inline-section">
-      <span class="style-label">Preview</span>
-      <div class="style-bg-preview"></div>
-    </div>${imageControls}
+    <div class="style-bg-main-row">
+      ${previewColumn}
+      <div class="style-bg-controls-col">${imageControls}</div>
+    </div>
     <div class="style-row style-row--between">
       <label class="style-toggle">
         <input type="checkbox" data-field="bg-theme" />
