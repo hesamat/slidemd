@@ -2,6 +2,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { buildShapeSvg, renderSvgToPng, renderDiagramsToPng } from "../data/pptx-shape-renderer.js";
 
+// Mock the slide-crop renderer so we can exercise `renderDiagramsToPng`'s
+// crop → SVG fallback chain without a real PPTX or a real browser layout.
+vi.mock("../data/pptx-diagram-cropper.js", () => ({
+  cropSlideToDiagram: vi.fn(),
+  parsePresentation: vi.fn(),
+}));
+import { cropSlideToDiagram, parsePresentation } from "../data/pptx-diagram-cropper.js";
+
 /** Minimal shape factory matching the ExtractedElement geometry contract.
  * Coordinates are in points (matching pptxtojson's output for top-level elements). */
 const shape = (overrides = {}) => ({
@@ -578,5 +586,128 @@ describe("renderDiagramsToPng", () => {
     await renderDiagramsToPng(slides, images);
     expect(slides[0].elements.filter((e) => e.type === "image")).toHaveLength(2);
     expect(images.map((i) => i.ref)).toEqual(["diagram-0-1.png", "diagram-0-2.png"]);
+  });
+
+  describe("crop path", () => {
+    const mkDiagram = (overrides = {}) => ({
+      type: "diagram",
+      content: "Step 1, Step 2",
+      placeholderType: null,
+      order: 1,
+      left: 100,
+      top: 100,
+      width: 200,
+      height: 100,
+      shapes: [shape({ shapType: "rect", fill: "FF0000" })],
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      vi.mocked(cropSlideToDiagram).mockReset();
+      vi.mocked(parsePresentation).mockReset();
+      vi.mocked(parsePresentation).mockResolvedValue({});
+    });
+
+    it("uses the crop path and shares a single presentation across diagrams", async () => {
+      vi.mocked(cropSlideToDiagram).mockResolvedValue("data:image/png;base64,Y3JvcA==");
+      const slides = [
+        {
+          index: 0,
+          title: "Test",
+          notes: "",
+          elements: [mkDiagram({ order: 1 }), mkDiagram({ order: 2 })],
+          background: "",
+        },
+      ];
+      const images = [];
+      await renderDiagramsToPng(slides, images, new ArrayBuffer(0));
+
+      // One presentation parse for the whole import, not one per diagram.
+      expect(parsePresentation).toHaveBeenCalledTimes(1);
+      expect(cropSlideToDiagram).toHaveBeenCalledTimes(2);
+      // The shared presentation is passed to every crop call.
+      const presentation = await vi.mocked(parsePresentation).mock.results[0].value;
+      for (const call of vi.mocked(cropSlideToDiagram).mock.calls) {
+        expect(call[6]).toBe(presentation);
+      }
+
+      const imageEls = slides[0].elements.filter((e) => e.type === "image");
+      expect(imageEls).toHaveLength(2);
+      expect(imageEls[0].caption).toBe("Step 1, Step 2");
+      expect(imageEls[0].base64).toBe("Y3JvcA==");
+      expect(images.map((i) => i.ref)).toEqual(["diagram-0-1.png", "diagram-0-2.png"]);
+    });
+
+    it("falls back to the SVG path when the crop returns null", async () => {
+      vi.mocked(cropSlideToDiagram).mockResolvedValue(null);
+      const slides = [
+        {
+          index: 0,
+          title: "Test",
+          notes: "",
+          elements: [mkDiagram()],
+          background: "",
+        },
+      ];
+      const images = [];
+      await renderDiagramsToPng(slides, images, new ArrayBuffer(0));
+      expect(cropSlideToDiagram).toHaveBeenCalledTimes(1);
+      // SVG fallback produced an image.
+      expect(slides[0].elements[0].type).toBe("image");
+      expect(images).toHaveLength(1);
+    });
+
+    it("falls back to the SVG path when the crop throws", async () => {
+      vi.mocked(cropSlideToDiagram).mockRejectedValue(new Error("renderer exploded"));
+      const slides = [
+        {
+          index: 0,
+          title: "Test",
+          notes: "",
+          elements: [mkDiagram()],
+          background: "",
+        },
+      ];
+      await renderDiagramsToPng(slides, [], new ArrayBuffer(0));
+      expect(slides[0].elements[0].type).toBe("image");
+    });
+
+    it("skips the crop path for group-sourced diagrams (fromGroup)", async () => {
+      const slides = [
+        {
+          index: 0,
+          title: "Test",
+          notes: "",
+          elements: [mkDiagram({ fromGroup: true })],
+          background: "",
+        },
+      ];
+      await renderDiagramsToPng(slides, [], new ArrayBuffer(0));
+      expect(cropSlideToDiagram).not.toHaveBeenCalled();
+      expect(parsePresentation).not.toHaveBeenCalled();
+      expect(slides[0].elements[0].type).toBe("image");
+    });
+
+    it("leaves the diagram unchanged when both paths fail", async () => {
+      vi.mocked(cropSlideToDiagram).mockResolvedValue(null);
+      // Force the SVG path to fail too by breaking the canvas API.
+      const origCreate = document.createElement;
+      document.createElement = () => ({ getContext: () => null });
+      try {
+        const slides = [
+          {
+            index: 0,
+            title: "Test",
+            notes: "",
+            elements: [mkDiagram()],
+            background: "",
+          },
+        ];
+        await renderDiagramsToPng(slides, [], new ArrayBuffer(0));
+        expect(slides[0].elements[0].type).toBe("diagram");
+      } finally {
+        document.createElement = origCreate;
+      }
+    });
   });
 });

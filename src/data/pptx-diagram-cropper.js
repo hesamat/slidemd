@@ -36,33 +36,38 @@ const CROP_PADDING_PT = 15;
  * extractor's point-based coordinates and the renderer's pixel-based ones. */
 const POSITION_TOLERANCE_PX = 3;
 
+/** A pixel counts as opaque content when its alpha is above this value. */
+const MIN_OPAQUE_ALPHA = 32;
+
+/** Minimum fraction of opaque pixels a crop must contain to be considered a
+ * real diagram render.  Below this the crop is blank (e.g. the renderer
+ * positioned grouped shapes at offsets this matcher cannot see) and the caller
+ * falls back to the SVG renderer instead of emitting an empty image. */
+const MIN_OPAQUE_RATIO = 0.002;
+
 /**
  * Mapping of common Microsoft / proprietary PPTX fonts to metrically-compatible
  * Google Fonts.  When the original font is not installed on the user's system,
  * the browser falls back to a generic sans-serif with different metrics,
  * causing text overflow.  After rendering, we walk the DOM and replace any
  * occurrence of the Microsoft font name with the Google Font equivalent.
- *
- * Each entry maps to { font, weightBoost } where weightBoost is added to the
- * element's font-weight to compensate for metric differences (e.g. Tw Cen MT
- * regular is heavier than Jost regular, so we boost by 200).
  */
 const FONT_REPLACEMENTS = {
-  "tw cen mt": { font: "League Spartan", weightBoost: 0 },
-  "tw cen mt condensed": { font: "League Spartan", weightBoost: 0 },
-  "century gothic": { font: "League Spartan", weightBoost: 0 },
-  calibri: { font: "Carlito", weightBoost: 0 },
-  "calibri light": { font: "Carlito", weightBoost: 0 },
-  cambria: { font: "Caladea", weightBoost: 0 },
-  "cambria math": { font: "Caladea", weightBoost: 0 },
-  "segoe ui": { font: "Open Sans", weightBoost: 0 },
-  "segoe ui light": { font: "Open Sans", weightBoost: 0 },
-  "trebuchet ms": { font: "Verdana", weightBoost: 0 },
-  tahoma: { font: "Verdana", weightBoost: 0 },
+  "tw cen mt": "League Spartan",
+  "tw cen mt condensed": "League Spartan",
+  "century gothic": "League Spartan",
+  calibri: "Carlito",
+  "calibri light": "Carlito",
+  cambria: "Caladea",
+  "cambria math": "Caladea",
+  "segoe ui": "Open Sans",
+  "segoe ui light": "Open Sans",
+  "trebuchet ms": "Verdana",
+  tahoma: "Verdana",
   // "Aptos" is the new Microsoft default; Carlito is metric-compatible with
   // Calibri which is close enough.
-  aptos: { font: "Carlito", weightBoost: 0 },
-  "aptos display": { font: "Carlito", weightBoost: 0 },
+  aptos: "Carlito",
+  "aptos display": "Carlito",
 };
 
 /** Google Fonts CSS URL for loading all replacement fonts in one request. */
@@ -77,7 +82,7 @@ const GOOGLE_FONTS_URL =
 /** Track whether the Google Fonts <link> has been injected. */
 let fontsLinkInjected = false;
 /** Cached font-loading promise so we only wait once even if multiple diagrams
- * are rendered.  Without this, each diagram re-awaits the 5-second timeout
+ * are rendered.  Without this, each diagram re-awaits the font-load timeout
  * when the CDN is slow or unreachable. */
 let fontsLoadedPromise = null;
 
@@ -85,17 +90,36 @@ let fontsLoadedPromise = null;
  * Inject a `<link>` tag to load all replacement Google Fonts and wait for
  * them to be available in the browser's font cache.
  *
+ * NOTE (offline-first deviation): this is the one runtime network dependency
+ * in the PPTX import path.  It exists so shape text is measured with the
+ * metric-compatible replacement fonts rather than a generic fallback.  It is
+ * deliberately non-fatal: the load is skipped entirely when the browser
+ * reports offline or when every replacement font is already installed locally
+ * (e.g. LibreOffice ships Carlito/Caladea), and a short timeout prevents a
+ * slow/unreachable CDN from stalling the import.  Text may overflow when the
+ * fonts are unavailable, but the import always completes.
+ *
  * @returns {Promise<void>}
  */
 async function loadReplacementFonts() {
+  if (typeof document === "undefined") return;
+
+  // Fast path: every replacement font is already available locally (installed
+  // or previously loaded) — no network needed, no waiting.
+  if (document.fonts && document.fonts.check) {
+    const allLocal = Object.values(FONT_REPLACEMENTS).every((font) =>
+      document.fonts.check(`16px "${font}"`),
+    );
+    if (allLocal) return;
+  }
+
   // Skip entirely when offline — the CDN is unreachable and waiting would
-  // block import for up to 5 seconds with no benefit.  The browser's default
-  // sans-serif fallback will be used; text may overflow but the import
-  // completes instantly.
+  // block the import with no benefit.  The browser's default sans-serif
+  // fallback will be used; text may overflow but the import completes.
   if (typeof navigator !== "undefined" && navigator.onLine === false) return;
 
   // Return the cached promise so concurrent/per-diagram calls share a single
-  // wait instead of each starting a new 5-second race.
+  // wait instead of each starting a new timeout race.
   if (fontsLoadedPromise) return fontsLoadedPromise;
 
   if (!fontsLinkInjected) {
@@ -107,18 +131,18 @@ async function loadReplacementFonts() {
   }
 
   // Wait for the replacement fonts to load.  We load each one explicitly so
-  // the browser fetches the woff2 files before we rasterize.  Load all weights
-  // we might use (400, 500, 600, 700) to cover weight-boosted replacements.
-  // A 5-second timeout prevents hanging if the CDN is unreachable.
+  // the browser fetches the woff2 files before we rasterize.  A short timeout
+  // prevents hanging if the CDN is unreachable.
+  const FONT_LOAD_TIMEOUT_MS = 2000;
   if (document.fonts && document.fonts.load) {
-    const googleFonts = [...new Set(Object.values(FONT_REPLACEMENTS).map((r) => r.font))];
+    const googleFonts = [...new Set(Object.values(FONT_REPLACEMENTS))];
     const weights = [400, 500, 600, 700];
     const loadPromises = googleFonts.flatMap((font) =>
       weights.map((w) => document.fonts.load(`${w} 16px "${font}"`).catch(() => {})),
     );
     fontsLoadedPromise = Promise.race([
       Promise.all(loadPromises),
-      new Promise((resolve) => setTimeout(resolve, 5000)),
+      new Promise((resolve) => setTimeout(resolve, FONT_LOAD_TIMEOUT_MS)),
     ]);
   } else {
     fontsLoadedPromise = Promise.resolve();
@@ -127,14 +151,11 @@ async function loadReplacementFonts() {
 }
 
 /** Pre-compiled regexes for each Microsoft font name (avoids recompiling
- * inside the DOM walk loop).  Maps msName → { re, googleName, weightBoost }. */
-const FONT_REPLACEMENT_REGEXES = Object.entries(FONT_REPLACEMENTS).map(
-  ([msName, { font: googleName, weightBoost }]) => ({
-    re: new RegExp(`(["']?)${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["']?)`, "gi"),
-    googleName,
-    weightBoost,
-  }),
-);
+ * inside the DOM walk loop).  Maps msName → { re, googleName }. */
+const FONT_REPLACEMENT_REGEXES = Object.entries(FONT_REPLACEMENTS).map(([msName, googleName]) => ({
+  re: new RegExp(`(["']?)${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["']?)`, "gi"),
+  googleName,
+}));
 
 /**
  * Walk the rendered DOM tree and replace any Microsoft font name in
@@ -148,24 +169,13 @@ function replaceFontsInDOM(root) {
     const ff = el.style.fontFamily;
     if (ff) {
       let replaced = ff;
-      let weightBoost = 0;
-      for (const { re, googleName, weightBoost: boost } of FONT_REPLACEMENT_REGEXES) {
+      for (const { re, googleName } of FONT_REPLACEMENT_REGEXES) {
         // Use a function replacement to avoid $-substitution in the string
         // (e.g. "$googleName" would be treated literally by .replace()).
-        const before = replaced;
         replaced = replaced.replace(re, () => `"${googleName}"`);
-        if (replaced !== before) {
-          weightBoost = Math.max(weightBoost, boost);
-        }
       }
       if (replaced !== ff) {
         el.style.fontFamily = replaced;
-        // Bump font-weight to compensate for metric differences (e.g. Tw Cen MT
-        // regular is heavier than Jost regular).
-        if (weightBoost > 0) {
-          const currentWeight = parseInt(el.style.fontWeight, 10) || 400;
-          el.style.fontWeight = String(Math.min(900, currentWeight + weightBoost));
-        }
       }
     }
     for (const child of el.children) {
@@ -333,17 +343,17 @@ export function shrinkTextToFit(root, shapes, scale) {
         if (!measure) break;
         const s = fitScale(measure);
         if (s >= 0.999) break;
-        if (fontSizePt * scaleFactor * s <= MIN_FONT_PT) {
-          // Clamp to the floor so the text stays legible even if it cannot
-          // fully fit.
-          scaleFactor = MIN_FONT_PT / fontSizePt;
-          break;
-        }
-        scaleFactor *= s;
+        // Apply the shrink, clamped to the legibility floor (MIN_FONT_PT).
+        // If the clamp kicks in the text still gets the floor size so it
+        // doesn't stay at an arbitrary pre-clamp size.
+        const nextScale = scaleFactor * s;
+        const clamped = Math.max(nextScale, MIN_FONT_PT / fontSizePt);
+        scaleFactor = clamped;
         textContainer.style.fontSize = `${(fontSizePt * scaleFactor).toFixed(1)}pt`;
         spans.forEach((sp, idx) => {
           sp.style.fontSize = `${(origSizes[idx] * scaleFactor).toFixed(1)}pt`;
         });
+        if (clamped > nextScale) break; // Hit the floor — stop shrinking.
         const next = measureText();
         steps.push({
           scaleFactor: +scaleFactor.toFixed(3),
@@ -375,6 +385,47 @@ export function shrinkTextToFit(root, shapes, scale) {
 }
 
 /**
+ * Determine whether a 2D canvas context contains enough opaque content to be
+ * considered a real diagram render.  A crop with almost no opaque pixels is
+ * blank (e.g. the renderer positioned grouped shapes at offsets the position
+ * matcher cannot see, so everything was hidden) and should fall back to the
+ * SVG renderer instead of emitting an empty image.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} width - Crop width in pixels.
+ * @param {number} height - Crop height in pixels.
+ * @returns {boolean} True when the crop is blank.
+ */
+export function cropIsBlank(ctx, width, height) {
+  try {
+    const { data } = ctx.getImageData(0, 0, width, height);
+    let opaquePixels = 0;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > MIN_OPAQUE_ALPHA) opaquePixels += 1;
+    }
+    const total = width * height;
+    return total > 0 && opaquePixels / total < MIN_OPAQUE_RATIO;
+  } catch (err) {
+    // getImageData can throw on a tainted canvas; treat as non-fatal and keep
+    // the rendered crop.
+    Logger.warn("Diagram crop blank-check failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Parse and build a PPTX presentation once, so it can be shared across all
+ * diagram crops in a single import (zip parsing is the dominant cost).
+ *
+ * @param {ArrayBuffer|Uint8Array} pptxBuffer
+ * @returns {Promise<import('@aiden0z/pptx-renderer').Presentation>}
+ */
+export async function parsePresentation(pptxBuffer) {
+  const parsed = await parseZip(pptxBuffer, RECOMMENDED_ZIP_LIMITS);
+  return buildPresentation(parsed);
+}
+
+/**
  * Render a single slide, hide non-diagram elements, then crop to the diagram
  * bounding box.  Returns a PNG data URL or null on failure.
  *
@@ -382,12 +433,16 @@ export function shrinkTextToFit(root, shapes, scale) {
  * PNGs and metadata for debugging.  Its presence does not change the
  * returned value.
  *
+ * A `presentation` returned by `parsePresentation()` may be passed in to avoid
+ * re-parsing the PPTX for every diagram; it is built lazily when omitted.
+ *
  * @param {ArrayBuffer|Uint8Array} pptxBuffer
  * @param {number} slideIndex
  * @param {{left: number, top: number, width: number, height: number}} bbox - in points
  * @param {import('./pptx-extractor.js').ExtractedElement[]} [shapes]
  * @param {number} [scale=1] - render scale; 1 = 96 DPI
  * @param {Object} [diagnostics] - Optional object to fill with debug data.
+ * @param {Object} [presentation] - Optional pre-built presentation to reuse.
  * @returns {Promise<string|null>} PNG data URL or null on failure
  */
 export async function cropSlideToDiagram(
@@ -397,6 +452,7 @@ export async function cropSlideToDiagram(
   shapes,
   scale = 1,
   diagnostics = null,
+  presentation = null,
 ) {
   if (typeof document === "undefined") return null;
 
@@ -415,19 +471,29 @@ export async function cropSlideToDiagram(
     // measurements use the correct fonts.
     await loadReplacementFonts();
 
-    const parsed = await parseZip(pptxBuffer, RECOMMENDED_ZIP_LIMITS);
-    const presentation = await buildPresentation(parsed);
+    // Reuse the caller's presentation (built once per import) when available,
+    // otherwise parse this buffer.  No store, no cache beyond this module.
+    let resolved = presentation;
+    if (!resolved) {
+      const parsed = await parseZip(pptxBuffer, RECOMMENDED_ZIP_LIMITS);
+      resolved = await buildPresentation(parsed);
+    }
     // presentation.width/height are already in CSS pixels (EMU → px).
-    const widthPx = Math.round(presentation.width);
-    const heightPx = Math.round(presentation.height);
+    const widthPx = Math.round(resolved.width);
+    const heightPx = Math.round(resolved.height);
+    // Rendered pixel dimensions at the requested scale.  The slide element is
+    // scaled with `transform: scale(scale)`, so the canvas must match the
+    // transformed size for scale != 1 to be coherent.
+    const fullW = Math.round(widthPx * scale);
+    const fullH = Math.round(heightPx * scale);
 
-    const slide = presentation.slides[slideIndex];
+    const slide = resolved.slides[slideIndex];
     if (!slide) return null;
     // Hide master-slide shapes (footer, slide number, etc.).
     slide.showMasterSp = false;
 
     viewer = new PptxViewer(offscreen, { fitMode: "none", zoomPercent: 100 });
-    viewer.load(presentation);
+    viewer.load(resolved);
 
     const handle = viewer.renderSlideToContainer(slideIndex, offscreen, scale);
     if (!handle) throw new Error("renderSlideToContainer returned null");
@@ -437,9 +503,10 @@ export async function cropSlideToDiagram(
     // styles or rasterize.
     handle.element.getBoundingClientRect();
 
-    // Clear the slide background that the renderer painted on the container.
-    handle.element.style.backgroundColor = "transparent";
-    handle.element.style.background = "transparent";
+    // Keep the slide background painted by the renderer (white for most
+    // decks) so the cropped diagram image includes the correct background
+    // color instead of appearing transparent against the editor's dark
+    // slide preview.
 
     // Capture font info before replacement when running in diagnostic mode.
     /** @type {any} */
@@ -487,8 +554,8 @@ export async function cropSlideToDiagram(
       fullBeforeHide = await toCanvas(handle.element, {
         pixelRatio: 1,
         backgroundColor: undefined,
-        width: widthPx,
-        height: heightPx,
+        width: fullW,
+        height: fullH,
         skipFonts: true,
       }).then((c) => c.toDataURL("image/png"));
     }
@@ -518,7 +585,13 @@ export async function cropSlideToDiagram(
       // Some shape borders/edges are not extracted as shapes (e.g. the left
       // border of a flowchart process box).  Keep thin line/edge elements that
       // lie flush against any matched shape — they are part of the diagram.
+      //
+      // The check is deliberately strict: the element must (a) overlap the
+      // shape's projected row or column and (b) be thin and sit flush against
+      // a shape edge.  A body-text box that merely shares a top/left
+      // coordinate with a shape is NOT kept.
       const isThinEdge = width <= 3 || height <= 3;
+      const EDGE_TOLERANCE_PX = 3 + POSITION_TOLERANCE_PX;
       const isAdjacentToShape = matchedShape
         ? false
         : shapePositions.some((sp) => {
@@ -528,13 +601,12 @@ export async function cropSlideToDiagram(
             const elBottom = top + height;
             const hOverlap = top < spBottom && elBottom > sp.y;
             const vOverlap = left < spRight && elRight > sp.x;
+            if (!isThinEdge || (!hOverlap && !vOverlap)) return false;
             return (
-              (isThinEdge &&
-                (hOverlap || vOverlap) &&
-                Math.abs(left - sp.x) <= 3 + POSITION_TOLERANCE_PX) ||
-              Math.abs(left - spRight) <= 3 + POSITION_TOLERANCE_PX ||
-              Math.abs(top - sp.y) <= 3 + POSITION_TOLERANCE_PX ||
-              Math.abs(top - spBottom) <= 3 + POSITION_TOLERANCE_PX
+              Math.abs(left - sp.x) <= EDGE_TOLERANCE_PX ||
+              Math.abs(left - spRight) <= EDGE_TOLERANCE_PX ||
+              Math.abs(top - sp.y) <= EDGE_TOLERANCE_PX ||
+              Math.abs(top - spBottom) <= EDGE_TOLERANCE_PX
             );
           });
 
@@ -579,8 +651,8 @@ export async function cropSlideToDiagram(
       fullAfterHide = await toCanvas(handle.element, {
         pixelRatio: 1,
         backgroundColor: undefined,
-        width: widthPx,
-        height: heightPx,
+        width: fullW,
+        height: fullH,
         skipFonts: true,
       }).then((c) => c.toDataURL("image/png"));
     }
@@ -593,8 +665,8 @@ export async function cropSlideToDiagram(
     const fullCanvas = await toCanvas(handle.element, {
       pixelRatio: 1,
       backgroundColor: undefined,
-      width: widthPx,
-      height: heightPx,
+      width: fullW,
+      height: fullH,
       skipFonts: true,
     });
 
@@ -604,8 +676,6 @@ export async function cropSlideToDiagram(
     let cropY = Math.round(bbox.top * PT_TO_PX * scale) - padPx;
     let cropW = Math.round(bbox.width * PT_TO_PX * scale) + 2 * padPx;
     let cropH = Math.round(bbox.height * PT_TO_PX * scale) + 2 * padPx;
-    const fullW = Math.round(widthPx * scale);
-    const fullH = Math.round(heightPx * scale);
     cropX = Math.max(0, Math.min(cropX, fullW - 1));
     cropY = Math.max(0, Math.min(cropY, fullH - 1));
     cropW = Math.max(1, Math.min(cropW, fullW - cropX));
@@ -618,6 +688,15 @@ export async function cropSlideToDiagram(
     const ctx = crop.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+    // Guard against blank crops.  If nothing meaningful was rendered into the
+    // diagram region (e.g. the slide's group structure placed its shapes at
+    // offsets this position matcher cannot see, so everything was hidden), a
+    // transparent PNG is worse than the SVG fallback — signal failure instead.
+    if (cropIsBlank(ctx, cropW, cropH)) {
+      Logger.warn("Diagram crop is blank — falling back to SVG renderer");
+      return null;
+    }
 
     const dataUrl = crop.toDataURL("image/png");
 

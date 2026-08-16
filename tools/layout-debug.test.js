@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
-// Quick layout debug script - run with: npx vitest run tools/layout-debug.mjs
+// Developer-only layout-inference debug harness (NOT part of the test suite by
+// default).  Prints element partitioning and inferLayout results for a slide.
+// Run with:
+//   LAYOUT_DEBUG_FILE=path/to.pptx LAYOUT_DEBUG_SLIDE=5 npx vitest run tools/layout-debug.test.js
 import { describe, it } from "vitest";
 import { PptxExtractor } from "../src/data/pptx-extractor.js";
 import { inferLayout, findDominantImages, partitionByAreaOverlap } from "../src/data/pptx-layout-inference.js";

@@ -2,9 +2,9 @@
  * PPTX Shape & Diagram Renderer
  *
  * Renders shape groups and diagrams (detected by PptxExtractor.#isManualDiagram)
- * to PNG screenshots via SVG → Canvas → toDataURL. Replaces the text-only
- * `[Diagram: ...]` marker with an embedded image so diagrams survive import
- * as visuals rather than flattening to bullet lists.
+ * to PNG screenshots. Replaces the text-only `[Diagram: ...]` marker with an
+ * embedded image so diagrams survive import as visuals rather than flattening
+ * to bullet lists.
  *
  * Phase 14.9 (#117). Reuses the Canvas infrastructure in pptx-image-converter.js.
  *
@@ -14,20 +14,33 @@
  *   - `renderSvgToPng()` draws the SVG to a canvas and returns a PNG data URL.
  *     Returns null when the canvas API is unavailable (jsdom, SSR).
  *   - `renderDiagramsToPng()` is the post-pass called by PptxExtractor after
- *     extraction. It finds `diagram` elements carrying a `shapes` array,
- *     renders them, and replaces each with an `image` element plus a `text`
- *     element carrying the shape text (searchable fallback).
+ *     extraction. It finds `diagram` elements carrying a `shapes` array and
+ *     renders each. It first tries the high-fidelity slide-crop path
+ *     (`cropSlideToDiagram`), then falls back to this module's SVG builder.
+ *     On success the diagram element is replaced by an `image` element whose
+ *     `caption` (the diagram's shape labels) becomes the image alt text, so
+ *     the labels remain searchable/accessible without dumping them into the
+ *     slide body.
  */
 import { Logger } from "../core/logger.js";
 import { trimTransparentMargins } from "./pptx-image-converter.js";
 import { sanitizeCssColor } from "./pptx-color-utils.js";
-import { cropSlideToDiagram } from "./pptx-diagram-cropper.js";
+import { cropSlideToDiagram, parsePresentation } from "./pptx-diagram-cropper.js";
 
 /** Points-to-pixels scale (72 points = 96 pixels at 96 DPI). */
 const PT_TO_PX = 96 / 72;
 
 /** Minimum dimension (points) for a rendered diagram image — avoids 1×1 noise. */
 const MIN_RENDER_SIZE_PT = 5;
+
+/** Escape a value for safe interpolation into an XML/SVG attribute. */
+function escAttr(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 /**
  * Build an SVG string from a group of shape elements.
@@ -58,8 +71,9 @@ export function buildShapeSvg(shapes, groupBbox) {
     ? `<defs><marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><polygon points="0,0 6,3 0,6" fill="#333"/></marker></defs>`
     : "";
   const parts = renderable.map((shape) => shapeToSvg(shape, originX, originY));
-  // Opaque white background so text and thin connectors remain legible when
-  // the diagram is placed over any slide background.
+  // White background so the diagram is readable regardless of the slide theme
+  // it is placed over (matching the crop path which preserves the slide's own
+  // background colour).
   const bg = `<rect x="0" y="0" width="${w}" height="${h}" fill="white"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${markerDef}${bg}${parts.join("")}</svg>`;
 }
@@ -144,14 +158,15 @@ function shapeToSvg(shape, originX = 0, originY = 0) {
   // Custom path geometry — scale from pathViewBox to the shape's coordinates
   if (shape.path) {
     const vb = shape.pathViewBox;
+    const d = escAttr(shape.path);
     if (vb && vb.width > 0 && vb.height > 0) {
       const scaleX = width / vb.width;
       const scaleY = height / vb.height;
       const transformStr = `transform="translate(${left},${top}) scale(${scaleX},${scaleY})"`;
-      return `<path d="${shape.path}" ${transformStr}${fillAttr}${strokeAttr}/>`;
+      return `<path d="${d}" ${transformStr}${fillAttr}${strokeAttr}/>`;
     }
     // No viewBox — use path as-is (assumes already in slide coordinates)
-    return `<path d="${shape.path}"${fillAttr}${strokeAttr}${transform}/>`;
+    return `<path d="${d}"${fillAttr}${strokeAttr}${transform}/>`;
   }
 
   // Text elements with content but no shape geometry → render as SVG <text>
@@ -352,12 +367,21 @@ export async function renderSvgToPng(svg, widthPx, heightPx) {
  * Post-pass: render diagram elements (carrying a `shapes` array) to PNG images.
  *
  * For each diagram element:
- *   1. Build an SVG from the constituent shapes.
- *   2. Render the SVG to a PNG via canvas.
- *   3. On success: replace the diagram element with an `image` element, and
- *      add a `text` element carrying the shape text (searchable fallback).
+ *   1. Try the high-fidelity slide-crop path (`cropSlideToDiagram`).  The
+ *      presentation is parsed and built ONCE per import and shared across all
+ *      diagrams (zip parsing is the dominant cost).
+ *   2. Fall back to the SVG builder (`renderDiagramToSvgPng`) when the crop
+ *      path is unavailable or fails (including blank crops).
+ *   3. On success: replace the diagram element with an `image` element whose
+ *      `caption` carries the diagram labels (used as image alt text).
  *   4. On failure (no canvas, no renderable shapes): leave the diagram element
  *      unchanged so the existing `[Diagram: ...]` → bullets path still works.
+ *
+ * Grouped diagrams (`el.fromGroup`, produced from `<p:grpSp>`) skip the crop
+ * path: `@aiden0z/pptx-renderer` lays out group children relative to the group
+ * container, so the cropper's absolute-position matcher cannot see them and
+ * would produce a blank crop.  The SVG builder handles their (absolute)
+ * coordinates correctly.
  *
  * @param {import('./pptx-extractor.js').ExtractedSlide[]} slides
  * @param {import('./pptx-extractor.js').ExtractedImage[]} imagesAccum
@@ -368,6 +392,23 @@ export async function renderSvgToPng(svg, widthPx, heightPx) {
  */
 export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
   if (typeof document === "undefined" || !document.createElement) return;
+
+  // Parse the presentation once for the whole import instead of once per
+  // diagram.  If parsing fails, every diagram falls back to the SVG path.
+  let presentationPromise = null;
+  let presentationFailed = false;
+  const getPresentation = () => {
+    if (presentationFailed) return null;
+    if (!presentationPromise) {
+      presentationPromise = parsePresentation(pptxBuffer).catch((err) => {
+        Logger.warn("PPTX presentation parse failed, using SVG fallback for all diagrams:", err);
+        presentationPromise = null;
+        presentationFailed = true;
+        throw err;
+      });
+    }
+    return presentationPromise;
+  };
 
   for (const slide of slides) {
     const newElements = [];
@@ -380,19 +421,26 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
       }
 
       let dataUrl = null;
-      if (pptxBuffer && el.width != null && el.height != null) {
+      const canCrop = pptxBuffer && !el.fromGroup && el.width != null && el.height != null;
+      if (canCrop) {
         try {
-          dataUrl = await cropSlideToDiagram(
-            pptxBuffer,
-            slide.index,
-            {
-              left: el.left || 0,
-              top: el.top || 0,
-              width: el.width,
-              height: el.height,
-            },
-            el.shapes,
-          );
+          const presentation = await getPresentation();
+          if (presentation) {
+            dataUrl = await cropSlideToDiagram(
+              pptxBuffer,
+              slide.index,
+              {
+                left: el.left || 0,
+                top: el.top || 0,
+                width: el.width,
+                height: el.height,
+              },
+              el.shapes,
+              1,
+              null,
+              presentation,
+            );
+          }
         } catch (err) {
           Logger.warn("Diagram crop render failed, falling back to SVG:", err);
         }

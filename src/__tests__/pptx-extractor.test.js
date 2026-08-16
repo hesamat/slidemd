@@ -871,4 +871,97 @@ describe("PptxExtractor top-level diagram detection", () => {
     const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
     expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
   });
+
+  it("keeps the full accepted connector extent in the diagram bbox", () => {
+    const box = textBox("Box", 100, 100, 100, 50);
+    const longArrow = arrow(200, 120, 100);
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([box, longArrow]);
+    const diagram = result.find((el) => el.type === "diagram");
+
+    expect(diagram).toBeDefined();
+    expect(diagram.left).toBeLessThanOrEqual(longArrow.left);
+    expect(diagram.left + diagram.width).toBeGreaterThanOrEqual(longArrow.left + longArrow.width);
+  });
+
+  it("drops decorative side arrows that do not touch a shape (sudoku)", () => {
+    // Mirrors the real "Pause: vocabulary alert!" slide: a sudoku table with
+    // three left arrows and three right arrows floating beside it (no arrow
+    // touches the table).  The arrows must not be cropped into a diagram.
+    const table = {
+      type: "table",
+      content: "",
+      left: 334.1483,
+      top: 262.9,
+      width: 260.2205,
+      height: 237.6,
+      order: 5,
+      rows: [[{ text: "7", fillColor: "#ffffff" }]],
+    };
+    const labelRows = {
+      type: "text",
+      content: "**ROWS** ARE HORIZONTAL",
+      left: 620.272,
+      top: 257.9857,
+      width: 265.4927,
+      height: 31.5047,
+      order: 6,
+    };
+    const labelColumns = {
+      type: "text",
+      content: "**COLUMNS** ARE VERTICAL",
+      left: 66,
+      top: 263.1747,
+      width: 268.1483,
+      height: 31.5047,
+      order: 7,
+    };
+    const connector = (order, left, top, width, height) => ({
+      type: "connector",
+      content: "",
+      hasConnector: true,
+      shapType: "straightConnector1",
+      fill: "#0F6FC6",
+      strokeOnly: true,
+      left,
+      top,
+      width,
+      height,
+      order,
+    });
+    const arrows = [
+      connector(8, 627.0991, 301.7694, 233.5135, 0),
+      connector(9, 627.0991, 327.859, 233.5135, 0),
+      connector(10, 627.0991, 353.6613, 233.5135, 0),
+      connector(11, 200.2865, 294.6794, 0, 176.6933),
+      connector(12, 174.3405, 294.6794, 0, 176.6933),
+      connector(13, 146.1243, 294.6794, 0, 176.6933),
+    ];
+
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([
+      table,
+      labelRows,
+      labelColumns,
+      ...arrows,
+    ]);
+
+    // No diagram: the sudoku table alone is not a manual diagram, and the
+    // arrows are annotations, not diagram structure.
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
+    // The table and the arrows survive as standalone elements.
+    expect(result.some((el) => el.type === "table")).toBe(true);
+    expect(result.filter((el) => el.type === "connector")).toHaveLength(6);
+    expect(result.some((el) => el.content === "**ROWS** ARE HORIZONTAL")).toBe(true);
+  });
+
+  it("keeps a connector that touches a box-like shape", () => {
+    // A flowchart box with an arrow whose head touches its edge is diagram
+    // structure and must stay in the diagram.
+    const box = textBox("Process", 100, 100, 100, 50);
+    const arrowDown = arrow(150, 150, 50); // touches the box's bottom edge
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([box, arrowDown]);
+    const diagram = result.find((el) => el.type === "diagram");
+
+    expect(diagram).toBeDefined();
+    expect(diagram.shapes.some((s) => s.hasConnector)).toBe(true);
+  });
 });

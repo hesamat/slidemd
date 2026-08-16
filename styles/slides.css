@@ -1230,6 +1230,16 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   color: #fff;
 }
 
+/* Non-fullscreen tables with meaningful cell colours (e.g. a sudoku grid)
+   keep their source aspect ratio and centre in their area instead of
+   stretching to fill the whole column. */
+.slide__area .fullpage-grid--content {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  margin: auto;
+}
+
 /* ==========================================================================
    7. Animation & Accessibility
    ========================================================================== */
