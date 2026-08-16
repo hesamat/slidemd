@@ -185,7 +185,7 @@ function getLargestFontSize(element) {
  * @param {Element} element
  * @returns {boolean}
  */
-function isAllMonospace(element) {
+export function isAllMonospace(element) {
   let sawMono = false;
   const check = (node) => {
     if (node.nodeType === 3) {

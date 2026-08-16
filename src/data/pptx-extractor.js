@@ -8,7 +8,7 @@
  */
 import { parse } from "pptxtojson";
 import JSZip from "jszip";
-import { htmlToMarkdown, stripHtml } from "./pptx-html-to-markdown.js";
+import { htmlToMarkdown, stripHtml, isAllMonospace } from "./pptx-html-to-markdown.js";
 import { convertEmfImages, convertTiffImages } from "./pptx-image-converter.js";
 import { renderDiagramsToPng } from "./pptx-shape-renderer.js";
 import { buildChartDataRows } from "./pptx-chart-data.js";
@@ -1043,6 +1043,11 @@ export class PptxExtractor {
       const para = textBox.paragraphs[i];
       if (!para.hasBreak) continue;
       if (stripAll(ps[i].textContent || "") !== stripAll(para.xmlWithBreaks)) continue;
+      // Only rebuild all-monospace (code) paragraphs. The rebuild collapses
+      // the paragraph into a single span carrying the first run's style, so
+      // prose paragraphs with soft line breaks would lose per-run formatting
+      // (bold/italic/color/links) — leave those untouched.
+      if (!isAllMonospace(ps[i])) continue;
       PptxExtractor.#rebuildParagraphWithBreaks(ps[i], para.xmlWithBreaks);
       changed = true;
     }

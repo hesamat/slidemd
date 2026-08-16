@@ -148,6 +148,7 @@ describe("fitToWidth", () => {
       height: 960,
       left: 0,
       top: 0,
+      objectFit: "contain",
     });
   });
 
@@ -168,6 +169,7 @@ describe("fitToWidth", () => {
       height: 1080,
       left: 0,
       top: 0,
+      objectFit: "contain",
     });
   });
 
@@ -193,7 +195,23 @@ describe("fitToWidth", () => {
       height: 950,
       left: 0,
       top: 0,
+      objectFit: "contain",
     });
+  });
+
+  it("resets object-fit back to contain after a fill", () => {
+    // A cover-cropped image (Fill chip or imported full-bleed) returns to a
+    // contain fit when the user picks Fit — the crop must not persist with
+    // no UI to undo it.
+    const img = mockImg(
+      { left: "100px", top: "50px", objectFit: "cover" },
+      { left: 100, top: 50, width: 800, height: 400 },
+      1600,
+      800,
+    );
+    const applySettings = vi.fn();
+    fitToWidth(img, 1, applySettings);
+    expect(applySettings).toHaveBeenCalledWith(expect.objectContaining({ objectFit: "contain" }));
   });
 });
 

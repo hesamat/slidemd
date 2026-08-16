@@ -507,6 +507,11 @@ function convertSlide(
   // `area-bg-<area>:` (per-area background). Emit them when the source slide
   // actually uses those visuals, so media-span slides keep their full-height
   // edge image and colored backing panels survive the conversion.
+  // The directives are only pushed once the final layout is known: the
+  // media-span / two-column render branches can downgrade to header-content
+  // (empty @main / empty right column) below, which would leave media
+  // directives in the markdown for a layout that has no media area.
+  const directiveIndex = parts.length;
   let mediaFullBleed = false;
   if (layout.type === LAYOUT.MEDIA_SPAN.type) {
     const mediaSide = layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec ? "left" : "right";
@@ -522,8 +527,11 @@ function convertSlide(
     }
     const mediaImage = mediaEls[0] || null;
     // Full-bleed: the @media image touches the slide's outer edge and spans
-    // (nearly) the full height, so the source column is edge-to-edge.
-    if (mediaImage && mediaImage.type === ELEMENT_TYPES.IMAGE) {
+    // (nearly) the full height, so the source column is edge-to-edge. A
+    // single image is required — the render branch only applies the fill
+    // styles to a lone media image, so a multi-image media column would
+    // carry a directive with no visual effect.
+    if (mediaEls.length === 1 && mediaImage.type === ELEMENT_TYPES.IMAGE) {
       const l = mediaImage.left || 0;
       const w = mediaImage.width || 0;
       const h = mediaImage.height || 0;
@@ -567,13 +575,6 @@ function convertSlide(
         areaBg.main = css;
       }
     }
-  }
-
-  if (mediaFullBleed) {
-    parts.push("media-full-bleed: true");
-  }
-  for (const [area, css] of Object.entries(areaBg)) {
-    parts.push(`area-bg-${area}: ${css}`);
   }
 
   // --- RENDER SECTIONS ---
@@ -794,6 +795,9 @@ function convertSlide(
         // No elements on the right — downgrade to header-content
         layout = LAYOUT.HEADER_CONTENT;
         setLayoutDirective(parts, layout);
+        // The downgraded layout has no media area — drop the media directive
+        // computed for the two-column layout (area-bg-main stays valid).
+        delete areaBg.media;
         parts.push("");
         if (isHeaderValid) {
           parts.push(MARKDOWN_TAGS.HEADER);
@@ -857,6 +861,11 @@ function convertSlide(
     if (leftEls.length === 0) {
       layout = LAYOUT.HEADER_CONTENT;
       setLayoutDirective(parts, layout);
+      // The downgraded layout has no media area — drop the media directives
+      // that were computed for the media-span layout. area-bg-main survives:
+      // the main area exists in every layout.
+      mediaFullBleed = false;
+      delete areaBg.media;
       parts.push("");
       if (isHeaderValid) {
         parts.push(MARKDOWN_TAGS.HEADER);
@@ -963,6 +972,20 @@ function convertSlide(
     parts.push(
       renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
     );
+  }
+
+  // Emit the media-full-bleed / area-bg directives now that the layout is
+  // final (downgrade branches above may have cleared them). Inserted after
+  // the layout/background/theme directives and before the content sections.
+  const extraDirectives = [];
+  if (mediaFullBleed) {
+    extraDirectives.push("media-full-bleed: true");
+  }
+  for (const [area, css] of Object.entries(areaBg)) {
+    extraDirectives.push(`area-bg-${area}: ${css}`);
+  }
+  if (extraDirectives.length > 0) {
+    parts.splice(directiveIndex, 0, ...extraDirectives);
   }
 
   if (footerElements.length > 0) {

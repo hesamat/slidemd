@@ -965,4 +965,26 @@ describe("PptxExtractor <a:br/> reconstruction", () => {
     const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
     expect(injected).toBe(html);
   });
+
+  it("leaves prose paragraphs with soft line breaks untouched (no style flattening)", () => {
+    // The rebuild collapses a paragraph into a single span carrying the
+    // first run's style — for a prose paragraph with Shift+Enter breaks and
+    // mixed formatting that would flatten bold/italic/color. Only
+    // all-monospace (code) paragraphs are rebuilt.
+    const html =
+      '<p><span style="font-weight: bold;">Press Enter</span> to continue    then <span style="color:#C00000;">read the notes</span></p>';
+    const textBoxes = [
+      {
+        flatText: "Press Enter to continue then read the notes",
+        paragraphs: [
+          {
+            xmlWithBreaks: "Press Enter\nto continue\nthen read the notes",
+            hasBreak: true,
+          },
+        ],
+      },
+    ];
+    const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
+    expect(injected).toBe(html);
+  });
 });

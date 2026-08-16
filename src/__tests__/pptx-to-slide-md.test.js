@@ -3511,6 +3511,109 @@ describe("convertToSlideMd media-full-bleed / area-bg emission", () => {
     expect(md).toContain("object-fit: contain");
   });
 
+  it("drops the media-full-bleed directive when the media-span layout downgrades to header-content", () => {
+    // An image-only slide with three dominant images clustered on one side
+    // infers media-span but leaves @main empty, so the render branch
+    // downgrades to header-content. The media directive computed for the
+    // abandoned layout (the first image is edge-flush and full-height, which
+    // would qualify it) must not leak into the markdown.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "a.png",
+            base64: "abc",
+            left: 0,
+            top: 0,
+            width: 4000000,
+            height: DEFAULT_SIZE.height,
+          },
+          {
+            type: "image",
+            ref: "b.png",
+            base64: "abc",
+            left: 100000,
+            top: 1500000,
+            width: 2000000,
+            height: 1200000,
+          },
+          {
+            type: "image",
+            ref: "c.png",
+            base64: "abc",
+            left: 100000,
+            top: 3000000,
+            width: 2000000,
+            height: 1200000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).not.toContain("media-full-bleed");
+    expect(md).not.toContain("area-bg-");
+  });
+
+  it("does not emit media-full-bleed for a multi-image media column", () => {
+    // The render branch only applies the full-bleed fill styles to a lone
+    // media image; a multi-image @media would carry the directive with no
+    // visual effect, so it must not be emitted even when the first media
+    // image is edge-flush and full-height.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Left column body text that carries the main content",
+            left: 762000,
+            top: 1524000,
+            width: 3556000,
+            height: 1016000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 7288000,
+            top: 0,
+            width: 1856000,
+            height: DEFAULT_SIZE.height,
+          },
+          {
+            type: "image",
+            ref: "photo2.png",
+            base64: "abc",
+            left: 5588000,
+            top: 0,
+            width: 1700000,
+            height: DEFAULT_SIZE.height,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("media-full-bleed");
+  });
+
   it("emits area-bg-main for a large filled backing panel", () => {
     const extraction = makeExtraction([
       {

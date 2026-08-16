@@ -370,7 +370,11 @@ export class ImagePropertiesPanel {
 
   static _applyPreset(overrides) {
     const current = this._collectSettings();
-    let settings = { ...current, ...overrides };
+    // Size presets are the "normal image" path: they take the image out of
+    // fill mode, so reset any object-fit: cover (Fill chip / imported
+    // full-bleed) back to contain — otherwise the crop would persist with
+    // no UI to undo it.
+    let settings = { ...current, ...overrides, objectFit: "contain" };
 
     // If aspect ratio is locked and width is being set, calculate height
     if (this._aspectLocked && settings.width) {

@@ -69,16 +69,24 @@ dominant images), downgrade to `HEADER_CONTENT` and put images in `@main`.
 The converter also mirrors two source visuals the app supports natively:
 
 - **`media-full-bleed: true`** — emitted for `MEDIA_SPAN` slides whose `@media`
-  image touches the slide's outer edge and spans ≥95% of the slide height. The
-  source column is edge-to-edge, so the media column is rendered full-bleed
-  (`object-fit: cover`) instead of letterboxing. Detection mirrors the `@media`
-  population logic exactly (including its fallback).
+  image touches the slide's outer edge and spans ≥95% of the slide height, and
+  whose media column holds exactly one image (the render branch only applies
+  the fill styles to a lone media image). The source column is edge-to-edge,
+  so the media column is rendered full-bleed (`object-fit: cover`) instead of
+  letterboxing. Detection mirrors the `@media` population logic exactly
+  (including its fallback).
 - **`area-bg-main:` / `area-bg-media:`** — a filled backing panel (a `shape`
   with no text, `fillRaw` present) covering ≥25% of the slide becomes that
   area's background, so colored cards and sidebars survive the conversion.
   The fill is converted with `formatElementFillBackground()` (solid colors and
   gradients; image/transparent fills are skipped). Panels whose center sits in
   the top `bodyTopRatio` band are treated as header decorations and ignored.
+
+Both directives are emitted only when the final layout still has the
+corresponding area: if the `MEDIA_SPAN` or `TWO_COLUMN` render branch
+downgrades to `HEADER_CONTENT` (empty `@main` / empty right column), the
+media directives are dropped (`area-bg-main:` survives — every layout has a
+main area).
 
 ## Code detection
 

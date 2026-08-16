@@ -112,6 +112,9 @@ export function fitToWidth(img, scale, applySettings) {
     height: Math.round(height),
     left: 0,
     top: 0,
+    // Fit sizes the box to the image's aspect ratio, so the whole picture
+    // fits — switch back to contain. (The Fill chip is the cover counterpart.)
+    objectFit: "contain",
   });
 }
 

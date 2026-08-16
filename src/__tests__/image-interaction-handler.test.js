@@ -268,6 +268,7 @@ describe("ImageInteractionHandler", () => {
         height: 1060,
         left: 0,
         top: 0,
+        objectFit: "contain",
       });
     });
   });
