@@ -1033,10 +1033,8 @@ export class PptxExtractor {
       // Text elements inside the box: only include if they're short (diagram
       // labels are typically a few words) and not in the header band (which
       // is likely the slide title).  Long body text, code blocks, and titles
-      // stay outside even if they're within the X range.  Bordered text boxes
-      // and callouts can also carry long paragraphs; they are not diagram
-      // labels and should remain as slide body text.
-      if (el.type === "text" || (el.type === "shape" && (el.content || "").trim())) {
+      // stay outside even if they're within the X range.
+      if (el.type === "text" && !isShapeLike) {
         const text = (el.content || "").trim();
         // Only drop long body text / code.  Multi-line diagram labels
         // (e.g. a flowchart box with three lines) are still short, and the
@@ -1052,6 +1050,16 @@ export class PptxExtractor {
         // Exclude text in the top 22% of the slide (header band) — it's
         // likely the slide title, not a diagram label.
         if (cy < headerBandThreshold) {
+          continue;
+        }
+      }
+
+      // Callout/speech-bubble shapes with long paragraphs are not diagram
+      // labels — they are explanatory callouts that belong with slide body.
+      // Keep short callout labels (<= 80 chars) as they may be diagram labels.
+      if (isShapeLike && this.#isCalloutShape(el)) {
+        const text = (el.content || "").trim();
+        if (text.length > 80) {
           continue;
         }
       }
@@ -1168,6 +1176,20 @@ export class PptxExtractor {
     const backticks = (text.match(/`/g) || []).length;
     if (backticks >= 4 && backticks / text.length > 0.02) return true;
     return false;
+  }
+
+  /**
+   * Heuristic to detect callout / speech-bubble shapes that carry explanatory
+   * paragraphs rather than short diagram labels.  These should be excluded
+   * from manual diagram groups so they render as slide body text.
+   * @static
+   * @param {ExtractedElement} el
+   * @returns {boolean}
+   */
+  static #isCalloutShape(el) {
+    const calloutTypes =
+      /callout|wedgeRectCallout|wedgeRoundRectCallout|wedgeEllipseCallout|cloudCallout|borderCallout1|borderCallout2|borderCallout3|accentCallout1|accentCallout2|accentCallout3|callout1|callout2|callout3/;
+    return !!(el.shapType && calloutTypes.test(el.shapType));
   }
 
   /**
