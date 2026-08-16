@@ -151,11 +151,21 @@ async function loadReplacementFonts() {
 }
 
 /** Pre-compiled regexes for each Microsoft font name (avoids recompiling
- * inside the DOM walk loop).  Maps msName → { re, googleName }. */
-const FONT_REPLACEMENT_REGEXES = Object.entries(FONT_REPLACEMENTS).map(([msName, googleName]) => ({
-  re: new RegExp(`(["']?)${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["']?)`, "gi"),
-  googleName,
-}));
+ * inside the DOM walk loop).  Sorted longest-first so multi-word names
+ * (e.g. "Calibri Light") are matched before their shorter prefixes
+ * ("Calibri") — the shorter regex would otherwise match inside the longer
+ * name and produce invalid CSS like `"Carlito" Light"`.  Each name is only
+ * matched when preceded/followed by a quote, whitespace, or comma, so it
+ * never matches inside an unrelated family name (e.g. "MyCalibri"). */
+const FONT_REPLACEMENT_REGEXES = Object.entries(FONT_REPLACEMENTS)
+  .sort(([a], [b]) => b.length - a.length)
+  .map(([msName, googleName]) => ({
+    re: new RegExp(
+      `(^|[\\s,"'])${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[\\s,"'])`,
+      "gi",
+    ),
+    googleName,
+  }));
 
 /**
  * Walk the rendered DOM tree and replace any Microsoft font name in
@@ -163,7 +173,7 @@ const FONT_REPLACEMENT_REGEXES = Object.entries(FONT_REPLACEMENTS).map(([msName,
  *
  * @param {HTMLElement} root - The root element to walk
  */
-function replaceFontsInDOM(root) {
+export function replaceFontsInDOM(root) {
   /** @param {HTMLElement} el */
   function walk(el) {
     const ff = el.style.fontFamily;
@@ -172,7 +182,15 @@ function replaceFontsInDOM(root) {
       for (const { re, googleName } of FONT_REPLACEMENT_REGEXES) {
         // Use a function replacement to avoid $-substitution in the string
         // (e.g. "$googleName" would be treated literally by .replace()).
-        replaced = replaced.replace(re, () => `"${googleName}"`);
+        // A quoted match keeps its original quote character: the opening
+        // quote is part of the match but the closing quote is not consumed,
+        // so only the name is emitted here — emitting another closing quote
+        // would double it (`"Carlito""`) and make the setter reject the
+        // value.  Unquoted names become double-quoted.
+        replaced = replaced.replace(re, (match, prefix) => {
+          if (prefix === '"' || prefix === "'") return `${prefix}${googleName}`;
+          return `${prefix}"${googleName}"`;
+        });
       }
       if (replaced !== ff) {
         el.style.fontFamily = replaced;

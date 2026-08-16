@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { shrinkTextToFit, cropIsBlank } from "../data/pptx-diagram-cropper.js";
+import { shrinkTextToFit, cropIsBlank, replaceFontsInDOM } from "../data/pptx-diagram-cropper.js";
 
 const PT_TO_PX = 96 / 72;
 const px = (pt) => pt * PT_TO_PX;
@@ -183,6 +183,59 @@ describe("shrinkTextToFit", () => {
     } finally {
       document.createRange = restore;
     }
+  });
+});
+
+describe("replaceFontsInDOM", () => {
+  it("replaces a simple quoted Microsoft font", () => {
+    const root = document.createElement("div");
+    root.style.fontFamily = '"Calibri"';
+    replaceFontsInDOM(root);
+    expect(root.style.fontFamily).toBe('"Carlito"');
+  });
+
+  it("replaces multi-word font variants without mangling them", () => {
+    const root = document.createElement("div");
+    root.style.fontFamily =
+      '"Calibri Light", "Cambria Math", "Segoe UI Light", "Tw Cen MT Condensed", "Aptos Display"';
+    replaceFontsInDOM(root);
+    // Each variant must map to its Google Font as a complete, valid family
+    // name — never a prefix-mangled value like `"Carlito" Light"`.
+    expect(root.style.fontFamily).toBe(
+      '"Carlito", "Caladea", "Open Sans", "League Spartan", "Carlito"',
+    );
+  });
+
+  it("replaces unquoted names in a family list", () => {
+    const root = document.createElement("div");
+    root.style.fontFamily = "Calibri, sans-serif";
+    replaceFontsInDOM(root);
+    expect(root.style.fontFamily).toBe('"Carlito", sans-serif');
+  });
+
+  it("does not match inside longer or hyphenated family names", () => {
+    const root = document.createElement("div");
+    root.style.fontFamily = '"MyCalibri", "Calibri-2", "Arial"';
+    replaceFontsInDOM(root);
+    expect(root.style.fontFamily).toBe('"MyCalibri", "Calibri-2", "Arial"');
+  });
+
+  it("walks nested elements", () => {
+    const root = document.createElement("div");
+    const child = document.createElement("span");
+    root.style.fontFamily = '"Tahoma"';
+    child.style.fontFamily = '"Segoe UI Light"';
+    root.appendChild(child);
+    replaceFontsInDOM(root);
+    expect(root.style.fontFamily).toBe('"Verdana"');
+    expect(child.style.fontFamily).toBe('"Open Sans"');
+  });
+
+  it("keeps valid CSS when the same font appears twice in a list", () => {
+    const root = document.createElement("div");
+    root.style.fontFamily = '"Calibri", "Calibri"';
+    replaceFontsInDOM(root);
+    expect(root.style.fontFamily).toBe('"Carlito", "Carlito"');
   });
 });
 
