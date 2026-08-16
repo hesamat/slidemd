@@ -213,7 +213,11 @@ export function buildSwatchHtml() {
  * backgrounds; callers toggle their visibility via syncBgState.
  */
 export function buildBackgroundPanelHtml({ image = true } = {}) {
-  const imageSection = image
+  // Source row (color swatches / image browse) stays grouped at the top.
+  // The preview sits right below it — above the overlay/size/position/repeat
+  // controls — so it stays visible while the user adjusts image options
+  // instead of being pushed below the fold.
+  const imageSourceRow = image
     ? `
     <div class="style-inline-section">
       <div class="style-image-row">
@@ -221,7 +225,10 @@ export function buildBackgroundPanelHtml({ image = true } = {}) {
         <button class="style-bg-btn" data-action="pick-image" type="button">Browse...</button>
       </div>
       <div class="style-image-status" style="display:none"></div>
-    </div>
+    </div>`
+    : "";
+  const imageControls = image
+    ? `
     <div class="style-overlay-row" style="display:none">
       <span class="style-label">Overlay</span>
       <input type="range" class="style-range" data-field="bg-overlay" min="0" max="100" value="40" />
@@ -276,11 +283,11 @@ export function buildBackgroundPanelHtml({ image = true } = {}) {
       <span class="style-label">Transparency</span>
       <input type="range" class="style-range" data-field="bg-opacity" min="0" max="100" value="0" />
       <span class="style-control-value" data-display="bg-opacity">0%</span>
-    </div>${imageSection}
+    </div>${imageSourceRow}
     <div class="style-inline-section">
       <span class="style-label">Preview</span>
       <div class="style-bg-preview"></div>
-    </div>
+    </div>${imageControls}
     <div class="style-row style-row--between">
       <label class="style-toggle">
         <input type="checkbox" data-field="bg-theme" />
