@@ -398,11 +398,15 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
       });
 
       // Replace the diagram element with an image element at the same bbox.
+      // Carry the diagram's label text as caption so it becomes the image's
+      // alt text (searchable, accessible) rather than a separate text element.
+      const labelText = (el.content || "").trim();
       newElements.push({
         type: "image",
         base64,
         mimeType: "image/png",
         ref,
+        caption: labelText || undefined,
         placeholderType: null,
         order: el.order,
         left: el.left,
@@ -410,25 +414,6 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
         width: el.width,
         height: el.height,
       });
-
-      // Emit a text fallback carrying the diagram's labels so the imported
-      // Markdown retains searchable, editable text alongside the rendered
-      // image.  The text is placed at the same position with a zero-size
-      // bbox so it doesn't affect layout but is still discoverable by
-      // search and screen readers.
-      const labelText = (el.content || "").trim();
-      if (labelText && labelText !== "[Diagram]") {
-        newElements.push({
-          type: "text",
-          content: labelText,
-          placeholderType: null,
-          order: (el.order || 0) + 0.5,
-          left: el.left,
-          top: el.top,
-          width: el.width,
-          height: el.height,
-        });
-      }
     }
 
     slide.elements = newElements;

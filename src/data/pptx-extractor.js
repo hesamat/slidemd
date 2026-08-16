@@ -1230,10 +1230,15 @@ export class PptxExtractor {
    * @returns {ExtractedElement} A diagram element with text content.
    */
   static #shapesToDiagram(elements, order) {
-    // Do not dump the diagram's labels into the Markdown body.  The rendered
-    // PNG image is the canonical representation; the text is already visible
-    // in the image.  Keep a short non-intrusive alt marker for debugging.
-    const content = `[Diagram: ${elements.length} shapes]`;
+    // Build a concise caption from the diagram's text labels for use as the
+    // image's alt text.  The rendered PNG is the canonical visual; the caption
+    // makes it searchable and accessible without dumping labels into the body.
+    const labels = elements
+      .filter((el) => el.content && el.content.trim())
+      .map((el) => el.content.trim())
+      .filter((t) => t !== "[Diagram]");
+    const content =
+      labels.length > 0 ? labels.join(", ").slice(0, 200) : `[Diagram: ${elements.length} shapes]`;
 
     // Calculate the bounding box from the visible body shapes plus a capped
     // contribution from the connectors.  Connectors can extend far outside the

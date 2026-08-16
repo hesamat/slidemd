@@ -183,7 +183,7 @@ export function formatImage(
     .replace(REGEX.HYPHEN_UNDERSCORE, " ")
     .replace(/(\d+)/g, " $1")
     .trim();
-  const altText = caption || `Slide image ${baseAlt}`;
+  const altText = caption || img.caption || `Slide image ${baseAlt}`;
 
   // fitColumn: media-span image — the media-span CSS fills the column via
   // absolute insets and object-fit: contain; the inline style stays
