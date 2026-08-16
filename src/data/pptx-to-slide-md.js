@@ -17,6 +17,7 @@ import {
   formatTable,
   formatChart,
   formatDiagram,
+  formatElementFillBackground,
 } from "./pptx-element-formatters.js";
 import {
   getOverlapArea,
@@ -499,6 +500,80 @@ function convertSlide(
     parts.push("");
     parts.push(formatImage(fullImageCandidate, deckName));
     return parts.join("\n");
+  }
+
+  // --- media-full-bleed / area-bg ---
+  // The app supports `media-full-bleed:` (edge-to-edge media column) and
+  // `area-bg-<area>:` (per-area background). Emit them when the source slide
+  // actually uses those visuals, so media-span slides keep their full-height
+  // edge image and colored backing panels survive the conversion.
+  let mediaFullBleed = false;
+  if (layout.type === LAYOUT.MEDIA_SPAN.type) {
+    const mediaSide = layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec ? "left" : "right";
+    // Mirror the @media population exactly (see the media-span render branch)
+    // so full-bleed is judged from the image that actually lands in @media.
+    let mediaEls = dominantImages.filter(
+      (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === mediaSide,
+    );
+    if (mediaEls.length === 0) {
+      mediaEls = dominantImages.filter(
+        (el) => bodyElements.includes(el) || el === dominantImages[0],
+      );
+    }
+    const mediaImage = mediaEls[0] || null;
+    // Full-bleed: the @media image touches the slide's outer edge and spans
+    // (nearly) the full height, so the source column is edge-to-edge.
+    if (mediaImage && mediaImage.type === ELEMENT_TYPES.IMAGE) {
+      const l = mediaImage.left || 0;
+      const w = mediaImage.width || 0;
+      const h = mediaImage.height || 0;
+      const touchesOuterEdge = mediaSide === "left" ? l <= 2 : l + w >= slideWidth - 2;
+      if (touchesOuterEdge && h >= slideHeight * 0.95) {
+        mediaFullBleed = true;
+      }
+    }
+  }
+
+  // area-bg-*: a filled backing panel (a shape with no text) covering a large
+  // part of the main/media region becomes that region's background, so colored
+  // cards and sidebars survive the conversion.
+  const areaBg = {};
+  if (layout.type !== LAYOUT.TITLE_SLIDE.type) {
+    const mediaSide =
+      layout.type === LAYOUT.MEDIA_SPAN.type
+        ? layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec
+          ? "left"
+          : "right"
+        : layout.type === LAYOUT.TWO_COLUMN.type
+          ? "right"
+          : null;
+    const bodyTop = slideHeight * CONFIG.bodyTopRatio;
+    for (const el of slide.elements) {
+      if (el.type !== "shape" || (el.content || "").trim()) continue;
+      if (el === bgCandidate) continue;
+      const w = el.width || 0;
+      const h = el.height || 0;
+      if (w * h < slideArea * 0.25) continue;
+      const css = formatElementFillBackground(el);
+      if (!css || css === "transparent") continue;
+      const centerX = (el.left || 0) + w / 2;
+      const centerY = (el.top || 0) + h / 2;
+      if (centerY < bodyTop) continue;
+      if (mediaSide === "left" && centerX < midX) {
+        areaBg.media = css;
+      } else if (mediaSide === "right" && centerX >= midX) {
+        areaBg.media = css;
+      } else {
+        areaBg.main = css;
+      }
+    }
+  }
+
+  if (mediaFullBleed) {
+    parts.push("media-full-bleed: true");
+  }
+  for (const [area, css] of Object.entries(areaBg)) {
+    parts.push(`area-bg-${area}: ${css}`);
   }
 
   // --- RENDER SECTIONS ---

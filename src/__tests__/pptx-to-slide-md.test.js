@@ -3440,3 +3440,153 @@ describe("convertToSlideMd table / image / footer edge cases", () => {
     expect(md.match(/images\/icon\.png/g)?.length).toBe(1);
   });
 });
+
+describe("convertToSlideMd media-full-bleed / area-bg emission", () => {
+  const mediaSpanSlide = (imageLeft, imageWidth, imageHeight) => ({
+    index: 0,
+    title: "Two Pics",
+    notes: "",
+    elements: [
+      {
+        type: "text",
+        content: "## Header",
+        left: 500000,
+        top: 200000,
+        width: 8000000,
+        height: 500000,
+      },
+      {
+        type: "text",
+        content: "Left column body text that carries the main content",
+        left: 762000,
+        top: 1524000,
+        width: 3556000,
+        height: 1016000,
+      },
+      // Illustration inside the text column
+      {
+        type: "image",
+        ref: "illustration.png",
+        base64: "abc",
+        left: 1016000,
+        top: 2540000,
+        width: 2540000,
+        height: 1905000,
+      },
+      // The media-only column
+      {
+        type: "image",
+        ref: "photo.png",
+        base64: "abc",
+        left: imageLeft,
+        top: 0,
+        width: imageWidth,
+        height: imageHeight,
+      },
+    ],
+    background: "",
+  });
+
+  it("emits media-full-bleed when the media image is edge-flush and full-height", () => {
+    // Image touches the right edge (left + width === slide width) and spans
+    // the full slide height.
+    const md = convertToSlideMd(
+      makeExtraction([mediaSpanSlide(5588000, DEFAULT_SIZE.width - 5588000, DEFAULT_SIZE.height)]),
+    );
+    expect(md).toContain("layout: media-span-right");
+    expect(md).toContain("media-full-bleed: true");
+  });
+
+  it("does not emit media-full-bleed for an inset media image", () => {
+    // Image ends well before the right edge.
+    const md = convertToSlideMd(
+      makeExtraction([mediaSpanSlide(5334000, 2000000, DEFAULT_SIZE.height)]),
+    );
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("media-full-bleed");
+  });
+
+  it("emits area-bg-main for a large filled backing panel", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "shape",
+            shapType: "rect",
+            fill: "#eef4fb",
+            fillRaw: { type: "color", value: "#eef4fb" },
+            content: "",
+            left: 400000,
+            top: 1500000,
+            width: 8300000,
+            height: 3200000,
+          },
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body content here",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #eef4fb");
+  });
+
+  it("does not emit area-bg for small filled shapes", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "shape",
+            shapType: "rect",
+            fill: "#eef4fb",
+            fillRaw: { type: "color", value: "#eef4fb" },
+            content: "",
+            left: 400000,
+            top: 1500000,
+            width: 500000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body content here",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain("area-bg-");
+  });
+});

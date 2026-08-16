@@ -280,6 +280,28 @@ export function formatTable(table, slideWidth, slideHeight) {
 }
 
 /**
+ * Build a CSS `background` value from a PPTX element's fill (solid color or
+ * gradient), for use as an `area-bg-*:` directive. Returns "" when the element
+ * has no usable fill — image fills and transparent fills are skipped.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @returns {string}
+ */
+export function formatElementFillBackground(el) {
+  const fill = el.fillRaw || (el.fill ? { type: "color", value: el.fill } : null);
+  if (!fill) return "";
+  if (fill.type === "color" && fill.value) {
+    return sanitizeCssColor(fill.value);
+  }
+  if (fill.type === "gradient" && fill.value?.colors?.length) {
+    const stops = fill.value.colors
+      .map((c) => `${sanitizeCssColor(c.color)} ${c.pos}`.trim())
+      .join(", ");
+    return stops ? `linear-gradient(${stops})` : "";
+  }
+  return "";
+}
+
+/**
  * Format a chart element as a markdown table.
  *
  * @param {object} chart - Chart element with chartData
