@@ -13,6 +13,7 @@
 import {
   buildBackgroundPanelHtml,
   buildImageBackground,
+  hexToRgba,
   parseBackgroundValue,
   syncBgState,
 } from "../ui/style-helpers.js";
@@ -260,10 +261,13 @@ export class AreaContextMenu {
     const parsed = parseBackgroundValue(currentBackground);
     this._bgAreaName = areaName;
     this._bgState = {
-      bg: parsed.bg,
+      bg: parsed.imagePath ? "" : parsed.bg,
       imagePath: parsed.imagePath,
       imageBlobUrl: parsed.imageBlobUrl,
       overlay: parsed.overlay,
+      opacity: parsed.opacity ?? 0,
+      size: parsed.size,
+      position: parsed.position,
       theme: "",
     };
 
@@ -337,18 +341,22 @@ export class AreaContextMenu {
         this._bgState.imagePath,
         this._bgState.overlay,
         this._bgState.imageBlobUrl,
+        { size: this._bgState.size, position: this._bgState.position },
       );
     }
-    return this._bgState.bg || "";
+    return this._bgState.bg ? hexToRgba(this._bgState.bg, 100 - this._bgState.opacity) : "";
   }
 
   /** Persisted background value (on-disk image path, never the blob URL). */
   _persistedBgValue() {
     if (!this._bgState) return "";
     if (this._bgState.imagePath) {
-      return buildImageBackground(this._bgState.imagePath, this._bgState.overlay);
+      return buildImageBackground(this._bgState.imagePath, this._bgState.overlay, undefined, {
+        size: this._bgState.size,
+        position: this._bgState.position,
+      });
     }
-    return this._bgState.bg || "";
+    return this._bgState.bg ? hexToRgba(this._bgState.bg, 100 - this._bgState.opacity) : "";
   }
 
   /** Push the current popover state into the shared syncBgState UI + live preview. */
@@ -360,6 +368,9 @@ export class AreaContextMenu {
       theme: this._bgState.theme,
       bgValue: this._currentBgValue(),
       overlay: this._bgState.overlay,
+      opacity: this._bgState.opacity,
+      size: this._bgState.size,
+      position: this._bgState.position,
     });
     // Live preview on the area element itself.
     const areaEl = this._getAreaElement?.(this._bgAreaName);
@@ -379,6 +390,7 @@ export class AreaContextMenu {
         this._bgState.bg = btn.dataset.value || "";
         this._bgState.imagePath = "";
         this._bgState.imageBlobUrl = "";
+        this._bgState.opacity = 0;
         this._syncPopoverUI();
       });
     }
@@ -392,11 +404,12 @@ export class AreaContextMenu {
         this._bgState.bg = e.target.value;
         this._bgState.imagePath = "";
         this._bgState.imageBlobUrl = "";
+        this._bgState.opacity = 0;
         this._syncPopoverUI();
       });
     }
 
-    // Overlay slider
+    // Overlay slider (image backgrounds)
     const overlaySlider = popover.querySelector('[data-field="bg-overlay"]');
     if (overlaySlider) {
       overlaySlider.addEventListener("input", (e) => {
@@ -407,6 +420,58 @@ export class AreaContextMenu {
         this._syncPopoverUI();
       });
     }
+
+    // Transparency slider (solid color backgrounds)
+    const opacitySlider = popover.querySelector('[data-field="bg-opacity"]');
+    if (opacitySlider) {
+      opacitySlider.addEventListener("input", (e) => {
+        e.stopPropagation();
+        this._bgState.opacity = parseInt(e.target.value, 10);
+        const label = popover.querySelector('[data-display="bg-opacity"]');
+        if (label) label.textContent = `${this._bgState.opacity}%`;
+        this._syncPopoverUI();
+      });
+    }
+
+    // Hex code input (editable, next to transparency slider)
+    const hexInput = popover.querySelector('[data-field="bg-hex"]');
+    if (hexInput) {
+      hexInput.addEventListener("input", (e) => {
+        e.stopPropagation();
+        const val = e.target.value.trim();
+        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+          this._bgState.bg = val;
+          this._bgState.imagePath = "";
+          this._bgState.imageBlobUrl = "";
+          this._bgState.opacity = 0;
+          this._syncPopoverUI();
+        }
+      });
+    }
+
+    // Background size buttons (cover/contain/auto)
+    popover.querySelectorAll("[data-bg-size]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        popover.querySelectorAll("[data-bg-size]").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        this._bgState.size = btn.dataset.bgSize;
+        this._syncPopoverUI();
+      });
+    });
+
+    // Background position buttons (9-point grid)
+    popover.querySelectorAll("[data-bg-position]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        popover
+          .querySelectorAll("[data-bg-position]")
+          .forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        this._bgState.position = btn.dataset.bgPosition;
+        this._syncPopoverUI();
+      });
+    });
 
     // Image picker
     const pickBtn = popover.querySelector('[data-action="pick-image"]');

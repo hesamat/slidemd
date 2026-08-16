@@ -15,6 +15,7 @@ import {
   buildAreaStylePanelHtml,
   buildTitlePanelHtml,
   syncBgState,
+  hexToRgba,
 } from "../editor/ui/style-helpers.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
 
@@ -186,6 +187,9 @@ export class NewPresentationModal {
       let selectedTemplate = TEMPLATES[0];
       let selectedImagePath = "";
       let imageOverlay = 40;
+      let bgSize = "cover";
+      let bgPosition = "center";
+      let bgOpacity = 0;
 
       const stepPanels = backdrop.querySelectorAll(`.${P}panel`);
       const stepDots = backdrop.querySelectorAll(`.${P}dot`);
@@ -211,8 +215,12 @@ export class NewPresentationModal {
       };
 
       const getBackgroundValue = () => {
-        if (selectedImagePath) return buildImageBackground(selectedImagePath, imageOverlay, "");
-        return selectedBg;
+        if (selectedImagePath)
+          return buildImageBackground(selectedImagePath, imageOverlay, "", {
+            size: bgSize,
+            position: bgPosition,
+          });
+        return selectedBg ? hexToRgba(selectedBg, 100 - bgOpacity) : "";
       };
 
       const syncBg = () => {
@@ -222,6 +230,9 @@ export class NewPresentationModal {
           theme: selectedTheme,
           bgValue: getBackgroundValue(),
           overlay: imageOverlay,
+          opacity: bgOpacity,
+          size: bgSize,
+          position: bgPosition,
         });
       };
 
@@ -231,6 +242,7 @@ export class NewPresentationModal {
         if (!btn || btn.dataset.action === "open-color-picker") return;
         selectedBg = btn.dataset.value;
         selectedImagePath = "";
+        bgOpacity = 0;
         selectedTheme = btn.dataset.value && isColorDark(btn.dataset.value) ? "dark" : "";
         syncBg();
       });
@@ -241,6 +253,7 @@ export class NewPresentationModal {
         colorInput.addEventListener("input", (e) => {
           selectedBg = e.target.value;
           selectedImagePath = "";
+          bgOpacity = 0;
           selectedTheme = isColorDark(e.target.value) ? "dark" : "";
           syncBg();
         });
@@ -266,6 +279,49 @@ export class NewPresentationModal {
         const slider = backdrop.querySelector('[data-field="bg-overlay"]');
         imageOverlay = parseInt(slider.value, 10);
         syncBg();
+      });
+
+      // Transparency slider (solid color backgrounds)
+      backdrop.querySelector('[data-field="bg-opacity"]')?.addEventListener("input", () => {
+        const slider = backdrop.querySelector('[data-field="bg-opacity"]');
+        bgOpacity = parseInt(slider.value, 10);
+        syncBg();
+      });
+
+      // Hex code input (editable, next to transparency slider)
+      backdrop.querySelector('[data-field="bg-hex"]')?.addEventListener("input", (e) => {
+        const val = e.target.value.trim();
+        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+          selectedBg = val;
+          selectedImagePath = "";
+          bgOpacity = 0;
+          selectedTheme = isColorDark(val) ? "dark" : "";
+          syncBg();
+        }
+      });
+
+      // Background size buttons
+      backdrop.querySelectorAll("[data-bg-size]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          backdrop
+            .querySelectorAll("[data-bg-size]")
+            .forEach((b) => b.classList.remove("selected"));
+          btn.classList.add("selected");
+          bgSize = btn.dataset.bgSize;
+          syncBg();
+        });
+      });
+
+      // Background position buttons
+      backdrop.querySelectorAll("[data-bg-position]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          backdrop
+            .querySelectorAll("[data-bg-position]")
+            .forEach((b) => b.classList.remove("selected"));
+          btn.classList.add("selected");
+          bgPosition = btn.dataset.bgPosition;
+          syncBg();
+        });
       });
 
       // ── Title style buttons ──

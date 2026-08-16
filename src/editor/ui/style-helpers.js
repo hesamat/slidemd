@@ -17,7 +17,6 @@ export function getDefaultBorderColor() {
 }
 
 export const COLOR_SWATCHES = [
-  { name: "Light gray", value: "#f1f5f9" },
   { name: "Warm gray", value: "#e7e5e4" },
   { name: "Dark slate", value: "#1e293b" },
   { name: "Navy", value: "#0f172a" },
@@ -38,11 +37,71 @@ export function isColorDark(hex) {
   return (r * 299 + g * 587 + b * 114) / 1000 < 128;
 }
 
-export function buildImageBackground(imagePath, overlay, blobUrl) {
+/**
+ * Convert a hex color + opacity (0–100) to an rgba() string.
+ * @param {string} hex - #rrggbb
+ * @param {number} opacity - 0–100 (100 = fully opaque)
+ * @returns {string} rgba(r, g, b, a) or the original hex when opacity is 100
+ */
+export function hexToRgba(hex, opacity) {
+  if (!hex || !hex.startsWith("#")) return hex || "";
+  const alpha = Math.round((opacity / 100) * 100) / 100;
+  if (alpha >= 1) return hex;
+  const c = hex.replace("#", "");
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Parse an rgba()/rgb() string into { hex, opacity }.
+ * Falls back to { hex: raw, opacity: 100 } for non-rgba values.
+ * @param {string} raw
+ * @returns {{ hex: string, opacity: number }}
+ */
+export function parseRgba(raw) {
+  const text = String(raw || "").trim();
+  const m = text.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/i);
+  if (m) {
+    const r = parseInt(m[1], 10);
+    const g = parseInt(m[2], 10);
+    const b = parseInt(m[3], 10);
+    const alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
+    const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+    return { hex, opacity: Math.round(alpha * 100) };
+  }
+  return { hex: text, opacity: 100 };
+}
+
+/**
+ * Default background image options.  These match the historical behavior
+ * (center / cover no-repeat with a dark overlay) so existing decks keep
+ * rendering the same way.
+ */
+export const DEFAULT_BG_IMAGE_OPTS = {
+  size: "cover",
+  position: "center",
+  repeat: "no-repeat",
+};
+
+/**
+ * Build a CSS `background` value for an image with optional dark overlay.
+ *
+ * @param {string} imagePath - On-disk image path (used for persistence).
+ * @param {number} overlay - Overlay opacity 0–100 (0 = no overlay).
+ * @param {string} [blobUrl] - Session-only blob URL for preview; falls back to imagePath.
+ * @param {{ size?: string, position?: string, repeat?: string }} [opts]
+ *   Background-size (cover/contain/auto/…), background-position (center/top left/…),
+ *   background-repeat (no-repeat/repeat/…).  Defaults to cover/center/no-repeat.
+ * @returns {string} CSS background shorthand string, or "" when no image path.
+ */
+export function buildImageBackground(imagePath, overlay, blobUrl, opts = {}) {
   if (!imagePath) return "";
   const displayUrl = blobUrl || imagePath;
   const url = `url('${String(displayUrl).replace(/'/g, "\\'")}')`;
-  const imageLayer = `${url} center / cover no-repeat`;
+  const { size, position, repeat } = { ...DEFAULT_BG_IMAGE_OPTS, ...opts };
+  const imageLayer = `${url} ${position} / ${size} ${repeat}`;
   const opacity = overlay / 100;
   if (opacity <= 0) return imageLayer;
   const overlayLayer = `linear-gradient(rgba(0,0,0,${opacity}),rgba(0,0,0,${opacity}))`;
@@ -137,6 +196,11 @@ export function buildSwatchHtml() {
 
 /**
  * Build the full background panel HTML using shared style- classes.
+ *
+ * Includes color swatches, image picker, overlay (dark transparency),
+ * background-size (cover/contain/auto), background-position, and a live
+ * preview.  The size/position controls are only relevant for image
+ * backgrounds; callers toggle their visibility via syncBgState.
  */
 export function buildBackgroundPanelHtml() {
   return `
@@ -145,6 +209,14 @@ export function buildBackgroundPanelHtml() {
         <span class="style-label">Color</span>
         <div class="style-swatch-grid">${buildSwatchHtml()}</div>
       </div>
+    </div>
+    <div class="style-hex-row" style="display:none">
+      <input type="text" class="style-hex-input" data-field="bg-hex" spellcheck="false" placeholder="#000000" maxlength="7" />
+    </div>
+    <div class="style-opacity-row" style="display:none">
+      <span class="style-label">Transparency</span>
+      <input type="range" class="style-range" data-field="bg-opacity" min="0" max="100" value="0" />
+      <span class="style-control-value" data-display="bg-opacity">0%</span>
     </div>
     <div class="style-inline-section">
       <div class="style-image-row">
@@ -157,6 +229,30 @@ export function buildBackgroundPanelHtml() {
       <span class="style-label">Overlay</span>
       <input type="range" class="style-range" data-field="bg-overlay" min="0" max="100" value="40" />
       <span class="style-control-value" data-display="bg-overlay">40%</span>
+    </div>
+    <div class="style-bg-options" style="display:none">
+      <div class="style-control-row">
+        <span class="style-control-label">Size</span>
+        <div class="style-btn-group style-btn-group--compact" data-bg-size-group>
+          <button class="style-btn-option selected" data-bg-size="cover" type="button">Cover</button>
+          <button class="style-btn-option" data-bg-size="contain" type="button">Contain</button>
+          <button class="style-btn-option" data-bg-size="auto" type="button">Auto</button>
+        </div>
+      </div>
+      <div class="style-control-row">
+        <span class="style-control-label">Position</span>
+        <div class="style-btn-group style-btn-group--compact" data-bg-position-group>
+          <button class="style-btn-option" data-bg-position="top left" type="button">↖</button>
+          <button class="style-btn-option" data-bg-position="top center" type="button">↑</button>
+          <button class="style-btn-option" data-bg-position="top right" type="button">↗</button>
+          <button class="style-btn-option" data-bg-position="center left" type="button">←</button>
+          <button class="style-btn-option selected" data-bg-position="center" type="button">•</button>
+          <button class="style-btn-option" data-bg-position="center right" type="button">→</button>
+          <button class="style-btn-option" data-bg-position="bottom left" type="button">↙</button>
+          <button class="style-btn-option" data-bg-position="bottom center" type="button">↓</button>
+          <button class="style-btn-option" data-bg-position="bottom right" type="button">↘</button>
+        </div>
+      </div>
     </div>
     <div class="style-inline-section">
       <span class="style-label">Preview</span>
@@ -243,6 +339,18 @@ export function buildLayoutPanelHtml() {
 
 /**
  * Sync background UI state using shared style- class selectors.
+ *
+ * @param {HTMLElement} rootEl
+ * @param {{
+ *   bg: string,
+ *   imagePath: string,
+ *   theme: string,
+ *   bgValue: string,
+ *   overlay: number,
+ *   opacity?: number,
+ *   size?: string,
+ *   position?: string,
+ * }} state
  */
 export function syncBgState(rootEl, state) {
   const swatches = rootEl.querySelectorAll(".style-swatch");
@@ -252,6 +360,10 @@ export function syncBgState(rootEl, state) {
   const overlaySlider = rootEl.querySelector('[data-field="bg-overlay"]');
   const overlayValue = rootEl.querySelector('[data-display="bg-overlay"]');
   const overlayRow = rootEl.querySelector(".style-overlay-row");
+  const bgOptions = rootEl.querySelector(".style-bg-options");
+  const opacityRow = rootEl.querySelector(".style-opacity-row");
+  const opacitySlider = rootEl.querySelector('[data-field="bg-opacity"]');
+  const opacityValue = rootEl.querySelector('[data-display="bg-opacity"]');
 
   swatches.forEach((s) => {
     const isNone = s.classList.contains("style-swatch--none");
@@ -271,25 +383,121 @@ export function syncBgState(rootEl, state) {
     bgPreview.style.background = state.bgValue || "var(--surface-elevated)";
     bgPreview.classList.toggle("has-bg", !!state.bgValue);
   }
-  if (overlayRow) overlayRow.style.display = state.imagePath ? "flex" : "none";
+  const showImageControls = Boolean(state.imagePath);
+  const showColorControls = Boolean(state.bg) && !showImageControls;
+  const hexRow = rootEl.querySelector(".style-hex-row");
+  if (overlayRow) overlayRow.style.display = showImageControls ? "flex" : "none";
+  if (bgOptions) bgOptions.style.display = showImageControls ? "block" : "none";
+  if (hexRow) hexRow.style.display = showColorControls ? "flex" : "none";
+  if (opacityRow) opacityRow.style.display = showColorControls ? "flex" : "none";
   if (overlaySlider) overlaySlider.value = state.overlay;
   if (overlayValue) overlayValue.textContent = `${state.overlay}%`;
+  if (opacitySlider) opacitySlider.value = state.opacity ?? 0;
+  if (opacityValue) opacityValue.textContent = `${state.opacity ?? 0}%`;
+  const hexInput = rootEl.querySelector('[data-field="bg-hex"]');
+  if (hexInput && document.activeElement !== hexInput) hexInput.value = state.bg || "";
+
+  // Sync size/position button groups
+  if (showImageControls) {
+    const sizeBtns = rootEl.querySelectorAll("[data-bg-size]");
+    const posBtns = rootEl.querySelectorAll("[data-bg-position]");
+    const currentSize = state.size || DEFAULT_BG_IMAGE_OPTS.size;
+    const currentPos = (state.position || DEFAULT_BG_IMAGE_OPTS.position).toLowerCase();
+    sizeBtns.forEach((btn) => {
+      btn.classList.toggle("selected", btn.dataset.bgSize === currentSize);
+    });
+    posBtns.forEach((btn) => {
+      btn.classList.toggle("selected", btn.dataset.bgPosition === currentPos);
+    });
+  }
 }
 
 /**
  * Parse image background from a raw background CSS value.
- * Returns { imagePath, imageBlobUrl, overlay, bg }
+ *
+ * Extracts the image path, dark-overlay opacity, and background-size /
+ * position / repeat from the CSS shorthand so the picker can seed its
+ * controls from an existing value.  Falls back to defaults when a
+ * component is not present (e.g. older decks that only wrote
+ * `url(...) center / cover no-repeat`).
+ *
+ * @param {string} rawBg
+ * @returns {{
+ *   imagePath: string,
+ *   imageBlobUrl: string,
+ *   overlay: number,
+ *   bg: string,
+ *   size: string,
+ *   position: string,
+ *   repeat: string,
+ * }}
  */
 export function parseBackgroundValue(rawBg) {
-  const urlMatch = rawBg.match(/url\(['"]?([^'")]+)['"]?\)/);
+  const text = String(rawBg || "");
+  const urlMatch = text.match(/url\(['"]?([^'")]+)['"]?\)/);
   if (urlMatch) {
-    const overlayMatch = rawBg.match(/rgba\(0,0,0,([\d.]+)\)/);
+    const overlayMatch = text.match(/rgba\(0,0,0,([\d.]+)\)/);
+    const overlay = overlayMatch ? Math.round(parseFloat(overlayMatch[1]) * 100) : 0;
+
+    // The image layer is the part after the overlay gradient (if any).
+    // It uses the CSS background shorthand: url(...) position / size repeat
+    const imageLayer = text.split(/,\s*(?![^()]*\))/).pop() || text;
+
+    // Position and size are separated by ` / ` in the shorthand.
+    // Position can be 1–2 words (center, top left, …).
+    const afterUrl = imageLayer.replace(/url\([^)]+\)\s*/, "").trim();
+    const slashIdx = afterUrl.indexOf("/");
+    let position = "center";
+    let sizeRepeat = "";
+    if (slashIdx >= 0) {
+      position = afterUrl.slice(0, slashIdx).trim() || "center";
+      sizeRepeat = afterUrl.slice(slashIdx + 1).trim();
+    } else {
+      // No slash → everything after url() is position (no explicit size).
+      position = afterUrl.trim() || "center";
+    }
+
+    // sizeRepeat is "<size> <repeat>" — size can be cover/contain/auto/100%…
+    // repeat is no-repeat/repeat/repeat-x/repeat-y.
+    let size = "cover";
+    let repeat = "no-repeat";
+    if (sizeRepeat) {
+      const repeatMatch = sizeRepeat.match(/\b(no-repeat|repeat-x|repeat-y|repeat)\b/i);
+      if (repeatMatch) {
+        repeat = repeatMatch[1].toLowerCase();
+        size = sizeRepeat.replace(repeatMatch[0], "").trim() || "cover";
+      } else {
+        size = sizeRepeat.trim() || "cover";
+      }
+    }
+
+    // Position may be multi-word ("top left"); normalise to the values the
+    // picker uses.  If it doesn't match a known preset, keep the raw string.
+    position = position.toLowerCase();
+
     return {
       imagePath: urlMatch[1],
       imageBlobUrl: "",
-      overlay: overlayMatch ? Math.round(parseFloat(overlayMatch[1]) * 100) : 0,
-      bg: rawBg,
+      overlay,
+      bg: "",
+      opacity: 0,
+      size,
+      position,
+      repeat,
     };
   }
-  return { imagePath: "", imageBlobUrl: "", overlay: 40, bg: rawBg };
+  // Non-image background: could be a hex color, rgba(), or named color.
+  // Parse rgba to extract the hex + opacity so the swatch grid and
+  // transparency slider seed correctly.
+  const parsed = parseRgba(text);
+  return {
+    imagePath: "",
+    imageBlobUrl: "",
+    overlay: 40,
+    bg: parsed.hex,
+    opacity: parsed.opacity,
+    size: DEFAULT_BG_IMAGE_OPTS.size,
+    position: DEFAULT_BG_IMAGE_OPTS.position,
+    repeat: DEFAULT_BG_IMAGE_OPTS.repeat,
+  };
 }

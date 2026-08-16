@@ -155,8 +155,9 @@
   word-break: break-all;
 }
 
-/* ── Overlay row ── */
-.style-overlay-row {
+/* ── Overlay row (image backgrounds) / Opacity row (color backgrounds) ── */
+.style-overlay-row,
+.style-opacity-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -167,10 +168,41 @@
   margin-bottom: 18px;
 }
 
-.style-overlay-row .style-label {
+.style-overlay-row .style-label,
+.style-opacity-row .style-label {
   margin-bottom: 0;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* ── Hex input row (below swatches, above transparency) ── */
+.style-hex-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.style-hex-input {
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  color: var(--text-high);
+  text-transform: uppercase;
+  width: 100px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background: var(--surface-bg);
+  text-align: center;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.style-hex-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.15);
 }
 
 /* ── Toggle ── */
@@ -310,10 +342,28 @@
   line-height: 1.4;
 }
 
-/* ── Button group (title decoration) ── */
+/* ── Button group (title decoration, bg size/position) ── */
 .style-btn-group {
   display: flex;
   gap: 6px;
+}
+
+/* Compact variant for background size/position pickers */
+.style-btn-group--compact {
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.style-btn-group--compact .style-btn-option {
+  padding: 5px 9px;
+  font-size: 12px;
+  min-width: 28px;
+  text-align: center;
+}
+
+/* Background options container (size + position) */
+.style-bg-options {
+  margin-bottom: 18px;
 }
 
 .style-btn-option {
