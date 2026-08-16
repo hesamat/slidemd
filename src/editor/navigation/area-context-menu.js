@@ -377,6 +377,7 @@ export class AreaContextMenu {
       size: this._bgState.size,
       position: this._bgState.position,
       repeat: this._bgState.repeat,
+      forceColorControls: true,
     });
     // Live preview on the area element itself.
     const areaEl = this._getAreaElement?.(this._bgAreaName);

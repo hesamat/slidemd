@@ -383,6 +383,7 @@ export function buildLayoutPanelHtml() {
  *   size?: string,
  *   position?: string,
  *   repeat?: string,
+ *   forceColorControls?: boolean,
  * }} state
  */
 export function syncBgState(rootEl, state) {
@@ -417,7 +418,10 @@ export function syncBgState(rootEl, state) {
     bgPreview.classList.toggle("has-bg", !!state.bgValue);
   }
   const showImageControls = Boolean(state.imagePath);
-  const showColorControls = Boolean(state.bg) && !showImageControls;
+  // forceColorControls: color-only surfaces (e.g. the area popover, which has
+  // no image mode) always show the hex + transparency controls, even before a
+  // color is chosen.
+  const showColorControls = (state.forceColorControls || Boolean(state.bg)) && !showImageControls;
   const hexRow = rootEl.querySelector(".style-hex-row");
   if (overlayRow) overlayRow.style.display = showImageControls ? "flex" : "none";
   if (bgOptions) bgOptions.style.display = showImageControls ? "block" : "none";
