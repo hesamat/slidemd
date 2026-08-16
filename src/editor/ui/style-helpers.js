@@ -272,7 +272,6 @@ export function buildBackgroundPanelHtml({ image = true, preview = true } = {}) 
   const previewSection = preview
     ? `
     <div class="style-inline-section">
-      <span class="style-label">Preview</span>
       <div class="style-bg-preview"></div>
     </div>`
     : "";
