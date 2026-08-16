@@ -76,6 +76,10 @@ const GOOGLE_FONTS_URL =
 
 /** Track whether the Google Fonts <link> has been injected. */
 let fontsLinkInjected = false;
+/** Cached font-loading promise so we only wait once even if multiple diagrams
+ * are rendered.  Without this, each diagram re-awaits the 5-second timeout
+ * when the CDN is slow or unreachable. */
+let fontsLoadedPromise = null;
 
 /**
  * Inject a `<link>` tag to load all replacement Google Fonts and wait for
@@ -89,6 +93,10 @@ async function loadReplacementFonts() {
   // sans-serif fallback will be used; text may overflow but the import
   // completes instantly.
   if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
+  // Return the cached promise so concurrent/per-diagram calls share a single
+  // wait instead of each starting a new 5-second race.
+  if (fontsLoadedPromise) return fontsLoadedPromise;
 
   if (!fontsLinkInjected) {
     const link = document.createElement("link");
@@ -108,11 +116,14 @@ async function loadReplacementFonts() {
     const loadPromises = googleFonts.flatMap((font) =>
       weights.map((w) => document.fonts.load(`${w} 16px "${font}"`).catch(() => {})),
     );
-    await Promise.race([
+    fontsLoadedPromise = Promise.race([
       Promise.all(loadPromises),
       new Promise((resolve) => setTimeout(resolve, 5000)),
     ]);
+  } else {
+    fontsLoadedPromise = Promise.resolve();
   }
+  return fontsLoadedPromise;
 }
 
 /** Pre-compiled regexes for each Microsoft font name (avoids recompiling
