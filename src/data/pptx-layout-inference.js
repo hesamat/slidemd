@@ -498,6 +498,11 @@ export function inferLayout(
       Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
     );
     if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
+      // If the text content is centered (spans both columns), use TWO_COLUMN
+      // so the text becomes the header and each image gets its own column.
+      // MEDIA_SPAN would shrink one image into a side column.
+      const textIsCentered = contentEls.every((el) => isCentered(el));
+      if (textIsCentered) return LAYOUT.TWO_COLUMN;
       return LAYOUT.MEDIA_SPAN;
     }
     return LAYOUT.TWO_COLUMN;
@@ -516,16 +521,27 @@ export function inferLayout(
   if (captionWithOneImage) return LAYOUT.FOCUS;
   // Header + dominant image + text body → media-span (image spans right, text on left)
   if (dominantImages.length === 1 && hasTextBody) return LAYOUT.MEDIA_SPAN;
-  // Header + two side-by-side images and no substantive text → two-column
-  // so the images are placed side by side instead of stacked in one column.
-  if (hasHeader && dominantImages.length >= 2) {
-    const [img1, img2] = dominantImages;
-    const horizontalOverlap = Math.max(
-      0,
-      Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
-    );
-    if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
-      return LAYOUT.TWO_COLUMN;
+  // Header + two side-by-side visual elements (images, diagrams, charts) and
+  // no substantive text → two-column so they are placed side by side instead
+  // of stacked in one column.  Diagrams and charts are not in
+  // dominantImages (which is IMAGE-only), so collect visual media broadly
+  // from all non-header elements.
+  if (hasHeader) {
+    const isVisualMedia = (el) =>
+      el.type === ELEMENT_TYPES.IMAGE ||
+      el.type === ELEMENT_TYPES.DIAGRAM ||
+      el.type === ELEMENT_TYPES.CHART;
+    const visualMedia = allEls.filter((el) => el !== headerEl && isVisualMedia(el));
+    if (visualMedia.length >= 2 && !hasTextBody) {
+      const [vm1, vm2] = visualMedia;
+      const horizontalOverlap = Math.max(
+        0,
+        Math.min(vm1.left + (vm1.width || 0), vm2.left + (vm2.width || 0)) -
+          Math.max(vm1.left, vm2.left),
+      );
+      if (horizontalOverlap < Math.min(vm1.width || 1, vm2.width || 1) * 0.3) {
+        return LAYOUT.TWO_COLUMN;
+      }
     }
   }
   if (hasHeader) return LAYOUT.HEADER_CONTENT;

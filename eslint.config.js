@@ -46,7 +46,7 @@ export default [
   // /* global */ directive. Follow the same pattern when adding new Node
   // tooling that calls page.evaluate or similar browser-context callbacks.
   {
-    files: ["tools/**/*.mjs", "*.mjs", "*.js", "e2e/**/*.js"],
+    files: ["tools/**/*.mjs", "tools/**/*.js", "*.mjs", "*.js", "e2e/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
