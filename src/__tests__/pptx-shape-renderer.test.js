@@ -78,6 +78,26 @@ describe("buildShapeSvg", () => {
     expect(svg).toContain('ry="40"');
   });
 
+  it("renders text inside shapes with shapType (e.g. ovals with labels)", () => {
+    const svg = buildShapeSvg(
+      [
+        shape({
+          shapType: "ellipse",
+          content: "Tabulate values",
+          left: 0,
+          top: 0,
+          width: 200,
+          height: 100,
+          fill: "#7B43EC",
+        }),
+      ],
+      { width: 200, height: 100 },
+    );
+    expect(svg).toContain("<ellipse");
+    expect(svg).toContain("Tabulate values");
+    expect(svg).toContain("<text");
+  });
+
   it("renders a triangle shape as an SVG polygon", () => {
     const svg = buildShapeSvg(
       [shape({ shapType: "triangle", left: 0, top: 0, width: 100, height: 50 })],

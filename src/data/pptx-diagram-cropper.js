@@ -207,12 +207,17 @@ function collectFontInfo(root) {
 }
 
 /**
- * Shrink text inside ellipse shapes so it fits within the inscribed ellipse
- * area.  The PptxViewer renders text in a rectangular flex container, so text
- * near the corners extends past the ellipse's curved edges.  We measure the
- * text element's bounding box and reduce font-size until the text fits inside
- * the inscribed ellipse (the largest rectangle that fits inside the ellipse,
- * which is width × height/√2 × height × width/√2 for a centered ellipse).
+ * Shrink text inside ellipse shapes so it fits within the ellipse's curved
+ * edges.  The PptxViewer renders text in a rectangular flex container, so a
+ * wide line near the top or bottom of the shape extends past the curve.  We
+ * measure the rendered text block and reduce font-size proportionally until
+ * the widest line fits the ellipse width at the block's vertical extent
+ * (w·√(1 − (th/h)²)), keeping the text inside the curve.
+ *
+ * Both single-line and multi-line (wrapping) text are handled.  The shrink is
+ * proportional to the measured overshoot, so a wrapping multi-line block is
+ * scaled gently and keeps its line structure — it never collapses to a tiny
+ * single line — and text that already fits is left untouched.
  *
  * Only applies to ellipse and roundRect shapes (which have curved edges).
  *
@@ -220,8 +225,12 @@ function collectFontInfo(root) {
  * @param {Array} shapes - The diagram shapes with geometry info.
  * @param {number} scale - The render scale.
  */
-function shrinkTextToFit(root, shapes, scale) {
+export function shrinkTextToFit(root, shapes, scale) {
   if (!shapes || shapes.length === 0) return;
+
+  // Smallest font (pt) we allow while shrinking — below this the text becomes
+  // illegible and further shrinking provides little visual benefit.
+  const MIN_FONT_PT = 7;
 
   for (const s of shapes) {
     // Only shrink text for curved shapes (ellipse, roundRect).
@@ -259,11 +268,6 @@ function shrinkTextToFit(root, shapes, scale) {
       const textContainer = el.querySelector("[style*='overflow-wrap']");
       if (!textContainer) break;
 
-      // The inscribed width of an ellipse with semi-axis a is a√2 (the largest
-      // centered rectangle's width).  For single-line text, only the width
-      // matters for overflow; multi-line text is left alone.
-      const inscribedW = shapeW * 0.707; // w/√2
-
       // Nudge the text down slightly inside the shape.  PptxViewer renders
       // text with justify-content: flex-start when the PPTX text anchor is
       // "top", but for ellipse shapes the text looks better with a modest
@@ -274,40 +278,96 @@ function shrinkTextToFit(root, shapes, scale) {
         flexContainer.style.paddingTop = `${nudge}px`;
       }
 
-      // Get the current font size in pt.
-      const fontSizeStr = textContainer.style.fontSize || "";
-      const fontSizeMatch = fontSizeStr.match(/(\d+(?:\.\d+)?)pt/);
-      if (!fontSizeMatch) break;
-      let fontSizePt = parseFloat(fontSizeMatch[1]);
-      if (fontSizePt <= 0) break;
+      // Measure the text block.  The widest rendered line comes from the
+      // per-line boxes of a Range; the block height from the container rect
+      // (the container fills the shape's full width, so its own width is not
+      // a useful measure).
+      const measureText = () => {
+        const range = document.createRange();
+        range.selectNodeContents(textContainer);
+        const rects = Array.from(range.getClientRects());
+        const box = textContainer.getBoundingClientRect();
+        if (rects.length === 0) return null;
+        return {
+          width: Math.max(...rects.map((r) => r.width)),
+          height: box.height,
+          top: Math.min(...rects.map((r) => r.top)),
+          bottom: Math.max(...rects.map((r) => r.bottom)),
+        };
+      };
 
-      // Only auto-shrink single-line text (e.g. "Unicode" / "ASCII" labels).
-      // Multi-line text that already wraps to fit the shape should not be
-      // shrunk, or it becomes illegible.  Check if the text is a single
-      // short label by measuring the rendered text height vs font size.
-      const containerRect = textContainer.getBoundingClientRect();
-      const cs = getComputedStyle(textContainer);
-      const fontSizePx = parseFloat(cs.fontSize) || 0;
-      const lineHeight = parseFloat(cs.lineHeight) || fontSizePx * 1.2;
-      // If the text container is taller than ~1.5 lines, it's already wrapping.
-      const isMultiLine = containerRect.height > lineHeight * 1.5;
+      // The ellipse's width at the vertical edge of a centered text block of
+      // height `th` is w·√(1 − (th/h)²).  A block that reaches that width is
+      // tangent to the curve; wider lines poke out.  Use this as the lenient
+      // width target — a wrapping multi-line block keeps its lines inside the
+      // curve without being forced to the strict inscribed rectangle (w/√2).
+      const fitScale = (m) => {
+        const thRatio = Math.min(m.height / shapeH, 0.99);
+        const limitW = shapeW * Math.sqrt(Math.max(0, 1 - thRatio * thRatio));
+        let s = 1;
+        if (m.width > limitW) s = Math.min(s, limitW / m.width);
+        if (m.height > shapeH) s = Math.min(s, shapeH / m.height);
+        return s;
+      };
 
-      if (!isMultiLine) {
-        // Iteratively shrink the font size until the single text line fits.
-        for (let i = 0; i < 10; i++) {
-          const span = textContainer.querySelector("span");
-          if (!span) break;
-          const spanRect = span.getBoundingClientRect();
-          const textW = spanRect.width;
+      // Collect the text spans and their original font sizes so the shrink
+      // preserves the relative sizes between runs (e.g. a 32pt lead-in word
+      // beside 20pt body text).
+      const spans = Array.from(textContainer.querySelectorAll("span"));
+      const origSizes = spans.map(
+        (sp) => parseFloat((sp.style.fontSize || "").replace("pt", "")) || 12,
+      );
+      const fontMatch = (textContainer.style.fontSize || "").match(/([\d.]+)pt/);
+      const fontSizePt = fontMatch ? parseFloat(fontMatch[1]) : 12;
 
-          if (textW <= inscribedW) break;
-
-          fontSizePt *= 0.9;
-          textContainer.style.fontSize = `${fontSizePt.toFixed(1)}pt`;
-          for (const s2 of textContainer.querySelectorAll("span")) {
-            s2.style.fontSize = `${fontSizePt.toFixed(1)}pt`;
-          }
+      // Shrink proportionally until the text fits.  Each iteration scales by
+      // the measured overshoot (limitW/width, h/height) rather than a fixed
+      // 0.9× step, so a mildly-overflowing block shrinks only slightly and a
+      // wrapping multi-line block keeps its line structure — it never collapses
+      // to a tiny single line.  Bounded by MIN_FONT_PT and a few iterations.
+      const initial = measureText();
+      let scaleFactor = 1;
+      const steps = [{ scaleFactor: 1, width: initial?.width, height: initial?.height }];
+      for (let i = 0; i < 6; i++) {
+        const measure = measureText();
+        if (!measure) break;
+        const s = fitScale(measure);
+        if (s >= 0.999) break;
+        if (fontSizePt * scaleFactor * s <= MIN_FONT_PT) {
+          // Clamp to the floor so the text stays legible even if it cannot
+          // fully fit.
+          scaleFactor = MIN_FONT_PT / fontSizePt;
+          break;
         }
+        scaleFactor *= s;
+        textContainer.style.fontSize = `${(fontSizePt * scaleFactor).toFixed(1)}pt`;
+        spans.forEach((sp, idx) => {
+          sp.style.fontSize = `${(origSizes[idx] * scaleFactor).toFixed(1)}pt`;
+        });
+        const next = measureText();
+        steps.push({
+          scaleFactor: +scaleFactor.toFixed(3),
+          width: next?.width,
+          height: next?.height,
+        });
+      }
+      // Record the before/after fit for diagnostics (crop debugging).
+      if (typeof window !== "undefined" && window.__pptxCropCollectDiagnostics) {
+        const after = measureText();
+        (window.__pptxTextFit = window.__pptxTextFit || []).push({
+          shapType: s.shapType,
+          left: s.left,
+          top: s.top,
+          width: s.width,
+          height: s.height,
+          before: initial,
+          after,
+          inscribedW: shapeW * 0.707,
+          inscribedH: shapeH * 0.707,
+          scaleFactor,
+          shrunk: scaleFactor < 0.999,
+          steps,
+        });
       }
       break; // Found the shape, no need to check more children.
     }

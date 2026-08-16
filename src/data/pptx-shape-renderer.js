@@ -80,6 +80,35 @@ function isRenderable(shape) {
 }
 
 /**
+ * Render shape text as SVG <text> elements.  Strips HTML, splits on newlines,
+ * and centres the text block inside the bounding box.
+ * @param {string} content - Raw text content (may contain HTML from pptxtojson).
+ * @param {number} left
+ * @param {number} top
+ * @param {number} width
+ * @param {number} height
+ * @returns {string} SVG text markup, or "" when empty.
+ */
+function buildShapeTextSvg(content, left, top, width, height) {
+  const textContent = content.replace(/<[^>]+>/g, "").trim();
+  const lines = textContent ? textContent.split(/\n+/) : [];
+  if (lines.length === 0) return "";
+  // Use ~80% of the box height across all lines, but never smaller than 9pt
+  // and never larger than 18pt so it stays readable and fits comfortably.
+  const fontSize = Math.max(9, Math.min((height / Math.max(lines.length, 1)) * 0.75, 18));
+  const lineHeight = fontSize * 1.3;
+  const totalTextHeight = lines.length * lineHeight;
+  const startY = top + (height - totalTextHeight) / 2 + fontSize * 0.8;
+  return lines
+    .map((line, i) => {
+      const y = startY + i * lineHeight;
+      const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `<text x="${left + width / 2}" y="${y}" font-size="${fontSize}" font-family="sans-serif" text-anchor="middle" fill="#222" dominant-baseline="middle">${escaped}</text>`;
+    })
+    .join("");
+}
+
+/**
  * Convert a single shape element to its SVG representation.
  * @param {import('./pptx-extractor.js').ExtractedElement} shape
  * @param {number} originX - Group origin X (EMU) to subtract from shape coords.
@@ -127,51 +156,46 @@ function shapeToSvg(shape, originX = 0, originY = 0) {
 
   // Text elements with content but no shape geometry → render as SVG <text>
   if (shape.content && shape.content.trim() && !shape.shapType && !shape.path) {
-    // pptxtojson text may contain HTML; strip it so we render plain words.
-    const textContent = shape.content.replace(/<[^>]+>/g, "").trim();
-    const lines = textContent ? textContent.split(/\n+/) : [];
-    if (lines.length === 0) return "";
-    // Use ~80% of the box height across all lines, but never smaller than 9pt
-    // and never larger than 18pt so it stays readable and fits comfortably.
-    const fontSize = Math.max(9, Math.min((height / Math.max(lines.length, 1)) * 0.75, 18));
-    const lineHeight = fontSize * 1.3;
-    const totalTextHeight = lines.length * lineHeight;
-    const startY = top + (height - totalTextHeight) / 2 + fontSize * 0.8;
-    const textParts = lines
-      .map((line, i) => {
-        const y = startY + i * lineHeight;
-        const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        return `<text x="${left + width / 2}" y="${y}" font-size="${fontSize}" font-family="sans-serif" text-anchor="middle" fill="#222" dominant-baseline="middle">${escaped}</text>`;
-      })
-      .join("");
-    return textParts;
+    return buildShapeTextSvg(shape.content, left, top, width, height);
   }
 
-  // Preset shape types → SVG primitives
+  // Preset shape types → SVG primitives (with text if present)
   const shapType = (shape.shapType || "").toLowerCase();
+  let shapeSvg;
   switch (shapType) {
     case "ellipse":
     case "oval":
-      return `<ellipse cx="${left + width / 2}" cy="${top + height / 2}" rx="${width / 2}" ry="${height / 2}"${fillAttr}${strokeAttr}${transform}/>`;
+      shapeSvg = `<ellipse cx="${left + width / 2}" cy="${top + height / 2}" rx="${width / 2}" ry="${height / 2}"${fillAttr}${strokeAttr}${transform}/>`;
+      break;
     case "roundrect":
     case "roundRectangle":
-      return `<rect x="${left}" y="${top}" width="${width}" height="${height}" rx="${Math.min(width, height) * 0.1}" ry="${Math.min(width, height) * 0.1}"${fillAttr}${strokeAttr}${transform}/>`;
+      shapeSvg = `<rect x="${left}" y="${top}" width="${width}" height="${height}" rx="${Math.min(width, height) * 0.1}" ry="${Math.min(width, height) * 0.1}"${fillAttr}${strokeAttr}${transform}/>`;
+      break;
     case "triangle":
     case "isocelesTriangle":
-      return `<polygon points="${left},${top + height} ${left + width / 2},${top} ${left + width},${top + height}"${fillAttr}${strokeAttr}${transform}/>`;
+      shapeSvg = `<polygon points="${left},${top + height} ${left + width / 2},${top} ${left + width},${top + height}"${fillAttr}${strokeAttr}${transform}/>`;
+      break;
     case "rtTriangle":
     case "rightTriangle":
-      return `<polygon points="${left},${top} ${left},${top + height} ${left + width},${top + height}"${fillAttr}${strokeAttr}${transform}/>`;
+      shapeSvg = `<polygon points="${left},${top} ${left},${top + height} ${left + width},${top + height}"${fillAttr}${strokeAttr}${transform}/>`;
+      break;
     case "diamond":
-      return `<polygon points="${left + width / 2},${top} ${left + width},${top + height / 2} ${left + width / 2},${top + height} ${left},${top + height / 2}"${fillAttr}${strokeAttr}${transform}/>`;
+      shapeSvg = `<polygon points="${left + width / 2},${top} ${left + width},${top + height / 2} ${left + width / 2},${top + height} ${left},${top + height / 2}"${fillAttr}${strokeAttr}${transform}/>`;
+      break;
     case "chevron":
-      return `<polygon points="${left},${top} ${left + width * 0.7},${top} ${left + width},${top + height / 2} ${left + width * 0.7},${top + height} ${left},${top + height} ${left + width * 0.3},${top + height / 2}"${fillAttr}${strokeAttr}${transform}/>`;
+      shapeSvg = `<polygon points="${left},${top} ${left + width * 0.7},${top} ${left + width},${top + height / 2} ${left + width * 0.7},${top + height} ${left},${top + height} ${left + width * 0.3},${top + height / 2}"${fillAttr}${strokeAttr}${transform}/>`;
+      break;
     case "line":
-      return `<line x1="${left}" y1="${top + height / 2}" x2="${left + width}" y2="${top + height / 2}"${strokeAttr}${transform}/>`;
+      shapeSvg = `<line x1="${left}" y1="${top + height / 2}" x2="${left + width}" y2="${top + height / 2}"${strokeAttr}${transform}/>`;
+      break;
     default:
       // rect or unknown → rectangle (the most common PPTX shape)
-      return `<rect x="${left}" y="${top}" width="${width}" height="${height}"${fillAttr}${strokeAttr}${transform}/>`;
+      shapeSvg = `<rect x="${left}" y="${top}" width="${width}" height="${height}"${fillAttr}${strokeAttr}${transform}/>`;
   }
+  if (shape.content && shape.content.trim()) {
+    shapeSvg += buildShapeTextSvg(shape.content, left, top, width, height);
+  }
+  return shapeSvg;
 }
 
 /**
