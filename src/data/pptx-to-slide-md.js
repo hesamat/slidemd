@@ -735,15 +735,7 @@ function convertSlide(
         parts.push("");
         parts.push(MARKDOWN_TAGS.MEDIA);
         parts.push("");
-        parts.push(
-          rightEls
-            .map((el) => {
-              if (el.type === ELEMENT_TYPES.IMAGE && el.ref)
-                return formatImage(el, deckName, { fitColumn: true });
-              return formatSingleElement(el);
-            })
-            .join(REGEX.DOUBLE_NEWLINE),
-        );
+        parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
       }
     }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {

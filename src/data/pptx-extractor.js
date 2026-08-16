@@ -1033,8 +1033,10 @@ export class PptxExtractor {
       // Text elements inside the box: only include if they're short (diagram
       // labels are typically a few words) and not in the header band (which
       // is likely the slide title).  Long body text, code blocks, and titles
-      // stay outside even if they're within the X range.
-      if (el.type === "text" && !isShapeLike) {
+      // stay outside even if they're within the X range.  Bordered text boxes
+      // and callouts can also carry long paragraphs; they are not diagram
+      // labels and should remain as slide body text.
+      if (el.type === "text" || (el.type === "shape" && (el.content || "").trim())) {
         const text = (el.content || "").trim();
         // Only drop long body text / code.  Multi-line diagram labels
         // (e.g. a flowchart box with three lines) are still short, and the
