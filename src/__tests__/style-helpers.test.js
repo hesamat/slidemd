@@ -94,6 +94,15 @@ describe("hexToRgba", () => {
   it("returns non-hex input unchanged", () => {
     expect(hexToRgba("red", 50)).toBe("red");
   });
+
+  it("expands 3-digit hex before applying transparency", () => {
+    expect(hexToRgba("#fff", 50)).toBe("rgba(255, 255, 255, 0.5)");
+    expect(hexToRgba("#abc", 0)).toBe("rgba(170, 187, 204, 0)");
+  });
+
+  it("returns expanded 3-digit hex at 100% opacity", () => {
+    expect(hexToRgba("#abc", 100)).toBe("#aabbcc");
+  });
 });
 
 describe("parseRgba", () => {

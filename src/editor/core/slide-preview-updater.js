@@ -287,10 +287,7 @@ export class SlidePreviewUpdater {
 
             if (newGlobal) SlideRenderer._applyAreaStyle(areaEl, newGlobal);
             if (newPerArea) areaEl.style.setProperty("background", newPerArea);
-            areaEl.dataset.appliedAreaStyle = [
-              newGlobal,
-              newPerArea && `background: ${newPerArea}`,
-            ]
+            areaEl.dataset.appliedAreaStyle = [newGlobal, newPerArea && `background: ${newPerArea}`]
               .filter(Boolean)
               .join("; ");
 

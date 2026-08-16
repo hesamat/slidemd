@@ -20,7 +20,7 @@ import { findFencedRanges } from "../image-markdown-parser.js";
  *
  * @param {string} markdown
  * @param {string[]} [slides] — pre-split fence-aware slide texts
- * @returns {Array<{layout: string, background: string, theme: string, mediaFullBleed: boolean}>}
+ * @returns {Array<{layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg: Record<string,string>}>}
  */
 export function extractDirectives(markdown, slides) {
   const sections = slides || splitSlides(markdown);
@@ -37,11 +37,24 @@ export function extractDirectives(markdown, slides) {
     const mediaFullBleed =
       /^(true|1|yes|y|on)$/i.test(mediaFullBleedMatch?.[1]?.trim() || "") ||
       /^(left|right)$/i.test(mediaSpanMatch?.[1]?.trim() || "");
+
+    // Extract per-area `area-bg-<name>:` backgrounds so they survive the AI
+    // round-trip exactly like `background:` does — the AI is told to keep them,
+    // but a conservative fix pass can drop them, and fix mode's strip-and-restore
+    // must be able to put them back.
+    const areaBg = {};
+    const areaBgRe = /^\s*area-bg-([a-zA-Z0-9_-]+)\s*:\s*(.*)$/i;
+    for (const line of slide.split("\n")) {
+      const m = line.match(areaBgRe);
+      if (m) areaBg[m[1].toLowerCase()] = m[2].trim();
+    }
+
     return {
       layout: layoutMatch?.[1]?.trim() || "",
       background: bgMatch?.[1]?.trim() || "",
       theme: themeMatch?.[1]?.trim() || "",
       mediaFullBleed,
+      areaBg,
     };
   });
 }
@@ -49,8 +62,8 @@ export function extractDirectives(markdown, slides) {
 /**
  * Restore original layout, backgrounds, and themes onto AI-produced slides.
  * In fix mode, the AI often changes layouts despite instructions — restore originals.
- * @param {{ layout: string, background?: string, theme?: string, mediaFullBleed?: boolean, content: string }[]} slides
- * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean }[]} origDirectives
+ * @param {{ layout: string, background?: string, theme?: string, mediaFullBleed?: boolean, content: string, areaBg?: Record<string,string> }[]} slides
+ * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg?: Record<string,string> }[]} origDirectives
  * @returns {typeof slides}
  */
 export function restoreDirectives(slides, origDirectives) {
@@ -62,6 +75,7 @@ export function restoreDirectives(slides, origDirectives) {
       background: orig.background || slide.background || "",
       theme: orig.theme || slide.theme || "",
       mediaFullBleed: Boolean(orig.mediaFullBleed || slide.mediaFullBleed),
+      areaBg: orig.areaBg || slide.areaBg || {},
     };
   });
 }
@@ -78,7 +92,7 @@ export function restoreDirectives(slides, origDirectives) {
  *   literal `background:` line inside a code block is left untouched.
  *
  * @param {string} markdown - AI-produced markdown
- * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean }[]} origDirectives
+ * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg?: Record<string,string> }[]} origDirectives
  * @param {"fix"|"generate"} [mode="fix"]
  * @returns {string} Markdown with background/theme directives re-injected
  */
@@ -111,20 +125,26 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
       ) {
         insertAfter.push("media-full-bleed: true");
       }
+      for (const [areaName, value] of Object.entries(orig.areaBg || {})) {
+        if (value && !hasTopLevelDirective(lines, `area-bg-${areaName}`)) {
+          insertAfter.push(`area-bg-${areaName}: ${value}`);
+        }
+      }
       if (insertAfter.length === 0) return section;
 
       lines.splice(layoutIdx + 1, 0, ...insertAfter);
       return lines.join("\n");
     }
 
-    // fix mode: strip any background:/theme:/media-full-bleed:/media-span: the
-    // AI echoed back from the leading directive block, then restore the originals.
-    // Fence-aware so code-block contents are preserved.
+    // fix mode: strip any background:/theme:/media-full-bleed:/media-span:/
+    // area-bg-*: the AI echoed back from the leading directive block, then
+    // restore the originals. Fence-aware so code-block contents are preserved.
     const lines = stripLeadingDirectives(section.split("\n"), [
       "background",
       "theme",
       "media-full-bleed",
       "media-span",
+      "area-bg-",
     ]);
     const layoutIdx = findTopLevelDirectiveIdx(lines, "layout");
 
@@ -132,6 +152,9 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
     if (orig.background) insertAfter.push(`background: ${orig.background}`);
     if (orig.theme) insertAfter.push(`theme: ${orig.theme}`);
     if (orig.mediaFullBleed) insertAfter.push("media-full-bleed: true");
+    for (const [areaName, value] of Object.entries(orig.areaBg || {})) {
+      if (value) insertAfter.push(`area-bg-${areaName}: ${value}`);
+    }
 
     if (insertAfter.length === 0) return lines.join("\n");
 
@@ -220,16 +243,23 @@ function hasTopLevelDirective(lines, name) {
  * directive block (the run of blank/directive lines before the first body
  * line — a heading, `@area` marker, prose, or fenced code block).
  *
+ * A name ending in `-` is treated as a prefix: `"area-bg-"` strips any
+ * leading directive whose name starts with `area-bg-` (e.g.
+ * `area-bg-media:`, `area-bg-main:`), matching how the markdown parser
+ * recognizes per-area directives.
+ *
  * Restricting the strip to the leading block prevents removing lines that
  * merely *look* like a directive further down in the slide body (e.g. a
  * line of prose or an unfenced example reading `theme: dark`).
  *
  * @param {string[]} lines
- * @param {string[]} names — directive names to strip (e.g. ["background", "theme"])
+ * @param {string[]} names — directive names to strip (e.g. ["background", "theme"]),
+ *   with a trailing `-` meaning prefix match
  * @returns {string[]}
  */
 export function stripLeadingDirectives(lines, names) {
-  const namesSet = new Set(names);
+  const prefixes = names.filter((n) => n.endsWith("-")).map((n) => n.toLowerCase());
+  const exactNames = new Set(names.map((n) => n.toLowerCase()).filter((n) => !n.endsWith("-")));
   // Tolerate leading whitespace and whitespace before/after the colon so
   // `  theme : dark` is recognized the same as `theme: dark` — the markdown
   // parser accepts both (`^\s*${name}\s*:` with the `i` flag).
@@ -271,7 +301,9 @@ export function stripLeadingDirectives(lines, names) {
       // stripped the same as `theme: light`, or injectDirectives splices
       // the original after it and MarkdownParser.extractDirective (which
       // keeps the *last* match) picks the AI's value instead of the user's.
-      if (namesSet.has(match[1].toLowerCase())) continue; // strip
+      const name = match[1].toLowerCase();
+      const isPrefixMatch = prefixes.some((p) => name.startsWith(p));
+      if (exactNames.has(name) || isPrefixMatch) continue; // strip
       out.push(line);
       continue;
     }

@@ -469,12 +469,13 @@ export class AreaContextMenu {
     popover.addEventListener("scroll", (e) => e.stopPropagation(), { capture: true });
   }
 
-  /** Restore the area element's original background and close the popover. */
+  /**
+   * Restore the area element's original background and close the popover.
+   * Equivalent to the general dismiss path — _closePopover restores the
+   * background for every close reason (outside click, Escape, scroll,
+   * resize, and Cancel).
+   */
   _cancelPopover() {
-    const areaEl = this._getAreaElement?.(this._bgAreaName);
-    if (areaEl && this._bgOriginalBackground !== null) {
-      areaEl.style.background = this._bgOriginalBackground;
-    }
     this.close();
   }
 
@@ -491,6 +492,15 @@ export class AreaContextMenu {
     if (this._popoverEl) {
       this._popoverEl.remove();
       this._popoverEl = null;
+    }
+    // Restore the area element's original background so dismissing the
+    // popover (outside click, Escape, scroll, resize, or Cancel) never
+    // leaves an uncommitted live-preview background applied. On Apply the
+    // new value is committed to markdown right after close(), and the
+    // resulting preview re-render re-applies it, so this restore is safe.
+    const areaEl = this._bgAreaName ? this._getAreaElement?.(this._bgAreaName) : null;
+    if (areaEl && this._bgOriginalBackground !== null) {
+      areaEl.style.background = this._bgOriginalBackground;
     }
     this._bgState = null;
     this._bgAreaName = null;

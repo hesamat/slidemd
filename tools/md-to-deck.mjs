@@ -401,7 +401,7 @@ function extractAreaStylesAndStrip(markdownText) {
     for (const line of lines) {
         toggleFence(line);
         if (!inFence) {
-            const match = line.match(/^\s*area-style-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
+            const match = line.match(/^\s*area-bg-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
             if (match) {
                 areaStyles[match[1].toLowerCase()] = match[2].trim();
                 continue;

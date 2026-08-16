@@ -500,13 +500,17 @@ export function stripThemeAndBackground(markdown) {
  */
 export function stripVisualIdentity(markdown) {
   return stripDirectivesWith(markdown, (line) => {
-    const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
+    const match = line.match(/^\s*(theme|background|area-bg-[\w-]+)\s*:\s*(.*)$/i);
     if (!match) return false;
-    if (match[1].toLowerCase() === "theme") return true; // strip theme entirely
+    const name = match[1].toLowerCase();
+    if (name === "theme") return true; // strip theme entirely
+    // background: and area-bg-<name>: follow the same rule — a per-area
+    // background is also visual identity, so pure colors/gradients are
+    // stripped while image layers (content) survive, mirroring background.
     const { colorPart, imagePart, hasImage } = splitBackgroundValue(match[2]);
     if (!hasImage) return true; // pure color/gradient — strip
     if (!colorPart) return false; // pure image — keep the line as-is
-    return `background: ${imagePart}`; // mixed — drop the smuggled color, keep the image
+    return `${name}: ${imagePart}`; // mixed — drop the smuggled color, keep the image
   });
 }
 

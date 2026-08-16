@@ -17,12 +17,14 @@ describe("extractDirectives", () => {
       background: "#fff",
       theme: "",
       mediaFullBleed: false,
+      areaBg: {},
     });
     expect(result[1]).toEqual({
       layout: "two-column",
       background: "",
       theme: "dark",
       mediaFullBleed: false,
+      areaBg: {},
     });
   });
 
@@ -42,12 +44,14 @@ describe("extractDirectives", () => {
       background: "#fff",
       theme: "",
       mediaFullBleed: false,
+      areaBg: {},
     });
     expect(result[1]).toEqual({
       layout: "two-column",
       background: "",
       theme: "dark",
       mediaFullBleed: false,
+      areaBg: {},
     });
   });
 
@@ -63,12 +67,14 @@ describe("extractDirectives", () => {
       background: "red",
       theme: "",
       mediaFullBleed: false,
+      areaBg: {},
     });
     expect(result[1]).toEqual({
       layout: "header-content",
       background: "",
       theme: "light",
       mediaFullBleed: false,
+      areaBg: {},
     });
   });
 });
@@ -317,6 +323,60 @@ describe("injectDirectives", () => {
       const orig = [{ layout: "header-content", background: "#fff", theme: "" }];
       const result = injectDirectives(md, orig, "generate");
       expect(result).toContain("background: #fff");
+    });
+  });
+
+  describe("area-bg directives", () => {
+    it("extracts per-area backgrounds from the slide", () => {
+      const md =
+        "layout: media-span-right\narea-bg-media: #1e293b\narea-bg-main: url(images/c.png)\n@main\n- A";
+      const result = extractDirectives(md);
+      expect(result[0].areaBg).toEqual({
+        media: "#1e293b",
+        main: "url(images/c.png)",
+      });
+    });
+
+    it("restores a dropped per-area background in fix mode", () => {
+      // The AI dropped the area-bg line — fix mode must splice the original
+      // back in positionally, exactly like background/theme.
+      const md = "layout: media-span-right\n\n@main\n- Content";
+      const orig = [
+        { layout: "media-span-right", background: "", theme: "", areaBg: { media: "#1e293b" } },
+      ];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result).toContain("area-bg-media: #1e293b");
+    });
+
+    it("strips an AI-echoed per-area background and restores the original in fix mode", () => {
+      const md = "layout: media-span-right\narea-bg-media: #ffffff\n\n@main\n- Content";
+      const orig = [
+        { layout: "media-span-right", background: "", theme: "", areaBg: { media: "#1e293b" } },
+      ];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result.match(/^area-bg-media:/gm) || []).toHaveLength(1);
+      expect(result).toContain("area-bg-media: #1e293b");
+      expect(result).not.toContain("area-bg-media: #ffffff");
+    });
+
+    it("fills in a per-area background the AI dropped in generate mode", () => {
+      const md = "layout: media-span-right\n\n@main\n- Content";
+      const orig = [
+        { layout: "media-span-right", background: "", theme: "", areaBg: { media: "#1e293b" } },
+      ];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toContain("area-bg-media: #1e293b");
+    });
+
+    it("keeps an AI-chosen per-area background in generate mode", () => {
+      const md = "layout: media-span-right\narea-bg-media: #0f172a\n\n@main\n- Content";
+      const orig = [
+        { layout: "media-span-right", background: "", theme: "", areaBg: { media: "#1e293b" } },
+      ];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result.match(/^area-bg-media:/gm) || []).toHaveLength(1);
+      expect(result).toContain("area-bg-media: #0f172a");
+      expect(result).not.toContain("area-bg-media: #1e293b");
     });
   });
 

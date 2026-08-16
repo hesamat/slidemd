@@ -45,11 +45,17 @@ export function isColorDark(hex) {
  */
 export function hexToRgba(hex, opacity) {
   if (!hex || !hex.startsWith("#")) return hex || "";
-  // Only 6-digit hex is supported; 3-digit hex passes through unchanged.
-  if (hex.length !== 7) return hex;
+  // Expand 3-digit hex (#fff → #ffffff) so transparency applies to short-hand
+  // colors that may come from AI output or hand-written markdown. Other
+  // malformed values pass through unchanged.
+  let normalized = hex;
+  if (hex.length === 4 && /^#[0-9a-f]{3}$/i.test(hex)) {
+    normalized = `#${[...hex.slice(1)].map((c) => c + c).join("")}`;
+  }
+  if (normalized.length !== 7) return hex;
   const alpha = Math.round((opacity / 100) * 100) / 100;
-  if (alpha >= 1) return hex;
-  const c = hex.replace("#", "");
+  if (alpha >= 1) return normalized;
+  const c = normalized.replace("#", "");
   const r = parseInt(c.slice(0, 2), 16);
   const g = parseInt(c.slice(2, 4), 16);
   const b = parseInt(c.slice(4, 6), 16);
