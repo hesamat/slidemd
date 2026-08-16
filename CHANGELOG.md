@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.11.0 (2026-08-15)
+
+### Editor & UI
+
+- Overhaul the area background picker: replace the buggy hidden `<input type="color">` in the `@area` right-click "Set background…" menu with a popover panel featuring color swatches, an editable hex input, a transparency slider, and a live preview directly on the area element (composited over the slide background). Hex and transparency controls are always visible. Dismissing the popover (outside click, Escape, scroll, resize, or Cancel) restores the area's original background. (#233)
+- Add background sizing, positioning, and repetition controls to the Slide Styles background panel and the New Presentation modal: background-size (cover, contain, fit, auto), a 9-point background-position grid, and background-repeat (no-repeat, repeat, repeat-x, repeat-y). `fit` maps to `100% 100%` and round-trips when loading existing decks. (#194, #233)
+- Show the selected image path inline next to the Browse button (truncated with an ellipsis) and make the dark-theme toggle sticky at the bottom of the scrollable background panel. (#233)
+- Replace the full-width background preview with a compact, centered 16:9 box that keeps slide proportions without dominating the modal or forcing a horizontal scrollbar. (#233)
+- Rename the per-area directive from `area-style-<name>:` to `area-bg-<name>:`, storing a raw CSS background value (e.g. `#1e293b`) instead of a full CSS declaration string. The area popover is color-only; image/gradient area backgrounds are not offered. (#233)
+- Set the `.slides` container background to black. (#233)
+
+### AI
+
+- Document the `area-bg-<name>:` directive in the AI system prompt and visual-styling note so the AI can set per-area/column backgrounds; the AI output validator, prompt builder, and response parser recognize the directive. (#233)
+- Strip `area-bg-<name>:` in remix discard-identity mode (same image-vs-color rule as `background:`), and preserve per-area backgrounds through single-slide fix-mode and whole-deck generate-mode AI round-trips. (#233)
+
+### PPTX Import
+
+- Use `focus` for short fenced wide code blocks: a fenced code block with 10+ lines spanning >80% of the slide width is a single snippet, not merged two-column content, so it now uses `focus` unless the total content is substantial. Unfenced wide code (how PPTX merged-column code arrives) keeps two-column. Based on an 11-deck corpus audit completing the Phase 14.9 threshold review. (#232)
+- Fix static HTML exports (`npm run build`) leaking `area-bg-<name>:` lines into rendered slide content and dropping per-area backgrounds; `tools/md-to-deck.mjs` now matches the runtime parser. (#233)
+
 ## 0.10.1 (2026-08-15)
 
 ### Security
