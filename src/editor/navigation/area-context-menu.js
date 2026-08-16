@@ -294,6 +294,16 @@ export class AreaContextMenu {
     const themeRow = body.querySelector(".style-row--between");
     if (themeRow) themeRow.style.display = "none";
 
+    // The shared panel includes a static preview box, but the area popover's
+    // real preview is the area element itself (updated live in _syncPopoverUI)
+    // — it composites over the actual slide background, which a standalone box
+    // cannot.  Remove the box so it never shows a misleading neutral-surface
+    // swatch.
+    const previewSection = body
+      .querySelector(".style-bg-preview")
+      ?.closest(".style-inline-section");
+    if (previewSection) previewSection.remove();
+
     // Seed the hidden custom-color input with the current background so the
     // native picker opens at the existing color, not always at #ffffff.
     const colorInput = body.querySelector('[data-field="bg-custom-color"]');
