@@ -28,7 +28,7 @@ import {
   filterMeaningfulElements,
   inferLayout,
 } from "../src/data/pptx-layout-inference.js";
-import { CONFIG, ELEMENT_TYPES, DEFAULT_SLIDE_SIZE } from "../src/data/pptx-slide-config.js";
+import { CONFIG, CONVERSION, ELEMENT_TYPES, DEFAULT_SLIDE_SIZE } from "../src/data/pptx-slide-config.js";
 
 const corpusPath = path.join(import.meta.dirname, "pptx-layout-corpus.json");
 const reportPath = path.join(import.meta.dirname, "layout-report.json");
@@ -36,8 +36,11 @@ const reportPath = path.join(import.meta.dirname, "layout-report.json");
 function emuToPoints(emu) {
   // Mirrors convertSlide.normalizeElementUnits: values below EMU_THRESHOLD
   // are already points; only larger numbers are EMUs to be divided.
+  // Constants come from CONVERSION, not CONFIG — reading them from the wrong
+  // object yields undefined, and `emu >= undefined` is false, so every value
+  // would be treated as already-points and the geometry never normalized.
   if (typeof emu !== "number") return 0;
-  return emu >= CONFIG.EMU_THRESHOLD ? emu / CONFIG.EMU_PER_POINT : emu;
+  return emu >= CONVERSION.EMU_THRESHOLD ? emu / CONVERSION.EMU_PER_POINT : emu;
 }
 
 function stripHtml(html) {
@@ -157,10 +160,15 @@ function analyzeSlide(slide, slideWidth, slideHeight, slideIndex, importImages =
         .split("\n")
         .filter((l) => l.trim() && !/^\s*```/.test(l)).length
     : null;
+  // Mirror the production gate in inferLayout exactly: a fenced block only
+  // goes two-column when the total content is substantial; unfenced raw code
+  // (PPTX merged columns) keeps the historical two-column behavior.
+  const isFenced = /```/.test(codeEl?.content || "");
   const codeFiredTwoColumn =
     looksLikeCode &&
     (codeEl?.width || 0) > slideWidth * 0.8 &&
-    codeLines >= CONFIG.minMergedCodeLines;
+    codeLines >= CONFIG.minMergedCodeLines &&
+    (!isFenced || totalLength >= CONFIG.maxTitleLength);
 
   return {
     slideIndex,
@@ -182,6 +190,7 @@ function analyzeSlide(slide, slideWidth, slideHeight, slideIndex, importImages =
       looksLikeCode,
       codeWidthPct,
       codeLines,
+      isFenced,
       firedTwoColumn: codeFiredTwoColumn,
     },
     thresholdFired: {
