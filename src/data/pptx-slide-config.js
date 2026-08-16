@@ -134,6 +134,11 @@ export const CONFIG = {
   overlapRatioThreshold: 0.5,
   dominantImageThreshold: 0.6,
   backgroundOverlapThreshold: 0.1,
+  // Alpha of the dark scrim layered over full-cover background images so
+  // light slide text stays readable. 0 disables the scrim entirely; the old
+  // hardcoded 0.65 was too heavy. Partial (contain) backgrounds never get
+  // a scrim — the gradient would darken the areas around the image too.
+  bgScrimAlpha: 0.4,
   spreadOverlapThreshold: 0.5,
   partitionMidTolerance: 0.05,
   tallColumnHeightRatio: 0.5,

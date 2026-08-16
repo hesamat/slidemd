@@ -351,7 +351,14 @@ export function inferLayout(
 
     if (hasSpreadRow) return LAYOUT.TWO_COLUMN;
 
-    const hasBodyBelowHeader = contentEls.some((el) => el !== headerEl && el.top >= bodyThreshold);
+    // Body content "below the header" also includes boxes that START inside
+    // the header band but extend into the body region — PowerPoint content
+    // placeholders commonly begin right at the band edge (y ≈ bodyTopRatio)
+    // and run down the slide. Without this, a heading + code + bullets slide
+    // whose box starts high never reaches the focus/code decisions below.
+    const hasBodyBelowHeader = contentEls.some(
+      (el) => el !== headerEl && el.top + (el.height || 0) > bodyThreshold,
+    );
     const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
 
     if (totalLength < CONFIG.maxTitleLength && contentEls.length <= CONFIG.maxFocusElements) {

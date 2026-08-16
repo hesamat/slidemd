@@ -553,3 +553,45 @@ describe("MarkdownParser fence centering", () => {
     expect(html).toContain('class="code-centered"');
   });
 });
+
+describe("MarkdownParser table style directive", () => {
+  it("applies the declared width to the following table and drops the line", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("table {width: 60%}\n\n| A | B |\n| --- | --- |\n| 1 | 2 |");
+    expect(html).toContain('<table style="width:60%"');
+    expect(html).not.toContain("table {width");
+  });
+
+  it("applies widths per table in order", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 40%}\n\n| A |\n| --- |\n| 1 |\n\ntable {width: 75%}\n\n| C |\n| --- |\n| 2 |",
+    );
+    expect(html).toContain('<table style="width:40%"');
+    expect(html).toContain('<table style="width:75%"');
+    expect(html.match(/<table/g)).toHaveLength(2);
+  });
+
+  it("leaves tables without the directive unmodified", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("| A |\n| --- |\n| 1 |");
+    expect(html).toContain("<table");
+    expect(html).not.toContain('style="width:');
+  });
+
+  it("ignores non-width declarations and keeps the line as text", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("table {background: red}\n\n| A |\n| --- |\n| 1 |");
+    expect(html).toContain("table {background: red}");
+    expect(html).toContain("<table");
+    expect(html).not.toContain('style="width:');
+  });
+
+  it("does not treat an arbitrary paragraph as a directive", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("the table {was: good}\n\n| A |\n| --- |\n| 1 |");
+    expect(html).toContain("<p");
+    expect(html).toContain("<table");
+    expect(html).not.toContain('style="width:');
+  });
+});

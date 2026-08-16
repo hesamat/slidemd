@@ -1048,7 +1048,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* --- TABLES --- */
 
 .slide__area table {
-  width: 100%;
+  /* Content-sized: tables shrink to fit their text instead of stretching
+     full-width, and the auto horizontal margins centre them. PPTX-imported
+     tables (often narrower than the slide) keep their natural proportions
+     without needing any width annotation. */
+  width: auto;
+  max-width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 0.95em;
@@ -1056,7 +1061,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  margin: var(--spacing-sm) 0;
+  margin: var(--spacing-sm) auto;
 }
 
 /* Table caption */
@@ -1220,6 +1225,10 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   text-align: center;
   padding: var(--spacing-md);
   border-radius: var(--radius-sm);
+  /* A subtle border keeps the cells visually separated — coloured cells
+     would otherwise read as one solid block, and transparent cells would
+     blend into the slide background entirely. */
+  border: 1px solid var(--border-color);
   color: var(--slide-ink);
   font-size: 0.95em;
   line-height: 1.4;
@@ -1238,11 +1247,13 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 /* Non-fullscreen tables with meaningful cell colours (e.g. a sudoku grid)
-   keep their source aspect ratio and centre in their area instead of
-   stretching to fill the whole column. */
+   keep their source aspect ratio AND size: the converter emits an inline
+   width/max-height proportional to the source box, so a small cell diagram
+   does not blow up to full-slide width. Height derives from the inline
+   aspect-ratio; max-height clamps it. */
 .slide__area .fullpage-grid--content {
-  width: 100%;
   height: auto;
+  max-width: 100%;
   max-height: 100%;
   margin: auto;
 }

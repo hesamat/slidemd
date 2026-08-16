@@ -50,6 +50,36 @@ function setLayoutDirective(parts, layout) {
 }
 
 /**
+ * Derive a CSS background-position for a full-slide background image from its
+ * placement in the source slide. All element geometry and the slide size are
+ * in points here (normalised by convertToSlideMd). Edges flush with the slide
+ * anchor the image (left/right/top/bottom; 2% tolerance); an image flush on
+ * both horizontal (or vertical) edges spans that dimension and centres there.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @param {number} slideWidth - Slide width in points.
+ * @param {number} slideHeight - Slide height in points.
+ * @returns {string}
+ */
+function cssBackgroundPosition(el, slideWidth, slideHeight) {
+  const l = el.left || 0;
+  const t = el.top || 0;
+  const r = l + (el.width || 0);
+  const b = t + (el.height || 0);
+  const tol = Math.min(slideWidth, slideHeight) * 0.02;
+  const xs = [];
+  if (l <= tol) xs.push("left");
+  if (r >= slideWidth - tol) xs.push("right");
+  if (xs.length === 0) xs.push("center");
+  const x = xs.length === 2 ? "center" : xs[0];
+  const ys = [];
+  if (t <= tol) ys.push("top");
+  if (b >= slideHeight - tol) ys.push("bottom");
+  if (ys.length === 0) ys.push("center");
+  const y = ys.length === 2 ? "center" : ys[0];
+  return x === "center" && y === "center" ? "center" : `${x} ${y}`;
+}
+
+/**
  * Estimate whether the body content of a slide overflows the vertical space
  * available to a single column. Line heights and the available area are
  * constants calibrated to the fixed 1920x1080 render geometry, so the result
@@ -326,7 +356,18 @@ function convertSlide(
   if (importBackgrounds && bgCandidate && !fullImageCandidate) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    const pos = cssBackgroundPosition(bgCandidate, slideWidth, slideHeight);
+    // cover everywhere: a partial photo strip scaled up still keeps its edge
+    // anchoring via the derived position; contain proved too fiddly.
+    const size = "cover";
+    // The dark scrim keeps light slide text readable over the photo. It is
+    // applied to every background image (the alpha is configurable; 0.65 was
+    // too heavy). With cover, the scrim paints only over the image itself.
+    const scrim =
+      CONFIG.bgScrimAlpha > 0
+        ? `linear-gradient(rgba(0,0,0,${CONFIG.bgScrimAlpha}),rgba(0,0,0,${CONFIG.bgScrimAlpha})), `
+        : "";
+    slide.background = `${scrim}url(${DEFAULTS.IMAGE_SUBDIR}${filename}) ${pos} / ${size} no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
     dominantImages = dominantImages.filter(
       (el) =>
@@ -557,7 +598,15 @@ function convertSlide(
           : null;
     const bodyTop = slideHeight * CONFIG.bodyTopRatio;
     for (const el of slide.elements) {
-      if (el.type !== "shape" || (el.content || "").trim()) continue;
+      // Backing panels are bare shapes, OR text placeholders whose fill IS
+      // the panel (PowerPoint fills the title/content placeholders with a
+      // translucent colour instead of drawing a separate rectangle). Shapes
+      // that carry text are diagram labels, not panels.
+      const isPanel =
+        el.type === "shape"
+          ? !(el.content || "").trim()
+          : el.type === "text" && !!(el.fillRaw || el.fill) && !!(el.content || "").trim();
+      if (!isPanel) continue;
       if (el === bgCandidate) continue;
       const w = el.width || 0;
       const h = el.height || 0;

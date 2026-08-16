@@ -203,6 +203,26 @@ console.log("centered");
 
 This is useful for short snippets in `header-content` or `two-column` layouts where the default left alignment looks off. The `focus` layout already centers all code blocks by default.
 
+### Sizing tables
+
+Tables are content-sized and centred by default. To size a table to a
+percentage of its area, place a `table {width: X%}` line directly before it —
+the width is applied to the rendered `<table>` without any HTML in the source
+(the PPTX converter emits this automatically for source tables narrower than
+the slide):
+
+```markdown
+table {width: 60%}
+
+| Specifier | Usage      |
+| --------- | ---------- |
+| %d        | An integer |
+| %s        | A string   |
+```
+
+Only the `width` declaration is honoured; any other content in the braces is
+ignored and the line renders as plain text.
+
 ### Math with KaTeX
 
 Inline: `$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$` → $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$

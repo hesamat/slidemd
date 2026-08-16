@@ -177,6 +177,20 @@ function getLargestFontSize(element) {
 }
 
 /**
+ * True when the text consists only of markdown emphasis punctuation
+ * (underscores, asterisks, tildes, backticks). Wrapping such content in
+ * emphasis markers produces fragile adjacency like "**__**name**__**",
+ * which the spacing fix below mangles into "**__** name** __**". A bold or
+ * italic run containing only punctuation is almost always a highlight
+ * artifact (e.g. the "__" halves of "__name__"), so emit it as plain text.
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isEmphasisPunctuation(text) {
+  return /^[\s*_~`()[\]{}]+$/.test(text);
+}
+
+/**
  * Check if all text content in a DOM element is monospace.
  * Returns true when the element contains at least one monospace span and every
  * non-whitespace text node / span / inline child is monospace. A paragraph
@@ -197,7 +211,12 @@ export function isAllMonospace(element) {
     if (node.tagName === "BR") return true;
     if (node.tagName === "SPAN") {
       const style = node.getAttribute("style") || "";
-      if (!MONOSPACE_PATTERN.test(style)) return false;
+      if (!MONOSPACE_PATTERN.test(style)) {
+        // Whitespace-only spacer runs (e.g. leading indentation styled with
+        // the body font in PowerPoint) do not break the code-only property.
+        if ((node.textContent || "").trim() === "") return true;
+        return false;
+      }
       sawMono = true;
       return true;
     }
@@ -683,7 +702,11 @@ function processInlineNodes(nodes, out, opts = {}) {
       if (trimmed) {
         // Preserve trailing space outside the markers for proper spacing
         const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
-        out.push("**" + trimmed + "**" + suffix);
+        // A run containing only emphasis punctuation (e.g. the bold "__"
+        // halves of "__name__" in a PPTX) must not get markers:
+        // "**__**name**__**" is mangled by the spacing fix below into
+        // "**__** name** __**". Emit the plain text instead.
+        out.push(isEmphasisPunctuation(trimmed) ? raw : "**" + trimmed + "**" + suffix);
       } else if (raw) {
         out.push(" ");
       } else {
@@ -700,7 +723,7 @@ function processInlineNodes(nodes, out, opts = {}) {
       if (trimmed) {
         // Preserve trailing space outside the markers for proper spacing
         const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
-        out.push("*" + trimmed + "*" + suffix);
+        out.push(isEmphasisPunctuation(trimmed) ? raw : "*" + trimmed + "*" + suffix);
       } else if (raw) {
         out.push(" ");
       } else {
@@ -736,11 +759,11 @@ function processInlineNodes(nodes, out, opts = {}) {
           }
           out.push(text);
         } else if (isBold && isItalic) {
-          out.push("***" + trimmed + "***" + suffix);
+          out.push(isEmphasisPunctuation(trimmed) ? raw : "***" + trimmed + "***" + suffix);
         } else if (isBold) {
-          out.push("**" + trimmed + "**" + suffix);
+          out.push(isEmphasisPunctuation(trimmed) ? raw : "**" + trimmed + "**" + suffix);
         } else if (isItalic) {
-          out.push("*" + trimmed + "*" + suffix);
+          out.push(isEmphasisPunctuation(trimmed) ? raw : "*" + trimmed + "*" + suffix);
         } else {
           // Plain text span — preserve original spacing
           out.push(raw);

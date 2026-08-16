@@ -182,6 +182,18 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("**in** and **not in**");
   });
 
+  it("keeps underscore-only bold runs as plain text (no __name__ mangling)", () => {
+    // A PPTX highlighting only the "__" halves of "__name__" used to emit
+    // "**__**name**__**", which the spacing fix mangled into
+    // "**__** name** __**". The identifier must read cleanly.
+    const result = PptxExtractor.htmlToMarkdown(
+      "<p>called <b>__</b>name<b>__ </b>to determine</p>",
+    );
+    expect(result).toContain("called __name__ to determine");
+    expect(result).not.toMatch(/\*\*__\*\*/);
+    expect(result).not.toMatch(/\*\*/);
+  });
+
   it("handles span with font-weight bold style", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="font-weight: bold">hello</span></p>',
@@ -1005,6 +1017,33 @@ describe("PptxExtractor code extraction", () => {
     const result = PptxExtractor.htmlToMarkdown(html);
     expect(result).toContain("`a` `b`");
     expect(result).not.toContain("```");
+  });
+
+  it("treats code with a body-font indent run as code (no heading misfire)", () => {
+    // PowerPoint styles the leading indentation of a code line with the
+    // body font — that whitespace-only run must not disqualify the
+    // paragraph from code handling, or a short code line gets mis-detected
+    // as a heading with inline backticks.
+    const html =
+      '<p><span style="font-family: Tw Cen MT;">&nbsp;&nbsp;&nbsp;&nbsp;</span>' +
+      "<span style=\"font-family: Consolas;\">word = 'supercalifragilisticexpialidocious'</span></p>" +
+      '<p><span style="font-family: Tw Cen MT;">&nbsp;&nbsp;&nbsp;&nbsp;</span>' +
+      '<span style="font-family: Consolas;">print(word.title())</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain(
+      "```\n    word = 'supercalifragilisticexpialidocious'\n    print(word.title())\n```",
+    );
+    expect(result).not.toContain("###");
+    expect(result).not.toContain("```\n```");
+  });
+
+  it("emits punctuation-only bold spans as plain text", () => {
+    // A bold "( )" adjacent to text (chr**( )**) must read cleanly.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span>chr</span><span style="font-weight: bold;">( )</span><span> returns</span></p>',
+    );
+    expect(result).toContain("chr( ) returns");
+    expect(result).not.toMatch(/\*\*/);
   });
 
   it("groups a br-containing code paragraph into one fence", () => {

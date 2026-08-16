@@ -3324,7 +3324,9 @@ describe("convertToSlideMd table / image / footer edge cases", () => {
     expect(md).toContain("[Diagram: Pair Programming, bold node]");
   });
 
-  it("adds on-light modifier for light-filled grid cells and keeps unfilled cells unmodified", () => {
+  it("renders a coloured full-page table as a markdown table (no HTML grid)", () => {
+    // Tables always convert to markdown — cell colours are dropped rather
+    // than emitting a raw HTML grid.
     const extraction = makeExtraction([
       {
         index: 0,
@@ -3354,13 +3356,8 @@ describe("convertToSlideMd table / image / footer edge cases", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain(
-      'class="fullpage-grid__cell fullpage-grid__cell--on-light" style="background:#d9d9d9"',
-    );
-    expect(md).toContain(
-      'fullpage-grid__cell fullpage-grid__cell--on-color" style="background:#0f172a"',
-    );
-    expect(md).toContain('class="fullpage-grid__cell" style="background:transparent"');
+    expect(md).toContain("| A | B |");
+    expect(md).not.toContain("fullpage-grid");
   });
 
   it("deduplicates identical footer texts", () => {
@@ -3746,4 +3743,150 @@ it("renders a large unfilled table as a markdown table, not a bare grid", () => 
   const md = convertToSlideMd(extraction);
   expect(md).toContain("| Specifier | Usage | Example | Output |");
   expect(md).not.toContain("fullpage-grid");
+});
+
+describe("convertToSlideMd background image geometry", () => {
+  const bgSlide = (image) => ({
+    index: 0,
+    title: "",
+    notes: "",
+    elements: [
+      {
+        type: "text",
+        content: "## Title",
+        left: 500000,
+        top: 200000,
+        width: 8000000,
+        height: 500000,
+      },
+      {
+        type: "text",
+        content: "Body content",
+        left: 500000,
+        top: 1500000,
+        width: 8000000,
+        height: 1000000,
+      },
+      image,
+    ],
+    background: "",
+  });
+
+  it("uses cover + scrim for a full-slide background image", () => {
+    const md = convertToSlideMd(
+      makeExtraction([
+        bgSlide({
+          type: "image",
+          ref: "ppt/media/photo.jpeg",
+          base64: "abc",
+          left: 0,
+          top: 0,
+          width: DEFAULT_SIZE.width,
+          height: DEFAULT_SIZE.height,
+        }),
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) center / cover no-repeat");
+    expect(md).toContain("rgba(0,0,0,0.4)");
+  });
+
+  it("uses edge-derived position with cover and keeps the scrim for a partial background image", () => {
+    // A full-height image occupying the right 70% of the slide: flush right
+    // edge, flush top and bottom → "right center". Backgrounds are always
+    // cover now, and the dark overlay is applied to every background image.
+    const md = convertToSlideMd(
+      makeExtraction([
+        bgSlide({
+          type: "image",
+          ref: "ppt/media/photo.jpeg",
+          base64: "abc",
+          left: Math.round(DEFAULT_SIZE.width * 0.3),
+          top: 0,
+          width: Math.round(DEFAULT_SIZE.width * 0.7),
+          height: DEFAULT_SIZE.height,
+        }),
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) right center / cover no-repeat");
+    expect(md).toContain("rgba(0,0,0,0.4)");
+  });
+
+  it("centres a background image inset on all edges", () => {
+    const md = convertToSlideMd(
+      makeExtraction([
+        bgSlide({
+          type: "image",
+          ref: "ppt/media/photo.jpeg",
+          base64: "abc",
+          left: Math.round(DEFAULT_SIZE.width * 0.1),
+          top: Math.round(DEFAULT_SIZE.height * 0.1),
+          width: Math.round(DEFAULT_SIZE.width * 0.8),
+          height: Math.round(DEFAULT_SIZE.height * 0.8),
+        }),
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) center / cover no-repeat");
+  });
+});
+
+describe("convertToSlideMd area-bg from filled text placeholders", () => {
+  it("emits area-bg-main with the placeholder fill (alpha preserved)", () => {
+    // PowerPoint fills the title/content placeholders with a translucent
+    // colour instead of drawing a separate rectangle; that fill is the
+    // backing panel and must become an area-bg directive.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## The Python string (str)",
+            left: 500000,
+            top: 200000,
+            width: 6000000,
+            height: 600000,
+            fillRaw: { type: "color", value: "#000000a8" },
+          },
+          {
+            type: "text",
+            content: "- A string is a sequence of Unicode codepoints",
+            left: 500000,
+            top: 1500000,
+            width: 6000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "#000000a8" },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #000000a8");
+  });
+
+  it("converts a separate fill opacity to rgba()", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "- Body text on a translucent panel",
+            left: 0,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "0D0D0D", opacity: 0.73 },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: rgba(13, 13, 13, 0.73)");
+  });
 });

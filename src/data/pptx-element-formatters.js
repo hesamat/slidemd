@@ -5,9 +5,9 @@
  * Extracted from pptx-to-slide-md.js for clarity and reuse.
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml, escapeHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
-import { sanitizeCssColor, isColorDark, hexToLuminance } from "./pptx-color-utils.js";
-import { CONVERSION, DEFAULTS, REGEX, CONFIG, MARKDOWN_TAGS } from "./pptx-slide-config.js";
+import { stripHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
+import { sanitizeCssColor } from "./pptx-color-utils.js";
+import { CONVERSION, DEFAULTS, REGEX, MARKDOWN_TAGS } from "./pptx-slide-config.js";
 
 /**
  * Format raw text content into clean markdown.
@@ -203,113 +203,23 @@ export function formatImage(
 }
 
 /**
- * True when a meaningful share of a table's cells carry a real fill colour
- * (perceived luminance below FILL_LUMINANCE_MAX).  Used to decide between a
- * styled CSS grid (preserves colours) and a plain markdown table (text only).
+ * Format a table element as a markdown table.
  *
- * @param {object} table - Table element with rows of { text, fillColor }.
- * @returns {boolean}
- */
-function tableHasMeaningfulFills(table) {
-  // FILL_LUMINANCE_MAX is on the 0-255 scale used by hexToLuminance.  Near-white
-  // fills (>= 230) are not "meaningful"; a visibly coloured cell is.
-  const MIN_FILL_RATIO = 0.25;
-  const FILL_LUMINANCE_MAX = 230;
-  let total = 0;
-  let meaningful = 0;
-  for (const row of table.rows || []) {
-    for (const cell of row || []) {
-      total += 1;
-      if (fillLuminance(cell.fillColor) < FILL_LUMINANCE_MAX) meaningful += 1;
-    }
-  }
-  return total > 0 && meaningful / total >= MIN_FILL_RATIO;
-}
-
-/**
- * Perceived luminance (0..255) of a cell fill.  Near-white, transparent and
- * empty fills return 255 (treated as "no meaningful colour").
+ * Tables always render as markdown tables — never as raw HTML. Cell colours
+ * are not carried (markdown cannot express them); a large coloured backing
+ * panel in the source is instead emitted as an `area-bg-*:` directive by the
+ * slide converter, keeping the slide free of embedded HTML.
  *
- * @param {string} fill - Raw fill color from the PPTX (may be a hex, keyword, or empty).
- * @returns {number}
- */
-function fillLuminance(fill) {
-  const css = sanitizeCssColor(fill);
-  if (!css || css === "transparent" || css === "white") return 255;
-  if (css.startsWith("#")) {
-    let hex = css.slice(1);
-    if (hex.length === 3)
-      hex = hex
-        .split("")
-        .map((c) => c + c)
-        .join("");
-    if (hex.length === 8) hex = hex.slice(0, 6);
-    if (hex.length !== 6) return 255;
-    return hexToLuminance(hex);
-  }
-  // rgb()/rgba()/named colours that survived the sanitizer — assume visibly filled.
-  return 0;
-}
-
-/**
- * Format a table element as a markdown table or CSS grid.
+ * Sizing is a markdown directive too: when the source table is narrower than
+ * the slide, a `table {width: X%}` line precedes the table, which the app's
+ * markdown renderer applies to the rendered <table> (no HTML in the source).
  *
  * @param {object} table - Table element with rows
- * @param {number} slideWidth - Slide width in points
- * @param {number} slideHeight - Slide height in points
- * @returns {string} Markdown table or HTML grid
+ * @param {number} [slideWidth] - Slide width in points (for the width ratio).
+ * @returns {string} Markdown table (with optional `table {width: X%}` prefix)
  */
-export function formatTable(table, slideWidth, slideHeight) {
+export function formatTable(table, slideWidth) {
   if (!table.rows?.length) return "";
-
-  const tableArea = (table.width || 0) * (table.height || 0);
-  const slideArea = (slideWidth || 960) * (slideHeight || 540);
-  const isFullScreen = tableArea >= slideArea * CONFIG.fullScreenTableThreshold;
-  // A full-page table with per-cell fills is a visual layout (pillar grids,
-  // matrices) whose colors markdown cannot carry — render as a CSS grid.
-  // Tables with a meaningful share of coloured cells (e.g. a sudoku grid)
-  // keep their colours as a CSS grid too, at any size. A large table
-  // without fills is a normal data table: PowerPoint's built-in banded
-  // table style (firstRow/bandRow) lives in the theme and is not extracted,
-  // so cells arrive unfilled. Rendering it as a markdown table gives it the
-  // app's bordered, zebra-striped table styling.
-  const hasMeaningfulFills = tableHasMeaningfulFills(table);
-  const hasFilledCells = table.rows.some((row) =>
-    row.some((cell) => cell.fillColor && sanitizeCssColor(cell.fillColor) !== "transparent"),
-  );
-  const useGrid = (isFullScreen && hasFilledCells) || hasMeaningfulFills;
-
-  if (useGrid) {
-    const cols = table.rows[0].length;
-    const rows = table.rows.length;
-    const cells = [];
-    for (const row of table.rows) {
-      for (const cell of row) {
-        // Strip HTML tags then escape to prevent XSS from entity-decoded content
-        const text = escapeHtml(stripHtml(cell.text || "").trim());
-        const bg = sanitizeCssColor(cell.fillColor);
-        // Cells with an explicit fill get a text color chosen for the fill so
-        // the grid stays readable on both light and dark slides. Unfilled
-        // cells inherit the slide's theme ink via CSS.
-        const isDarkBg = isColorDark(bg);
-        const textClass = isDarkBg
-          ? " fullpage-grid__cell--on-color"
-          : bg !== "transparent"
-            ? " fullpage-grid__cell--on-light"
-            : "";
-        cells.push(
-          `<div class="fullpage-grid__cell${textClass}" style="background:${bg}">${text}</div>`,
-        );
-      }
-    }
-    // Non-fullscreen grids preserve the source table's aspect ratio and centre
-    // in their area instead of stretching to fill the whole column.
-    const modifier = isFullScreen ? "" : " fullpage-grid--content";
-    const aspect = isFullScreen
-      ? ""
-      : `;aspect-ratio:${Math.max(table.width || 1, 1)}/${Math.max(table.height || 1, 1)}`;
-    return `<div class="fullpage-grid${modifier}" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)${aspect}">${cells.join("")}</div>`;
-  }
 
   const escapeCell = (text) =>
     (text || "")
@@ -342,7 +252,15 @@ export function formatTable(table, slideWidth, slideHeight) {
   for (let i = 1; i < rows.length; i++) {
     parts.push(`| ${rows[i]} |`);
   }
-  return parts.join("\n");
+  const tableMd = parts.join("\n");
+
+  // Size the table to the source box when it is meaningfully narrower than
+  // the slide (near-full-width tables keep the default styling).
+  const widthPct =
+    slideWidth > 0 && table.width > 0
+      ? Math.min(100, Math.round((table.width / slideWidth) * 100))
+      : 100;
+  return widthPct <= 85 ? `table {width: ${widthPct}%}\n\n${tableMd}` : tableMd;
 }
 
 /**
@@ -356,7 +274,18 @@ export function formatElementFillBackground(el) {
   const fill = el.fillRaw || (el.fill ? { type: "color", value: el.fill } : null);
   if (!fill) return "";
   if (fill.type === "color" && fill.value) {
-    return sanitizeCssColor(fill.value);
+    let css = sanitizeCssColor(fill.value);
+    // Preserve transparency: PowerPoint often bakes the alpha into the hex
+    // ("#000000a8") or carries it in a separate opacity property. A backing
+    // panel with a translucent fill must stay translucent as an area-bg.
+    if (fill.opacity != null && css.startsWith("#") && css.length === 7) {
+      const alpha = Math.max(0, Math.min(1, Number(fill.opacity)));
+      const r = parseInt(css.slice(1, 3), 16);
+      const g = parseInt(css.slice(3, 5), 16);
+      const b = parseInt(css.slice(5, 7), 16);
+      css = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return css;
   }
   if (fill.type === "gradient" && fill.value?.colors?.length) {
     const stops = fill.value.colors

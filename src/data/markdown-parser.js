@@ -294,6 +294,44 @@ export class MarkdownParser {
         return html;
       };
     }
+
+    // Per-table styling without raw HTML: a `table {width: 40%}` line directly
+    // before a markdown table applies the declared width to the rendered
+    // <table> tag (mirroring the `text-block { ... }` directive syntax). Only
+    // safe numeric width declarations are honoured; anything else in the
+    // braces is ignored and the line stays plain text.
+    this.md.core.ruler.push("table_style_directive", (state) => {
+      const widths = [];
+      const tokens = state.tokens;
+      for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].type !== "inline") continue;
+        const match = /^\s*table\s*\{([^}]*)\}\s*$/.exec(tokens[i].content || "");
+        if (!match) continue;
+        const widthMatch = /(?:^|;)\s*width\s*:\s*(\d+(?:\.\d+)?)\s*%\s*(?:;|$)/i.exec(match[1]);
+        if (!widthMatch) continue;
+        const prev = tokens[i - 1];
+        const next = tokens[i + 1];
+        if (prev?.type === "paragraph_open" && next?.type === "paragraph_close") {
+          tokens.splice(i - 1, 3);
+          i -= 2;
+          widths.push(Math.max(1, Math.min(100, Number(widthMatch[1]))));
+        }
+      }
+      if (widths.length) state.env.tableWidths = widths;
+    });
+
+    const originalTableOpen = this.md.renderer.rules.table_open;
+    this.md.renderer.rules.table_open = function (tokens, idx, options, env, slf) {
+      const html = originalTableOpen
+        ? originalTableOpen(tokens, idx, options, env, slf)
+        : slf.renderToken(tokens, idx, options);
+      const widths = env?.tableWidths;
+      if (widths?.length) {
+        const pct = widths.shift();
+        return html.replace(/^<table/, `<table style="width:${pct}%"`);
+      }
+      return html;
+    };
   }
 
   /**
