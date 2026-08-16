@@ -50,6 +50,7 @@ export class SlideStylePanel {
   static _imageOverlay = 40;
   static _currentBgSize = "cover";
   static _currentBgPosition = "center";
+  static _currentBgRepeat = "no-repeat";
   static _currentBgOpacity = 0;
   static _currentTheme = "";
   static _layoutChanged = false;
@@ -194,7 +195,11 @@ export class SlideStylePanel {
         this._currentImagePath,
         this._imageOverlay,
         this._currentImageBlobUrl,
-        { size: this._currentBgSize, position: this._currentBgPosition },
+        {
+          size: this._currentBgSize,
+          position: this._currentBgPosition,
+          repeat: this._currentBgRepeat,
+        },
       );
     return this._currentBg ? hexToRgba(this._currentBg, 100 - this._currentBgOpacity) : "";
   }
@@ -209,6 +214,7 @@ export class SlideStylePanel {
       return buildImageBackground(this._currentImagePath, this._imageOverlay, undefined, {
         size: this._currentBgSize,
         position: this._currentBgPosition,
+        repeat: this._currentBgRepeat,
       });
     return this._currentBg ? hexToRgba(this._currentBg, 100 - this._currentBgOpacity) : "";
   }
@@ -287,6 +293,7 @@ export class SlideStylePanel {
     this._imageOverlay = bgInfo.overlay;
     this._currentBgSize = bgInfo.size;
     this._currentBgPosition = bgInfo.position;
+    this._currentBgRepeat = bgInfo.repeat;
     this._currentBgOpacity = bgInfo.opacity ?? 0;
     // For solid-color backgrounds, bgInfo.bg is the hex color (parsed from
     // rgba if needed). For image backgrounds, it's empty.
@@ -354,6 +361,7 @@ export class SlideStylePanel {
       opacity: this._currentBgOpacity,
       size: this._currentBgSize,
       position: this._currentBgPosition,
+      repeat: this._currentBgRepeat,
     });
   }
 
@@ -542,7 +550,7 @@ export class SlideStylePanel {
       this._syncBgUI();
     });
 
-    // Background size buttons (cover/contain/auto)
+    // Background size buttons (cover/contain/fit/auto)
     el.querySelectorAll("[data-bg-size]").forEach((btn) => {
       btn.addEventListener("click", () => {
         el.querySelectorAll("[data-bg-size]").forEach((b) => b.classList.remove("selected"));
@@ -558,6 +566,16 @@ export class SlideStylePanel {
         el.querySelectorAll("[data-bg-position]").forEach((b) => b.classList.remove("selected"));
         btn.classList.add("selected");
         this._currentBgPosition = btn.dataset.bgPosition;
+        this._syncBgUI();
+      });
+    });
+
+    // Background repeat buttons (no-repeat/repeat/repeat-x/repeat-y)
+    el.querySelectorAll("[data-bg-repeat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        el.querySelectorAll("[data-bg-repeat]").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        this._currentBgRepeat = btn.dataset.bgRepeat;
         this._syncBgUI();
       });
     });
@@ -593,6 +611,7 @@ export class SlideStylePanel {
       this._imageOverlay = 40;
       this._currentBgSize = "cover";
       this._currentBgPosition = "center";
+      this._currentBgRepeat = "no-repeat";
       this._currentBgOpacity = 0;
       this._currentTheme = "";
       this._syncBgUI();

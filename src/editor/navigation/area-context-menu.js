@@ -264,6 +264,7 @@ export class AreaContextMenu {
       opacity: parsed.opacity ?? 0,
       size: parsed.size,
       position: parsed.position,
+      repeat: parsed.repeat,
       theme: "",
     };
 
@@ -337,7 +338,11 @@ export class AreaContextMenu {
         this._bgState.imagePath,
         this._bgState.overlay,
         this._bgState.imageBlobUrl,
-        { size: this._bgState.size, position: this._bgState.position },
+        {
+          size: this._bgState.size,
+          position: this._bgState.position,
+          repeat: this._bgState.repeat,
+        },
       );
     }
     return this._bgState.bg ? hexToRgba(this._bgState.bg, 100 - this._bgState.opacity) : "";
@@ -350,6 +355,7 @@ export class AreaContextMenu {
       return buildImageBackground(this._bgState.imagePath, this._bgState.overlay, undefined, {
         size: this._bgState.size,
         position: this._bgState.position,
+        repeat: this._bgState.repeat,
       });
     }
     return this._bgState.bg ? hexToRgba(this._bgState.bg, 100 - this._bgState.opacity) : "";
@@ -367,6 +373,7 @@ export class AreaContextMenu {
       opacity: this._bgState.opacity,
       size: this._bgState.size,
       position: this._bgState.position,
+      repeat: this._bgState.repeat,
     });
     // Live preview on the area element itself.
     const areaEl = this._getAreaElement?.(this._bgAreaName);

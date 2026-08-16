@@ -186,6 +186,23 @@ describe("buildImageBackground", () => {
     expect(result).toBe("url('images/bg.png') center / auto no-repeat");
   });
 
+  it("maps fit size to 100% 100%", () => {
+    const result = buildImageBackground("images/bg.png", 0, "", { size: "fit" });
+    expect(result).toBe("url('images/bg.png') center / 100% 100% no-repeat");
+  });
+
+  it("supports all repeat variants", () => {
+    expect(buildImageBackground("images/bg.png", 0, "", { repeat: "repeat" })).toBe(
+      "url('images/bg.png') center / cover repeat",
+    );
+    expect(buildImageBackground("images/bg.png", 0, "", { repeat: "repeat-x" })).toBe(
+      "url('images/bg.png') center / cover repeat-x",
+    );
+    expect(buildImageBackground("images/bg.png", 0, "", { repeat: "repeat-y" })).toBe(
+      "url('images/bg.png') center / cover repeat-y",
+    );
+  });
+
   it("supports custom position", () => {
     const result = buildImageBackground("images/bg.png", 0, "", { position: "top left" });
     expect(result).toBe("url('images/bg.png') top left / cover no-repeat");
@@ -275,6 +292,28 @@ describe("parseBackgroundValue", () => {
   it("parses auto size", () => {
     const result = parseBackgroundValue("url('bg.png') center / auto no-repeat");
     expect(result.size).toBe("auto");
+  });
+
+  it("normalizes 100% 100% size to fit", () => {
+    const result = parseBackgroundValue("url('bg.png') center / 100% 100% no-repeat");
+    expect(result.size).toBe("fit");
+    expect(result.repeat).toBe("no-repeat");
+  });
+
+  it("round-trips fit through buildImageBackground", () => {
+    const original = "url('bg.png') center / 100% 100% no-repeat";
+    const parsed = parseBackgroundValue(original);
+    const rebuilt = buildImageBackground(parsed.imagePath, 0, "", {
+      size: parsed.size,
+      position: parsed.position,
+      repeat: parsed.repeat,
+    });
+    expect(rebuilt).toBe(original);
+  });
+
+  it("parses repeat-y", () => {
+    const result = parseBackgroundValue("url('bg.png') center / cover repeat-y");
+    expect(result.repeat).toBe("repeat-y");
   });
 
   it("parses center position", () => {

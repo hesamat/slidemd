@@ -100,8 +100,8 @@ export const DEFAULT_BG_IMAGE_OPTS = {
  * @param {number} overlay - Overlay opacity 0–100 (0 = no overlay).
  * @param {string} [blobUrl] - Session-only blob URL for preview; falls back to imagePath.
  * @param {{ size?: string, position?: string, repeat?: string }} [opts]
- *   Background-size (cover/contain/auto/…), background-position (center/top left/…),
- *   background-repeat (no-repeat/repeat/…).  Defaults to cover/center/no-repeat.
+ *   Background-size (cover/contain/fit/auto/…), background-position (center/top left/…),
+ *   background-repeat (no-repeat/repeat/repeat-x/repeat-y).  Defaults to cover/center/no-repeat.
  * @returns {string} CSS background shorthand string, or "" when no image path.
  */
 export function buildImageBackground(imagePath, overlay, blobUrl, opts = {}) {
@@ -109,7 +109,9 @@ export function buildImageBackground(imagePath, overlay, blobUrl, opts = {}) {
   const displayUrl = blobUrl || imagePath;
   const url = `url('${String(displayUrl).replace(/'/g, "\\'")}')`;
   const { size, position, repeat } = { ...DEFAULT_BG_IMAGE_OPTS, ...opts };
-  const imageLayer = `${url} ${position} / ${size} ${repeat}`;
+  // "fit" is the user-facing label for `100% 100%` (stretch to fill exactly).
+  const sizeValue = size === "fit" ? "100% 100%" : size;
+  const imageLayer = `${url} ${position} / ${sizeValue} ${repeat}`;
   const opacity = overlay / 100;
   if (opacity <= 0) return imageLayer;
   const overlayLayer = `linear-gradient(rgba(0,0,0,${opacity}),rgba(0,0,0,${opacity}))`;
@@ -231,6 +233,7 @@ export function buildBackgroundPanelHtml({ image = true } = {}) {
         <div class="style-btn-group style-btn-group--compact" data-bg-size-group>
           <button class="style-btn-option selected" data-bg-size="cover" type="button">Cover</button>
           <button class="style-btn-option" data-bg-size="contain" type="button">Contain</button>
+          <button class="style-btn-option" data-bg-size="fit" type="button">Fit</button>
           <button class="style-btn-option" data-bg-size="auto" type="button">Auto</button>
         </div>
       </div>
@@ -246,6 +249,15 @@ export function buildBackgroundPanelHtml({ image = true } = {}) {
           <button class="style-btn-option" data-bg-position="bottom left" type="button">↙</button>
           <button class="style-btn-option" data-bg-position="bottom center" type="button">↓</button>
           <button class="style-btn-option" data-bg-position="bottom right" type="button">↘</button>
+        </div>
+      </div>
+      <div class="style-control-row">
+        <span class="style-control-label">Repeat</span>
+        <div class="style-btn-group style-btn-group--compact" data-bg-repeat-group>
+          <button class="style-btn-option selected" data-bg-repeat="no-repeat" type="button">No repeat</button>
+          <button class="style-btn-option" data-bg-repeat="repeat" type="button">Repeat</button>
+          <button class="style-btn-option" data-bg-repeat="repeat-x" type="button">Repeat X</button>
+          <button class="style-btn-option" data-bg-repeat="repeat-y" type="button">Repeat Y</button>
         </div>
       </div>
     </div>`
@@ -361,6 +373,7 @@ export function buildLayoutPanelHtml() {
  *   opacity?: number,
  *   size?: string,
  *   position?: string,
+ *   repeat?: string,
  * }} state
  */
 export function syncBgState(rootEl, state) {
@@ -408,17 +421,25 @@ export function syncBgState(rootEl, state) {
   const hexInput = rootEl.querySelector('[data-field="bg-hex"]');
   if (hexInput && document.activeElement !== hexInput) hexInput.value = state.bg || "";
 
-  // Sync size/position button groups
+  // Sync size/position/repeat button groups
   if (showImageControls) {
     const sizeBtns = rootEl.querySelectorAll("[data-bg-size]");
     const posBtns = rootEl.querySelectorAll("[data-bg-position]");
-    const currentSize = state.size || DEFAULT_BG_IMAGE_OPTS.size;
+    const repeatBtns = rootEl.querySelectorAll("[data-bg-repeat]");
+    // "fit" is stored in CSS as `100% 100%`; normalize so the Fit button shows
+    // as selected when an existing deck already used the long-hand value.
+    const currentSize =
+      state.size === "100% 100%" ? "fit" : state.size || DEFAULT_BG_IMAGE_OPTS.size;
     const currentPos = (state.position || DEFAULT_BG_IMAGE_OPTS.position).toLowerCase();
+    const currentRepeat = state.repeat || DEFAULT_BG_IMAGE_OPTS.repeat;
     sizeBtns.forEach((btn) => {
       btn.classList.toggle("selected", btn.dataset.bgSize === currentSize);
     });
     posBtns.forEach((btn) => {
       btn.classList.toggle("selected", btn.dataset.bgPosition === currentPos);
+    });
+    repeatBtns.forEach((btn) => {
+      btn.classList.toggle("selected", btn.dataset.bgRepeat === currentRepeat);
     });
   }
 }
@@ -532,6 +553,9 @@ export function parseBackgroundValue(rawBg) {
       } else {
         size = sizeRepeat.trim() || "cover";
       }
+      // Normalize the long-hand "100% 100%" (stretch-to-fit) to the "fit"
+      // label used by the picker so the Fit button shows as selected.
+      if (/^100%\s+100%$/.test(size)) size = "fit";
     }
 
     // Position may be multi-word ("top left"); normalise to the values the

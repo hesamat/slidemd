@@ -189,6 +189,7 @@ export class NewPresentationModal {
       let imageOverlay = 40;
       let bgSize = "cover";
       let bgPosition = "center";
+      let bgRepeat = "no-repeat";
       let bgOpacity = 0;
 
       const stepPanels = backdrop.querySelectorAll(`.${P}panel`);
@@ -219,6 +220,7 @@ export class NewPresentationModal {
           return buildImageBackground(selectedImagePath, imageOverlay, "", {
             size: bgSize,
             position: bgPosition,
+            repeat: bgRepeat,
           });
         return selectedBg ? hexToRgba(selectedBg, 100 - bgOpacity) : "";
       };
@@ -233,6 +235,7 @@ export class NewPresentationModal {
           opacity: bgOpacity,
           size: bgSize,
           position: bgPosition,
+          repeat: bgRepeat,
         });
       };
 
@@ -320,6 +323,18 @@ export class NewPresentationModal {
             .forEach((b) => b.classList.remove("selected"));
           btn.classList.add("selected");
           bgPosition = btn.dataset.bgPosition;
+          syncBg();
+        });
+      });
+
+      // Background repeat buttons
+      backdrop.querySelectorAll("[data-bg-repeat]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          backdrop
+            .querySelectorAll("[data-bg-repeat]")
+            .forEach((b) => b.classList.remove("selected"));
+          btn.classList.add("selected");
+          bgRepeat = btn.dataset.bgRepeat;
           syncBg();
         });
       });
