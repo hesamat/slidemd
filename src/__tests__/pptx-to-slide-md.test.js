@@ -3590,3 +3590,52 @@ describe("convertToSlideMd media-full-bleed / area-bg emission", () => {
     expect(md).not.toContain("area-bg-");
   });
 });
+
+it("renders a large unfilled table as a markdown table, not a bare grid", () => {
+  // PowerPoint's built-in banded table style lives in the theme and is not
+  // extracted, so a large data table arrives with all cells unfilled. It
+  // must render as a markdown table (borders, header, zebra striping)
+  // rather than a borderless CSS grid of transparent divs.
+  const extraction = makeExtraction([
+    {
+      index: 0,
+      title: "",
+      notes: "",
+      elements: [
+        {
+          type: "table",
+          rows: [
+            [{ text: "Specifier" }, { text: "Usage" }, { text: "Example" }, { text: "Output" }],
+            [
+              { text: "%d" },
+              { text: "For a decimal integer" },
+              { text: "print('%d' % 128)" },
+              { text: "128" },
+            ],
+            [
+              { text: "%f" },
+              { text: "For a float" },
+              { text: "print('%f' % 1.5)" },
+              { text: "1.500000" },
+            ],
+            [
+              { text: "%s" },
+              { text: "For a string" },
+              { text: "print('%s' % 'ada')" },
+              { text: "ada" },
+            ],
+          ],
+          order: 5,
+          left: 0,
+          top: 0,
+          width: 9000000,
+          height: 5000000,
+        },
+      ],
+      background: "",
+    },
+  ]);
+  const md = convertToSlideMd(extraction);
+  expect(md).toContain("| Specifier | Usage | Example | Output |");
+  expect(md).not.toContain("fullpage-grid");
+});

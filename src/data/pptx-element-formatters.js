@@ -212,14 +212,20 @@ export function formatImage(
 export function formatTable(table, slideWidth, slideHeight) {
   if (!table.rows?.length) return "";
 
-  // Full-page tables (covering ≥80% of the slide) are visual layouts
-  // (e.g., four-pillar grids, flowchart matrices). Render as CSS grid
-  // to preserve the 2D visual structure.
   const tableArea = (table.width || 0) * (table.height || 0);
   const slideArea = (slideWidth || 960) * (slideHeight || 540);
   const isFullScreen = tableArea >= slideArea * CONFIG.fullScreenTableThreshold;
+  // A full-page table with per-cell fills is a visual layout (pillar grids,
+  // matrices) whose colors markdown cannot carry — render as a CSS grid. A
+  // large table without fills is a normal data table: PowerPoint's built-in
+  // banded table style (firstRow/bandRow) lives in the theme and is not
+  // extracted, so cells arrive unfilled. Rendering it as a markdown table
+  // gives it the app's bordered, zebra-striped table styling.
+  const hasFilledCells = table.rows.some((row) =>
+    row.some((cell) => cell.fillColor && sanitizeCssColor(cell.fillColor) !== "transparent"),
+  );
 
-  if (isFullScreen) {
+  if (isFullScreen && hasFilledCells) {
     const cols = table.rows[0].length;
     const rows = table.rows.length;
     const cells = [];
