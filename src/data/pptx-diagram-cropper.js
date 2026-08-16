@@ -84,6 +84,12 @@ let fontsLinkInjected = false;
  * @returns {Promise<void>}
  */
 async function loadReplacementFonts() {
+  // Skip entirely when offline — the CDN is unreachable and waiting would
+  // block import for up to 5 seconds with no benefit.  The browser's default
+  // sans-serif fallback will be used; text may overflow but the import
+  // completes instantly.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
   if (!fontsLinkInjected) {
     const link = document.createElement("link");
     link.rel = "stylesheet";

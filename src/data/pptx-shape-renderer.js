@@ -410,6 +410,25 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
         width: el.width,
         height: el.height,
       });
+
+      // Emit a text fallback carrying the diagram's labels so the imported
+      // Markdown retains searchable, editable text alongside the rendered
+      // image.  The text is placed at the same position with a zero-size
+      // bbox so it doesn't affect layout but is still discoverable by
+      // search and screen readers.
+      const labelText = (el.content || "").trim();
+      if (labelText && labelText !== "[Diagram]") {
+        newElements.push({
+          type: "text",
+          content: labelText,
+          placeholderType: null,
+          order: (el.order || 0) + 0.5,
+          left: el.left,
+          top: el.top,
+          width: el.width,
+          height: el.height,
+        });
+      }
     }
 
     slide.elements = newElements;

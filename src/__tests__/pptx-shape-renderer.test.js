@@ -392,11 +392,15 @@ describe("renderDiagramsToPng", () => {
     const images = [];
     await renderDiagramsToPng(slides, images);
 
-    expect(slides[0].elements).toHaveLength(1);
+    expect(slides[0].elements).toHaveLength(2);
+    // Image element
     expect(slides[0].elements[0].type).toBe("image");
     expect(slides[0].elements[0].mimeType).toBe("image/png");
     expect(slides[0].elements[0].ref).toMatch(/^diagram-0-1\.png$/);
     expect(slides[0].elements[0].base64).toBe("ZmFrZQ==");
+    // Text fallback carrying the diagram labels
+    expect(slides[0].elements[1].type).toBe("text");
+    expect(slides[0].elements[1].content).toBe("Step 1, Step 2");
     // Image registered in the images accumulator
     expect(images).toHaveLength(1);
     expect(images[0].ref).toBe("diagram-0-1.png");
