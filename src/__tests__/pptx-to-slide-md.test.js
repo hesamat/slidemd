@@ -2321,6 +2321,97 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("layout: two-column");
   });
 
+  it("uses focus for a short fenced code block even with 10+ lines", () => {
+    // A fenced block is a single snippet, not merged two-column content. Even
+    // when it spans >80% of the slide width with 10+ lines, TWO_COLUMN would
+    // only be downgraded to HEADER_CONTENT after a failed split — focus is
+    // better for a short single code demo. Mirrors a real corpus case:
+    // "# Range example code" + 15-line REPL session (len ~193).
+    const code = [
+      "```",
+      ">>> r = range(0, 20, 2)",
+      ">>> r",
+      "range(0, 20, 2)",
+      ">>> 11 in r",
+      "False",
+      ">>> 10 in r",
+      "True",
+      ">>> r.index(10)",
+      "5",
+      ">>> r[5]",
+      "10",
+      "```",
+    ].join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Range Example",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Range example code",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000, // below bodyThreshold
+            width: 9000000, // >80% of slide width (9144000)
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("@main");
+    expect(md).toContain("range(0, 20, 2)");
+  });
+
+  it("keeps two-column for a long fenced code block", () => {
+    // A fenced block with substantial total content (>= maxTitleLength) still
+    // benefits from the two-column split. Mirrors a real corpus case where a
+    // long fenced block kept two-column.
+    const code = Array.from(
+      { length: 14 },
+      (_, i) => `def function_${i}(value):\n    return value + ${i}`,
+    ).join("\n\n");
+    const extraction = makeExtraction([
+      {
+        index: 1,
+        title: "Long Code",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Long Code Example",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: code,
+            left: 200000,
+            top: 1500000,
+            width: 9000000,
+            height: 4000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+  });
+
   it("upgrades header-content to two-column when the body overflows", () => {
     // Mirrors a real Week 04 slide ("Assert, assert, assert!"): a title and a
     // single body box with 14 large-font (28pt) lines that cannot fit one
