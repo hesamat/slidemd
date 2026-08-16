@@ -443,9 +443,12 @@ export class PptxExtractor {
         }
       }
 
-      // If the group forms a manual diagram, convert it to a diagram element
+      // If the group forms a manual diagram, convert it to a diagram element.
+      // Mark it as group-sourced: the slide-crop renderer lays out `<p:grpSp>`
+      // children relative to the group container, so the cropper's absolute
+      // position matcher cannot see them — these diagrams use the SVG path.
       if (this.#isManualDiagram(processedChildren)) {
-        return this.#shapesToDiagram(processedChildren, el.order || 0);
+        return this.#shapesToDiagram(processedChildren, el.order || 0, true);
       }
 
       // Otherwise, flatten group elements as before
@@ -1116,11 +1119,14 @@ export class PptxExtractor {
    * 4. Partition elements into "near" candidates (center in the expanded
    *    box and not obviously a slide title or long body text).
    * 5. Split the "near" candidates into connected components using edge
-   *    distance (< 5 pt). This prevents one large connector bbox from
-   *    swallowing unrelated, nearby clusters.
-   * 6. For each component, keep plain text only if it is within 5 pt of a
+   *    distance (< 30 pt for connector clusters, < 120 pt for shape-only
+   *    clusters). This prevents one large connector bbox from swallowing
+   *    unrelated, nearby clusters.
+   * 6. For each component, keep plain text only if it is within 15 pt of a
    *    non-connector shape-like element (an actual box, not an arrow) in
-   *    that component.
+   *    that component, and keep connectors only when they touch a box-like
+   *    shape (within 20 pt).  Decorative side arrows that only float near a
+   *    shape are dropped rather than cropped into the diagram image.
    * 7. Convert each remaining component that passes #isManualDiagram into
    *    a diagram element, leaving all other elements unchanged.
    *
@@ -1147,11 +1153,15 @@ export class PptxExtractor {
 
     if (connectors.length === 0 && shapeLike.length < 2) return elements;
 
-    // Connector-based clusters should be tight (arrows point between shapes).
-    // Shape-only clusters (e.g. concept maps with scattered ovals, Venn diagrams)
-    // can be much looser; without this, diagrams like the COMP 1510 "Raw strings"
-    // slide — four ovals across the top and one on the right — are never linked.
-    const CLUSTER_GAP_PT = connectors.length > 0 ? 5 : 120;
+    // Connector-based clusters should be tight (arrows point between shapes),
+    // but not so tight that real flowcharts fragment into one diagram per box:
+    // process-box edges are commonly 10–30 pt apart.  The text-proximity
+    // filter below (textGapPt) still keeps unrelated body text out of a
+    // connector cluster.  Shape-only clusters (e.g. concept maps with scattered
+    // ovals, Venn diagrams) can be much looser; without this, diagrams like the
+    // COMP 1510 "Raw strings" slide — four ovals across the top and one on the
+    // right — are never linked.
+    const CLUSTER_GAP_PT = connectors.length > 0 ? 30 : 120;
 
     // Bounding box of all connectors (or shape-like elements if no connectors)
     const seeds = connectors.length > 0 ? connectors : shapeLike;
@@ -1291,6 +1301,11 @@ export class PptxExtractor {
     // non-connector shape-like element (a real box, not an arrow). Bordered
     // text boxes and shapType text are treated as boxes themselves.
     const textGapPt = 15;
+    // Connectors are kept only when they actually touch a box-like shape (an
+    // arrow between flowchart boxes).  Decorative side arrows (e.g. the arrows
+    // pointing at a sudoku's rows/columns) float near the shape without
+    // touching it and would otherwise be cropped into the diagram image.
+    const connectorTouchPt = 20;
     const diagrams = [];
     const consumed = new Set();
     for (const component of components) {
@@ -1309,6 +1324,16 @@ export class PptxExtractor {
             return d < min ? d : min;
           }, Infinity);
           if (closest > textGapPt) continue;
+        }
+        if (el.hasConnector || el.type === "connector") {
+          // A connector that does not touch any box-like shape is an
+          // annotation, not diagram structure — drop it.
+          if (boxLike.length === 0) continue;
+          const closest = boxLike.reduce((min, box) => {
+            const d = this.#bboxEdgeDistance(el, box);
+            return d < min ? d : min;
+          }, Infinity);
+          if (closest > connectorTouchPt) continue;
         }
         kept.push(el);
       }
@@ -1445,9 +1470,12 @@ export class PptxExtractor {
    * @static
    * @param {ExtractedElement[]} elements - Shape elements forming a diagram.
    * @param {number} order - Element order for positioning.
+   * @param {boolean} [fromGroup=false] - True when the diagram came from a
+   *   `<p:grpSp>` group; these skip the slide-crop render path (the renderer
+   *   positions group children relative to the group container).
    * @returns {ExtractedElement} A diagram element with text content.
    */
-  static #shapesToDiagram(elements, order) {
+  static #shapesToDiagram(elements, order, fromGroup = false) {
     // Build a concise caption from the diagram's text labels for use as the
     // image's alt text.  The rendered PNG is the canonical visual; the caption
     // makes it searchable and accessible without dumping labels into the body.
@@ -1464,28 +1492,16 @@ export class PptxExtractor {
     const content =
       labels.length > 0 ? labels.join(", ").slice(0, 200) : `[Diagram: ${elements.length} shapes]`;
 
-    // Calculate the bounding box from the visible body shapes plus a capped
-    // contribution from the connectors.  Connectors can extend far outside the
-    // actual diagram (e.g. an arrow coming from a slide title or a long loop
-    // arrow), and including their full length swallows unrelated content.  We
-    // include each connector's bbox but clamp it to 60pt beyond the body boxes
-    // so internal arrowheads/tails are visible without letting external tails
-    // blow up the crop.
-    const bodyEls = elements.filter((el) => el.type !== "connector" && !el.hasConnector);
-    const bbs = bodyEls.length > 0 ? bodyEls : elements;
-    const bodyMinX = Math.min(...bbs.map((el) => el.left || 0));
-    const bodyMinY = Math.min(...bbs.map((el) => el.top || 0));
-    const bodyMaxX = Math.max(...bbs.map((el) => (el.left || 0) + (el.width || 0)));
-    const bodyMaxY = Math.max(...bbs.map((el) => (el.top || 0) + (el.height || 0)));
-    const CONNECTOR_MARGIN_PT = 60;
-    const cMinX = Math.min(...elements.map((el) => el.left || 0));
-    const cMinY = Math.min(...elements.map((el) => el.top || 0));
-    const cMaxX = Math.max(...elements.map((el) => (el.left || 0) + (el.width || 0)));
-    const cMaxY = Math.max(...elements.map((el) => (el.top || 0) + (el.height || 0)));
-    const minX = Math.max(cMinX, bodyMinX - CONNECTOR_MARGIN_PT);
-    const minY = Math.max(cMinY, bodyMinY - CONNECTOR_MARGIN_PT);
-    const maxX = Math.min(cMaxX, bodyMaxX + CONNECTOR_MARGIN_PT);
-    const maxY = Math.min(cMaxY, bodyMaxY + CONNECTOR_MARGIN_PT);
+    // Calculate the bounding box from every constituent element.  The cropper
+    // hides and renders these exact `elements`, so the diagram bbox must contain
+    // all of them.  Clamping connector extents to a body-shape margin makes
+    // legitimate side arrows render partially at the crop edge (and can also
+    // leave one side of a diagram out entirely).  Outlier rejection belongs in
+    // diagram detection, not in the bbox after an element has been accepted.
+    const minX = Math.min(...elements.map((el) => el.left || 0));
+    const minY = Math.min(...elements.map((el) => el.top || 0));
+    const maxX = Math.max(...elements.map((el) => (el.left || 0) + (el.width || 0)));
+    const maxY = Math.max(...elements.map((el) => (el.top || 0) + (el.height || 0)));
 
     return {
       type: "diagram",
@@ -1497,9 +1513,10 @@ export class PptxExtractor {
       width: maxX - minX,
       height: maxY - minY,
       // Stash the constituent shapes so the shape-renderer post-pass can
-      // render the group to a PNG.  Carried alongside the text content so
-      // Task C (text fallback) can emit both the image and the text.
+      // render the group to a PNG.  The diagram's `content` (shape labels) is
+      // carried alongside and becomes the rendered image's alt text.
       shapes: elements,
+      fromGroup,
     };
   }
 }

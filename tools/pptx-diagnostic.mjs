@@ -1,3 +1,15 @@
+/**
+ * Developer diagnostic tool for the PPTX diagram crop pipeline.
+ *
+ * NOT part of the app or test suite.  Starts a Vite server, imports a real
+ * PPTX in a headless Chromium, and writes the diagram crop diagnostics
+ * (full-slide renders, final crops, font availability, shape matching) to
+ * /tmp/pptx-diagnostic.  Used to debug the high-fidelity crop path in
+ * pptx-diagram-cropper.js against real decks.
+ *
+ * Usage:
+ *   node tools/pptx-diagnostic.mjs [path-to.pptx] [slide-index]
+ */
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
