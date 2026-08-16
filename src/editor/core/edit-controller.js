@@ -1048,12 +1048,12 @@ export class EditController {
     this.markdownEditor.focus();
   }
 
-  _setAreaBackground(areaName, color) {
+  _setAreaBackground(areaName, cssBackground) {
     if (!this.markdownEditor || !areaName) return;
     const markdown = this.markdownEditor.getValue();
     let updated;
-    if (color) {
-      const cssText = `background: ${color}`;
+    if (cssBackground) {
+      const cssText = `background: ${cssBackground}`;
       updated = updateAreaStyleForAreaDirective(markdown, areaName, cssText);
     } else {
       // Remove only the background property, preserving any other

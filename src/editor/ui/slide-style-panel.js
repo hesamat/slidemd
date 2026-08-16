@@ -217,10 +217,13 @@ export class SlideStylePanel {
 
   static show() {
     if (!this.el) this._buildDom();
+    const wasVisible = this.isVisible();
     this._syncUI();
     this.el.classList.remove("webdeck-hidden");
-    modalOpened();
-    if (typeof document !== "undefined") document.body.style.overflow = "hidden";
+    if (!wasVisible) {
+      modalOpened();
+      if (typeof document !== "undefined") document.body.style.overflow = "hidden";
+    }
   }
 
   static hide() {

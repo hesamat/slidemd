@@ -45,6 +45,8 @@ export function isColorDark(hex) {
  */
 export function hexToRgba(hex, opacity) {
   if (!hex || !hex.startsWith("#")) return hex || "";
+  // Only 6-digit hex is supported; 3-digit hex passes through unchanged.
+  if (hex.length !== 7) return hex;
   const alpha = Math.round((opacity / 100) * 100) / 100;
   if (alpha >= 1) return hex;
   const c = hex.replace("#", "");
