@@ -1233,10 +1233,16 @@ export class PptxExtractor {
     // Build a concise caption from the diagram's text labels for use as the
     // image's alt text.  The rendered PNG is the canonical visual; the caption
     // makes it searchable and accessible without dumping labels into the body.
+    const seen = new Set();
     const labels = elements
       .filter((el) => el.content && el.content.trim())
-      .map((el) => el.content.trim())
-      .filter((t) => t !== "[Diagram]");
+      .map((el) =>
+        el.content
+          .replace(/[#*`_~]/g, "") // strip markdown emphasis
+          .replace(/\s+/g, " ") // flatten newlines/extra whitespace
+          .trim(),
+      )
+      .filter((t) => t && t !== "[Diagram]" && !seen.has(t) && seen.add(t));
     const content =
       labels.length > 0 ? labels.join(", ").slice(0, 200) : `[Diagram: ${elements.length} shapes]`;
 
