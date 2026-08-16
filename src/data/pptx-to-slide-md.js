@@ -894,7 +894,12 @@ function convertSlide(
       parts.push(MARKDOWN_TAGS.MEDIA);
       parts.push("");
       if (mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref) {
-        parts.push(formatImage(mediaEls[0], deckName, { fitColumn: true }));
+        parts.push(
+          formatImage(mediaEls[0], deckName, {
+            fitColumn: true,
+            objectFit: mediaFullBleed ? "cover" : "contain",
+          }),
+        );
       } else {
         parts.push(mediaEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
       }

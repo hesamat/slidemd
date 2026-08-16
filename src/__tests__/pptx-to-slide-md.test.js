@@ -1940,8 +1940,9 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@header");
     expect(md).toContain("@main");
     expect(md).toContain("@media");
-    // The media-span image fills its column edge to edge (full-bleed media).
-    expect(md).toContain('style="width: 100%; height: auto;"');
+    // The media-span image fills its column via the fitColumn inline style
+    // (contain; cover is reserved for full-bleed media).
+    expect(md).toContain('style="width: 100%; height: auto; object-fit: contain;"');
   });
 
   it("uses focus when the body is a single short caption beside one dominant image", () => {
@@ -3495,6 +3496,8 @@ describe("convertToSlideMd media-full-bleed / area-bg emission", () => {
     );
     expect(md).toContain("layout: media-span-right");
     expect(md).toContain("media-full-bleed: true");
+    // Full-bleed media images cover (fill) the column instead of containing it.
+    expect(md).toContain("object-fit: cover");
   });
 
   it("does not emit media-full-bleed for an inset media image", () => {
@@ -3504,6 +3507,8 @@ describe("convertToSlideMd media-full-bleed / area-bg emission", () => {
     );
     expect(md).toContain("layout: media-span-right");
     expect(md).not.toContain("media-full-bleed");
+    // Inset media-span images keep the contain behavior.
+    expect(md).toContain("object-fit: contain");
   });
 
   it("emits area-bg-main for a large filled backing panel", () => {

@@ -551,12 +551,15 @@ describe("ImageInteractionHandler", () => {
       expect(ImageDragController._dragMoved).toBe(false);
     });
 
-    it("does not move the previously selected image when a media-span fill drag is ignored", () => {
-      const label = { classList: { contains: (c) => c === "editor-area-label" } };
+    it("selects and drags a media-span fill image instead of ignoring it", () => {
+      const label = {
+        classList: { contains: () => false },
+        getBoundingClientRect: () => ({ top: 0, height: 0 }),
+      };
       const slide = { dataset: { mediaFullBleed: "right" } };
       const img = {
         style: { position: "" },
-        classList: { contains: () => false },
+        classList: { contains: () => false, add: vi.fn() },
         closest: (sel) => (sel === ".slide__area--media" ? area : null),
       };
       const area = {
@@ -564,34 +567,48 @@ describe("ImageInteractionHandler", () => {
         querySelectorAll: () => [img],
         closest: (sel) => (sel === ".slide" ? slide : null),
       };
+      img.closest = (sel) => (sel === ".slide__area--media" ? area : null);
 
-      const previouslySelected = {
-        style: { position: "relative", left: "10px", top: "20px" },
-        classList: { contains: () => false },
-      };
       const prepareMdImgForDrag = vi.fn();
       const syncToMarkdown = vi.fn();
+      const select = vi.fn();
+      const updateOverlay = vi.fn();
       ImageDragController._ctx = {
-        getSelectedImg: () => previouslySelected,
-        select: vi.fn(),
+        getSelectedImg: () => img,
+        select,
         prepareMdImgForDrag,
         syncToMarkdown,
+        updateOverlay,
       };
       ImageDragController._container = null;
       ImageDragController._dropIndicator = null;
+      ImageDragController._dropTargetAreaEl = null;
       ImageDragController._dragMoved = false;
       ImageDragController._dragPrepared = false;
       ImageDragController._dragIgnored = false;
 
-      ImageDragController._onDragStart({ target: { closest: () => img }, clientX: 0, clientY: 0 });
-      ImageDragController._onDragMove({ dx: 50, dy: 0, clientX: 50, clientY: 0 });
-      ImageDragController._onDragEnd({ clientX: 50, clientY: 0 });
+      const origElementFromPoint = globalThis.document.elementFromPoint;
+      globalThis.document.elementFromPoint = () => null;
+      try {
+        ImageDragController._onDragStart({
+          target: { closest: () => img },
+          clientX: 0,
+          clientY: 0,
+        });
 
-      expect(prepareMdImgForDrag).not.toHaveBeenCalled();
-      expect(syncToMarkdown).not.toHaveBeenCalled();
-      expect(previouslySelected.style.left).toBe("10px");
-      expect(previouslySelected.style.top).toBe("20px");
-      expect(ImageDragController._dragIgnored).toBe(false);
+        expect(ImageDragController._dragIgnored).toBe(false);
+        expect(select).toHaveBeenCalledWith(img);
+
+        ImageDragController._onDragMove({ dx: 50, dy: 0, clientX: 50, clientY: 0 });
+        expect(prepareMdImgForDrag).toHaveBeenCalledWith(img);
+        expect(img.style.left).toBe("50px");
+        expect(img.style.top).toBe("0px");
+
+        ImageDragController._onDragEnd({ clientX: 50, clientY: 0 });
+        expect(syncToMarkdown).toHaveBeenCalled();
+      } finally {
+        globalThis.document.elementFromPoint = origElementFromPoint;
+      }
     });
   });
 });

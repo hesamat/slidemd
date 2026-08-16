@@ -1122,18 +1122,12 @@
   opacity: 0.85;
 }
 
-/* Media-span fill images — the view positions them; not draggable unless
-   the user explicitly toggles freeflow (which writes an inline position). */
+/* Media-span fill images — a size edit or drag takes them out of fill mode */
 [data-edit-mode="true"]
   .slide[data-media-full-bleed]
   .slide__area--media
   img:not([style*="position"]) {
-  cursor: default;
-}
-
-.image-overlay--fixed-size [data-edge] {
-  display: none;
-  pointer-events: none;
+  cursor: grab;
 }
 
 /* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */

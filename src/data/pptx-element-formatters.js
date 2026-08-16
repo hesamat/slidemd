@@ -165,13 +165,13 @@ export function wrapLongLists(markdown) {
  *
  * @param {object} img - Image element with ref, blob, width, height
  * @param {string} _deckName - Deck name for image path
- * @param {object} opts - Options: omitDimensions, fitColumn, caption
+ * @param {object} opts - Options: omitDimensions, fitColumn, objectFit, caption
  * @returns {string} HTML img tag
  */
 export function formatImage(
   img,
   _deckName = DEFAULTS.DECK_NAME,
-  { omitDimensions = false, fitColumn = false, caption } = {},
+  { omitDimensions = false, fitColumn = false, objectFit = "contain", caption } = {},
 ) {
   const rawName = (img.ref || DEFAULTS.IMAGE_FILENAME).split("/").pop();
   const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
@@ -186,9 +186,10 @@ export function formatImage(
   const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(/"/g, "&quot;");
 
   // fitColumn: media-span image — the media-span CSS fills the column via
-  // absolute insets and object-fit: contain; the inline style stays
-  // layout-agnostic so the image renders naturally if the layout changes.
-  const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
+  // absolute insets and object-fit; the inline style stays layout-agnostic
+  // so the image renders naturally if the layout changes. objectFit lets a
+  // full-bleed media image cover the column (fill) instead of containing it.
+  const style = fitColumn ? ` style="width: 100%; height: auto; object-fit: ${objectFit};"` : "";
 
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.

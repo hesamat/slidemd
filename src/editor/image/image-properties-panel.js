@@ -5,7 +5,6 @@ import {
   parseAllImages,
   getImageOrdinalIndexInArea,
   getImageOrdinalIndex,
-  isMediaSpanFillImage,
 } from "./image-markdown-utils.js";
 
 /**
@@ -68,7 +67,6 @@ export class ImagePropertiesPanel {
     this._syncUI(settings);
     this._updatePresetLabels();
     this._syncFreeflowBtn();
-    this._syncFixedSizeUI();
     this._activateTab("size");
     this.el.classList.remove("webdeck-hidden");
 
@@ -174,6 +172,7 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="medium">Medium</button>
                         <button type="button" class="image-properties-panel__chip" data-action="large">Large</button>
                         <button type="button" class="image-properties-panel__chip" data-action="full">Fit</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="fill" title="Fill the container (cover)">Fill</button>
                     </div>
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__chip" data-action="align-left" title="Align left">⬅ Left</button>
@@ -330,6 +329,9 @@ export class ImagePropertiesPanel {
         break;
       case "full":
         ImageInteractionHandler.fitToWidth();
+        break;
+      case "fill":
+        ImageInteractionHandler.fillContainer();
         break;
       case "center":
         ImageInteractionHandler.centerOnSlide();
@@ -538,18 +540,5 @@ export class ImagePropertiesPanel {
       btn.classList.toggle("active", isFreeflow);
       btn.setAttribute("aria-pressed", String(isFreeflow));
     }
-  }
-
-  static _syncFixedSizeUI() {
-    if (!this.el) return;
-    const fixed = isMediaSpanFillImage(this._currentImg);
-    this.el
-      .querySelectorAll(
-        '[data-field="width"], [data-field="height"], [data-action="small"], [data-action="medium"], [data-action="large"], [data-action="full"], [data-action="align-left"], [data-action="center"], [data-action="align-right"]',
-      )
-      .forEach((control) => {
-        control.disabled = fixed;
-        control.title = fixed ? "This full-bleed image is sized by its media column" : "";
-      });
   }
 }
