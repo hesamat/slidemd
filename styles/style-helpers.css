@@ -145,14 +145,17 @@
 
 /* ── Image status ── */
 .style-image-status {
-  margin-top: 6px;
-  padding: 5px 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
   font-size: 12px;
   color: var(--accent);
   font-weight: 500;
   background: rgba(var(--color-primary), 0.06);
   border-radius: var(--radius-sm);
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Overlay row (image backgrounds) / Opacity row (color backgrounds) ── */
@@ -421,4 +424,16 @@
 
 .style-row--between {
   justify-content: space-between;
+}
+
+/* ── Sticky dark-theme toggle ── */
+/* Keeps the toggle visible while scrolling the background panel's image
+   controls. Needs a solid background so content scrolling underneath does
+   not show through. */
+.style-bg-theme-row {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface-bg);
+  padding: 10px 0 0;
+  margin-top: 14px;
 }

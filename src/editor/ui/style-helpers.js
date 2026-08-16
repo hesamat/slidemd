@@ -219,8 +219,8 @@ export function buildBackgroundPanelHtml({ image = true, preview = true } = {}) 
       <div class="style-image-row">
         <span class="style-image-label">Image</span>
         <button class="style-bg-btn" data-action="pick-image" type="button">Browse...</button>
+        <span class="style-image-status" style="display:none"></span>
       </div>
-      <div class="style-image-status" style="display:none"></div>
     </div>`
     : "";
   const imageControls = image
@@ -291,7 +291,7 @@ export function buildBackgroundPanelHtml({ image = true, preview = true } = {}) 
       <input type="range" class="style-range" data-field="bg-opacity" min="0" max="100" value="0" />
       <span class="style-control-value" data-display="bg-opacity">0%</span>
     </div>${imageSourceRow}${previewSection}${imageControls}
-    <div class="style-row style-row--between">
+    <div class="style-row style-row--between style-bg-theme-row">
       <label class="style-toggle">
         <input type="checkbox" data-field="bg-theme" />
         <span>Dark theme</span>
