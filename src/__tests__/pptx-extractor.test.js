@@ -980,7 +980,6 @@ describe("PptxExtractor top-level diagram detection", () => {
   });
 });
 
-
 describe("PptxExtractor code extraction", () => {
   it("preserves indentation from whitespace-only monospace spans", () => {
     const html =
@@ -1080,6 +1079,5 @@ describe("PptxExtractor <a:br/> reconstruction", () => {
     ];
     const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
     expect(injected).toBe(html);
-
   });
 });
