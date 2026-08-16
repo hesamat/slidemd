@@ -930,14 +930,16 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   > img:not([style*="position"]) {
   /* Fill the media column: absolute insets plus forced width/height. The
       imported inline style ("height: auto") must stay layout-agnostic so the
-      image renders naturally if the layout changes, hence !important. Fixed
-      fill images have their resize handles disabled so saved dimensions
-      cannot diverge from the view-managed size. */
+      image renders naturally if the layout changes, hence !important. The
+      image content is contained (never cropped) so a mismatched aspect ratio
+      letterboxes instead of zooming into the picture. Fixed fill images have
+      their resize handles disabled so saved dimensions cannot diverge from
+      the view-managed size; a size edit takes the image out of fill mode. */
   position: absolute;
   inset: 0;
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover;
+  object-fit: contain;
   max-height: none;
   display: block;
 }
@@ -961,7 +963,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   > img:not([style*="position"]) {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   max-height: none;
   display: block;
 }

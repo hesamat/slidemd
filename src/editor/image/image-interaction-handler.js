@@ -717,12 +717,17 @@ export class ImageInteractionHandler {
     const img = this._selectedImg;
     if (!img) return;
     const s = { ...(settings || {}) };
-    if (isMediaSpanFillImage(img)) {
-      // The media column owns the fill image's geometry. Ignore direct size
-      // edits instead of writing dimensions that CSS !important will hide.
-      for (const key of ["left", "top", "width", "height"]) delete s[key];
+    if (isMediaSpanFillImage(img) && (s.width != null || s.height != null)) {
+      // A size edit takes a full-bleed fill image out of fill mode: give it an
+      // explicit position so the full-bleed CSS (:not([style*="position"]))
+      // stops force-filling it and the chosen size actually applies. Without
+      // this the width/height would be hidden by the CSS !important fill rules.
+      s.position = "relative";
+      s.left = s.left ?? 0;
+      s.top = s.top ?? 0;
     }
 
+    if (s.position != null) img.style.position = s.position;
     if (s.left != null) img.style.left = `${Math.round(s.left)}px`;
     if (s.top != null) img.style.top = `${Math.round(s.top)}px`;
     if (s.width != null) img.style.width = `${Math.round(s.width)}px`;
