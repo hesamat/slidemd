@@ -1110,8 +1110,9 @@ export class PptxExtractor {
       }
 
       if (!this.#isManualDiagram(kept)) continue;
+      if (kept.length === 0) continue;
 
-      const order = Math.min(...kept.map((el) => el.order || 0));
+      const order = kept.length > 0 ? Math.min(...kept.map((el) => el.order || 0)) : 0;
       diagrams.push(this.#shapesToDiagram(kept, order));
       for (const el of kept) {
         consumed.add(el);

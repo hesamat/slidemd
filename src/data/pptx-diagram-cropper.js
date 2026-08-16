@@ -95,15 +95,29 @@ async function loadReplacementFonts() {
   // Wait for the replacement fonts to load.  We load each one explicitly so
   // the browser fetches the woff2 files before we rasterize.  Load all weights
   // we might use (400, 500, 600, 700) to cover weight-boosted replacements.
+  // A 5-second timeout prevents hanging if the CDN is unreachable.
   if (document.fonts && document.fonts.load) {
     const googleFonts = [...new Set(Object.values(FONT_REPLACEMENTS).map((r) => r.font))];
     const weights = [400, 500, 600, 700];
     const loadPromises = googleFonts.flatMap((font) =>
       weights.map((w) => document.fonts.load(`${w} 16px "${font}"`).catch(() => {})),
     );
-    await Promise.all(loadPromises);
+    await Promise.race([
+      Promise.all(loadPromises),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
   }
 }
+
+/** Pre-compiled regexes for each Microsoft font name (avoids recompiling
+ * inside the DOM walk loop).  Maps msName → { re, googleName, weightBoost }. */
+const FONT_REPLACEMENT_REGEXES = Object.entries(FONT_REPLACEMENTS).map(
+  ([msName, { font: googleName, weightBoost }]) => ({
+    re: new RegExp(`(["']?)${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["']?)`, "gi"),
+    googleName,
+    weightBoost,
+  }),
+);
 
 /**
  * Walk the rendered DOM tree and replace any Microsoft font name in
@@ -118,14 +132,7 @@ function replaceFontsInDOM(root) {
     if (ff) {
       let replaced = ff;
       let weightBoost = 0;
-      for (const [msName, { font: googleName, weightBoost: boost }] of Object.entries(
-        FONT_REPLACEMENTS,
-      )) {
-        // Case-insensitive replacement of the quoted or unquoted font name.
-        const re = new RegExp(
-          `(["']?)${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["']?)`,
-          "gi",
-        );
+      for (const { re, googleName, weightBoost: boost } of FONT_REPLACEMENT_REGEXES) {
         // Use a function replacement to avoid $-substitution in the string
         // (e.g. "$googleName" would be treated literally by .replace()).
         const before = replaced;
@@ -338,10 +345,9 @@ export async function cropSlideToDiagram(
     const heightPx = Math.round(presentation.height);
 
     const slide = presentation.slides[slideIndex];
-    if (slide) {
-      // Hide master-slide shapes (footer, slide number, etc.).
-      slide.showMasterSp = false;
-    }
+    if (!slide) return null;
+    // Hide master-slide shapes (footer, slide number, etc.).
+    slide.showMasterSp = false;
 
     viewer = new PptxViewer(offscreen, { fitMode: "none", zoomPercent: 100 });
     viewer.load(presentation);
@@ -513,13 +519,20 @@ export async function cropSlideToDiagram(
 
     const dataUrl = crop.toDataURL("image/png");
 
-    if (d) {
-      d.fullBeforeHide = fullBeforeHide;
-      d.fullAfterHide = fullAfterHide;
-      d.finalCrop = dataUrl;
-      d.cropRect = { x: cropX, y: cropY, w: cropW, h: cropH };
-      d.shapePositions = shapePositions.map((sp) => ({ x: sp.x, y: sp.y, w: sp.w, h: sp.h }));
-      d.shapes = (shapes || []).map((s) => ({
+    // Populate diagnostics (dedicated object and/or window-level collector).
+    const diagTarget = collectDiag ? d || {} : null;
+    if (diagTarget) {
+      diagTarget.fullBeforeHide = fullBeforeHide;
+      diagTarget.fullAfterHide = fullAfterHide;
+      diagTarget.finalCrop = dataUrl;
+      diagTarget.cropRect = { x: cropX, y: cropY, w: cropW, h: cropH };
+      diagTarget.shapePositions = shapePositions.map((sp) => ({
+        x: sp.x,
+        y: sp.y,
+        w: sp.w,
+        h: sp.h,
+      }));
+      diagTarget.shapes = (shapes || []).map((s) => ({
         type: s.type,
         content: s.content,
         shapType: s.shapType,
@@ -531,37 +544,20 @@ export async function cropSlideToDiagram(
         fill: s.fill,
         borderWidth: s.borderWidth,
       }));
-      d.childMatches = childMatches;
-      d.fontInfo = fontInfoBefore || [];
-      d.fontInfoAfter = fontInfoAfter || [];
-      d.presentationSize = { width: widthPx, height: heightPx };
+      diagTarget.childMatches = childMatches;
+      diagTarget.fontInfo = fontInfoBefore || [];
+      diagTarget.fontInfoAfter = fontInfoAfter || [];
+      diagTarget.presentationSize = { width: widthPx, height: heightPx };
     }
 
-    if (typeof window !== "undefined" && window.__pptxCropCollectDiagnostics) {
-      const diag = d || {};
-      diag.fullBeforeHide = fullBeforeHide;
-      diag.fullAfterHide = fullAfterHide;
-      diag.finalCrop = dataUrl;
-      diag.cropRect = { x: cropX, y: cropY, w: cropW, h: cropH };
-      diag.shapePositions = shapePositions.map((sp) => ({ x: sp.x, y: sp.y, w: sp.w, h: sp.h }));
-      diag.shapes = (shapes || []).map((s) => ({
-        type: s.type,
-        content: s.content,
-        shapType: s.shapType,
-        placeholderType: s.placeholderType,
-        left: s.left,
-        top: s.top,
-        width: s.width,
-        height: s.height,
-        fill: s.fill,
-        borderWidth: s.borderWidth,
-      }));
-      diag.childMatches = childMatches;
-      diag.fontInfo = fontInfoBefore || [];
-      diag.fontInfoAfter = fontInfoAfter || [];
-      diag.presentationSize = { width: widthPx, height: heightPx };
+    if (
+      typeof window !== "undefined" &&
+      window.__pptxCropCollectDiagnostics &&
+      diagTarget &&
+      diagTarget !== d
+    ) {
       if (!window.__pptxCropDiagnostics) window.__pptxCropDiagnostics = [];
-      window.__pptxCropDiagnostics.push(diag);
+      window.__pptxCropDiagnostics.push(diagTarget);
     }
 
     return dataUrl;
