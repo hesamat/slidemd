@@ -396,11 +396,23 @@ export function inferLayout(
         // But if the code is short (few lines), FOCUS is better: a short wide
         // code block is a single snippet, not merged columns, and TWO_COLUMN
         // would just get downgraded to HEADER_CONTENT after a failed split.
+        // The line-count gate is not enough on its own: a fenced snippet can
+        // exceed minMergedCodeLines while the total slide content stays small
+        // (e.g. "# Range example code" + 15-line REPL session). A fenced block
+        // is by definition a single snippet, so it goes TWO_COLUMN only when
+        // the total content is substantial enough to benefit from the split.
+        // Unfenced raw code is how PPTX merged-column code arrives, so it
+        // keeps the historical two-column behavior.
         const codeWidth = codeEl?.width || 0;
         const codeLines = (codeEl?.content || "")
           .split("\n")
           .filter((l) => l.trim() && !/^\s*```/.test(l)).length;
-        if (codeWidth > slideWidth * 0.8 && codeLines >= CONFIG.minMergedCodeLines) {
+        const isFenced = /```/.test(codeEl?.content || "");
+        if (
+          codeWidth > slideWidth * 0.8 &&
+          codeLines >= CONFIG.minMergedCodeLines &&
+          (!isFenced || totalLength >= CONFIG.maxTitleLength)
+        ) {
           return LAYOUT.TWO_COLUMN;
         }
         return LAYOUT.FOCUS;
