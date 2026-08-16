@@ -503,10 +503,11 @@ export async function cropSlideToDiagram(
     // styles or rasterize.
     handle.element.getBoundingClientRect();
 
-    // Keep the slide background painted by the renderer (white for most
-    // decks) so the cropped diagram image includes the correct background
-    // color instead of appearing transparent against the editor's dark
-    // slide preview.
+    // Clear the slide background that the renderer painted on the container so
+    // the cropped diagram has a transparent background and sits on any slide
+    // theme.
+    handle.element.style.backgroundColor = "transparent";
+    handle.element.style.background = "transparent";
 
     // Capture font info before replacement when running in diagnostic mode.
     /** @type {any} */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatTable } from "../data/pptx-element-formatters.js";
+import { formatTable, formatImage } from "../data/pptx-element-formatters.js";
 
 /** A 3x3 grid where every third cell carries a real (dark) fill. */
 const coloredTable = (overrides = {}) => ({
@@ -67,5 +67,21 @@ describe("formatTable", () => {
 
   it("returns empty string for an empty table", () => {
     expect(formatTable({ rows: [] }, 960, 540)).toBe("");
+  });
+});
+
+describe("formatImage", () => {
+  it("emits a plain img tag with pixel dimensions", () => {
+    const out = formatImage({ ref: "image1.png", width: 200, height: 150 }, "deck");
+    expect(out).toMatch(/^<img /);
+    expect(out).toContain('width="267"');
+    expect(out).toContain('height="200"');
+    expect(out).not.toContain("position:relative");
+  });
+
+  it("keeps the plain img when dimensions are omitted", () => {
+    const out = formatImage({ ref: "diagram-0-1.png" }, "deck", { omitDimensions: true });
+    expect(out).toMatch(/^<img /);
+    expect(out).not.toContain("position:relative");
   });
 });

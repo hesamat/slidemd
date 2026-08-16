@@ -71,11 +71,9 @@ export function buildShapeSvg(shapes, groupBbox) {
     ? `<defs><marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><polygon points="0,0 6,3 0,6" fill="#333"/></marker></defs>`
     : "";
   const parts = renderable.map((shape) => shapeToSvg(shape, originX, originY));
-  // White background so the diagram is readable regardless of the slide theme
-  // it is placed over (matching the crop path which preserves the slide's own
-  // background colour).
-  const bg = `<rect x="0" y="0" width="${w}" height="${h}" fill="white"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${markerDef}${bg}${parts.join("")}</svg>`;
+  // Transparent background so the PNG sits on any slide theme — consistent
+  // with the crop path (which clears the slide fill to transparent).
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${markerDef}${parts.join("")}</svg>`;
 }
 
 /**

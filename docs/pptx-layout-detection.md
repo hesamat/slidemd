@@ -124,7 +124,7 @@ The presentation is parsed/built once per import and shared across all
 diagram crops (see `parsePresentation()`). Grouped diagrams (`<p:grpSp>`) skip
 the crop path because the renderer positions group children relative to the
 group container; they render via the SVG builder instead. Both paths produce
-images with a white background so the diagram is readable on any slide theme.
+images with a transparent background so the diagram sits on any slide theme.
 The crop path also rejects blank crops (a crop with almost no opaque pixels
 falls back to SVG) so a failed position match can never emit an empty image.
 
