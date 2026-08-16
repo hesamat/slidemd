@@ -76,6 +76,7 @@
 .slides {
   position: absolute;
   inset: 0;
+  background: black;
 }
 
 .slide-indicator {

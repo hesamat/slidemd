@@ -449,8 +449,8 @@ export class MarkdownParser {
   }
 
   /**
-   * Extract all `area-style-<name>:` directives and return a map of
-   * area names to their CSS declaration strings, along with the markdown
+   * Extract all `area-bg-<name>:` directives and return a map of
+   * area names to their background CSS values, along with the markdown
    * stripped of those directives.
    * @param {string} markdownText
    * @returns {{ areaStyles: Record<string, string>, markdown: string }}
@@ -465,7 +465,7 @@ export class MarkdownParser {
     for (const line of lines) {
       fence.toggle(line);
       if (!fence.isInFence) {
-        const match = line.match(/^\s*area-style-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
+        const match = line.match(/^\s*area-bg-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
         if (match) {
           areaStyles[match[1].toLowerCase()] = match[2].trim();
           continue;
@@ -759,7 +759,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
+      /^\s*(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|header-style|area-style|area-bg(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
         line,
       );
 

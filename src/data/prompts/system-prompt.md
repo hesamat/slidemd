@@ -15,6 +15,8 @@ Output format:
 
 When the visual-styling instructions below tell you to include `theme:` and `background:`, put them at the top of the `content` string (before the first `@area` marker), each on its own line, separated from the body by a blank line. When those instructions say NOT to output them (e.g. fix mode or preserve mode), omit both lines entirely and start `content` with the first `@area` marker.
 
+Per-area backgrounds: use `area-bg-<name>: <value>` to set a background on a single area (column). Place it at the top of the `content` string alongside `theme:`/`background:`, before the first `@area` marker. The `<name>` must match a real area in the chosen layout (e.g. `area-bg-media: #1e293b` or `area-bg-main: #f8f9fa`). The value is a CSS background value: a hex color, `rgb()`, `hsl()`, gradient, or `url(...)` image. Use per-area backgrounds sparingly — only when the visual direction calls for a distinct column color or when one column needs an image background and the other does not. Do not use per-area backgrounds on every slide.
+
 Rules:
 
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.

@@ -137,7 +137,7 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
         const t = l.trim();
         if (/^(@\w+|---)/.test(t)) return false;
         if (
-          /^(layout|theme|background|hidden|hide|media-full-bleed|media-span|align|header-style|area-style(?:-[\w-]+)?|code-font-size)\s*:/i.test(
+          /^(layout|theme|background|hidden|hide|media-full-bleed|media-span|align|header-style|area-style|area-bg(?:-[\w-]+)?|code-font-size)\s*:/i.test(
             t,
           )
         )

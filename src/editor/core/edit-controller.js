@@ -36,7 +36,8 @@ import {
   makeMediaFullBleed,
   parseSingleColumnLayout,
   removeAreaFromLayout,
-  updateAreaStyleForAreaDirective,
+  removeAreaBgForAreaDirective,
+  updateAreaBgForAreaDirective,
   updateLayoutDirective,
 } from "./directive-utils.js";
 import { LayoutParser } from "../../data/layout-parser.js";
@@ -364,7 +365,7 @@ export class EditController {
       canFullBleed: (name) => this._canFullBleed(name),
       getFullBleedLabel: (name) => this._getFullBleedLabel(name),
       onAlignMain: (name, align) => this._alignMainInMarkdown(name, align),
-      onSetBackground: (name, color) => this._setAreaBackground(name, color),
+      onSetBackground: (name, cssBackground) => this._setAreaBackground(name, cssBackground),
       getWarnings: () => this.warnings,
       onFixAreaMismatch: (allowedAreas) => this._fixMismatchedAreas(allowedAreas),
     });
@@ -1046,11 +1047,12 @@ export class EditController {
     this.markdownEditor.focus();
   }
 
-  _setAreaBackground(areaName, color) {
+  _setAreaBackground(areaName, cssBackground) {
     if (!this.markdownEditor || !areaName) return;
     const markdown = this.markdownEditor.getValue();
-    const cssText = color ? `background: ${color}` : "";
-    const updated = updateAreaStyleForAreaDirective(markdown, areaName, cssText);
+    const updated = cssBackground
+      ? updateAreaBgForAreaDirective(markdown, areaName, cssBackground)
+      : removeAreaBgForAreaDirective(markdown, areaName);
     if (updated === markdown) return;
 
     this.markdownEditor.setValue(updated, { suppressOnChange: false });

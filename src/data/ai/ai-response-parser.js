@@ -353,7 +353,7 @@ export function parseAiResponse(text) {
     const looksLikeSlide = slideTexts.some((text) => {
       const t = text.trim();
       return (
-        /^(layout|media-full-bleed|media-span|background|theme|header-style|area-style|hidden|hide|code-font-size):/im.test(
+        /^(layout|media-full-bleed|media-span|background|theme|header-style|area-style|area-bg(?:-[\w-]+)?|hidden|hide|code-font-size):/im.test(
           t,
         ) ||
         /^@\w+/m.test(t) ||

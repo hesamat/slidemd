@@ -513,6 +513,32 @@ Background: url(images/bg.png)
     expect(result).toContain("background: url(images/hero.png)");
   });
 
+  it("strips per-area color backgrounds but keeps per-area image backgrounds", () => {
+    const md = `layout: media-span-right
+theme: dark
+area-bg-media: #1e293b
+area-bg-main: url(images/column.png) center/cover
+
+@media
+Column image
+
+@main
+- Item`;
+    const result = stripVisualIdentity(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("area-bg-media:");
+    // A per-area image background is content, not identity — keep it.
+    expect(result).toContain("area-bg-main: url(images/column.png) center/cover");
+  });
+
+  it("strips a color smuggled alongside an image in a mixed per-area background", () => {
+    const md =
+      "layout: media-span-right\narea-bg-main: #fff url(images/hero.png) center/cover\n@main\n## Hero";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("area-bg-main: url(images/hero.png) center/cover");
+    expect(result).not.toMatch(/area-bg-main:.*#fff/i);
+  });
+
   it("does not strip body text that starts with Theme: or Background:", () => {
     const md =
       "layout: header-content\n@main\n- Item 1\n\nBackground: the war began in 1939\n\nTheme: the main theme is hope";

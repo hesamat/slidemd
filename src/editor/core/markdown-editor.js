@@ -663,7 +663,7 @@ export class MarkdownEditor {
           /^@[a-zA-Z0-9_-]+/.test(lineText) ||
           /^:::/.test(lineText) ||
           /^<!--/.test(lineText) ||
-          /^(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size|header-style)\s*:/i.test(
+          /^(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|area-style|area-bg(?:-[a-zA-Z0-9_-]+)?|code-font-size|header-style)\s*:/i.test(
             lineText,
           );
         if (isAreaOrDirective) return false;
