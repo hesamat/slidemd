@@ -102,9 +102,10 @@ export class PptxExtractor {
    * Parse a PPTX file (as ArrayBuffer) and return structured extraction data.
    * @static
    * @param {ArrayBuffer} buffer - PPTX file contents.
+   * @param {number} [limit] - If set, only process the first `limit` slides.
    * @returns {Promise<ExtractionResult>}
    */
-  static async extract(buffer) {
+  static async extract(buffer, limit = undefined) {
     const raw = await parse(buffer);
 
     // Extract ordered list start values from raw PPTX XML before pptxtojson
@@ -127,11 +128,15 @@ export class PptxExtractor {
     // a deletion) — raw.slides is indexed by position in the sorted file list,
     // not by file number.
     const slideOrderInfo = await this.#extractSlideOrder(buffer);
-    const orderedRawSlides = slideOrderInfo
+    let orderedRawSlides = slideOrderInfo
       ? slideOrderInfo.order
           .map((fileNum) => raw.slides[slideOrderInfo.fileNumToIndex.get(fileNum)])
           .filter((s) => s != null)
       : raw.slides;
+
+    if (limit != null && limit > 0) {
+      orderedRawSlides = orderedRawSlides.slice(0, limit);
+    }
 
     // Build a fallback fileNum→index map for the OL start value lookup when
     // #extractSlideOrder returned null. This keeps the olKey consistent: the
@@ -1155,7 +1160,7 @@ export class PptxExtractor {
     if (/```/s.test(text)) return true;
     // Numbered list items that are mostly inline code, e.g.:
     //   1. `print("Hello\\nworld")`
-    if (/^\s*\d+\.\s*(?:`[^`]+`|\*[^\*]+\*).*/s.test(text)) return true;
+    if (/^\s*\d+\.\s*(?:`[^`]+`|\*[^*]+\*).*/s.test(text)) return true;
     // Fallback: a lot of backticks relative to total length (code snippets).
     const backticks = (text.match(/`/g) || []).length;
     if (backticks >= 4 && backticks / text.length > 0.02) return true;

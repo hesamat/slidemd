@@ -42,23 +42,27 @@ const POSITION_TOLERANCE_PX = 3;
  * the browser falls back to a generic sans-serif with different metrics,
  * causing text overflow.  After rendering, we walk the DOM and replace any
  * occurrence of the Microsoft font name with the Google Font equivalent.
+ *
+ * Each entry maps to { font, weightBoost } where weightBoost is added to the
+ * element's font-weight to compensate for metric differences (e.g. Tw Cen MT
+ * regular is heavier than Jost regular, so we boost by 200).
  */
 const FONT_REPLACEMENTS = {
-  "tw cen mt": "Jost",
-  "tw cen mt condensed": "Jost",
-  "century gothic": "Jost",
-  calibri: "Carlito",
-  "calibri light": "Carlito",
-  cambria: "Caladea",
-  "cambria math": "Caladea",
-  "segoe ui": "Open Sans",
-  "segoe ui light": "Open Sans",
-  "trebuchet ms": "Verdana",
-  tahoma: "Verdana",
+  "tw cen mt": { font: "League Spartan", weightBoost: 0 },
+  "tw cen mt condensed": { font: "League Spartan", weightBoost: 0 },
+  "century gothic": { font: "League Spartan", weightBoost: 0 },
+  calibri: { font: "Carlito", weightBoost: 0 },
+  "calibri light": { font: "Carlito", weightBoost: 0 },
+  cambria: { font: "Caladea", weightBoost: 0 },
+  "cambria math": { font: "Caladea", weightBoost: 0 },
+  "segoe ui": { font: "Open Sans", weightBoost: 0 },
+  "segoe ui light": { font: "Open Sans", weightBoost: 0 },
+  "trebuchet ms": { font: "Verdana", weightBoost: 0 },
+  tahoma: { font: "Verdana", weightBoost: 0 },
   // "Aptos" is the new Microsoft default; Carlito is metric-compatible with
   // Calibri which is close enough.
-  aptos: "Carlito",
-  "aptos display": "Carlito",
+  aptos: { font: "Carlito", weightBoost: 0 },
+  "aptos display": { font: "Carlito", weightBoost: 0 },
 };
 
 /** Google Fonts CSS URL for loading all replacement fonts in one request. */
@@ -66,7 +70,7 @@ const GOOGLE_FONTS_URL =
   "https://fonts.googleapis.com/css2?" +
   "family=Caladea:ital,wght@0,400;0,700;1,400&" +
   "family=Carlito:ital,wght@0,400;0,700;1,400;1,700&" +
-  "family=Jost:wght@400;500;600;700&" +
+  "family=League+Spartan:wght@400;500;600;700&" +
   "family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400&" +
   "family=Verdana:wght@400;700&display=swap";
 
@@ -89,13 +93,14 @@ async function loadReplacementFonts() {
   }
 
   // Wait for the replacement fonts to load.  We load each one explicitly so
-  // the browser fetches the woff2 files before we rasterize.
+  // the browser fetches the woff2 files before we rasterize.  Load all weights
+  // we might use (400, 500, 600, 700) to cover weight-boosted replacements.
   if (document.fonts && document.fonts.load) {
-    const googleFonts = [...new Set(Object.values(FONT_REPLACEMENTS))];
-    const loadPromises = googleFonts.flatMap((font) => [
-      document.fonts.load(`400 16px "${font}"`).catch(() => {}),
-      document.fonts.load(`700 16px "${font}"`).catch(() => {}),
-    ]);
+    const googleFonts = [...new Set(Object.values(FONT_REPLACEMENTS).map((r) => r.font))];
+    const weights = [400, 500, 600, 700];
+    const loadPromises = googleFonts.flatMap((font) =>
+      weights.map((w) => document.fonts.load(`${w} 16px "${font}"`).catch(() => {})),
+    );
     await Promise.all(loadPromises);
   }
 }
@@ -112,16 +117,31 @@ function replaceFontsInDOM(root) {
     const ff = el.style.fontFamily;
     if (ff) {
       let replaced = ff;
-      for (const [msName, googleName] of Object.entries(FONT_REPLACEMENTS)) {
+      let weightBoost = 0;
+      for (const [msName, { font: googleName, weightBoost: boost }] of Object.entries(
+        FONT_REPLACEMENTS,
+      )) {
         // Case-insensitive replacement of the quoted or unquoted font name.
         const re = new RegExp(
           `(["']?)${msName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["']?)`,
           "gi",
         );
-        replaced = replaced.replace(re, `"$googleName"`);
+        // Use a function replacement to avoid $-substitution in the string
+        // (e.g. "$googleName" would be treated literally by .replace()).
+        const before = replaced;
+        replaced = replaced.replace(re, () => `"${googleName}"`);
+        if (replaced !== before) {
+          weightBoost = Math.max(weightBoost, boost);
+        }
       }
       if (replaced !== ff) {
         el.style.fontFamily = replaced;
+        // Bump font-weight to compensate for metric differences (e.g. Tw Cen MT
+        // regular is heavier than Jost regular).
+        if (weightBoost > 0) {
+          const currentWeight = parseInt(el.style.fontWeight, 10) || 400;
+          el.style.fontWeight = String(Math.min(900, currentWeight + weightBoost));
+        }
       }
     }
     for (const child of el.children) {
@@ -160,6 +180,114 @@ function collectFontInfo(root) {
   }
   walk(root);
   return out;
+}
+
+/**
+ * Shrink text inside ellipse shapes so it fits within the inscribed ellipse
+ * area.  The PptxViewer renders text in a rectangular flex container, so text
+ * near the corners extends past the ellipse's curved edges.  We measure the
+ * text element's bounding box and reduce font-size until the text fits inside
+ * the inscribed ellipse (the largest rectangle that fits inside the ellipse,
+ * which is width × height/√2 × height × width/√2 for a centered ellipse).
+ *
+ * Only applies to ellipse and roundRect shapes (which have curved edges).
+ *
+ * @param {HTMLElement} root - The rendered slide element.
+ * @param {Array} shapes - The diagram shapes with geometry info.
+ * @param {number} scale - The render scale.
+ */
+function shrinkTextToFit(root, shapes, scale) {
+  if (!shapes || shapes.length === 0) return;
+
+  for (const s of shapes) {
+    // Only shrink text for curved shapes (ellipse, roundRect).
+    if (s.shapType !== "ellipse" && s.shapType !== "roundRect") continue;
+
+    const shapeX = (s.left || 0) * PT_TO_PX * scale;
+    const shapeY = (s.top || 0) * PT_TO_PX * scale;
+    const shapeW = (s.width || 0) * PT_TO_PX * scale;
+    const shapeH = (s.height || 0) * PT_TO_PX * scale;
+
+    // Find the text container div inside this shape.
+    // The shape's outer div is at (shapeX, shapeY) with size (shapeW, shapeH).
+    // Inside it there's an SVG (the ellipse) and a div with the text.
+    const children = root.children;
+    for (const child of children) {
+      const el = child;
+      const left = parseFloat(el.style.left) || 0;
+      const top = parseFloat(el.style.top) || 0;
+      const w = parseFloat(el.style.width) || 0;
+      const h = parseFloat(el.style.height) || 0;
+
+      // Match this DOM element to the shape by position.
+      if (
+        Math.abs(left - shapeX) > POSITION_TOLERANCE_PX ||
+        Math.abs(top - shapeY) > POSITION_TOLERANCE_PX ||
+        Math.abs(w - shapeW) > POSITION_TOLERANCE_PX ||
+        Math.abs(h - shapeH) > POSITION_TOLERANCE_PX
+      ) {
+        continue;
+      }
+
+      // Find the text content div inside the shape.
+      // Structure: <div shape> > <svg> + <div text-container> > <div text-line> > <span>
+      // The font-size is on the text-line div (the one with overflow-wrap).
+      const textContainer = el.querySelector("[style*='overflow-wrap']");
+      if (!textContainer) break;
+
+      // The inscribed width of an ellipse with semi-axis a is a√2 (the largest
+      // centered rectangle's width).  For single-line text, only the width
+      // matters for overflow; multi-line text is left alone.
+      const inscribedW = shapeW * 0.707; // w/√2
+
+      // Nudge the text down slightly inside the shape.  PptxViewer renders
+      // text with justify-content: flex-start when the PPTX text anchor is
+      // "top", but for ellipse shapes the text looks better with a modest
+      // offset from the top (~20% of the way toward center).
+      const flexContainer = el.querySelector("[style*='flex-direction']");
+      if (flexContainer) {
+        const nudge = shapeH * 0.1; // ~20% of top→center distance
+        flexContainer.style.paddingTop = `${nudge}px`;
+      }
+
+      // Get the current font size in pt.
+      const fontSizeStr = textContainer.style.fontSize || "";
+      const fontSizeMatch = fontSizeStr.match(/(\d+(?:\.\d+)?)pt/);
+      if (!fontSizeMatch) break;
+      let fontSizePt = parseFloat(fontSizeMatch[1]);
+      if (fontSizePt <= 0) break;
+
+      // Only auto-shrink single-line text (e.g. "Unicode" / "ASCII" labels).
+      // Multi-line text that already wraps to fit the shape should not be
+      // shrunk, or it becomes illegible.  Check if the text is a single
+      // short label by measuring the rendered text height vs font size.
+      const containerRect = textContainer.getBoundingClientRect();
+      const cs = getComputedStyle(textContainer);
+      const fontSizePx = parseFloat(cs.fontSize) || 0;
+      const lineHeight = parseFloat(cs.lineHeight) || fontSizePx * 1.2;
+      // If the text container is taller than ~1.5 lines, it's already wrapping.
+      const isMultiLine = containerRect.height > lineHeight * 1.5;
+
+      if (!isMultiLine) {
+        // Iteratively shrink the font size until the single text line fits.
+        for (let i = 0; i < 10; i++) {
+          const span = textContainer.querySelector("span");
+          if (!span) break;
+          const spanRect = span.getBoundingClientRect();
+          const textW = spanRect.width;
+
+          if (textW <= inscribedW) break;
+
+          fontSizePt *= 0.9;
+          textContainer.style.fontSize = `${fontSizePt.toFixed(1)}pt`;
+          for (const s2 of textContainer.querySelectorAll("span")) {
+            s2.style.fontSize = `${fontSizePt.toFixed(1)}pt`;
+          }
+        }
+      }
+      break; // Found the shape, no need to check more children.
+    }
+  }
 }
 
 /**
@@ -233,7 +361,9 @@ export async function cropSlideToDiagram(
     // Capture font info before replacement when running in diagnostic mode.
     /** @type {any} */
     const d = diagnostics;
-    const fontInfoBefore = d ? collectFontInfo(handle.element) : null;
+    const collectDiag =
+      !!d || (typeof window !== "undefined" && window.__pptxCropCollectDiagnostics);
+    const fontInfoBefore = collectDiag ? collectFontInfo(handle.element) : null;
 
     // Replace Microsoft font names with Google Font equivalents in the
     // rendered DOM so text metrics match the original PPTX.
@@ -241,6 +371,19 @@ export async function cropSlideToDiagram(
 
     // Force another layout + a frame so the browser recalculates text with the
     // replacement fonts before rasterization.
+    handle.element.getBoundingClientRect();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    // Collect font info after replacement to verify it worked.
+    const fontInfoAfter = collectDiag ? collectFontInfo(handle.element) : null;
+
+    // Shrink text inside ellipse/roundRect shapes so it fits within the
+    // inscribed ellipse area rather than the rectangular bounding box.
+    // The PptxViewer renders text in a rectangular flex container, so text
+    // near the corners extends past the ellipse's curved edges.
+    shrinkTextToFit(handle.element, shapes, scale);
+
+    // Force layout after text shrinking.
     handle.element.getBoundingClientRect();
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
@@ -257,7 +400,7 @@ export async function cropSlideToDiagram(
     // Capture an initial full-slide PNG before hiding elements (diagnostic).
     /** @type {string|null} */
     let fullBeforeHide = null;
-    if (d) {
+    if (collectDiag) {
       fullBeforeHide = await toCanvas(handle.element, {
         pixelRatio: 1,
         backgroundColor: undefined,
@@ -289,7 +432,7 @@ export async function cropSlideToDiagram(
           Math.abs(height - sp.h) <= POSITION_TOLERANCE_PX,
       );
 
-      if (d) {
+      if (collectDiag) {
         childMatches.push({
           tag: el.tagName,
           left,
@@ -324,7 +467,7 @@ export async function cropSlideToDiagram(
     // Capture a full-slide PNG after hiding non-diagram elements (diagnostic).
     /** @type {string|null} */
     let fullAfterHide = null;
-    if (d) {
+    if (collectDiag) {
       fullAfterHide = await toCanvas(handle.element, {
         pixelRatio: 1,
         backgroundColor: undefined,
@@ -390,6 +533,7 @@ export async function cropSlideToDiagram(
       }));
       d.childMatches = childMatches;
       d.fontInfo = fontInfoBefore || [];
+      d.fontInfoAfter = fontInfoAfter || [];
       d.presentationSize = { width: widthPx, height: heightPx };
     }
 
@@ -414,6 +558,7 @@ export async function cropSlideToDiagram(
       }));
       diag.childMatches = childMatches;
       diag.fontInfo = fontInfoBefore || [];
+      diag.fontInfoAfter = fontInfoAfter || [];
       diag.presentationSize = { width: widthPx, height: heightPx };
       if (!window.__pptxCropDiagnostics) window.__pptxCropDiagnostics = [];
       window.__pptxCropDiagnostics.push(diag);
