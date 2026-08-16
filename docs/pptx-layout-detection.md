@@ -99,3 +99,78 @@ grounded in corpus analysis of real decks:
 | Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column                        |
 | Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision in `inferLayout`                      |
 | Small icon/logo beside the heading                     | Treated as content image                      | Header-band filter drops small images in the shared `bodyTopRatio` band |
+
+## Shape & diagram rendering (Phase 14.9, #117)
+
+Shape groups and diagrams (detected by `PptxExtractor.#isManualDiagram()` /
+`#detectTopLevelDiagrams()`) are rendered to PNG screenshots instead of
+flattening to bullet lists or a `[Diagram: ...]` marker.
+
+### Pipeline
+
+```
+PptxExtractor.extract()
+  └─ #processElement() — preserves full shape geometry (path, fill, border, transform)
+      └─ #isManualDiagram() → #shapesToDiagram() — stashes constituent shapes on the diagram element
+  └─ renderDiagramsToPng()  ← post-pass (async, after EMF/TIFF conversion)
+      └─ cropSlideToDiagram()   — high-fidelity: render slide with @aiden0z/pptx-renderer,
+      |                            hide non-diagram elements, crop to diagram bbox
+      └─ fallback: buildShapeSvg() + renderSvgToPng()   — SVG → canvas → toDataURL
+      └─ trimTransparentMargins() — crops transparent borders
+      └─ replaces diagram element with an image element (labels → alt text)
+```
+
+The presentation is parsed/built once per import and shared across all
+diagram crops (see `parsePresentation()`). Grouped diagrams (`<p:grpSp>`) skip
+the crop path because the renderer positions group children relative to the
+group container; they render via the SVG builder instead. Both paths produce
+images with a transparent background so the diagram sits on any slide theme.
+The crop path also rejects blank crops (a crop with almost no opaque pixels
+falls back to SVG) so a failed position match can never emit an empty image.
+
+`#detectTopLevelDiagrams()` only keeps connectors that actually touch a
+box-like shape (within 20 pt). Decorative side arrows that merely float next
+to a shape (e.g. the arrows pointing at a sudoku's rows/columns) are dropped
+instead of being cropped into the diagram image. When that leaves a single
+`table` element, the sudoku renders as a styled CSS grid: tables with a
+meaningful share of coloured cells (≥25% with luminance below 230/255) keep
+their colours as a `.fullpage-grid` (preserving the source aspect ratio),
+instead of flattening to a plain markdown table.
+
+### Files involved
+
+| File                               | Role                                                           |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `src/data/pptx-diagram-cropper.js` | High-fidelity slide-crop renderer (`cropSlideToDiagram`)       |
+| `src/data/pptx-shape-renderer.js`  | `renderDiagramsToPng()`, `buildShapeSvg()`, `renderSvgToPng()` |
+| `src/data/pptx-extractor.js`       | Preserves shape geometry; stashes `shapes` on diagram elements |
+| `src/data/pptx-image-converter.js` | `trimTransparentMargins()` (shared with EMF/TIFF conversion)   |
+
+### Fallback chain
+
+1. **Renderable shapes + canvas available + crop path runs** → high-fidelity
+   PNG from the slide crop (top-level diagrams only).
+2. **Grouped diagram / no crop / blank crop / crop throws** → SVG builder.
+3. **No renderable shapes** (no `path`, `shapType`, or fill) → diagram element
+   unchanged → existing `[Diagram: ...]` → bullets path.
+4. **Canvas unavailable** (jsdom, SSR) → diagram element unchanged → same fallback.
+
+### Labels as alt text
+
+When a shape group has text content, the labels are joined into a concise
+caption that becomes the rendered image's `alt` text, so the diagram stays
+searchable and accessible without dumping labels into the slide body. Markdown
+emphasis characters, newlines and duplicate labels are stripped before the
+caption is emitted.
+
+### Font replacement (offline note)
+
+Microsoft fonts that are not installed on the machine (Tw Cen MT, Calibri,
+Cambria, Segoe UI, …) are replaced in the rendered DOM with metrically
+compatible Google Fonts (League Spartan, Carlito, Caladea, Open Sans, Verdana)
+so text metrics match the original PPTX. The fonts load lazily from the Google
+Fonts CDN with a short timeout and are skipped when offline or when the
+replacement fonts are already installed locally. This is the one deliberate
+runtime CDN dependency in the import path; it degrades gracefully (text may
+overflow) and never blocks or fails the import. Self-hosting the font files
+under `public/fonts/` would remove the dependency entirely.

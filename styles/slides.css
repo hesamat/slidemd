@@ -790,6 +790,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area video {
   display: block;
   max-width: 100%;
+  max-height: 100%;
   height: auto;
   margin: 0 auto;
   border: 1px solid var(--border-subtle);
@@ -1227,6 +1228,16 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
    The converter adds this modifier for dark fills. */
 .slide__area .fullpage-grid__cell--on-color {
   color: #fff;
+}
+
+/* Non-fullscreen tables with meaningful cell colours (e.g. a sudoku grid)
+   keep their source aspect ratio and centre in their area instead of
+   stretching to fill the whole column. */
+.slide__area .fullpage-grid--content {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  margin: auto;
 }
 
 /* ==========================================================================

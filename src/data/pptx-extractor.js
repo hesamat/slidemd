@@ -10,6 +10,7 @@ import { parse } from "pptxtojson";
 import JSZip from "jszip";
 import { htmlToMarkdown, stripHtml } from "./pptx-html-to-markdown.js";
 import { convertEmfImages, convertTiffImages } from "./pptx-image-converter.js";
+import { renderDiagramsToPng } from "./pptx-shape-renderer.js";
 import { buildChartDataRows } from "./pptx-chart-data.js";
 
 /**
@@ -42,6 +43,19 @@ import { buildChartDataRows } from "./pptx-chart-data.js";
  * @property {string} [fill] - Fill color or gradient description.
  * @property {boolean} [strokeOnly] - Whether shape is stroke-only (arrows, lines).
  * @property {boolean} [hasConnector] - Whether this element is a connector/arrow.
+ * @property {Object} [headEnd] - Arrow head at the start of a connector.
+ * @property {Object} [tailEnd] - Arrow head at the end of a connector.
+ * @property {string} [path] - SVG path data for custom geometry (from pptxtojson).
+ * @property {{x: number, y: number, width: number, height: number}} [pathViewBox] - ViewBox for the path data.
+ * @property {string} [borderColor] - Shape border color.
+ * @property {number} [borderWidth] - Shape border width (pt).
+ * @property {'solid'|'dashed'|'dotted'} [borderType] - Shape border style.
+ * @property {number} [rotate] - Rotation in degrees.
+ * @property {boolean} [isFlipV] - Whether the shape is flipped vertically.
+ * @property {boolean} [isFlipH] - Whether the shape is flipped horizontally.
+ * @property {{h: number, v: number, blur: number, color: string}} [shadow] - Shadow definition.
+ * @property {import('pptxtojson').Fill} [fillRaw] - Full fill object (color/gradient/pattern/image) for rendering.
+ * @property {ExtractedElement[]} [shapes] - Constituent shapes for a diagram element (used by the shape-renderer post-pass).
  */
 
 /**
@@ -88,9 +102,10 @@ export class PptxExtractor {
    * Parse a PPTX file (as ArrayBuffer) and return structured extraction data.
    * @static
    * @param {ArrayBuffer} buffer - PPTX file contents.
+   * @param {number} [limit] - If set, only process the first `limit` slides.
    * @returns {Promise<ExtractionResult>}
    */
-  static async extract(buffer) {
+  static async extract(buffer, limit = undefined) {
     const raw = await parse(buffer);
 
     // Extract ordered list start values from raw PPTX XML before pptxtojson
@@ -113,11 +128,15 @@ export class PptxExtractor {
     // a deletion) — raw.slides is indexed by position in the sorted file list,
     // not by file number.
     const slideOrderInfo = await this.#extractSlideOrder(buffer);
-    const orderedRawSlides = slideOrderInfo
+    let orderedRawSlides = slideOrderInfo
       ? slideOrderInfo.order
           .map((fileNum) => raw.slides[slideOrderInfo.fileNumToIndex.get(fileNum)])
           .filter((s) => s != null)
       : raw.slides;
+
+    if (limit != null && limit > 0) {
+      orderedRawSlides = orderedRawSlides.slice(0, limit);
+    }
 
     // Build a fallback fileNum→index map for the OL start value lookup when
     // #extractSlideOrder returned null. This keeps the olKey consistent: the
@@ -153,6 +172,11 @@ export class PptxExtractor {
     // Convert TIFF images to PNG (browsers can't display TIFF natively)
     await convertTiffImages(slides, images);
 
+    // Render shape/diagram groups to PNG screenshots (Phase 14.9, #117).
+    // First try the high-fidelity slide-crop path; fall back to the SVG
+    // builder if the cropper is unavailable or fails.
+    await renderDiagramsToPng(slides, images, buffer);
+
     return {
       slides,
       themeColors: raw.themeColors || [],
@@ -170,6 +194,16 @@ export class PptxExtractor {
    */
   static htmlToMarkdown(html) {
     return htmlToMarkdown(html);
+  }
+
+  /**
+   * Test-only wrapper for the private #detectTopLevelDiagrams method.
+   * @static
+   * @param {ExtractedElement[]} elements
+   * @returns {ExtractedElement[]}
+   */
+  static detectTopLevelDiagramsForTest(elements) {
+    return this.#detectTopLevelDiagrams(elements);
   }
 
   /**
@@ -213,7 +247,13 @@ export class PptxExtractor {
     // Sort by PPTX element order to preserve author's layout intent
     raw.sort((a, b) => a.order - b.order);
 
-    const elements = raw.flat().filter(Boolean);
+    let elements = raw.flat().filter(Boolean);
+
+    // Detect top-level diagrams: shapes + connectors placed directly on the
+    // slide (not wrapped in a <p:grpSp> group).  This catches flowcharts
+    // created from ungrouped shapes, while the strict text filter inside
+    // #detectTopLevelDiagrams keeps body text and code outside the group.
+    elements = this.#detectTopLevelDiagrams(elements);
 
     return {
       index,
@@ -375,9 +415,12 @@ export class PptxExtractor {
         }
       }
 
-      // If the group forms a manual diagram, convert it to a diagram element
+      // If the group forms a manual diagram, convert it to a diagram element.
+      // Mark it as group-sourced: the slide-crop renderer lays out `<p:grpSp>`
+      // children relative to the group container, so the cropper's absolute
+      // position matcher cannot see them — these diagrams use the SVG path.
       if (this.#isManualDiagram(processedChildren)) {
-        return this.#shapesToDiagram(processedChildren, el.order || 0);
+        return this.#shapesToDiagram(processedChildren, el.order || 0, true);
       }
 
       // Otherwise, flatten group elements as before
@@ -422,11 +465,29 @@ export class PptxExtractor {
       }
       const content = htmlToMarkdown(html);
 
-      // Preserve shape metadata for diagram detection
+      // Preserve shape metadata for diagram detection and PNG rendering.
+      // `fill` stays a plain color string for backwards compatibility with
+      // layout inference / diagram detection; `fillRaw` carries the full
+      // pptxtojson Fill object (gradient/pattern/image) needed by the
+      // shape-renderer post-pass.
       const isConnector = !!el.headEnd || !!el.tailEnd;
       const shapType = el.shapType || null;
       const fill = el.fill?.type === "color" ? el.fill.value : null;
+      const fillRaw = el.fill || null;
       const strokeOnly = !!el.strokeOnly;
+      const geometry = {
+        path: el.path || null,
+        pathViewBox: el.pathViewBox || null,
+        borderColor: el.borderColor || null,
+        borderWidth: el.borderWidth || 0,
+        borderType: el.borderType || null,
+        rotate: el.rotate || 0,
+        isFlipV: !!el.isFlipV,
+        isFlipH: !!el.isFlipH,
+        shadow: el.shadow || null,
+        headEnd: el.headEnd || null,
+        tailEnd: el.tailEnd || null,
+      };
 
       // Empty shapes with no text content: preserve if they have visual properties
       if (!content.trim()) {
@@ -436,6 +497,7 @@ export class PptxExtractor {
           content: "",
           shapType,
           fill,
+          fillRaw,
           strokeOnly,
           hasConnector: isConnector,
           placeholderType,
@@ -444,6 +506,7 @@ export class PptxExtractor {
           top: el.top,
           width: el.width,
           height: el.height,
+          ...geometry,
         };
       }
 
@@ -452,6 +515,7 @@ export class PptxExtractor {
         content,
         shapType,
         fill,
+        fillRaw,
         strokeOnly,
         hasConnector: isConnector,
         placeholderType,
@@ -460,6 +524,7 @@ export class PptxExtractor {
         top: el.top,
         width: el.width,
         height: el.height,
+        ...geometry,
       };
       // Propagate the updated startIdx back through the mutable ref.
       if (opts?.startIdxRef) {
@@ -547,6 +612,14 @@ export class PptxExtractor {
 
     if (el.type === "diagram") {
       const text = (el.textList || []).join(", ");
+      // Process the diagram's child shapes so the shape-renderer post-pass
+      // can screenshot them.  Each child is a Shape or Text with geometry
+      // (path, fill, border, etc.) — process them the same way as top-level
+      // shapes to preserve all rendering data.
+      const childShapes = (el.elements || [])
+        .map((child) => this.#processElement(child, slideIndex, imagesAccum, olStartValues, opts))
+        .flat()
+        .filter(Boolean);
       return {
         type: "diagram",
         content: text || "[Diagram]",
@@ -556,6 +629,7 @@ export class PptxExtractor {
         top: el.top,
         width: el.width,
         height: el.height,
+        shapes: childShapes.length > 0 ? childShapes : undefined,
       };
     }
 
@@ -838,6 +912,312 @@ export class PptxExtractor {
   }
 
   /**
+   * Detect top-level diagrams: connectors and shape-like elements placed
+   * directly on the slide (not inside a <p:grpSp> group). Groups adjacent
+   * connectors + nearby shapes/text into a diagram element so the
+   * shape-renderer post-pass can screenshot them.
+   *
+   * Strategy:
+   * 1. Find all connectors (type=connector or hasConnector).
+   * 2. If none, return elements unchanged.
+   * 3. Compute the bounding box of all connectors, expanded by a fixed
+   *    padding to capture nearby text boxes and shapes.
+   * 4. Partition elements into "near" candidates (center in the expanded
+   *    box and not obviously a slide title or long body text).
+   * 5. Split the "near" candidates into connected components using edge
+   *    distance (< 30 pt for connector clusters, < 120 pt for shape-only
+   *    clusters). This prevents one large connector bbox from swallowing
+   *    unrelated, nearby clusters.
+   * 6. For each component, keep plain text only if it is within 15 pt of a
+   *    non-connector shape-like element (an actual box, not an arrow) in
+   *    that component, and keep connectors only when they touch a box-like
+   *    shape (within 20 pt).  Decorative side arrows that only float near a
+   *    shape are dropped rather than cropped into the diagram image.
+   * 7. Convert each remaining component that passes #isManualDiagram into
+   *    a diagram element, leaving all other elements unchanged.
+   *
+   * @static
+   * @param {ExtractedElement[]} elements
+   * @returns {ExtractedElement[]}
+   */
+  static #detectTopLevelDiagrams(elements) {
+    const connectors = elements.filter((el) => el.type === "connector" || el.hasConnector);
+
+    // Shape-like elements: actual shapes (not text placeholders) with visual
+    // properties like fills or borders.  These seed the candidate set even
+    // when there are no connectors (e.g. Venn diagrams with nested ovals).
+    const shapeLike = elements.filter(
+      (el) =>
+        !el.placeholderType &&
+        (el.type === "shape" ||
+          el.type === "connector" ||
+          el.hasConnector ||
+          el.shapType ||
+          el.strokeOnly ||
+          (el.type === "text" && (el.borderWidth || 0) > 0)),
+    );
+
+    if (connectors.length === 0 && shapeLike.length < 2) return elements;
+
+    // Connector-based clusters should be tight (arrows point between shapes),
+    // but not so tight that real flowcharts fragment into one diagram per box:
+    // process-box edges are commonly 10–30 pt apart.  The text-proximity
+    // filter below (textGapPt) still keeps unrelated body text out of a
+    // connector cluster.  Shape-only clusters (e.g. concept maps with scattered
+    // ovals, Venn diagrams) can be much looser; without this, diagrams like the
+    // COMP 1510 "Raw strings" slide — four ovals across the top and one on the
+    // right — are never linked.
+    const CLUSTER_GAP_PT = connectors.length > 0 ? 30 : 120;
+
+    // Bounding box of all connectors (or shape-like elements if no connectors)
+    const seeds = connectors.length > 0 ? connectors : shapeLike;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const c of seeds) {
+      const cl = c.left || 0;
+      const ct = c.top || 0;
+      const cw = c.width || 0;
+      const ch = c.height || 0;
+      if (cl < minX) minX = cl;
+      if (ct < minY) minY = ct;
+      if (cl + cw > maxX) maxX = cl + cw;
+      if (ct + ch > maxY) maxY = ct + ch;
+    }
+    // Expand the connector bounding box by a small fixed amount to catch the
+    // text boxes / shapes that sit immediately next to the connectors.  We
+    // deliberately avoid using connector length as the expansion factor because
+    // long loop-back arrows (e.g. right-hand side of a flowchart) would blow
+    // up the box and swallow unrelated slide text.  Colinear connectors get the
+    // same fixed padding because diagram labels are typically centered on the
+    // arrow axis and fall within this small margin.
+    // NOTE: pptxtojson returns top-level element coordinates in points (not EMU).
+    const EXPAND_X_PT = 50;
+    const EXPAND_Y_PT = 40;
+    const expandedMinX = minX - EXPAND_X_PT;
+    const expandedMinY = minY - EXPAND_Y_PT;
+    const expandedMaxX = maxX + EXPAND_X_PT;
+    const expandedMaxY = maxY + EXPAND_Y_PT;
+
+    // Compute the slide's max Y from all elements to determine the header
+    // band threshold.  pptxtojson returns points, so this works regardless
+    // of whether the elements are in points or EMU.
+    const slideMaxY = elements.reduce((max, el) => {
+      const bottom = (el.top || 0) + (el.height || 0);
+      return bottom > max ? bottom : max;
+    }, 0);
+    const headerBandThreshold = slideMaxY * 0.22;
+
+    // Candidate set: connectors + shapes/short text whose center is in the
+    // expanded connector bounding box. Long body text, multi-paragraph text,
+    // and the slide title stay out of the candidate set.
+    const near = [];
+    for (const el of elements) {
+      const isShapeLike =
+        el.type === "connector" ||
+        el.hasConnector ||
+        el.type === "shape" ||
+        el.shapType ||
+        el.strokeOnly ||
+        // Bordered text boxes are effectively shapes (e.g. flowchart boxes).
+        (el.type === "text" && (el.borderWidth || 0) > 0);
+      const cx = (el.left || 0) + (el.width || 0) / 2;
+      const cy = (el.top || 0) + (el.height || 0) / 2;
+      const inBox =
+        cx >= expandedMinX && cx <= expandedMaxX && cy >= expandedMinY && cy <= expandedMaxY;
+
+      if (!inBox) continue;
+
+      // Never include photographic / pre-rendered images as diagram candidates.
+      // pptxtojson sometimes rasterizes complex shapes (e.g. multi-line code
+      // blocks) as `type: "image"`; those must not be swallowed by the diagram.
+      if (el.type === "image" && !isShapeLike) continue;
+
+      // Code blocks disguised as bordered shapes (e.g. a roundRect with
+      // `print(...)` examples) are not diagram labels; keep them out of the
+      // diagram group so they render as slide body text instead of being
+      // cropped into the diagram image.
+      if (isShapeLike && this.#isCodeBlockLike(el)) continue;
+
+      // Text elements inside the box: only include if they're short (diagram
+      // labels are typically a few words) and not in the header band (which
+      // is likely the slide title).  Long body text, code blocks, and titles
+      // stay outside even if they're within the X range.
+      if (el.type === "text" && !isShapeLike) {
+        const text = (el.content || "").trim();
+        // Only drop long body text / code.  Multi-line diagram labels
+        // (e.g. a flowchart box with three lines) are still short, and the
+        // textGapPt proximity filter will keep body paragraphs out.
+        if (text.length > 80) {
+          continue;
+        }
+        // Drop stray single letters / punctuation (e.g. footer fragments)
+        // but keep single-digit numeric labels like "1" or "100".
+        if (text.length === 1 && !/\d/.test(text)) {
+          continue;
+        }
+        // Exclude text in the top 22% of the slide (header band) — it's
+        // likely the slide title, not a diagram label.
+        if (cy < headerBandThreshold) {
+          continue;
+        }
+      }
+
+      // Callout/speech-bubble shapes with long paragraphs are not diagram
+      // labels — they are explanatory callouts that belong with slide body.
+      // Keep short callout labels (<= 80 chars) as they may be diagram labels.
+      if (isShapeLike && this.#isCalloutShape(el)) {
+        const text = (el.content || "").trim();
+        if (text.length > 80) {
+          continue;
+        }
+      }
+
+      near.push(el);
+    }
+
+    if (near.length === 0) return elements;
+
+    // Split the candidates into connected components based on edge distance.
+    // Each component is a maximal set where every element is within CLUSTER_GAP_PT
+    // of at least one other element in the same component.
+    const components = [];
+    const seen = new Set();
+    for (const start of near) {
+      if (seen.has(start)) continue;
+      const component = [];
+      const stack = [start];
+      seen.add(start);
+      while (stack.length > 0) {
+        const cur = stack.pop();
+        component.push(cur);
+        for (const other of near) {
+          if (seen.has(other)) continue;
+          if (this.#bboxEdgeDistance(cur, other) < CLUSTER_GAP_PT) {
+            seen.add(other);
+            stack.push(other);
+          }
+        }
+      }
+      components.push(component);
+    }
+
+    // For each component, keep plain text only when it is within 15 pt of a
+    // non-connector shape-like element (a real box, not an arrow). Bordered
+    // text boxes and shapType text are treated as boxes themselves.
+    const textGapPt = 15;
+    // Connectors are kept only when they actually touch a box-like shape (an
+    // arrow between flowchart boxes).  Decorative side arrows (e.g. the arrows
+    // pointing at a sudoku's rows/columns) float near the shape without
+    // touching it and would otherwise be cropped into the diagram image.
+    const connectorTouchPt = 20;
+    const diagrams = [];
+    const consumed = new Set();
+    for (const component of components) {
+      const boxLike = component.filter(
+        (el) =>
+          !el.hasConnector &&
+          el.type !== "connector" &&
+          (el.type === "shape" || el.shapType || (el.type === "text" && (el.borderWidth || 0) > 0)),
+      );
+      const kept = [];
+      for (const el of component) {
+        if (el.type === "text" && !el.shapType && (el.borderWidth || 0) === 0) {
+          if (boxLike.length === 0) continue;
+          const closest = boxLike.reduce((min, box) => {
+            const d = this.#bboxEdgeDistance(el, box);
+            return d < min ? d : min;
+          }, Infinity);
+          if (closest > textGapPt) continue;
+        }
+        if (el.hasConnector || el.type === "connector") {
+          // A connector that does not touch any box-like shape is an
+          // annotation, not diagram structure — drop it.
+          if (boxLike.length === 0) continue;
+          const closest = boxLike.reduce((min, box) => {
+            const d = this.#bboxEdgeDistance(el, box);
+            return d < min ? d : min;
+          }, Infinity);
+          if (closest > connectorTouchPt) continue;
+        }
+        kept.push(el);
+      }
+
+      if (!this.#isManualDiagram(kept)) continue;
+      if (kept.length === 0) continue;
+
+      const order = kept.length > 0 ? Math.min(...kept.map((el) => el.order || 0)) : 0;
+      diagrams.push(this.#shapesToDiagram(kept, order));
+      for (const el of kept) {
+        consumed.add(el);
+      }
+    }
+
+    if (diagrams.length === 0) return elements;
+
+    const result = elements.filter((el) => !consumed.has(el)).concat(diagrams);
+    result.sort((a, b) => (a.order || 0) - (b.order || 0));
+    return result;
+  }
+
+  /**
+   * Minimum gap between the edges of two bounding boxes, in points.
+   * Returns 0 for overlapping boxes and a positive value when separated.
+   * @static
+   * @param {ExtractedElement} a
+   * @param {ExtractedElement} b
+   * @returns {number}
+   */
+  static #bboxEdgeDistance(a, b) {
+    const aLeft = a.left || 0;
+    const aTop = a.top || 0;
+    const aRight = aLeft + (a.width || 0);
+    const aBottom = aTop + (a.height || 0);
+    const bLeft = b.left || 0;
+    const bTop = b.top || 0;
+    const bRight = bLeft + (b.width || 0);
+    const bBottom = bTop + (b.height || 0);
+    const dx = Math.max(0, Math.max(aLeft - bRight, bLeft - aRight));
+    const dy = Math.max(0, Math.max(aTop - bBottom, bTop - aBottom));
+    return Math.hypot(dx, dy);
+  }
+
+  /**
+   * Heuristic to detect shapes that are really code blocks, not diagram labels.
+   * @static
+   * @param {ExtractedElement} el
+   * @returns {boolean}
+   */
+  static #isCodeBlockLike(el) {
+    if (!el.content) return false;
+    const text = el.content;
+    // Triple-backtick fenced code blocks.
+    if (/```/s.test(text)) return true;
+    // Numbered list items that are mostly inline code, e.g.:
+    //   1. `print("Hello\\nworld")`
+    if (/^\s*\d+\.\s*(?:`[^`]+`|\*[^*]+\*).*/s.test(text)) return true;
+    // Fallback: a lot of backticks relative to total length (code snippets).
+    const backticks = (text.match(/`/g) || []).length;
+    if (backticks >= 4 && backticks / text.length > 0.02) return true;
+    return false;
+  }
+
+  /**
+   * Heuristic to detect callout / speech-bubble shapes that carry explanatory
+   * paragraphs rather than short diagram labels.  These should be excluded
+   * from manual diagram groups so they render as slide body text.
+   * @static
+   * @param {ExtractedElement} el
+   * @returns {boolean}
+   */
+  static #isCalloutShape(el) {
+    const calloutTypes =
+      /callout|wedgeRectCallout|wedgeRoundRectCallout|wedgeEllipseCallout|cloudCallout|borderCallout1|borderCallout2|borderCallout3|accentCallout1|accentCallout2|accentCallout3|callout1|callout2|callout3/;
+    return !!(el.shapType && calloutTypes.test(el.shapType));
+  }
+
+  /**
    * Detect if a group of elements forms a manual diagram (shapes + connectors).
    * @static
    * @param {ExtractedElement[]} elements - Elements in the group.
@@ -858,7 +1238,19 @@ export class PptxExtractor {
     // Rule 1: Any connectors present → likely a diagram
     if (connectors.length > 0) return true;
 
-    // Rule 2: 3+ filled shapes in close proximity → likely a diagram
+    // Rule 2: 2+ filled shapes that overlap or are nested → likely a diagram
+    // (e.g. Venn diagrams with nested ovals)
+    if (filledShapes.length >= 2) {
+      const overlap = filledShapes.some((a, i) =>
+        filledShapes.some((b, j) => {
+          if (i >= j) return false;
+          return this.#bboxEdgeDistance(a, b) === 0;
+        }),
+      );
+      if (overlap) return true;
+    }
+
+    // Rule 3: 3+ filled shapes in close proximity → likely a diagram
     if (filledShapes.length >= 3) {
       // Check if shapes are in reasonable proximity (within 3x the average dimension)
       const avgDim =
@@ -884,18 +1276,34 @@ export class PptxExtractor {
    * @static
    * @param {ExtractedElement[]} elements - Shape elements forming a diagram.
    * @param {number} order - Element order for positioning.
+   * @param {boolean} [fromGroup=false] - True when the diagram came from a
+   *   `<p:grpSp>` group; these skip the slide-crop render path (the renderer
+   *   positions group children relative to the group container).
    * @returns {ExtractedElement} A diagram element with text content.
    */
-  static #shapesToDiagram(elements, order) {
-    // Extract text from all shapes in the diagram
-    const texts = elements
+  static #shapesToDiagram(elements, order, fromGroup = false) {
+    // Build a concise caption from the diagram's text labels for use as the
+    // image's alt text.  The rendered PNG is the canonical visual; the caption
+    // makes it searchable and accessible without dumping labels into the body.
+    const seen = new Set();
+    const labels = elements
       .filter((el) => el.content && el.content.trim())
-      .map((el) => el.content.trim());
+      .map((el) =>
+        el.content
+          .replace(/[#*`_~]/g, "") // strip markdown emphasis
+          .replace(/\s+/g, " ") // flatten newlines/extra whitespace
+          .trim(),
+      )
+      .filter((t) => t && t !== "[Diagram]" && !seen.has(t) && seen.add(t));
+    const content =
+      labels.length > 0 ? labels.join(", ").slice(0, 200) : `[Diagram: ${elements.length} shapes]`;
 
-    // If no text, create a descriptive label from shape types
-    const content = texts.length > 0 ? texts.join(", ") : `[Diagram: ${elements.length} shapes]`;
-
-    // Calculate bounding box
+    // Calculate the bounding box from every constituent element.  The cropper
+    // hides and renders these exact `elements`, so the diagram bbox must contain
+    // all of them.  Clamping connector extents to a body-shape margin makes
+    // legitimate side arrows render partially at the crop edge (and can also
+    // leave one side of a diagram out entirely).  Outlier rejection belongs in
+    // diagram detection, not in the bbox after an element has been accepted.
     const minX = Math.min(...elements.map((el) => el.left || 0));
     const minY = Math.min(...elements.map((el) => el.top || 0));
     const maxX = Math.max(...elements.map((el) => (el.left || 0) + (el.width || 0)));
@@ -910,6 +1318,11 @@ export class PptxExtractor {
       top: minY,
       width: maxX - minX,
       height: maxY - minY,
+      // Stash the constituent shapes so the shape-renderer post-pass can
+      // render the group to a PNG.  The diagram's `content` (shape labels) is
+      // carried alongside and becomes the rendered image's alt text.
+      shapes: elements,
+      fromGroup,
     };
   }
 }

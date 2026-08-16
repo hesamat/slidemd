@@ -1,4 +1,3 @@
-/* globals console */
 /**
  * PPTX layout-threshold analysis harness.
  * @vitest-environment jsdom

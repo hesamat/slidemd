@@ -41,6 +41,7 @@ my-deck.textpack
 Import PowerPoint files via **Menu → Import PPTX**. The import:
 
 - Extracts text, images, and layouts from `.pptx` files
+- Renders detected shape groups and diagrams (flowcharts, Venn diagrams, concept maps) as PNG images instead of flattening them to bullet lists
 - Preserves the original slide order from the presentation
 - Extracts images into an `images/` folder
 - Converts slide content to Markdown with layout inference

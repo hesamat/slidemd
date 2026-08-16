@@ -6,7 +6,7 @@
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
 import { stripHtml, escapeHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
-import { sanitizeCssColor, isColorDark } from "./pptx-color-utils.js";
+import { sanitizeCssColor, isColorDark, hexToLuminance } from "./pptx-color-utils.js";
 import { CONVERSION, DEFAULTS, REGEX, CONFIG, MARKDOWN_TAGS } from "./pptx-slide-config.js";
 
 /**
@@ -183,7 +183,7 @@ export function formatImage(
     .replace(REGEX.HYPHEN_UNDERSCORE, " ")
     .replace(/(\d+)/g, " $1")
     .trim();
-  const altText = caption || `Slide image ${baseAlt}`;
+  const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(/"/g, "&quot;");
 
   // fitColumn: media-span image — the media-span CSS fills the column via
   // absolute insets and object-fit: contain; the inline style stays
@@ -202,6 +202,55 @@ export function formatImage(
 }
 
 /**
+ * True when a meaningful share of a table's cells carry a real fill colour
+ * (perceived luminance below FILL_LUMINANCE_MAX).  Used to decide between a
+ * styled CSS grid (preserves colours) and a plain markdown table (text only).
+ *
+ * @param {object} table - Table element with rows of { text, fillColor }.
+ * @returns {boolean}
+ */
+function tableHasMeaningfulFills(table) {
+  // FILL_LUMINANCE_MAX is on the 0-255 scale used by hexToLuminance.  Near-white
+  // fills (>= 230) are not "meaningful"; a visibly coloured cell is.
+  const MIN_FILL_RATIO = 0.25;
+  const FILL_LUMINANCE_MAX = 230;
+  let total = 0;
+  let meaningful = 0;
+  for (const row of table.rows || []) {
+    for (const cell of row || []) {
+      total += 1;
+      if (fillLuminance(cell.fillColor) < FILL_LUMINANCE_MAX) meaningful += 1;
+    }
+  }
+  return total > 0 && meaningful / total >= MIN_FILL_RATIO;
+}
+
+/**
+ * Perceived luminance (0..255) of a cell fill.  Near-white, transparent and
+ * empty fills return 255 (treated as "no meaningful colour").
+ *
+ * @param {string} fill - Raw fill color from the PPTX (may be a hex, keyword, or empty).
+ * @returns {number}
+ */
+function fillLuminance(fill) {
+  const css = sanitizeCssColor(fill);
+  if (!css || css === "transparent" || css === "white") return 255;
+  if (css.startsWith("#")) {
+    let hex = css.slice(1);
+    if (hex.length === 3)
+      hex = hex
+        .split("")
+        .map((c) => c + c)
+        .join("");
+    if (hex.length === 8) hex = hex.slice(0, 6);
+    if (hex.length !== 6) return 255;
+    return hexToLuminance(hex);
+  }
+  // rgb()/rgba()/named colours that survived the sanitizer — assume visibly filled.
+  return 0;
+}
+
+/**
  * Format a table element as a markdown table or CSS grid.
  *
  * @param {object} table - Table element with rows
@@ -214,12 +263,15 @@ export function formatTable(table, slideWidth, slideHeight) {
 
   // Full-page tables (covering ≥80% of the slide) are visual layouts
   // (e.g., four-pillar grids, flowchart matrices). Render as CSS grid
-  // to preserve the 2D visual structure.
+  // to preserve the 2D visual structure.  Tables with a meaningful share of
+  // coloured cells (e.g. a sudoku grid) keep their colours as a CSS grid too.
   const tableArea = (table.width || 0) * (table.height || 0);
   const slideArea = (slideWidth || 960) * (slideHeight || 540);
   const isFullScreen = tableArea >= slideArea * CONFIG.fullScreenTableThreshold;
+  const hasMeaningfulFills = tableHasMeaningfulFills(table);
+  const useGrid = isFullScreen || hasMeaningfulFills;
 
-  if (isFullScreen) {
+  if (useGrid) {
     const cols = table.rows[0].length;
     const rows = table.rows.length;
     const cells = [];
@@ -234,7 +286,13 @@ export function formatTable(table, slideWidth, slideHeight) {
         );
       }
     }
-    return `<div class="fullpage-grid" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">${cells.join("")}</div>`;
+    // Non-fullscreen grids preserve the source table's aspect ratio and centre
+    // in their area instead of stretching to fill the whole column.
+    const modifier = isFullScreen ? "" : " fullpage-grid--content";
+    const aspect = isFullScreen
+      ? ""
+      : `;aspect-ratio:${Math.max(table.width || 1, 1)}/${Math.max(table.height || 1, 1)}`;
+    return `<div class="fullpage-grid${modifier}" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)${aspect}">${cells.join("")}</div>`;
   }
 
   const escapeCell = (text) =>

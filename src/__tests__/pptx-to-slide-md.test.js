@@ -2654,6 +2654,73 @@ describe("flex-row rendering", () => {
     expect(md).toContain("img2.png");
   });
 
+  it("uses two-column for header + two side-by-side tall images with a text body below", () => {
+    // Mirrors a real walkthrough slide: a header, a large image on the right,
+    // a tall diagram on the left, and a text body that starts below the images
+    // but still overlaps their (very tall) vertical extent. The text is NOT in
+    // the same vertical row as the images, so the media must be split into two
+    // columns instead of being wrapped as a flex-row.
+    const extraction = makeExtraction(
+      [
+        {
+          index: 0,
+          title: "Walkthroughs",
+          notes: "",
+          elements: [
+            {
+              type: "text",
+              content: "# Walkthroughs",
+              left: 762000,
+              top: 508000,
+              width: 5080000,
+              height: 635000,
+            },
+            {
+              type: "image",
+              ref: "image16.jpeg",
+              base64: "abc",
+              left: 2838773,
+              top: 0,
+              width: 9353227,
+              height: 5352407,
+            },
+            {
+              type: "image",
+              ref: "diagram-21.png",
+              base64: "def",
+              left: 221819,
+              top: 1236474,
+              width: 3533614,
+              height: 5352407,
+            },
+            {
+              type: "text",
+              content:
+                "Verbal Walkthrough is when you describe your code to a peer. They might spot the error.",
+              left: 762000,
+              top: 3175000,
+              width: 10668000,
+              height: 762000,
+            },
+          ],
+          background: "",
+        },
+      ],
+      { size: { width: 12192000, height: 6858000 } },
+    );
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    expect(md).not.toContain('class="flex-row"');
+    // Each image lands in its own column.
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("image16.jpeg")).toBeGreaterThan(mediaIdx);
+    expect(md.indexOf("diagram-21.png")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("diagram-21.png")).toBeLessThan(mediaIdx);
+  });
+
   it("wraps 2 images + 1 overlapping text in a flex row", () => {
     const extraction = makeExtraction([
       {

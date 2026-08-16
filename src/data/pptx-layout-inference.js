@@ -498,6 +498,11 @@ export function inferLayout(
       Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
     );
     if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
+      // If the text content is centered (spans both columns), use TWO_COLUMN
+      // so the text becomes the header and each image gets its own column.
+      // MEDIA_SPAN would shrink one image into a side column.
+      const textIsCentered = contentEls.every((el) => isCentered(el));
+      if (textIsCentered) return LAYOUT.TWO_COLUMN;
       return LAYOUT.MEDIA_SPAN;
     }
     return LAYOUT.TWO_COLUMN;
@@ -516,6 +521,44 @@ export function inferLayout(
   if (captionWithOneImage) return LAYOUT.FOCUS;
   // Header + dominant image + text body → media-span (image spans right, text on left)
   if (dominantImages.length === 1 && hasTextBody) return LAYOUT.MEDIA_SPAN;
+  // Header + two side-by-side visual elements (images, diagrams, charts)
+  // → two-column so they are placed in separate columns instead of stacked.
+  // Diagrams and charts are not in dominantImages (which is IMAGE-only), so
+  // collect visual media broadly from all non-header elements.  Use center
+  // positions to detect side-by-side.  When there is a text body, skip if
+  // all body elements (text + images) share the same vertical row — that's
+  // a flex-row case for the renderer, not two-column.
+  if (hasHeader) {
+    const isVisualMedia = (el) =>
+      el.type === ELEMENT_TYPES.IMAGE ||
+      el.type === ELEMENT_TYPES.DIAGRAM ||
+      el.type === ELEMENT_TYPES.CHART;
+    const visualMedia = allEls.filter((el) => el !== headerEl && isVisualMedia(el));
+    if (visualMedia.length >= 2) {
+      const [vm1, vm2] = visualMedia;
+      const center1 = (vm1.left || 0) + (vm1.width || 0) / 2;
+      const center2 = (vm2.left || 0) + (vm2.width || 0) / 2;
+      const sideBySide = center1 < midX !== center2 < midX;
+      if (sideBySide) {
+        // A text body that starts in the same vertical row as the visual
+        // media (text beside the images) is a flex-row — the renderer wraps
+        // those in a flex container, so header-content stays correct.  Text
+        // that starts below the media row (content under the images) belongs
+        // in a two-column layout.  Compare text tops against the media row's
+        // top, not vertical overlap: the media can be very tall (up to full
+        // slide height), so an overlap check between them is trivially true.
+        const textEls = bodyEls.filter(
+          (el) => el.type === ELEMENT_TYPES.TEXT && el.content?.trim(),
+        );
+        const mediaRowTop = Math.min(...visualMedia.map((vm) => vm.top || 0));
+        const textInMediaRow = textEls.some(
+          (te) =>
+            Math.abs((te.top || 0) - mediaRowTop) <= slideHeight * CONFIG.flexRowVerticalTolerance,
+        );
+        if (!textInMediaRow) return LAYOUT.TWO_COLUMN;
+      }
+    }
+  }
   if (hasHeader) return LAYOUT.HEADER_CONTENT;
 
   const hasTallColumn = bodyEls.some(

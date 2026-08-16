@@ -118,6 +118,37 @@ describe("pptx import integration", () => {
     // Real buChar bullets still convert
     expect(markdown).toContain("- *Store references*: a variable holds an address in memory");
   });
+
+  it("detects top-level and grouped manual diagrams with full shape geometry", async () => {
+    const buffer = fs.readFileSync(path.join(FIXTURES_DIR, "diagram-flowchart.pptx"));
+    const extraction = await PptxExtractor.extract(buffer);
+    const slide = extraction.slides[0];
+
+    const diagrams = slide.elements.filter((el) => el.type === "diagram");
+    expect(diagrams).toHaveLength(2);
+
+    // Top-level (ungrouped) shapes + connector → crop-render eligible.
+    const topLevel = diagrams.find((el) => !el.fromGroup);
+    expect(topLevel).toBeDefined();
+    expect(topLevel.shapes.length).toBe(3);
+    expect(topLevel.shapes.some((s) => s.shapType === "roundRect")).toBe(true);
+    expect(topLevel.shapes.some((s) => s.hasConnector)).toBe(true);
+    const shapeRight = Math.max(...topLevel.shapes.map((shape) => shape.left + shape.width));
+    const shapeBottom = Math.max(...topLevel.shapes.map((shape) => shape.top + shape.height));
+    expect(topLevel.left + topLevel.width).toBeGreaterThanOrEqual(shapeRight);
+    expect(topLevel.top + topLevel.height).toBeGreaterThanOrEqual(shapeBottom);
+
+    // <p:grpSp> group → fromGroup (uses the SVG render path).
+    const grouped = diagrams.find((el) => el.fromGroup);
+    expect(grouped).toBeDefined();
+    expect(grouped.shapes.length).toBe(3);
+
+    // In jsdom the canvas API is unavailable, so the post-pass leaves the
+    // diagram elements unchanged and the conversion still completes — the
+    // `[Diagram: ...]` → bullets safety net keeps working.
+    const markdown = convertToSlideMd(extraction);
+    expect(markdown).toContain("layout:");
+  });
 });
 
 describe("slide title derivation from HTML-heavy slides", () => {
