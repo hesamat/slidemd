@@ -29,3 +29,7 @@ docs/compose/
 # Temp uploads from API-only mode
 .webdeck-uploads/
 .webdeck-pptx-imports/
+
+# Local PPTX layout-threshold analysis artifacts
+tools/pptx-layout-corpus.json
+tools/layout-report.json

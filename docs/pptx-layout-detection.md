@@ -74,6 +74,19 @@ The code detection in `inferLayout` checks for:
 The keyword check requires **≥2 matching lines** to avoid false positives from
 inline code in numbered lists (e.g., `1. print("hello")`).
 
+A wide code element (>80% of slide width) with ≥10 non-empty lines uses
+`TWO_COLUMN` so merged two-column content can be split. Two refinements, both
+grounded in corpus analysis of real decks:
+
+- **Fenced blocks are single snippets.** A fenced code block spanning the slide
+  is a single code demo, not merged columns. It only uses `TWO_COLUMN` when the
+  total slide content is substantial (`>= maxTitleLength`); otherwise it uses
+  `FOCUS` — the two-column path would only be downgraded to `HEADER_CONTENT`
+  after a failed split, which is worse for a short centered code demo.
+- **Unfenced raw code keeps the historical behavior.** PPTX merged-column code
+  arrives as unfenced raw text, so wide + long unfenced code still splits into
+  two columns.
+
 ## Edge cases
 
 | Scenario                                               | Problem                                       | Fix                                                                     |
