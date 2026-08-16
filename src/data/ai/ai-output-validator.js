@@ -1020,7 +1020,7 @@ export class AiOutputValidator {
 
       if (line === ":::" || /^:::\s+/.test(line)) continue; // text-block directive markers
       if (
-        /^(layout|theme|background|media-full-bleed|media-span|hidden|code-font-size|align|area-style(?:-[a-zA-Z0-9_-]+)?)\s*:/i.test(
+        /^(layout|theme|background|media-full-bleed|media-span|hidden|code-font-size|align|area-style|area-bg(?:-[a-zA-Z0-9_-]+)?)\s*:/i.test(
           line,
         )
       ) {

@@ -369,6 +369,76 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   cursor: default;
 }
 
+/* Area background popover (opened from "Set background…") */
+.area-bg-popover {
+  position: fixed;
+  z-index: 2001;
+  width: 280px;
+  padding: 14px;
+  background-color: rgb(248, 250, 252);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-size);
+  line-height: var(--ui-line-height);
+  color: var(--text-high);
+  animation: menuFadeIn 0.12s ease;
+}
+
+[data-theme="dark"] .area-bg-popover {
+  background-color: var(--surface-elevated);
+}
+
+.area-bg-popover__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.area-bg-popover__btn {
+  appearance: none;
+  border: 1px solid var(--border-medium);
+  background: var(--surface-elevated);
+  color: var(--text-medium);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+
+.area-bg-popover__btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-high);
+  border-color: var(--border-strong);
+}
+
+.area-bg-popover__btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+[data-theme="dark"] .area-bg-popover__btn--primary {
+  color: rgb(15, 23, 42);
+}
+
+.area-bg-popover__btn--primary:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+[data-theme="dark"] .area-bg-popover__btn--primary:hover {
+  color: rgb(15, 23, 42);
+}
+
 /* Area Modifiers */
 .slide__area--header {
   align-content: start;

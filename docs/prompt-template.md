@@ -203,6 +203,7 @@ The `layout:` value follows CSS `grid-template` shorthand syntax. Quoted rows li
 
 - `theme: dark` or `theme: light`
 - `background: linear-gradient(...)` or `background: #color`
+- `area-bg-<name>: <background value>` — background for a single area (column); the `<name>` must match an area in the chosen layout. Same value syntax as `background:` (color, gradient, or image URL with size/position/repeat). Use sparingly.
 - `hidden: true` — slide hidden by default
 - Speaker notes: `<!-- notes: ... -->` (first line of slide, before `layout:`)
 

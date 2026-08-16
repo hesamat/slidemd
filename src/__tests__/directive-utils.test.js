@@ -5,6 +5,8 @@ import {
   updateBackgroundDirective,
   updateThemeDirective,
   updateAreaStyleDirective,
+  updateAreaBgForAreaDirective,
+  removeAreaBgForAreaDirective,
   updateHeaderStyleDirective,
   removeAreaFromLayout,
   describeBackground,
@@ -355,6 +357,50 @@ describe("updateAreaStyleDirective", () => {
     const md = "area-style: border: 1px\n# Hello";
     const result = updateAreaStyleDirective(md, "");
     expect(result).not.toContain("area-style:");
+  });
+});
+
+describe("updateAreaBgForAreaDirective", () => {
+  it("inserts a new per-area directive when none exists", () => {
+    const md = "# Hello\n@main\ncontent";
+    const result = updateAreaBgForAreaDirective(md, "media", "#f1f5f9");
+    expect(result).toMatch(/^area-bg-media: #f1f5f9\n/);
+    expect(result).toContain("# Hello");
+  });
+
+  it("replaces an existing per-area background value", () => {
+    const md = "area-bg-media: #ffffff\n# Hello";
+    const result = updateAreaBgForAreaDirective(md, "media", "#f1f5f9");
+    expect(result).toMatch(/^area-bg-media: #f1f5f9\n/);
+    expect(result).not.toContain("#ffffff");
+  });
+
+  it("removes the directive entirely when bgValue is empty", () => {
+    const md = "area-bg-media: #f1f5f9\n# Hello";
+    const result = updateAreaBgForAreaDirective(md, "media", "");
+    expect(result).not.toContain("area-bg-media:");
+    expect(result).toContain("# Hello");
+  });
+
+  it("normalizes the area name to lowercase in the directive key", () => {
+    const md = "# Hello";
+    const result = updateAreaBgForAreaDirective(md, "Media", "#f1f5f9");
+    expect(result).toMatch(/^area-bg-media: /);
+  });
+});
+
+describe("removeAreaBgForAreaDirective", () => {
+  it("drops the directive entirely", () => {
+    const md = "area-bg-media: #f1f5f9\n# Hello";
+    const result = removeAreaBgForAreaDirective(md, "media");
+    expect(result).not.toContain("area-bg-media:");
+    expect(result).toContain("# Hello");
+  });
+
+  it("is a no-op when the directive does not exist", () => {
+    const md = "# Hello\n@main\ncontent";
+    const result = removeAreaBgForAreaDirective(md, "media");
+    expect(result).toBe(md);
   });
 });
 

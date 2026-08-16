@@ -23,9 +23,11 @@ import {
   buildLayoutPanelHtml,
   syncBgState,
   parseBackgroundValue,
+  hexToRgba,
   getDefaultBorderColor,
 } from "./style-helpers.js";
 import { buildSingleColumnCustomLayout, parseSingleColumnLayout } from "../core/directive-utils.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const STORAGE_KEY_AREA_STYLE = "webdeck:default-area-style";
 const STORAGE_KEY_HEADER_STYLE = "webdeck:default-header-style";
@@ -46,6 +48,10 @@ export class SlideStylePanel {
   static _currentImagePath = "";
   static _currentImageBlobUrl = "";
   static _imageOverlay = 40;
+  static _currentBgSize = "cover";
+  static _currentBgPosition = "center";
+  static _currentBgRepeat = "no-repeat";
+  static _currentBgOpacity = 0;
   static _currentTheme = "";
   static _layoutChanged = false;
 
@@ -189,8 +195,13 @@ export class SlideStylePanel {
         this._currentImagePath,
         this._imageOverlay,
         this._currentImageBlobUrl,
+        {
+          size: this._currentBgSize,
+          position: this._currentBgPosition,
+          repeat: this._currentBgRepeat,
+        },
       );
-    return this._currentBg;
+    return this._currentBg ? hexToRgba(this._currentBg, 100 - this._currentBgOpacity) : "";
   }
 
   /**
@@ -200,16 +211,25 @@ export class SlideStylePanel {
    */
   static _getPersistedBackgroundValue() {
     if (this._currentImagePath)
-      return buildImageBackground(this._currentImagePath, this._imageOverlay);
-    return this._currentBg;
+      return buildImageBackground(this._currentImagePath, this._imageOverlay, undefined, {
+        size: this._currentBgSize,
+        position: this._currentBgPosition,
+        repeat: this._currentBgRepeat,
+      });
+    return this._currentBg ? hexToRgba(this._currentBg, 100 - this._currentBgOpacity) : "";
   }
 
   // ── Show / hide ──
 
   static show() {
     if (!this.el) this._buildDom();
+    const wasVisible = this.isVisible();
     this._syncUI();
     this.el.classList.remove("webdeck-hidden");
+    if (!wasVisible) {
+      modalOpened();
+      if (typeof document !== "undefined") document.body.style.overflow = "hidden";
+    }
   }
 
   static hide() {
@@ -219,6 +239,8 @@ export class SlideStylePanel {
     }
     if (this.el && this.isVisible()) {
       this.el.classList.add("webdeck-hidden");
+      modalClosed();
+      if (typeof document !== "undefined") document.body.style.overflow = "";
     }
   }
 
@@ -269,7 +291,13 @@ export class SlideStylePanel {
     this._currentImagePath = bgInfo.imagePath;
     this._currentImageBlobUrl = bgInfo.imageBlobUrl;
     this._imageOverlay = bgInfo.overlay;
-    this._currentBg = rawBg;
+    this._currentBgSize = bgInfo.size;
+    this._currentBgPosition = bgInfo.position;
+    this._currentBgRepeat = bgInfo.repeat;
+    this._currentBgOpacity = bgInfo.opacity ?? 0;
+    // For solid-color backgrounds, bgInfo.bg is the hex color (parsed from
+    // rgba if needed). For image backgrounds, it's empty.
+    this._currentBg = bgInfo.imagePath ? "" : bgInfo.bg;
 
     if (this._currentImagePath) {
       this._resolveImageBlob(this._currentImagePath);
@@ -330,6 +358,10 @@ export class SlideStylePanel {
       theme: this._currentTheme,
       bgValue: this._getBackgroundValue(),
       overlay: this._imageOverlay,
+      opacity: this._currentBgOpacity,
+      size: this._currentBgSize,
+      position: this._currentBgPosition,
+      repeat: this._currentBgRepeat,
     });
   }
 
@@ -463,6 +495,7 @@ export class SlideStylePanel {
       if (!btn || btn.dataset.action === "open-color-picker") return;
       this._currentBg = btn.dataset.value;
       this._currentImagePath = "";
+      this._currentBgOpacity = 0;
       this._currentTheme = btn.dataset.value && isColorDark(btn.dataset.value) ? "dark" : "";
       this._syncBgUI();
     });
@@ -473,6 +506,7 @@ export class SlideStylePanel {
       colorInput.addEventListener("input", (e) => {
         this._currentBg = e.target.value;
         this._currentImagePath = "";
+        this._currentBgOpacity = 0;
         this._currentTheme = isColorDark(e.target.value) ? "dark" : "";
         this._syncBgUI();
       });
@@ -483,13 +517,67 @@ export class SlideStylePanel {
       this._currentTheme = e.target.checked ? "dark" : "light";
     });
 
-    // Overlay slider
+    // Hex code input (editable, next to transparency slider)
+    const hexInput = el.querySelector('[data-field="bg-hex"]');
+    if (hexInput) {
+      hexInput.addEventListener("input", (e) => {
+        const val = e.target.value.trim();
+        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+          this._currentBg = val;
+          this._currentImagePath = "";
+          this._currentBgOpacity = 0;
+          this._currentTheme = isColorDark(val) ? "dark" : "";
+          this._syncBgUI();
+        }
+      });
+    }
+
+    // Overlay slider (image backgrounds)
     el.querySelector('[data-field="bg-overlay"]')?.addEventListener("input", () => {
       const slider = el.querySelector('[data-field="bg-overlay"]');
       const label = el.querySelector('[data-display="bg-overlay"]');
       this._imageOverlay = parseInt(slider.value, 10);
       if (label) label.textContent = `${this._imageOverlay}%`;
       this._syncBgUI();
+    });
+
+    // Transparency slider (solid color backgrounds)
+    el.querySelector('[data-field="bg-opacity"]')?.addEventListener("input", () => {
+      const slider = el.querySelector('[data-field="bg-opacity"]');
+      const label = el.querySelector('[data-display="bg-opacity"]');
+      this._currentBgOpacity = parseInt(slider.value, 10);
+      if (label) label.textContent = `${this._currentBgOpacity}%`;
+      this._syncBgUI();
+    });
+
+    // Background size buttons (cover/contain/fit/auto)
+    el.querySelectorAll("[data-bg-size]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        el.querySelectorAll("[data-bg-size]").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        this._currentBgSize = btn.dataset.bgSize;
+        this._syncBgUI();
+      });
+    });
+
+    // Background position buttons (9-point grid)
+    el.querySelectorAll("[data-bg-position]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        el.querySelectorAll("[data-bg-position]").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        this._currentBgPosition = btn.dataset.bgPosition;
+        this._syncBgUI();
+      });
+    });
+
+    // Background repeat buttons (no-repeat/repeat/repeat-x/repeat-y)
+    el.querySelectorAll("[data-bg-repeat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        el.querySelectorAll("[data-bg-repeat]").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        this._currentBgRepeat = btn.dataset.bgRepeat;
+        this._syncBgUI();
+      });
     });
 
     // Pick image
@@ -521,6 +609,10 @@ export class SlideStylePanel {
       this._currentImagePath = "";
       this._currentImageBlobUrl = "";
       this._imageOverlay = 40;
+      this._currentBgSize = "cover";
+      this._currentBgPosition = "center";
+      this._currentBgRepeat = "no-repeat";
+      this._currentBgOpacity = 0;
       this._currentTheme = "";
       this._syncBgUI();
       this.el.querySelectorAll('[data-panel="title"] .style-btn-option').forEach((b) => {

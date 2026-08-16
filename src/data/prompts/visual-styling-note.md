@@ -21,6 +21,7 @@
 - Vary `background:` across the deck — do not default to a single dark color (e.g. navy or slate) for most slides. Mix dark, neutral, and light backgrounds as the visual direction suggests.
   - Do not use `#0f172a` as a default. If you need a dark background, pick from a variety of darks such as `#1a1a2e`, `#1e293b`, `#0d1117`, `#181818`, `#1c1c1c`, `#141414`, `#202030`, `#2d1b3d`, `#1a2a3a`, `#252030`, etc.
   - For light backgrounds, pick from a variety of lights such as `#f8f9fa`, `#f0f0e8`, `#eef2f7`, `#faf3e0`, `#f5f5dc`, `#e8e8e8`, `#f0ede4`, `#fdf6e3`, etc.
+- Per-area backgrounds: use `area-bg-<name>: <value>` to give a single area (column) its own background, distinct from the slide background. Place it at the top of the content string alongside `theme:`/`background:`. Example: `"content": "theme: dark\nbackground: #0d1117\narea-bg-main: #1e293b\n\n@header\n# Title\n\n@main\n- Point"`. Use this sparingly — only when the visual direction calls for a distinct column color or image. Do not set per-area backgrounds on every slide.
 - Beat treatment: each slide brief includes `| beat: <beat>, energy: ..., contrast: ..., relationship: ... |`. Use it to shape density, hierarchy, layout, and imagery:
   - `continuation` — the default. Use `header-content` or `two-column`. Follow the visual direction's default background.
   - `punctuation` — one strong takeaway. Use `focus` only for a single short statement; if it is a list or has multiple points, use `header-content` with a bright, light, or image background.
