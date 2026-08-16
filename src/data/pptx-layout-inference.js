@@ -525,7 +525,11 @@ export function inferLayout(
   // no substantive text → two-column so they are placed side by side instead
   // of stacked in one column.  Diagrams and charts are not in
   // dominantImages (which is IMAGE-only), so collect visual media broadly
-  // from all non-header elements.
+  // from all non-header elements.  Use center positions rather than
+  // horizontal overlap to detect side-by-side: a wide image (e.g. a photo
+  // covering 77% of the slide) can overlap a narrower diagram significantly
+  // while still being visually side-by-side (centers on different sides of
+  // the midpoint).
   if (hasHeader) {
     const isVisualMedia = (el) =>
       el.type === ELEMENT_TYPES.IMAGE ||
@@ -534,12 +538,10 @@ export function inferLayout(
     const visualMedia = allEls.filter((el) => el !== headerEl && isVisualMedia(el));
     if (visualMedia.length >= 2 && !hasTextBody) {
       const [vm1, vm2] = visualMedia;
-      const horizontalOverlap = Math.max(
-        0,
-        Math.min(vm1.left + (vm1.width || 0), vm2.left + (vm2.width || 0)) -
-          Math.max(vm1.left, vm2.left),
-      );
-      if (horizontalOverlap < Math.min(vm1.width || 1, vm2.width || 1) * 0.3) {
+      const center1 = (vm1.left || 0) + (vm1.width || 0) / 2;
+      const center2 = (vm2.left || 0) + (vm2.width || 0) / 2;
+      // Side-by-side if centers are on different sides of the midpoint
+      if (center1 < midX !== center2 < midX) {
         return LAYOUT.TWO_COLUMN;
       }
     }
