@@ -148,8 +148,34 @@ function mergeCssDeclarations(base, override) {
 }
 
 /**
+ * Remove a single CSS property (by name, case-insensitive) from a
+ * declaration string. Returns the remaining declarations joined by `; `.
+ * @param {string} cssText
+ * @param {string} prop - property name to remove (e.g. "background")
+ * @returns {string}
+ */
+function removeCssProperty(cssText, prop) {
+  const target = String(prop || "").toLowerCase();
+  if (!target) return String(cssText || "").trim();
+  const map = new Map();
+  for (const decl of splitCssDeclarations(String(cssText || ""))) {
+    const d = decl.trim();
+    if (!d) continue;
+    const idx = d.indexOf(":");
+    if (idx === -1) continue;
+    const p = d.slice(0, idx).trim();
+    const v = d.slice(idx + 1).trim();
+    if (p.toLowerCase() === target) continue;
+    map.set(p.toLowerCase(), { prop: p, value: v });
+  }
+  return [...map.values()].map(({ prop: p, value: v }) => `${p}: ${v}`).join("; ");
+}
+
+/**
  * Replace (or insert) the `area-style-<areaName>:` directive in a slide's markdown.
- * The value is a plain CSS string applied only to the named area.
+ * The value is a plain CSS string applied only to the named area. New
+ * declarations are merged into any existing value, with later properties
+ * overriding earlier ones by name.
  *
  * @param {string} markdown       - Slide markdown source.
  * @param {string} areaName       - Target area name (e.g. "media").
@@ -165,6 +191,28 @@ export function updateAreaStyleForAreaDirective(markdown, areaName, cssText) {
   if (!trimmed) return stripped;
   const merged = mergeCssDeclarations(existing, trimmed);
   return `${directive}: ${merged}\n${stripped}`;
+}
+
+/**
+ * Remove a single CSS property from an area's `area-style-<name>:` directive.
+ * The directive is dropped entirely when no declarations remain, so the
+ * slide source stays clean. Use this instead of `updateAreaStyleForAreaDirective`
+ * with an empty string when you want to strip one property (e.g. background)
+ * without losing the rest (border, padding, …).
+ *
+ * @param {string} markdown       - Slide markdown source.
+ * @param {string} areaName       - Target area name (e.g. "media").
+ * @param {string} prop           - CSS property name to remove (e.g. "background").
+ * @returns {string} Updated markdown.
+ */
+export function removeAreaStylePropertyForAreaDirective(markdown, areaName, prop) {
+  const parser = new MarkdownParser();
+  const directive = `area-style-${String(areaName || "").toLowerCase()}`;
+  const { markdown: stripped, value: existing } = parser.extractDirective(markdown, directive);
+  if (!existing) return markdown;
+  const remaining = removeCssProperty(existing, prop);
+  if (!remaining) return stripped;
+  return `${directive}: ${remaining}\n${stripped}`;
 }
 
 /**

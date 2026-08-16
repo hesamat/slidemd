@@ -36,6 +36,7 @@ import {
   makeMediaFullBleed,
   parseSingleColumnLayout,
   removeAreaFromLayout,
+  removeAreaStylePropertyForAreaDirective,
   updateAreaStyleForAreaDirective,
   updateLayoutDirective,
 } from "./directive-utils.js";
@@ -364,7 +365,8 @@ export class EditController {
       canFullBleed: (name) => this._canFullBleed(name),
       getFullBleedLabel: (name) => this._getFullBleedLabel(name),
       onAlignMain: (name, align) => this._alignMainInMarkdown(name, align),
-      onSetBackground: (name, color) => this._setAreaBackground(name, color),
+      onSetBackground: (name, cssBackground) => this._setAreaBackground(name, cssBackground),
+      onPickImage: (onSelect) => this.styleApplier.pickImage(onSelect),
       getWarnings: () => this.warnings,
       onFixAreaMismatch: (allowedAreas) => this._fixMismatchedAreas(allowedAreas),
     });
@@ -1049,8 +1051,16 @@ export class EditController {
   _setAreaBackground(areaName, color) {
     if (!this.markdownEditor || !areaName) return;
     const markdown = this.markdownEditor.getValue();
-    const cssText = color ? `background: ${color}` : "";
-    const updated = updateAreaStyleForAreaDirective(markdown, areaName, cssText);
+    let updated;
+    if (color) {
+      const cssText = `background: ${color}`;
+      updated = updateAreaStyleForAreaDirective(markdown, areaName, cssText);
+    } else {
+      // Remove only the background property, preserving any other
+      // declarations (border, padding, …) on this area. The directive
+      // is dropped entirely when nothing remains.
+      updated = removeAreaStylePropertyForAreaDirective(markdown, areaName, "background");
+    }
     if (updated === markdown) return;
 
     this.markdownEditor.setValue(updated, { suppressOnChange: false });

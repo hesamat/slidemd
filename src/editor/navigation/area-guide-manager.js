@@ -9,6 +9,7 @@ import { TextBlockHandler } from "../text/text-block-handler.js";
 import { AreaContextMenu } from "./area-context-menu.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 import { parseSingleColumnLayout } from "../core/directive-utils.js";
+import { parseCss } from "../ui/style-helpers.js";
 
 export class AreaGuideManager {
   /**
@@ -29,7 +30,8 @@ export class AreaGuideManager {
    * @param {(areaName: string) => boolean} opts.canFullBleed
    * @param {(areaName: string) => string} opts.getFullBleedLabel
    * @param {(areaName: string, align: string) => void} [opts.onAlignMain]
-   * @param {(areaName: string, color: string) => void} [opts.onSetBackground]
+   * @param {(areaName: string, cssBackground: string) => void} [opts.onSetBackground]
+   * @param {(onSelect: (path: string) => void) => void} [opts.onPickImage]
    * @param {() => object} opts.getWarnings
    * @param {(allowedAreas: string[]) => void} [opts.onFixAreaMismatch]
    */
@@ -51,6 +53,7 @@ export class AreaGuideManager {
     getFullBleedLabel,
     onAlignMain,
     onSetBackground,
+    onPickImage,
     getWarnings,
     onFixAreaMismatch,
   }) {
@@ -71,6 +74,7 @@ export class AreaGuideManager {
     this._getFullBleedLabel = getFullBleedLabel;
     this._onAlignMain = onAlignMain;
     this._onSetBackground = onSetBackground;
+    this._onPickImage = onPickImage;
     this._getWarnings = getWarnings;
     this._onFixAreaMismatch = onFixAreaMismatch;
 
@@ -80,7 +84,10 @@ export class AreaGuideManager {
       onMakeFullHeight: (areaName) => this._onMakeFullHeight?.(areaName),
       onToggleFullBleed: (areaName) => this._onToggleFullBleed?.(areaName),
       onAlignMain: (areaName, align) => this._onAlignMain?.(areaName, align),
-      onSetBackground: (areaName, color) => this._onSetBackground?.(areaName, color),
+      onSetBackground: (areaName, cssBackground) =>
+        this._onSetBackground?.(areaName, cssBackground),
+      onPickImage: (onSelect) => this._onPickImage?.(onSelect),
+      getAreaElement: (areaName) => this._getAreaElementByName(areaName),
     });
     this._contextMenu.init();
   }
@@ -97,6 +104,18 @@ export class AreaGuideManager {
 
   getSlideElementByIndex(index) {
     return this._getSlideElementByIndex(index);
+  }
+
+  /**
+   * Find an area element by name on the current slide. Used by the
+   * background popover for live preview.
+   * @param {string} areaName
+   * @returns {HTMLElement|null}
+   */
+  _getAreaElementByName(areaName) {
+    const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+    if (!slideEl) return null;
+    return slideEl.querySelector(`.slide__area[data-area-name="${areaName}"]`) || null;
   }
 
   applyAreaGuides(slideEl, slideData) {
@@ -171,11 +190,11 @@ export class AreaGuideManager {
         const activeAlign = active?.align;
 
         const areaStyle = slideData?.areaStyles?.[name] || "";
-        const bgMatch = areaStyle.match(/(?:^|;)\s*background\s*:\s*([^;]+)/i);
-        const rawBackground = bgMatch ? bgMatch[1].trim() : "";
-        const currentColor = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(rawBackground)
-          ? rawBackground
-          : "#ffffff";
+        const parsedCss = parseCss(areaStyle);
+        // Recognise both `background` and `background-color` so non-hex
+        // values (rgb, named colors, gradients, images) seed the picker
+        // correctly and "Remove background" appears for either spelling.
+        const rawBackground = parsedCss["background"] || parsedCss["background-color"] || "";
         const hasBackground = Boolean(rawBackground);
 
         this._contextMenu.open(e.clientX, e.clientY, name, {
@@ -187,7 +206,7 @@ export class AreaGuideManager {
           canAlignMain,
           canSetBackground: name !== "footer",
           activeAlign,
-          currentColor,
+          currentBackground: rawBackground,
           hasBackground,
         });
       });
