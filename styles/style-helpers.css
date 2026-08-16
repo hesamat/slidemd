@@ -223,24 +223,13 @@
 }
 
 /* ── Background preview ── */
-.style-bg-main-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-.style-bg-preview-col {
-  flex: 0 0 170px;
-}
-
-.style-bg-controls-col {
-  flex: 1;
-  min-width: 0;
-}
-
 .style-bg-preview {
-  width: 100%;
+  /* Compact, centered 16:9 box — keeps slide proportions without dominating
+     the modal vertically or overflowing horizontally. */
+  width: 220px;
+  max-width: 100%;
   aspect-ratio: 16 / 9;
+  margin: 0 auto;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-medium);
   background: black;

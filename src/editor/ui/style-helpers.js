@@ -265,12 +265,13 @@ export function buildBackgroundPanelHtml({ image = true, preview = true } = {}) 
       </div>
     </div>`
     : "";
-  // The preview sits beside the image controls in a two-column row so a
-  // full-width 16:9 preview never pushes the overlay/size/position/repeat
-  // controls below the fold — both stay visible without scrolling.
-  const previewColumn = preview
+  // The preview is a compact, centered 16:9 box (capped width, not full
+  // width) so it keeps slide proportions without dominating the modal's
+  // vertical space or forcing the controls below the fold / a horizontal
+  // scrollbar.
+  const previewSection = preview
     ? `
-    <div class="style-bg-preview-col">
+    <div class="style-inline-section">
       <span class="style-label">Preview</span>
       <div class="style-bg-preview"></div>
     </div>`
@@ -289,11 +290,7 @@ export function buildBackgroundPanelHtml({ image = true, preview = true } = {}) 
       <span class="style-label">Transparency</span>
       <input type="range" class="style-range" data-field="bg-opacity" min="0" max="100" value="0" />
       <span class="style-control-value" data-display="bg-opacity">0%</span>
-    </div>${imageSourceRow}
-    <div class="style-bg-main-row">
-      ${previewColumn}
-      <div class="style-bg-controls-col">${imageControls}</div>
-    </div>
+    </div>${imageSourceRow}${previewSection}${imageControls}
     <div class="style-row style-row--between">
       <label class="style-toggle">
         <input type="checkbox" data-field="bg-theme" />
