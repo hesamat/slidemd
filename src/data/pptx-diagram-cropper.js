@@ -455,6 +455,31 @@ export async function cropSlideToDiagram(
           Math.abs(height - sp.h) <= POSITION_TOLERANCE_PX,
       );
 
+      // Some shape borders/edges are not extracted as shapes (e.g. the left
+      // border of a flowchart process box).  Keep thin line/edge elements that
+      // lie flush against any matched shape — they are part of the diagram.
+      const isThinEdge = width <= 3 || height <= 3;
+      const isAdjacentToShape = matchedShape
+        ? false
+        : shapePositions.some((sp) => {
+            const spRight = sp.x + sp.w;
+            const spBottom = sp.y + sp.h;
+            const elRight = left + width;
+            const elBottom = top + height;
+            const hOverlap = top < spBottom && elBottom > sp.y;
+            const vOverlap = left < spRight && elRight > sp.x;
+            return (
+              (isThinEdge &&
+                (hOverlap || vOverlap) &&
+                Math.abs(left - sp.x) <= 3 + POSITION_TOLERANCE_PX) ||
+              Math.abs(left - spRight) <= 3 + POSITION_TOLERANCE_PX ||
+              Math.abs(top - sp.y) <= 3 + POSITION_TOLERANCE_PX ||
+              Math.abs(top - spBottom) <= 3 + POSITION_TOLERANCE_PX
+            );
+          });
+
+      const matched = !!matchedShape || isAdjacentToShape;
+
       if (collectDiag) {
         childMatches.push({
           tag: el.tagName,
@@ -464,7 +489,7 @@ export async function cropSlideToDiagram(
           height,
           text: (el.textContent || "").slice(0, 80),
           fontFamily: el.style.fontFamily || getComputedStyle(el).fontFamily || "",
-          matched: !!matchedShape,
+          matched,
           matchedShape: matchedShape
             ? {
                 type: matchedShape.shape.type,
@@ -482,7 +507,7 @@ export async function cropSlideToDiagram(
         });
       }
 
-      if (!matchedShape) {
+      if (!matched) {
         el.style.display = "none";
       }
     }

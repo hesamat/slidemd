@@ -504,6 +504,18 @@ export function inferLayout(
   if (captionWithOneImage) return LAYOUT.FOCUS;
   // Header + dominant image + text body → media-span (image spans right, text on left)
   if (dominantImages.length === 1 && hasTextBody) return LAYOUT.MEDIA_SPAN;
+  // Header + two side-by-side images and no substantive text → two-column
+  // so the images are placed side by side instead of stacked in one column.
+  if (hasHeader && dominantImages.length >= 2) {
+    const [img1, img2] = dominantImages;
+    const horizontalOverlap = Math.max(
+      0,
+      Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
+    );
+    if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
+      return LAYOUT.TWO_COLUMN;
+    }
+  }
   if (hasHeader) return LAYOUT.HEADER_CONTENT;
 
   const hasTallColumn = bodyEls.some(
