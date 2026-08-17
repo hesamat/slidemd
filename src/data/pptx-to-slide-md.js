@@ -721,6 +721,12 @@ function convertSlide(
     parts.push("");
     parts.push(allElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
   } else if (layout.type === LAYOUT.HEADER_CONTENT.type) {
+    // No valid header → downgrade to focus so the layout name matches the
+    // actual render (everything in @main, no @header area).
+    if (!isHeaderValid || !header) {
+      layout = LAYOUT.FOCUS;
+      setLayoutDirective(parts, layout);
+    }
     const singleImage =
       bodyElements.length === 1 &&
       bodyElements[0].type === ELEMENT_TYPES.IMAGE &&

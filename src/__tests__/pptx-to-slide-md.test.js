@@ -420,7 +420,8 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
 
-    expect(md).toContain("layout: header-content");
+    // No header on an image-only slide → downgrades to focus (no @header area)
+    expect(md).toContain("layout: focus");
     expect(md).toContain("@main");
     expect(md).not.toContain("@media");
     expect(md).not.toContain("@secondary");
