@@ -614,25 +614,27 @@ describe("ImageInteractionHandler", () => {
     });
 
     it("counteracts layout shift on first drag move so the image does not jump", () => {
+      // Use a call-counter keyed mock so the test is robust against
+      // additional getBoundingClientRect reads being inserted between
+      // _onDragStart and the correction block.
+      let rectCallCount = 0;
+      const startRect = { left: 200, top: 300, width: 100, height: 100 };
+      const shiftedRect = { left: 150, top: 250, width: 100, height: 100 };
+
       const img = {
-        // position starts empty so the prepare-block runs on first move.
-        // prepareMdImgForDrag mock will set left/top to simulate the
-        // offsets it writes in production.
         style: { position: "", left: "", top: "" },
         classList: { contains: () => false, add: vi.fn() },
         closest: () => null,
-        // First call (in _onDragStart) returns the pre-conversion rect.
-        // Second call (in _onDragMove, after prepare) returns the
-        // post-conversion rect — shifted up-left by 50px to simulate the
-        // flex→block layout change.
-        getBoundingClientRect: vi
-          .fn()
-          .mockReturnValueOnce({ left: 200, top: 300, width: 100, height: 100 })
-          .mockReturnValueOnce({ left: 150, top: 250, width: 100, height: 100 }),
+        getBoundingClientRect: vi.fn(() => {
+          rectCallCount++;
+          // Call 1: _onDragStart captures the pre-conversion rect.
+          // Call 2+: _compensateLayoutShift measures the post-conversion rect.
+          return rectCallCount === 1 ? startRect : shiftedRect;
+        }),
       };
 
       const prepareMdImgForDrag = vi.fn((el) => {
-        // Simulate the offsets _prepareMdImgForDrag writes in production.
+        // Simulate the area-relative offsets _prepareMdImgForDrag writes.
         el.style.left = "190px";
         el.style.top = "290px";
       });
@@ -672,6 +674,18 @@ describe("ImageInteractionHandler", () => {
       } finally {
         globalThis.document.elementFromPoint = origElementFromPoint;
       }
+    });
+
+    it("_compensateLayoutShift is null-safe when no start rect is captured", () => {
+      const img = {
+        style: { left: "10px", top: "20px" },
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 0, height: 0 }),
+      };
+      ImageDragController._dragStartImgRect = null;
+      // Should not throw and should not modify left/top.
+      ImageDragController._compensateLayoutShift(img);
+      expect(img.style.left).toBe("10px");
+      expect(img.style.top).toBe("20px");
     });
   });
 });
