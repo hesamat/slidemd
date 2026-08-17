@@ -58,8 +58,10 @@ export async function convertEmfImages(slides, images) {
       dataUrl = (await trimTransparentMargins(dataUrl)) ?? dataUrl;
 
       const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
-      // Save the original ref before updating — element-level matching still
-      // uses the original extension until we update el.ref below.
+      // Save the original ref before updating — element-level matching uses
+      // the original extension to avoid colliding with an original PNG that
+      // happens to share the same basename (e.g. image1.emf → image1.png
+      // must not overwrite an existing image1.png element).
       const originalRef = img.ref;
       img.base64 = base64;
       img.mimeType = "image/png";
@@ -70,7 +72,11 @@ export async function convertEmfImages(slides, images) {
 
       for (const slide of slides) {
         for (const el of slide.elements) {
-          if (el.type === "image" && (el.ref === originalRef || el.ref === img.ref)) {
+          // Only update elements that referenced the original EMF/WMF file.
+          // The mimeType guard prevents overwriting an original PNG element
+          // that already had the same ref (e.g. image1.png existed alongside
+          // image1.emf — unlikely in PowerPoint, but defensive).
+          if (el.type === "image" && el.ref === originalRef && el.mimeType !== "image/png") {
             el.base64 = base64;
             el.mimeType = "image/png";
             el.ref = img.ref;
@@ -148,6 +154,8 @@ export async function convertTiffImages(slides, images) {
       const dataUrl = canvas.toDataURL("image/png");
       const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
 
+      // Save the original ref before updating — element-level matching uses
+      // the original extension to avoid colliding with an original PNG.
       const originalRef = img.ref;
       img.base64 = base64;
       img.mimeType = "image/png";
@@ -157,7 +165,9 @@ export async function convertTiffImages(slides, images) {
 
       for (const slide of slides) {
         for (const el of slide.elements) {
-          if (el.type === "image" && (el.ref === originalRef || el.ref === img.ref)) {
+          // Only update elements that referenced the original TIFF file.
+          // The mimeType guard prevents overwriting an original PNG element.
+          if (el.type === "image" && el.ref === originalRef && el.mimeType !== "image/png") {
             el.base64 = base64;
             el.mimeType = "image/png";
             el.ref = img.ref;

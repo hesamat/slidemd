@@ -472,10 +472,16 @@ function convertSlide(
     }
   }
 
-  // 1. Identify layout-defining images first to ensure they are never filtered out
-  let dominantImages = importImages
-    ? findDominantImages(slide.elements, slideWidth, slideHeight)
-    : [];
+  // 1. Identify layout-defining images first to ensure they are never filtered out.
+  // Diagram-derived images are always included as dominant even when
+  // importImages is false — they are content, not decorative photos, and
+  // need the dominant-image protection in filterMeaningfulElements (RULE 1:
+  // dominant images skip the text-overlap/tight-border filter that would
+  // otherwise discard a large diagram whose bbox overlaps a title text box).
+  let dominantImages =
+    importImages || slide.elements.some((el) => el.origin === "diagram")
+      ? findDominantImages(slide.elements, slideWidth, slideHeight)
+      : [];
 
   // 2. Filter out decorative background/border/logo elements from the slide
   const meaningfulElements = filterMeaningfulElements(
