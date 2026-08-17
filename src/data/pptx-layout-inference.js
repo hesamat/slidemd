@@ -223,6 +223,12 @@ export function isHeaderLikeTextElement(
   { requireTitleWidth = false, slideWidth = 0 } = {},
 ) {
   if (!el || el.top >= slideHeight * CONFIG.bodyTopRatio) return false;
+  // A real header band sits in the top region and does not extend far below
+  // it. A full-height text panel (e.g. a coloured sidebar with a title
+  // rotated or centred vertically) starts at top=0 but spans the whole slide
+  // — that is a content column, not a header.
+  const bottom = (el.top || 0) + (el.height || 0);
+  if (bottom > slideHeight * 0.5 && (el.height || 0) > slideHeight * 0.4) return false;
   // In requireTitleWidth mode the width/footer checks gate the heading-marker
   // shortcut too — the extractor marks any >=34pt run as a heading, and a
   // narrow such label must not enable the icon band filter.
@@ -326,6 +332,24 @@ export function inferLayout(
   const headerEl = contentEls.find(isHeader) || null;
   const hasHeader = !!headerEl;
   const midX = slideWidth / 2;
+
+  // Early media-span detection: a single dominant image beside text content
+  // (no overlap between them) is a media-span slide regardless of how short
+  // the text is. Without this, a short title like "STANDARD LIBRARY" beside
+  // a half-slide image hits the "short content → focus" shortcut and the
+  // image ends up as an inline <img> in @main instead of in @media.
+  if (!hasHeader && dominantImages.length === 1 && contentEls.length >= 1) {
+    const img = dominantImages[0];
+    const textElsOnSlide = contentEls.filter((el) => el !== img);
+    if (textElsOnSlide.length > 0) {
+      const noOverlap = textElsOnSlide.every((el) => {
+        const overlap = getOverlapArea(el, img);
+        const elArea = (el.width || 0) * (el.height || 0);
+        return elArea > 0 && overlap / elArea < 0.1;
+      });
+      if (noOverlap) return LAYOUT.MEDIA_SPAN;
+    }
+  }
   const centerTol = slideWidth * CONFIG.centerToleranceRatio;
   const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
 

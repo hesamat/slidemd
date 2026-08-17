@@ -189,12 +189,24 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
     const text = (el.content || "").replace(REGEX.HEADING_REPLACE, "").trim();
     return text.length <= CONFIG.maxHeaderLengthShort;
   };
+  // A full-height text panel (e.g. a coloured sidebar with a centred title)
+  // is a content column, not a header band — even if it carries a heading
+  // marker and starts at the top. Reject elements whose bottom extends past
+  // 50% of the slide and whose height exceeds 40% of the slide.
+  const isPanelNotHeader = (el) => {
+    const bottom = (el.top || 0) + (el.height || 0);
+    return bottom > slideHeight * 0.5 && (el.height || 0) > slideHeight * 0.4;
+  };
 
   // 1. Prefer explicit heading markers (## / ###) — always a header
+  //    (unless the element is a full-height panel)
   // 2. Fallback: short text in the top portion of the slide
   const header =
-    textElements.find((el) => isHeading(el) && isShortEnough(el)) ||
-    textElements.find((el) => el.top < slideHeight * CONFIG.bodyTopRatio && isShortEnough(el)) ||
+    textElements.find((el) => isHeading(el) && isShortEnough(el) && !isPanelNotHeader(el)) ||
+    textElements.find(
+      (el) =>
+        el.top < slideHeight * CONFIG.bodyTopRatio && isShortEnough(el) && !isPanelNotHeader(el),
+    ) ||
     null;
 
   if (!header) {
