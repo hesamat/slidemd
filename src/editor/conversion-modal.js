@@ -292,8 +292,12 @@ export class ConversionModal {
       };
       // Import button
       saveBtn.addEventListener("click", async () => {
-        // Strip <img> tags when content images are not imported
-        let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
+        // Strip <img> tags when content images are not imported, but preserve
+        // diagram-derived images (marked with data-diagram="true") since they
+        // are essential content, not decorative photos the user opted out of.
+        let finalMarkdown = importImages
+          ? markdown
+          : markdown.replace(/<img\s+(?![^>]*data-diagram="true")[^>]*>/g, "");
         // Strip background/theme directives when not keeping slide appearance
         if (!importTheme) {
           finalMarkdown = finalMarkdown
@@ -301,16 +305,6 @@ export class ConversionModal {
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
         }
-        // Convert [Diagram: ...] markers to bullet lists as a safety net.
-        const diagramToBullets = (md) =>
-          md.replace(/\[Diagram:\s*([^\]]+)\]/g, (_match, items) =>
-            items
-              .split(",")
-              .map((item) => `- ${item.trim()}`)
-              .filter((line) => line.length > 2)
-              .join("\n"),
-          );
-        finalMarkdown = diagramToBullets(finalMarkdown);
         // Add language tag to opening fences of fenced code blocks only.
         // Use a state machine to distinguish opening fences from closing fences.
         if (codeLanguage) {

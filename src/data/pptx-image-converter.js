@@ -58,14 +58,22 @@ export async function convertEmfImages(slides, images) {
       dataUrl = (await trimTransparentMargins(dataUrl)) ?? dataUrl;
 
       const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+      // Save the original ref before updating — element-level matching still
+      // uses the original extension until we update el.ref below.
+      const originalRef = img.ref;
       img.base64 = base64;
       img.mimeType = "image/png";
+      // Update the ref extension to .png so downstream code (markdown formatters,
+      // blob URL substitution) references the converted file, not the original
+      // .emf/.wmf filename that browsers cannot render.
+      img.ref = img.ref.replace(/\.(emf|wmf)$/i, ".png");
 
       for (const slide of slides) {
         for (const el of slide.elements) {
-          if (el.type === "image" && el.ref === img.ref && el.mimeType !== "image/png") {
+          if (el.type === "image" && (el.ref === originalRef || el.ref === img.ref)) {
             el.base64 = base64;
             el.mimeType = "image/png";
+            el.ref = img.ref;
           }
         }
       }
@@ -140,14 +148,19 @@ export async function convertTiffImages(slides, images) {
       const dataUrl = canvas.toDataURL("image/png");
       const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
 
+      const originalRef = img.ref;
       img.base64 = base64;
       img.mimeType = "image/png";
+      // Update the ref extension to .png so downstream code references the
+      // converted file, not the original .tif/.tiff filename.
+      img.ref = img.ref.replace(/\.(tif|tiff)$/i, ".png");
 
       for (const slide of slides) {
         for (const el of slide.elements) {
-          if (el.type === "image" && el.ref === img.ref && el.mimeType !== "image/png") {
+          if (el.type === "image" && (el.ref === originalRef || el.ref === img.ref)) {
             el.base64 = base64;
             el.mimeType = "image/png";
+            el.ref = img.ref;
           }
         }
       }

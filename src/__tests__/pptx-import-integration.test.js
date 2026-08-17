@@ -145,7 +145,8 @@ describe("pptx import integration", () => {
 
     // In jsdom the canvas API is unavailable, so the post-pass leaves the
     // diagram elements unchanged and the conversion still completes — the
-    // `[Diagram: ...]` → bullets safety net keeps working.
+    // `[Diagram: ...]` marker is preserved in the markdown for AI Mermaid
+    // conversion during a later refine/generate pass.
     const markdown = convertToSlideMd(extraction);
     expect(markdown).toContain("layout:");
   });

@@ -373,7 +373,7 @@ export async function renderSvgToPng(svg, widthPx, heightPx) {
  *   3. On success: replace the diagram element with an `image` element whose
  *      `caption` carries the diagram labels (used as image alt text).
  *   4. On failure (no canvas, no renderable shapes): leave the diagram element
- *      unchanged so the existing `[Diagram: ...]` → bullets path still works.
+ *      unchanged so the `[Diagram: ...]` marker is preserved for AI Mermaid conversion.
  *
  * Grouped diagrams (`el.fromGroup`, produced from `<p:grpSp>`) skip the crop
  * path: `@aiden0z/pptx-renderer` lays out group children relative to the group
@@ -470,9 +470,13 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
       // Replace the diagram element with an image element at the same bbox.
       // Carry the diagram's label text as caption so it becomes the image's
       // alt text (searchable, accessible) rather than a separate text element.
+      // The `origin: "diagram"` tag preserves provenance so downstream heuristics
+      // (background detection, watermark filter, importImages stripping) treat
+      // the image as content, not as a decorative photo.
       const labelText = (el.content || "").trim();
       newElements.push({
         type: "image",
+        origin: "diagram",
         base64,
         mimeType: "image/png",
         ref,

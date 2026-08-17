@@ -190,16 +190,20 @@ export function formatImage(
   // so the image renders naturally if the layout changes. objectFit lets a
   // full-bleed media image cover the column (fill) instead of containing it.
   const style = fitColumn ? ` style="width: 100%; height: auto; object-fit: ${objectFit};"` : "";
+  // Diagram-derived images get a data-diagram attribute so downstream code
+  // (e.g. the conversion modal's importImages=false <img> stripping) can
+  // preserve them as content rather than treating them as decorative photos.
+  const diagramAttr = img.origin === "diagram" ? ' data-diagram="true"' : "";
 
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
     const w = Math.round(img.width * CONVERSION.POINTS_TO_PX) || null;
     const h = Math.round(img.height * CONVERSION.POINTS_TO_PX) || null;
     if (w && h) {
-      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}"${style}>`;
+      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}"${style}${diagramAttr}>`;
     }
   }
-  return `<img src="${src}" alt="${altText}"${style}>`;
+  return `<img src="${src}" alt="${altText}"${style}${diagramAttr}>`;
 }
 
 /**
@@ -404,6 +408,7 @@ export function formatDiagram(diagram) {
   if (items.length === 1) return items[0];
 
   // Emit a marker that AI post-processing can replace with Mermaid.
-  // If no AI mode is selected, the marker is converted back to bullets at import time.
+  // The marker is preserved through import so the AI sidebar can convert it
+  // to a Mermaid code block during a later refine/generate pass.
   return `[Diagram: ${items.join(", ")}]`;
 }

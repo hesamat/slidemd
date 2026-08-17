@@ -176,7 +176,7 @@ directive).
    PNG from the slide crop (top-level diagrams only).
 2. **Grouped diagram / no crop / blank crop / crop throws** → SVG builder.
 3. **No renderable shapes** (no `path`, `shapType`, or fill) → diagram element
-   unchanged → existing `[Diagram: ...]` → bullets path.
+   unchanged → `[Diagram: ...]` marker preserved in markdown for AI Mermaid conversion.
 4. **Canvas unavailable** (jsdom, SSR) → diagram element unchanged → same fallback.
 
 ### Labels as alt text

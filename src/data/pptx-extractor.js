@@ -312,6 +312,30 @@ export class PptxExtractor {
   }
 
   /**
+   * Check if an element tree contains shapes with visual properties that could
+   * form a diagram (connectors, filled shapes, bordered text boxes). Used by
+   * the group skip guard so groups of empty flowchart boxes + arrows are not
+   * discarded before #isManualDiagram can evaluate them.
+   *
+   * Operates on raw pptxtojson elements (before #processElement), so it checks
+   * `el.headEnd`/`el.tailEnd` for connectors rather than the `type: "connector"`
+   * that #processElement assigns.
+   * @static
+   * @param {import('pptxtojson').Element} el
+   * @returns {boolean}
+   */
+  static #hasDiagramPotential(el) {
+    // Connectors in raw pptxtojson: shapes with head/tail arrow ends.
+    if (el.headEnd || el.tailEnd) return true;
+    if (el.type === "shape" && (el.fill || el.shapType || el.strokeOnly)) return true;
+    if (el.type === "text" && (el.borderWidth || 0) > 0) return true;
+    if (el.type === "group" && el.elements) {
+      return el.elements.some((child) => this.#hasDiagramPotential(child));
+    }
+    return false;
+  }
+
+  /**
    * Check if an element tree contains any non-tiny images.
    * Tiny images (both dimensions < 15pt) are treated as decorative.
    * @static
@@ -419,8 +443,15 @@ export class PptxExtractor {
     if (el.type === "group" && el.elements) {
       // Skip groups that contain no renderable content — only tiny decorative
       // images, empty shapes, or unrecognized types.  Keep groups that have
-      // text, tables, charts, diagrams, or any non-tiny image.
-      if (!this.#hasTextContent(el) && !this.#hasSignificantImages(el)) {
+      // text, tables, charts, diagrams, any non-tiny image, or shapes with
+      // visual properties (connectors, fills, borders) that could form a
+      // diagram — without this, groups of empty flowchart boxes + arrows are
+      // discarded before #isManualDiagram can evaluate them.
+      if (
+        !this.#hasTextContent(el) &&
+        !this.#hasSignificantImages(el) &&
+        !this.#hasDiagramPotential(el)
+      ) {
         return null;
       }
 
