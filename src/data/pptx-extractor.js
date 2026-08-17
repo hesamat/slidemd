@@ -961,7 +961,7 @@ export class PptxExtractor {
             const p = pMatch[0];
             let paraText = "";
             let hasBreak = false;
-            for (const seg of p.matchAll(/<a:r>[\s\S]*?<\/a:r>|<a:br(?:\s[^>]*)?>/gi)) {
+            for (const seg of p.matchAll(/<a:r>[\s\S]*?<\/a:r>|<a:br[^>]*>/gi)) {
               if (seg[0].startsWith("<a:br")) {
                 paraText += "\n";
                 hasBreak = true;

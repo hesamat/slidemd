@@ -1155,4 +1155,25 @@ describe("PptxExtractor <a:br/> reconstruction", () => {
     const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
     expect(injected).toBe(html);
   });
+
+  it("matches the canonical self-closing <a:br/> form in the XML text extractor", () => {
+    // PowerPoint's .NET XML serializer emits <a:br/> without a space before
+    // the slash. The extraction regex must match this form, otherwise line
+    // break reconstruction silently fails on real-world files.
+    const regex = /<a:r>[\s\S]*?<\/a:r>|<a:br[^>]*>/gi;
+    const forms = ["<a:br>", "<a:br/>", "<a:br />", '<a:br rPr="x"/>'];
+    for (const form of forms) {
+      regex.lastIndex = 0;
+      expect(form.match(regex)).not.toBeNull();
+    }
+    // A paragraph with a self-closing break between two runs yields three
+    // segments (run, break, run) — the break must be captured so it can be
+    // converted to "\n" during flat-text/paragraph reconstruction.
+    const xml = "<a:p><a:r><a:t>line1</a:t></a:r><a:br/><a:r><a:t>line2</a:t></a:r></a:p>";
+    regex.lastIndex = 0;
+    const segs = xml.match(regex);
+    expect(segs).not.toBeNull();
+    expect(segs).toHaveLength(3);
+    expect(segs[1]).toBe("<a:br/>");
+  });
 });

@@ -25,7 +25,7 @@ const plainTable = {
 
 describe("formatTable", () => {
   it("renders a table with meaningful fills as a markdown table (no HTML)", () => {
-    const out = formatTable(coloredTable(), 960, 540);
+    const out = formatTable(coloredTable(), 960);
     expect(out).toContain("table {width: 27%}");
     expect(out).toContain("| 00 | 01 | 02 |");
     expect(out).not.toContain("fullpage-grid");
@@ -33,7 +33,7 @@ describe("formatTable", () => {
   });
 
   it("renders a plain table as a markdown table", () => {
-    const out = formatTable(plainTable, 960, 540);
+    const out = formatTable(plainTable, 960);
     expect(out).toContain("table {width: 31%}");
     expect(out).toContain("| a | b |");
     expect(out).not.toContain("fullpage-grid");
@@ -42,7 +42,7 @@ describe("formatTable", () => {
   it("renders a full-screen coloured table as a markdown table at full width", () => {
     // A near-full-slide matrix keeps the default styling (no width directive)
     // and still becomes a markdown table.
-    const out = formatTable(coloredTable({ width: 900, height: 520 }), 960, 540);
+    const out = formatTable(coloredTable({ width: 900, height: 520 }), 960);
     expect(out.startsWith("|")).toBe(true);
     expect(out).not.toContain("table {width:");
     expect(out).not.toContain("fullpage-grid");
@@ -59,7 +59,7 @@ describe("formatTable", () => {
         [{ text: "assert actual != expected" }, { text: "another value" }],
       ],
     };
-    const out = formatTable(dataOnlyTable, 960, 540);
+    const out = formatTable(dataOnlyTable, 960);
     expect(out).toContain("table {width: 31%; no-header}");
     expect(out).toContain("|  |  |");
   });
@@ -73,13 +73,13 @@ describe("formatTable", () => {
         [{ text: "a long descriptive sentence here" }, { text: "another long one" }],
       ],
     };
-    const out = formatTable(labelTable, 960, 540);
+    const out = formatTable(labelTable, 960);
     expect(out).toContain("| Name | Value |");
     expect(out).not.toContain("no-header");
   });
 
   it("returns empty string for an empty table", () => {
-    expect(formatTable({ rows: [] }, 960, 540)).toBe("");
+    expect(formatTable({ rows: [] }, 960)).toBe("");
   });
 });
 

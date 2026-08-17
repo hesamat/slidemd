@@ -551,7 +551,7 @@ function convertSlide(
   const formatSingleElement = (el) => {
     if (el.type === ELEMENT_TYPES.TEXT) return formatTextElement(el.content);
     if (el.type === ELEMENT_TYPES.IMAGE) return formatImage(el, deckName);
-    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el, slideWidth, slideHeight);
+    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el, slideWidth);
     if (el.type === ELEMENT_TYPES.CHART) return formatChart(el);
     if (el.type === ELEMENT_TYPES.DIAGRAM) return formatDiagram(el);
     return "";

@@ -271,7 +271,6 @@ export function formatTable(table, slideWidth, { noHeader = false } = {}) {
   }
 
   const rows = table.rows.slice(startRow).map(formatRow);
-  const colCount = table.rows[startRow].length;
   const separator = table.rows[startRow].map(() => "---").join(" | ");
   const parts = [];
   if (caption) parts.push(`**${escapeCell(caption)}**`);
