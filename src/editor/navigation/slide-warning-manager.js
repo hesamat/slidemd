@@ -35,9 +35,7 @@ export class SlideWarningManager {
    * @returns {string}
    */
   get pendingSlideWarning() {
-    return this._pendingWarnings.size > 0
-      ? [...this._pendingWarnings.values()].join("; ")
-      : "";
+    return this._pendingWarnings.size > 0 ? [...this._pendingWarnings.values()].join("; ") : "";
   }
 
   /**
@@ -130,6 +128,15 @@ export class SlideWarningManager {
       banner.className = "editor-slide-warning";
       slideEl.appendChild(banner);
     }
+
+    // Clear any click-to-fix state left over from a previous showSlideWarning.
+    banner.classList.remove("editor-slide-warning--clickable");
+    banner.removeAttribute("tabindex");
+    banner.removeAttribute("role");
+    banner.removeAttribute("aria-live");
+    banner.onclick = null;
+    banner.onkeydown = null;
+    banner.style.cursor = "";
 
     banner.textContent = this.pendingSlideWarning;
     banner.setAttribute("role", "status");

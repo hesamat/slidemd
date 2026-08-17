@@ -102,9 +102,7 @@ describe("SlideWarningManager", () => {
     mgr.showEditorWarning("layout", "Unknown layout");
     mgr.showEditorWarning("images", "Missing images: foo.png");
     mgr.showEditorWarning("empty", "Empty slide");
-    expect(mgr.pendingSlideWarning).toBe(
-      "Unknown layout; Missing images: foo.png; Empty slide",
-    );
+    expect(mgr.pendingSlideWarning).toBe("Unknown layout; Missing images: foo.png; Empty slide");
   });
 
   it("updates a pending warning when the same key fires again", () => {
@@ -124,6 +122,21 @@ describe("SlideWarningManager", () => {
     mgr.applyPendingSlideWarning(slideEl);
     const banner = slideEl.querySelector(":scope > .editor-slide-warning");
     expect(banner.textContent).toBe("Warning A; Warning B");
+  });
+
+  it("applyPendingSlideWarning clears click-to-fix state from a previous slide warning", () => {
+    const slideEl = makeSlideEl();
+    const mgr = makeManager(slideEl);
+    const onClick = vi.fn();
+    mgr.showSlideWarning("Click me", onClick);
+    mgr.showEditorWarning("a", "Advisory");
+    mgr.applyPendingSlideWarning(slideEl);
+    const banner = slideEl.querySelector(":scope > .editor-slide-warning");
+    expect(banner.classList.contains("editor-slide-warning--clickable")).toBe(false);
+    expect(banner.getAttribute("role")).toBe("status");
+    expect(banner.getAttribute("tabindex")).toBeNull();
+    banner.click();
+    expect(onClick).not.toHaveBeenCalled();
   });
 
   it("resetPending clears all accumulated warnings", () => {

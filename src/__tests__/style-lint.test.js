@@ -39,6 +39,35 @@ describe("extractStyleDirectives", () => {
     const md = "@main\narea-style is not a directive\nbackground color is blue";
     expect(extractStyleDirectives(md)).toEqual([]);
   });
+
+  it("is case-insensitive", () => {
+    const md = "Area-Style: border-radius: 10px\nBACKGROUND: #1a1a2e\nArea-Bg-Main: #1e293b";
+    const result = extractStyleDirectives(md);
+    expect(result).toHaveLength(3);
+    expect(result[0].directive).toBe("Area-Style");
+    expect(result[0].value).toBe("border-radius: 10px");
+  });
+
+  it("skips directives inside code fences", () => {
+    const md = [
+      "area-style: border-radius: 10px",
+      "```",
+      "area-style: border-radius: 14px",
+      "```",
+      "area-bg-main: #1e293b",
+    ].join("\n");
+    const result = extractStyleDirectives(md);
+    expect(result).toHaveLength(2);
+    expect(result[0].directive).toBe("area-style");
+    expect(result[1].directive).toBe("area-bg-main");
+  });
+
+  it("handles CRLF line endings", () => {
+    const md = "area-style: border-radius: 10px\r\n\r\n@main\nHello";
+    const result = extractStyleDirectives(md);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ directive: "area-style", value: "border-radius: 10px" });
+  });
 });
 
 describe("lintCssString", () => {
@@ -93,6 +122,16 @@ describe("lintCssString", () => {
 
   it("flags rgba border color with spaces", () => {
     const msgs = lintCssString("border: 1px solid rgba(148, 163, 184, 0.2)");
+    expect(msgs.some((m) => m.includes("var(--border-color)"))).toBe(true);
+  });
+
+  it("flags border-color longhand", () => {
+    const msgs = lintCssString("border-color: #94a3b8");
+    expect(msgs.some((m) => m.includes("var(--border-color)"))).toBe(true);
+  });
+
+  it("flags border-top shorthand", () => {
+    const msgs = lintCssString("border-top: 1px solid rgba(148, 163, 184, 0.2)");
     expect(msgs.some((m) => m.includes("var(--border-color)"))).toBe(true);
   });
 });

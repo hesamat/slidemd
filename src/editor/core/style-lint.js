@@ -1,3 +1,5 @@
+import { safeString } from "../../core/utils.js";
+
 /**
  * Style Lint
  *
@@ -11,6 +13,30 @@
  *   --spacing-lg (24px), --spacing-xl (32px)
  * - --border-color (rgba(148, 163, 184, 0.2))
  */
+
+class FenceTracker {
+  constructor() {
+    this.inFence = false;
+    this.fenceMarker = null;
+  }
+
+  toggle(line) {
+    const m = line.match(/^\s*(```+|~~~+)\s*/);
+    if (!m) return;
+    const marker = m[1][0];
+    if (!this.inFence) {
+      this.inFence = true;
+      this.fenceMarker = marker;
+    } else if (this.fenceMarker === marker) {
+      this.inFence = false;
+      this.fenceMarker = null;
+    }
+  }
+
+  get isInFence() {
+    return this.inFence;
+  }
+}
 
 const RADIUS_TOKENS = new Map([
   ["6px", "--radius-sm"],
@@ -32,7 +58,6 @@ const BORDER_COLOR_VALUES = new Set([
   "rgba(148,163,184,0.2)",
   "rgba(148, 163, 184, 0.2)",
   "#94a3b8",
-  "#64748b",
 ]);
 
 /**
@@ -42,12 +67,15 @@ const BORDER_COLOR_VALUES = new Set([
  * @returns {{ directive: string, value: string }[]}
  */
 export function extractStyleDirectives(markdown) {
-  if (!markdown) return [];
+  const text = safeString(markdown).replace(/\r\n?/g, "\n");
   const results = [];
-  const lines = markdown.split("\n");
+  const lines = text.split("\n");
   // Match: area-style:, background:, area-bg-<name>:
-  const re = /^\s*(area-style|background|area-bg-[a-zA-Z0-9_-]+)\s*:\s*(.+)$/;
+  const re = /^\s*(area-style|background|area-bg-[a-zA-Z0-9_-]+)\s*:\s*(.+)$/i;
+  const fence = new FenceTracker();
   for (const line of lines) {
+    fence.toggle(line);
+    if (fence.isInFence) continue;
     const m = line.match(re);
     if (m) results.push({ directive: m[1], value: m[2].trim() });
   }
@@ -91,15 +119,20 @@ export function lintCssString(css) {
       }
     }
 
-    // Check border color
-    if (prop === "border") {
+    // Check border color (border shorthand and longhands)
+    const borderPropMatch = prop.match(/^border(-color|-top|-right|-bottom|-left)?$/);
+    if (borderPropMatch) {
       const parts = val.split(/\s+/);
-      // border: <width> <style> <color>
-      if (parts.length >= 3) {
-        const color = parts.slice(2).join(" ");
-        if (BORDER_COLOR_VALUES.has(color.toLowerCase())) {
-          messages.push(`border color ${color} → use var(--border-color)`);
-        }
+      let color = "";
+      if (prop === "border-color") {
+        color = parts[0];
+      } else if (parts.length >= 3) {
+        color = parts.slice(2).join(" ");
+      } else if (parts.length === 1) {
+        color = parts[0];
+      }
+      if (color && BORDER_COLOR_VALUES.has(color.toLowerCase())) {
+        messages.push(`border color ${color} → use var(--border-color)`);
       }
     }
   }
