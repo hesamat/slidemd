@@ -3883,7 +3883,7 @@ describe("convertToSlideMd background image geometry", () => {
       ]),
     );
     expect(md).toContain("url(images/photo.jpeg) center / cover no-repeat");
-    expect(md).toContain("rgba(0,0,0,0.4)");
+    expect(md).toContain("rgba(0,0,0,0.55)");
   });
 
   it("uses contain + a box-matched scrim for a partial background image", () => {
@@ -3905,7 +3905,7 @@ describe("convertToSlideMd background image geometry", () => {
       ]),
     );
     expect(md).toContain("url(images/photo.jpeg) right center / contain no-repeat");
-    expect(md).toContain("rgba(0,0,0,0.4)) right center / 70% 100%");
+    expect(md).toContain("rgba(0,0,0,0.55)) right center / 70% 100%");
   });
 
   it("centres a background image inset on all edges", () => {
@@ -3923,7 +3923,7 @@ describe("convertToSlideMd background image geometry", () => {
       ]),
     );
     expect(md).toContain("url(images/photo.jpeg) center / contain no-repeat");
-    expect(md).toContain("rgba(0,0,0,0.4)) center / 80% 80%");
+    expect(md).toContain("rgba(0,0,0,0.55)) center / 80% 80%");
   });
 
   it("turns a large non-overlapping image beside a filled panel into a contain background", () => {
