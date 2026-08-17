@@ -20,6 +20,7 @@ import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { Notification } from "../../renderer/notification.js";
+import { lintSlideStyles } from "./style-lint.js";
 
 export class SlidePreviewUpdater {
   /**
@@ -134,6 +135,7 @@ export class SlidePreviewUpdater {
   async update() {
     const generation = ++this._updateGeneration;
     const markdown = this.markdownEditor?.getValue() ?? "";
+    const optionalAreas = ["footer", "header"];
     this.warnings.clearSlideWarning();
     this.warnings.resetPending();
 
@@ -185,7 +187,6 @@ export class SlidePreviewUpdater {
           );
         }
 
-        const optionalAreas = ["footer", "header"];
         const missingAreas = layoutAreas.filter(
           (name) => !areaNames.includes(name) && !optionalAreas.includes(name),
         );
@@ -195,6 +196,45 @@ export class SlidePreviewUpdater {
             `Layout expects: ${missingAreas.map((name) => `@${name}`).join(", ")}.`,
           );
         }
+      }
+
+      // Check for missing image references (directory handle only — the
+      // dev-server path can't be checked proactively). Surface as a
+      // warning so the author knows which images are broken.
+      const missingImages = await DeckImagesResolver.checkMissingImageRefs(markdown);
+      if (missingImages.length > 0) {
+        const list = missingImages.slice(0, 3).join(", ");
+        const extra = missingImages.length > 3 ? ` (+${missingImages.length - 3} more)` : "";
+        this.warnings.showEditorWarning(
+          "missing-images",
+          `Missing image${missingImages.length > 1 ? "s" : ""}: ${list}${extra}`,
+        );
+      }
+
+      // Warn when the slide has no content areas filled (only optional
+      // areas like footer/header, or nothing at all). parseAreas already
+      // strips empty areas, so we just check for non-optional presence.
+      const contentAreas = Object.keys(slideData.areas || {}).filter(
+        (name) => !optionalAreas.includes(name),
+      );
+      if (contentAreas.length === 0) {
+        this.warnings.showEditorWarning(
+          "empty-slide",
+          "This slide has no content. Add text, images, or code to fill it.",
+        );
+      }
+
+      // Advisory style-lint: warn about hardcoded values that have CSS
+      // token equivalents (e.g. border-radius: 10px → var(--radius-md)).
+      // Never blocks rendering — purely advisory.
+      const styleHints = lintSlideStyles(markdown);
+      if (styleHints.length > 0) {
+        const list = styleHints.slice(0, 2).join("; ");
+        const extra = styleHints.length > 2 ? ` (+${styleHints.length - 2} more)` : "";
+        this.warnings.showEditorWarning(
+          "style-lint",
+          `Style tip${styleHints.length > 1 ? "s" : ""}: ${list}${extra}`,
+        );
       }
 
       this.deck.slides[this.currentSlideIndex] = slideData;
