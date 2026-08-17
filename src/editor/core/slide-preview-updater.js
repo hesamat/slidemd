@@ -20,6 +20,7 @@ import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { Notification } from "../../renderer/notification.js";
+import { lintSlideStyles } from "./style-lint.js";
 
 export class SlidePreviewUpdater {
   /**
@@ -221,6 +222,19 @@ export class SlidePreviewUpdater {
         this.warnings.showEditorWarning(
           "empty-slide",
           "This slide has no content. Add text, images, or code to fill it.",
+        );
+      }
+
+      // Advisory style-lint: warn about hardcoded values that have CSS
+      // token equivalents (e.g. border-radius: 10px → var(--radius-md)).
+      // Never blocks rendering — purely advisory.
+      const styleHints = lintSlideStyles(markdown);
+      if (styleHints.length > 0) {
+        const list = styleHints.slice(0, 2).join("; ");
+        const extra = styleHints.length > 2 ? ` (+${styleHints.length - 2} more)` : "";
+        this.warnings.showEditorWarning(
+          "style-lint",
+          `Style tip${styleHints.length > 1 ? "s" : ""}: ${list}${extra}`,
         );
       }
 
