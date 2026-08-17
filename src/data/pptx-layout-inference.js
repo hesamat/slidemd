@@ -314,7 +314,13 @@ export function inferLayout(
     // as a header when it is the slide's sole element and carries a marker.
     const isMassive = (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
     if (isMassive) {
-      if (contentEls.length === 1 && allEls.length === 1 && isHeadingMarker(el)) {
+      // A full-height text panel (e.g. a title beside an image) is a header
+      // when it's the only text element on the slide — the images are the
+      // content.  The strict allEls.length===1 check only allowed a lone
+      // heading-only slide; relaxing to "only text element" covers the
+      // common case of a title panel next to a photo or diagram.
+      const otherTextEls = contentEls.filter((e) => e !== el);
+      if (otherTextEls.length === 0 && isHeaderLikeTextElement(el, slideHeight)) {
         return true;
       }
       return false;
@@ -374,6 +380,9 @@ export function inferLayout(
       if (!headerEl || !isThinStripHeader) {
         // First slide uses title-slide only if it has no body content (title/subtitle only)
         if (slideIndex === 0 && !hasBodyContent) return LAYOUT.TITLE_SLIDE;
+        // A header beside a dominant image is header-content, not focus —
+        // the image is the body content and belongs in @main.
+        if (hasHeader && dominantImages.length > 0) return LAYOUT.HEADER_CONTENT;
         return LAYOUT.FOCUS;
       }
     }
