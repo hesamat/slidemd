@@ -183,16 +183,22 @@ export function formatImage(
     .replace(REGEX.HYPHEN_UNDERSCORE, " ")
     .replace(/(\d+)/g, " $1")
     .trim();
-  const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(/"/g, "&quot;");
+  // Escape characters that would break the <img> tag: double quotes close the
+  // alt attribute, and < / > would confuse the conversion modal's <img>-strip
+  // regex (which uses [^>]* to bound the tag) when the caption contains them.
+  const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(
+    /["<>]/g,
+    (ch) => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;" })[ch],
+  );
 
   // fitColumn: media-span image — the media-span CSS fills the column via
   // absolute insets and object-fit; the inline style stays layout-agnostic
   // so the image renders naturally if the layout changes. objectFit lets a
   // full-bleed media image cover the column (fill) instead of containing it.
   const style = fitColumn ? ` style="width: 100%; height: auto; object-fit: ${objectFit};"` : "";
-  // Diagram-derived images get a data-diagram attribute so downstream code
-  // (e.g. the conversion modal's importImages=false <img> stripping) can
-  // preserve them as content rather than treating them as decorative photos.
+  // Diagram-derived images get a data-diagram attribute placed immediately
+  // after <img so the conversion modal's strip regex (negative lookahead on
+  // [^>]*) sees it before any > inside the alt text.
   const diagramAttr = img.origin === "diagram" ? ' data-diagram="true"' : "";
 
   if (!omitDimensions) {
@@ -200,10 +206,10 @@ export function formatImage(
     const w = Math.round(img.width * CONVERSION.POINTS_TO_PX) || null;
     const h = Math.round(img.height * CONVERSION.POINTS_TO_PX) || null;
     if (w && h) {
-      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}"${style}${diagramAttr}>`;
+      return `<img${diagramAttr} src="${src}" width="${w}" height="${h}" alt="${altText}"${style}>`;
     }
   }
-  return `<img src="${src}" alt="${altText}"${style}${diagramAttr}>`;
+  return `<img${diagramAttr} src="${src}" alt="${altText}"${style}>`;
 }
 
 /**

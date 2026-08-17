@@ -443,15 +443,17 @@ export class PptxExtractor {
     if (el.type === "group" && el.elements) {
       // Skip groups that contain no renderable content — only tiny decorative
       // images, empty shapes, or unrecognized types.  Keep groups that have
-      // text, tables, charts, diagrams, any non-tiny image, or shapes with
-      // visual properties (connectors, fills, borders) that could form a
-      // diagram — without this, groups of empty flowchart boxes + arrows are
-      // discarded before #isManualDiagram can evaluate them.
-      if (
-        !this.#hasTextContent(el) &&
-        !this.#hasSignificantImages(el) &&
-        !this.#hasDiagramPotential(el)
-      ) {
+      // text, tables, charts, diagrams, or any non-tiny image.
+      //
+      // Groups with no text/images but with diagram-potential shapes (connectors,
+      // filled shapes, bordered boxes) are tentatively kept so #isManualDiagram
+      // can evaluate them. If the diagram test fails, they are discarded —
+      // flattening their empty shapes would leak decorative panels into the
+      // slide (area-bg, theme: dark, background heuristics).
+      const hasText = this.#hasTextContent(el);
+      const hasImages = this.#hasSignificantImages(el);
+      const keptForDiagramOnly = !hasText && !hasImages && this.#hasDiagramPotential(el);
+      if (!hasText && !hasImages && !keptForDiagramOnly) {
         return null;
       }
 
@@ -480,6 +482,13 @@ export class PptxExtractor {
       // position matcher cannot see them — these diagrams use the SVG path.
       if (this.#isManualDiagram(processedChildren)) {
         return this.#shapesToDiagram(processedChildren, el.order || 0, true);
+      }
+
+      // The group was kept only for the diagram test, which failed — discard
+      // it so empty decorative shapes don't leak into the slide as panels or
+      // background candidates.
+      if (keptForDiagramOnly) {
+        return null;
       }
 
       // Otherwise, flatten group elements as before
