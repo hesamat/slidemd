@@ -338,7 +338,8 @@ export function buildRepositionedImgTag(imgElement, src, alt, width, height, lef
     `object-fit: ${s.objectFit || "contain"}`,
     "cursor: move",
   ];
-  return `<img src="${src}" alt="${alt}" style="${parts.filter(Boolean).join("; ")}" />`;
+  const diagramAttr = imgElement?.dataset?.diagram ? ' data-diagram="true"' : "";
+  return `<img${diagramAttr} src="${src}" alt="${alt}" style="${parts.filter(Boolean).join("; ")}" />`;
 }
 
 // ── Image dimensions ─────────────────────────────────────────────────────

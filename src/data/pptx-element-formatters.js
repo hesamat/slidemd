@@ -183,23 +183,33 @@ export function formatImage(
     .replace(REGEX.HYPHEN_UNDERSCORE, " ")
     .replace(/(\d+)/g, " $1")
     .trim();
-  const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(/"/g, "&quot;");
+  // Escape characters that would break the <img> tag: double quotes close the
+  // alt attribute, and < / > would confuse the conversion modal's <img>-strip
+  // regex (which uses [^>]* to bound the tag) when the caption contains them.
+  const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(
+    /["<>]/g,
+    (ch) => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;" })[ch],
+  );
 
   // fitColumn: media-span image — the media-span CSS fills the column via
   // absolute insets and object-fit; the inline style stays layout-agnostic
   // so the image renders naturally if the layout changes. objectFit lets a
   // full-bleed media image cover the column (fill) instead of containing it.
   const style = fitColumn ? ` style="width: 100%; height: auto; object-fit: ${objectFit};"` : "";
+  // Diagram-derived images get a data-diagram attribute placed immediately
+  // after <img so the conversion modal's strip regex (negative lookahead on
+  // [^>]*) sees it before any > inside the alt text.
+  const diagramAttr = img.origin === "diagram" ? ' data-diagram="true"' : "";
 
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
     const w = Math.round(img.width * CONVERSION.POINTS_TO_PX) || null;
     const h = Math.round(img.height * CONVERSION.POINTS_TO_PX) || null;
     if (w && h) {
-      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}"${style}>`;
+      return `<img${diagramAttr} src="${src}" width="${w}" height="${h}" alt="${altText}"${style}>`;
     }
   }
-  return `<img src="${src}" alt="${altText}"${style}>`;
+  return `<img${diagramAttr} src="${src}" alt="${altText}"${style}>`;
 }
 
 /**
@@ -404,6 +414,7 @@ export function formatDiagram(diagram) {
   if (items.length === 1) return items[0];
 
   // Emit a marker that AI post-processing can replace with Mermaid.
-  // If no AI mode is selected, the marker is converted back to bullets at import time.
+  // The marker is preserved through import so the AI sidebar can convert it
+  // to a Mermaid code block during a later refine/generate pass.
   return `[Diagram: ${items.join(", ")}]`;
 }

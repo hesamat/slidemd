@@ -97,4 +97,30 @@ describe("formatImage", () => {
     expect(out).toMatch(/^<img /);
     expect(out).not.toContain("position:relative");
   });
+
+  it("places data-diagram immediately after <img for diagram-origin images", () => {
+    const out = formatImage(
+      { ref: "image1.png", width: 200, height: 150, origin: "diagram" },
+      "deck",
+    );
+    expect(out).toMatch(/^<img data-diagram="true" /);
+  });
+
+  it("escapes < and > in the alt text so the strip regex stays reliable", () => {
+    const out = formatImage(
+      {
+        ref: "image1.png",
+        width: 200,
+        height: 150,
+        origin: "diagram",
+        caption: "n > 0 and a < b",
+      },
+      "deck",
+    );
+    expect(out).toContain("n &gt; 0 and a &lt; b");
+    expect(out).not.toContain("n > 0");
+    // data-diagram must appear before the alt attribute so the conversion
+    // modal's negative-lookahead strip regex sees it before any > in the alt.
+    expect(out.indexOf('data-diagram="true"')).toBeLessThan(out.indexOf("alt="));
+  });
 });

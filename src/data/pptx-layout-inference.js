@@ -86,7 +86,9 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
 
     // 3. Filter out massive background/watermark images ONLY if there is other
     // content (body paragraphs) or other images to display on the slide.
-    if (area > slideArea * CONFIG.maxMediaAreaRatio) {
+    // Diagram-derived images are never watermarks — they are content that
+    // happens to be large (a flowchart covering most of the slide).
+    if (area > slideArea * CONFIG.maxMediaAreaRatio && el.origin !== "diagram") {
       const hasOtherImages = elements.some(
         (other) => el !== other && other.type === ELEMENT_TYPES.IMAGE,
       );

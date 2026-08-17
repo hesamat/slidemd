@@ -384,7 +384,8 @@ export class ImageInteractionHandler {
       ? (() => {
           const style = buildInlineStyleString(img);
           const classAttr = ' class="img-freeflow"';
-          return `<img${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
+          const diagramAttr = img.dataset.diagram ? ' data-diagram="true"' : "";
+          return `<img${diagramAttr}${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
         })()
       : buildRepositionedImgTag(
           img,
@@ -544,7 +545,8 @@ export class ImageInteractionHandler {
     // stay view-managed.
     if (entry.type === "md" && !img.style.position && !isMediaSpanFillImage(img)) {
       const style = this._convertMdImgForEdit(img);
-      const newTag = `<img src="${src}" alt="${alt}" style="${style}" />`;
+      const diagramAttr = img.dataset.diagram ? ' data-diagram="true"' : "";
+      const newTag = `<img${diagramAttr} src="${src}" alt="${alt}" style="${style}" />`;
       this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
       return;
     }
@@ -553,7 +555,8 @@ export class ImageInteractionHandler {
       ? buildMediaSpanStyleString(img)
       : buildInlineStyleString(img);
     const classAttr = img.classList.contains("img-freeflow") ? ' class="img-freeflow"' : "";
-    const newTag = `<img${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
+    const diagramAttr = img.dataset.diagram ? ' data-diagram="true"' : "";
+    const newTag = `<img${diagramAttr}${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
     this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
   }
 

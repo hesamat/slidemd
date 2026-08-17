@@ -325,7 +325,9 @@ function convertSlide(
   // stacked in z-order), pick the LAST one — PowerPoint's element order is
   // back-to-front, so the last match is the visible (top) image.
   const bgCandidate = [...slide.elements].reverse().find((el) => {
-    if (el.type !== ELEMENT_TYPES.IMAGE || !el.ref) return false;
+    // Diagram-derived images are content, not backgrounds — skip them so
+    // they stay in @main/@media instead of being emitted as CSS backgrounds.
+    if (el.type !== ELEMENT_TYPES.IMAGE || !el.ref || el.origin === "diagram") return false;
     const imgArea = (el.width || 0) * (el.height || 0);
     // A header-like text panel beside the image means the image is body
     // content (header-content layout), not a background — regardless of
@@ -422,16 +424,21 @@ function convertSlide(
   let fullImageCandidate = null;
   if (bgCandidate) {
     const imgArea = (bgCandidate.width || 0) * (bgCandidate.height || 0);
-    // Check if there are any non-image, non-footer elements besides the bgCandidate
+    // Check if there are any non-image, non-footer elements besides the bgCandidate.
+    // Diagram-derived images count as content — they should not trigger the
+    // full-image layout any more than a table or chart would.
     const hasNonImageContent = slide.elements.some(
       (el) =>
         el !== bgCandidate &&
-        el.type !== ELEMENT_TYPES.IMAGE &&
+        (el.type !== ELEMENT_TYPES.IMAGE || el.origin === "diagram") &&
         el.placeholderType !== ELEMENT_TYPES.FOOTER,
     );
-    // Also check if there are other images besides the bgCandidate
+    // Also check if there are other images besides the bgCandidate.
+    // Diagram-derived images are excluded — they are content, not "other images"
+    // that would disqualify the full-image layout.
     const hasOtherImages = slide.elements.some(
-      (el) => el !== bgCandidate && el.type === ELEMENT_TYPES.IMAGE && el.ref,
+      (el) =>
+        el !== bgCandidate && el.type === ELEMENT_TYPES.IMAGE && el.ref && el.origin !== "diagram",
     );
     if (imgArea >= slideArea * fullImageThreshold && !hasNonImageContent && !hasOtherImages) {
       fullImageCandidate = bgCandidate;
@@ -440,11 +447,13 @@ function convertSlide(
 
   // Drop non-background images when not importing so they don't affect layout inference.
   // The bgCandidate is always preserved so its file reference can be emitted.
+  // Diagram-derived images are preserved regardless — they are essential content
+  // (originally shapes/text), not decorative photos the user opted out of.
   if (!importImages) {
     slide = {
       ...slide,
       elements: slide.elements.filter(
-        (el) => el.type !== ELEMENT_TYPES.IMAGE || el === bgCandidate,
+        (el) => el.type !== ELEMENT_TYPES.IMAGE || el === bgCandidate || el.origin === "diagram",
       ),
     };
   }
@@ -463,10 +472,16 @@ function convertSlide(
     }
   }
 
-  // 1. Identify layout-defining images first to ensure they are never filtered out
-  let dominantImages = importImages
-    ? findDominantImages(slide.elements, slideWidth, slideHeight)
-    : [];
+  // 1. Identify layout-defining images first to ensure they are never filtered out.
+  // Diagram-derived images are always included as dominant even when
+  // importImages is false — they are content, not decorative photos, and
+  // need the dominant-image protection in filterMeaningfulElements (RULE 1:
+  // dominant images skip the text-overlap/tight-border filter that would
+  // otherwise discard a large diagram whose bbox overlaps a title text box).
+  let dominantImages =
+    importImages || slide.elements.some((el) => el.origin === "diagram")
+      ? findDominantImages(slide.elements, slideWidth, slideHeight)
+      : [];
 
   // 2. Filter out decorative background/border/logo elements from the slide
   const meaningfulElements = filterMeaningfulElements(
@@ -535,7 +550,7 @@ function convertSlide(
       el !== bgCandidate &&
       el.placeholderType !== ELEMENT_TYPES.FOOTER &&
       ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-        (importImages && el.type === ELEMENT_TYPES.IMAGE && el.ref) ||
+        ((importImages || el.origin === "diagram") && el.type === ELEMENT_TYPES.IMAGE && el.ref) ||
         (el.type === ELEMENT_TYPES.TABLE && el.rows?.length) ||
         el.type === ELEMENT_TYPES.CHART ||
         el.type === ELEMENT_TYPES.DIAGRAM),
