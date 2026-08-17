@@ -305,7 +305,6 @@ export function inferLayout(
   }
 
   const bodyThreshold = slideHeight * CONFIG.bodyTopRatio;
-  const isHeadingMarker = (el) => REGEX.HEADING_MARKER.test(el.content?.trim() || "");
 
   const isHeader = (el) => {
     if (el.top >= bodyThreshold) return false;

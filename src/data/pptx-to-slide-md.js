@@ -192,7 +192,7 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
 
   // 1. Prefer explicit heading markers (## / ###) — always a header
   // 2. Fallback: short text in the top portion of the slide
-  const header =
+  let header =
     textElements.find((el) => isHeading(el) && isShortEnough(el)) ||
     textElements.find((el) => el.top < slideHeight * CONFIG.bodyTopRatio && isShortEnough(el)) ||
     null;
@@ -205,8 +205,43 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
   const hasBullets = REGEX.BULLET_LINE.test(headerText);
   const hasNumbers = REGEX.NUMBER_LINE.test(headerText);
   const hasCodeBlock = REGEX.CODE_BLOCK.test(headerText);
-  const isHeaderValid = !hasBullets && !hasNumbers && !hasCodeBlock;
-  const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
+  // When the header element starts with a heading marker but also contains
+  // body content (bullets, numbers, code), split it: the heading portion
+  // goes in @header, the rest becomes a synthetic body element for @main.
+  // This handles PPTX text panels that combine a title with a bullet list.
+  const firstLine = headerText.trim().split("\n")[0].trim();
+  const startsWithHeading = REGEX.HEADING_MARKER.test(firstLine);
+  let isHeaderValid = !hasBullets && !hasNumbers && !hasCodeBlock;
+  let splitBody = null;
+  // Keep a reference to the original element so it can be filtered out of
+  // bodyElements even after `header` is reassigned to a split copy.
+  const originalHeader = header;
+  if (!isHeaderValid && startsWithHeading) {
+    // Find where the heading ends (first blank line or first non-heading line)
+    const lines = headerText.split("\n");
+    let splitAt = 1;
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim() === "") {
+        splitAt = i + 1;
+        break;
+      }
+      if (!REGEX.HEADING_MARKER.test(lines[i].trim())) {
+        splitAt = i;
+        break;
+      }
+      splitAt = i + 1;
+    }
+    const headingPart = lines.slice(0, splitAt).join("\n").trim();
+    const bodyPart = lines.slice(splitAt).join("\n").trim();
+    if (bodyPart) {
+      header = { ...originalHeader, content: headingPart };
+      splitBody = { ...originalHeader, content: bodyPart };
+      isHeaderValid = true;
+    }
+  }
+  const bodyElements = isHeaderValid
+    ? [...allElements.filter((el) => el !== originalHeader), ...(splitBody ? [splitBody] : [])]
+    : allElements;
 
   return { header, isHeaderValid, bodyElements };
 }
@@ -262,6 +297,38 @@ function convertSlide(
   const bgCandidate = [...slide.elements].reverse().find((el) => {
     if (el.type !== ELEMENT_TYPES.IMAGE || !el.ref) return false;
     const imgArea = (el.width || 0) * (el.height || 0);
+    // A header-like text panel beside the image means the image is body
+    // content (header-content layout), not a background — regardless of
+    // how large the image is. Check this before the area thresholds.
+    // Only applies when the text panel has NO fill AND there is no other
+    // filled panel on the slide — a filled panel is a content surface
+    // (sidebar), and the image beside it is a background.
+    const hasFilledPanel = slide.elements.some(
+      (other) =>
+        other !== el &&
+        other.type === ELEMENT_TYPES.TEXT &&
+        (other.fillRaw || other.fill) &&
+        (other.content || "").trim(),
+    );
+    const hasHeaderPanel =
+      !hasFilledPanel &&
+      slide.elements.some((other) => {
+        if (other === el || other.type !== ELEMENT_TYPES.TEXT) return false;
+        if (other.fillRaw || other.fill) return false;
+        // The panel must be a side panel (narrow, not full-width)
+        if ((other.width || 0) >= slideWidth * 0.6) return false;
+        const text = (other.content || "").trim();
+        // Check only the first line — the panel may have a heading followed
+        // by bullet points, but the heading is what makes it header-like.
+        const firstLine = text.split("\n")[0].trim();
+        if (!REGEX.HEADING_MARKER.test(firstLine) || firstLine.length > CONFIG.maxHeaderLength)
+          return false;
+        // The panel must not significantly overlap the image
+        const overlap = getOverlapArea(other, el);
+        const panelArea = (other.width || 0) * (other.height || 0);
+        return panelArea > 0 && overlap / panelArea < 0.2;
+      });
+    if (hasHeaderPanel) return false;
     // Image covers >= 80% of slide — always a background
     if (imgArea >= slideArea * 0.8) return true;
     // Image covers >= 60% of slide — background if it overlaps content
@@ -598,8 +665,14 @@ function convertSlide(
       if (el === bgCandidate) continue;
       // Header-like panel text → the panel is a title, not a backing
       // panel. Don't emit its fill as an area-bg or edge sidebar.
+      // Check only the first line — the panel may have a heading followed
+      // by bullets, but the heading is what makes it header-like.
       const panelText = (el.content || "").trim();
-      if (REGEX.HEADING_MARKER.test(panelText) && panelText.length <= CONFIG.maxHeaderLength) {
+      const panelFirstLine = panelText.split("\n")[0].trim();
+      if (
+        REGEX.HEADING_MARKER.test(panelFirstLine) &&
+        panelFirstLine.length <= CONFIG.maxHeaderLength
+      ) {
         continue;
       }
       const w = el.width || 0;
