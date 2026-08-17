@@ -210,6 +210,20 @@ export class SlidePreviewUpdater {
         );
       }
 
+      // Warn when the slide has no content areas filled (only optional
+      // areas like footer/header, or nothing at all). parseAreas already
+      // strips empty areas, so we just check for non-optional presence.
+      const optionalAreas = ["footer", "header"];
+      const contentAreas = Object.keys(slideData.areas || {}).filter(
+        (name) => !optionalAreas.includes(name),
+      );
+      if (contentAreas.length === 0) {
+        this.warnings.showEditorWarning(
+          "empty-slide",
+          "This slide has no content. Add text, images, or code to fill it.",
+        );
+      }
+
       this.deck.slides[this.currentSlideIndex] = slideData;
 
       this.thumbnails.updateThumbnailTitle(this.currentSlideIndex, slideData.title);
