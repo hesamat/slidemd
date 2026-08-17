@@ -1005,9 +1005,25 @@ function convertSlide(
         // Each half fills its own column, so override the source width to
         // make each table 100% of its column.
         const allRows = splitTable.rows || [];
+        // Determine the header row index: skip a leading single-cell caption
+        // row (mirrors formatTable's caption detection). The header row is
+        // repeated at the top of the right half so formatTable's header
+        // detection reaches the same conclusion as the left half — otherwise
+        // the first data row in the right half is misdetected as a header.
+        let headerIdx = 0;
+        if (allRows.length > 1) {
+          const firstRow = allRows[0];
+          const filled = firstRow.filter((cell) => (cell.text || "").trim());
+          if (filled.length === 1 && firstRow.length > 1) headerIdx = 1;
+        }
+        const headerRow = allRows[headerIdx];
         const mid = Math.ceil(allRows.length / 2);
         const leftTable = { ...splitTable, rows: allRows.slice(0, mid), width: 0 };
-        const rightTable = { ...splitTable, rows: allRows.slice(mid), width: 0 };
+        const rightTable = {
+          ...splitTable,
+          rows: [headerRow, ...allRows.slice(mid)],
+          width: 0,
+        };
         parts.push("");
         if (isHeaderValid) {
           parts.push(MARKDOWN_TAGS.HEADER);

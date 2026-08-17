@@ -610,4 +610,34 @@ describe("MarkdownParser table style directive", () => {
     expect(html).toContain('class="table-no-header"');
     expect(html).toContain('style="width:50%"');
   });
+
+  it("does not drift a directive onto a table that has no directive", () => {
+    // tableA has a width directive, tableB has none, tableC has a different
+    // width. The old flat-queue approach shifted the next entry for every
+    // table, so tableB consumed tableC's 75% and tableC got nothing.
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 40%}\n\n| A |\n| --- |\n| 1 |\n\n| B |\n| --- |\n| 2 |\n\ntable {width: 75%}\n\n| C |\n| --- |\n| 3 |",
+    );
+    const tables = html.match(/<table[^>]*>/g);
+    expect(tables).toHaveLength(3);
+    expect(tables[0]).toContain("width:40%");
+    expect(tables[1]).not.toContain('style="width:');
+    expect(tables[2]).toContain("width:75%");
+  });
+
+  it("does not cross-contaminate width and no-header across tables", () => {
+    // tableA has only width, tableB has only no-header. The old separate-array
+    // approach gave tableA both width AND no-header, and tableB got neither.
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 40%}\n\n| A |\n| --- |\n| 1 |\n\ntable {no-header}\n\n| B |\n| --- |\n| 2 |",
+    );
+    const tables = html.match(/<table[^>]*>/g);
+    expect(tables).toHaveLength(2);
+    expect(tables[0]).toContain("width:40%");
+    expect(tables[0]).not.toContain("table-no-header");
+    expect(tables[1]).toContain("table-no-header");
+    expect(tables[1]).not.toContain('style="width:');
+  });
 });

@@ -3796,6 +3796,51 @@ it("renders a large unfilled table as a markdown table, not a bare grid", () => 
   expect(md).not.toContain("fullpage-grid");
 });
 
+describe("convertToSlideMd split table header repetition", () => {
+  it("repeats the header row in the right half of a split table", () => {
+    // A table with 8+ rows triggers hasSplittableTableBody, which upgrades
+    // to two-column and splits the table at the row midpoint. The right
+    // half must repeat the header row so a data row is not misdetected as
+    // the header.
+    const rows = [
+      [{ text: "Name" }, { text: "Value" }],
+      ...Array.from({ length: 8 }, (_, i) => [{ text: `key${i}` }, { text: `val${i}` }]),
+    ];
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "table",
+            rows,
+            order: 5,
+            left: 0,
+            top: 0,
+            width: 9000000,
+            height: 5000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    // The header row label must appear in both halves — the right half
+    // repeats the header instead of promoting the first data row.
+    const headerMatches = md.match(/\| Name \| Value \|/g);
+    expect(headerMatches).toHaveLength(2);
+    // The first data row of the right half (key4) must appear as a data
+    // row, not as the header — it should be preceded by the repeated
+    // header row in the @media section.
+    const mediaSection = md.split("@media")[1] || "";
+    expect(mediaSection.indexOf("| Name | Value |")).toBeLessThan(
+      mediaSection.indexOf("| key4 | val4 |"),
+    );
+  });
+});
+
 describe("convertToSlideMd background image geometry", () => {
   const bgSlide = (image) => ({
     index: 0,
