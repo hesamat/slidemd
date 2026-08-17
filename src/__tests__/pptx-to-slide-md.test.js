@@ -3790,10 +3790,11 @@ describe("convertToSlideMd background image geometry", () => {
     expect(md).toContain("rgba(0,0,0,0.4)");
   });
 
-  it("uses edge-derived position with cover and keeps the scrim for a partial background image", () => {
+  it("uses contain + a box-matched scrim for a partial background image", () => {
     // A full-height image occupying the right 70% of the slide: flush right
-    // edge, flush top and bottom → "right center". Backgrounds are always
-    // cover now, and the dark overlay is applied to every background image.
+    // edge, flush top and bottom → "right center". Partial backgrounds keep
+    // their source box (contain) instead of being zoomed to cover, and the
+    // scrim is sized to the same box so it only darkens the photo.
     const md = convertToSlideMd(
       makeExtraction([
         bgSlide({
@@ -3807,8 +3808,8 @@ describe("convertToSlideMd background image geometry", () => {
         }),
       ]),
     );
-    expect(md).toContain("url(images/photo.jpeg) right center / cover no-repeat");
-    expect(md).toContain("rgba(0,0,0,0.4)");
+    expect(md).toContain("url(images/photo.jpeg) right center / contain no-repeat");
+    expect(md).toContain("rgba(0,0,0,0.4)) right center / 70% 100%");
   });
 
   it("centres a background image inset on all edges", () => {
@@ -3825,7 +3826,104 @@ describe("convertToSlideMd background image geometry", () => {
         }),
       ]),
     );
-    expect(md).toContain("url(images/photo.jpeg) center / cover no-repeat");
+    expect(md).toContain("url(images/photo.jpeg) center / contain no-repeat");
+    expect(md).toContain("rgba(0,0,0,0.4)) center / 80% 80%");
+  });
+
+  it("turns a large non-overlapping image beside a filled panel into a contain background", () => {
+    // Slide 48 pattern: a filled sidebar panel on the left with a photo
+    // filling the rest of the slide. The photo becomes the background.
+    const md = convertToSlideMd(
+      makeExtraction([
+        {
+          index: 0,
+          title: "",
+          notes: "",
+          elements: [
+            {
+              type: "text",
+              content: "## The first two repetition control structures",
+              left: 0,
+              top: 0,
+              width: 3000000,
+              height: 1000000,
+            },
+            {
+              type: "text",
+              content: "- for\n- while",
+              left: 0,
+              top: 0,
+              width: 3000000,
+              height: 5143500,
+              fillRaw: { type: "color", value: "#C6322E" },
+            },
+            {
+              type: "image",
+              ref: "ppt/media/photo.jpeg",
+              base64: "abc",
+              left: 3000000,
+              top: 0,
+              width: 6144000,
+              height: 5143500,
+            },
+          ],
+          background: "",
+        },
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) right center / contain no-repeat");
+    // The sidebar color is a slide-level background layer (not area-bg-main)
+    // because the @main area is inset by grid gutters and cannot reach the
+    // slide edge where the original sidebar was.
+    expect(md).toContain(
+      "background: linear-gradient(90deg, #C6322E 0%, #C6322E 32.8%, transparent 32.8%, transparent 100%)",
+    );
+    expect(md).not.toContain("area-bg-main:");
+  });
+
+  it("keeps a large non-overlapping image as a media image when there is no panel", () => {
+    // Slides 93/106 pattern: a big media-span photo with substantive body
+    // text — the image must stay in @media, not become a background.
+    const md = convertToSlideMd(
+      makeExtraction([
+        {
+          index: 0,
+          title: "",
+          notes: "",
+          elements: [
+            {
+              type: "text",
+              content: "## How do we create these functions?",
+              left: 0,
+              top: 200000,
+              width: 5000000,
+              height: 500000,
+            },
+            {
+              type: "text",
+              content:
+                "- The loop body is repeated once for each element\n- The loop body is indented\n- There is no maximum loop duration",
+              left: 0,
+              top: 1500000,
+              width: 4000000,
+              height: 2000000,
+            },
+            {
+              type: "image",
+              ref: "ppt/media/photo.jpeg",
+              base64: "abc",
+              left: 2400000,
+              top: 0,
+              width: 6800000,
+              height: 5143500,
+            },
+          ],
+          background: "",
+        },
+      ]),
+    );
+    expect(md).not.toContain("background: ");
+    expect(md).toMatch(/layout: media-span-right/);
   });
 });
 
@@ -3888,5 +3986,63 @@ describe("convertToSlideMd area-bg from filled text placeholders", () => {
     ]);
     const md = convertToSlideMd(extraction);
     expect(md).toContain("area-bg-main: rgba(13, 13, 13, 0.73)");
+  });
+
+  it("flips the theme to dark for a dark area-bg panel (no background directive)", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 6000000,
+            height: 600000,
+          },
+          {
+            type: "text",
+            content: "- Body text on a dark panel",
+            left: 500000,
+            top: 1500000,
+            width: 6000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "#000000a8" },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #000000a8");
+    expect(md).toContain("theme: dark");
+  });
+
+  it("keeps a light theme for a light area-bg panel", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "- Body text on a light panel",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "#C1986A" },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #C1986A");
+    expect(md).not.toContain("theme: dark");
   });
 });

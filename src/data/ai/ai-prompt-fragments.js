@@ -133,14 +133,15 @@ function validateBackgroundValue(value) {
   const v = String(value || "").trim();
   if (!v) return null;
 
-  // Split on whitespace but respect parentheses (gradients, url(), rgb()).
+  // Split on whitespace and layer commas, but respect parentheses
+  // (gradients, url(), rgb() — their internal commas must not split).
   const tokens = [];
   let depth = 0;
   let current = "";
   for (const ch of v) {
     if (ch === "(") depth++;
     if (ch === ")") depth--;
-    if (ch === " " && depth === 0) {
+    if ((ch === " " || ch === ",") && depth === 0) {
       if (current) tokens.push(current);
       current = "";
     } else {

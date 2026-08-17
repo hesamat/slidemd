@@ -273,9 +273,35 @@ function convertSlide(
           ELEMENT_TYPES.DIAGRAM,
         ].includes(other.type),
     );
-    return contentEls.some((cel) => {
-      const overlap = getOverlapArea(el, cel);
-      return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
+    if (
+      contentEls.some((cel) => {
+        const overlap = getOverlapArea(el, cel);
+        return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
+      })
+    ) {
+      return true;
+    }
+    // A large image with no content overlap is still a background when the
+    // slide's content sits on a large filled backing panel on the opposite
+    // side (e.g. a red sidebar panel on the left with a photo filling the
+    // rest of the slide). The panel is the content surface; the photo is the
+    // backdrop. Without a panel the image is a genuine media column and must
+    // stay in @media.
+    const imgCenterX = (el.left || 0) + (el.width || 0) / 2;
+    return slide.elements.some((other) => {
+      if (other === el) return false;
+      const isPanel =
+        other.type === "shape"
+          ? !(other.content || "").trim()
+          : other.type === "text" &&
+            !!(other.fillRaw || other.fill) &&
+            !!(other.content || "").trim();
+      if (!isPanel) return false;
+      const w = other.width || 0;
+      const h = other.height || 0;
+      if (w * h < slideArea * 0.25) return false;
+      const otherCenterX = (other.left || 0) + w / 2;
+      return otherCenterX < imgCenterX !== imgCenterX < slideWidth / 2;
     });
   });
 
@@ -357,15 +383,24 @@ function convertSlide(
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
     const pos = cssBackgroundPosition(bgCandidate, slideWidth, slideHeight);
-    // cover everywhere: a partial photo strip scaled up still keeps its edge
-    // anchoring via the derived position; contain proved too fiddly.
-    const size = "cover";
+    // Background images keep their source box: a partial photo strip (e.g.
+    // the right 75% of the slide) must render at its own size/position
+    // (`contain`) instead of being zoomed to cover the whole slide. Only a
+    // truly full-slide image uses `cover`.
+    const wPct = Math.min(100, Math.round(((bgCandidate.width || 0) / slideWidth) * 100));
+    const hPct = Math.min(100, Math.round(((bgCandidate.height || 0) / slideHeight) * 100));
+    const isFullSlide = wPct >= 85 && hPct >= 85;
+    const size = isFullSlide ? "cover" : "contain";
     // The dark scrim keeps light slide text readable over the photo. It is
-    // applied to every background image (the alpha is configurable; 0.65 was
-    // too heavy). With cover, the scrim paints only over the image itself.
+    // sized to the image's box (position + width/height percentages) so a
+    // partial background only darkens the photo, not the panels around it
+    // (e.g. a red sidebar must stay bright). Full-slide images scrim the
+    // whole slide.
     const scrim =
       CONFIG.bgScrimAlpha > 0
-        ? `linear-gradient(rgba(0,0,0,${CONFIG.bgScrimAlpha}),rgba(0,0,0,${CONFIG.bgScrimAlpha})), `
+        ? isFullSlide
+          ? `linear-gradient(rgba(0,0,0,${CONFIG.bgScrimAlpha}),rgba(0,0,0,${CONFIG.bgScrimAlpha})) ${pos} / cover, `
+          : `linear-gradient(rgba(0,0,0,${CONFIG.bgScrimAlpha}),rgba(0,0,0,${CONFIG.bgScrimAlpha})) ${pos} / ${wPct}% ${hPct}%, `
         : "";
     slide.background = `${scrim}url(${DEFAULTS.IMAGE_SUBDIR}${filename}) ${pos} / ${size} no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
@@ -515,78 +550,18 @@ function convertSlide(
     }
   }
 
-  parts.push(`layout: ${layout.spec}`);
-
-  if (slide.background) {
-    parts.push(`background: ${slide.background}`);
-    if (bgCandidate || isColorDark(slide.background)) {
-      parts.push("theme: dark");
-    }
-  }
-
-  // --- FULL-IMAGE OVERRIDE ---
-  // If a full-image candidate was detected, override the layout and render
-  // the image as an <img> tag in @main instead of using CSS background.
-  if (fullImageCandidate) {
-    layout = LAYOUT.FULL_IMAGE;
-    setLayoutDirective(parts, layout);
-    // Remove background/theme if they were set — not needed for full-image.
-    // Locate them by content: speaker notes may precede the directives.
-    const bgIdx = parts.findIndex((p) => p.startsWith("background:"));
-    if (bgIdx !== -1) parts.splice(bgIdx, 1);
-    const themeIdx = parts.findIndex((p) => p === "theme: dark");
-    if (themeIdx !== -1) parts.splice(themeIdx, 1);
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    parts.push(formatImage(fullImageCandidate, deckName));
-    return parts.join("\n");
-  }
-
-  // --- media-full-bleed / area-bg ---
-  // The app supports `media-full-bleed:` (edge-to-edge media column) and
-  // `area-bg-<area>:` (per-area background). Emit them when the source slide
-  // actually uses those visuals, so media-span slides keep their full-height
-  // edge image and colored backing panels survive the conversion.
-  // The directives are only pushed once the final layout is known: the
-  // media-span / two-column render branches can downgrade to header-content
-  // (empty @main / empty right column) below, which would leave media
-  // directives in the markdown for a layout that has no media area.
-  const directiveIndex = parts.length;
-  let mediaFullBleed = false;
-  if (layout.type === LAYOUT.MEDIA_SPAN.type) {
-    const mediaSide = layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec ? "left" : "right";
-    // Mirror the @media population exactly (see the media-span render branch)
-    // so full-bleed is judged from the image that actually lands in @media.
-    let mediaEls = dominantImages.filter(
-      (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === mediaSide,
-    );
-    if (mediaEls.length === 0) {
-      mediaEls = dominantImages.filter(
-        (el) => bodyElements.includes(el) || el === dominantImages[0],
-      );
-    }
-    const mediaImage = mediaEls[0] || null;
-    // Full-bleed: the @media image touches the slide's outer edge and spans
-    // (nearly) the full height, so the source column is edge-to-edge. A
-    // single image is required — the render branch only applies the fill
-    // styles to a lone media image, so a multi-image media column would
-    // carry a directive with no visual effect.
-    if (mediaEls.length === 1 && mediaImage.type === ELEMENT_TYPES.IMAGE) {
-      const l = mediaImage.left || 0;
-      const w = mediaImage.width || 0;
-      const h = mediaImage.height || 0;
-      const touchesOuterEdge = mediaSide === "left" ? l <= 2 : l + w >= slideWidth - 2;
-      if (touchesOuterEdge && h >= slideHeight * 0.95) {
-        mediaFullBleed = true;
-      }
-    }
-  }
-
   // area-bg-*: a filled backing panel (a shape with no text) covering a large
   // part of the main/media region becomes that region's background, so colored
-  // cards and sidebars survive the conversion.
+  // cards and sidebars survive the conversion. Coloured header bands are
+  // deliberately ignored: the app's header area is padded and fixed-height,
+  // so it cannot reproduce a full-bleed variable-height title bar.
+  // Edge sidebar panels are injected into the slide's `background:` directive
+  // (not `area-bg-main:`) because the @main area is inset by grid gutters and
+  // cannot reach the slide's edge where the original sidebar was.
+  // Computed before the theme directive — a dark area-bg also flips the slide
+  // to dark (light text must stay readable on the dark panel).
   const areaBg = {};
+  let slidePanelBg = null; // edge panel color, prepended to slide.background
   if (layout.type !== LAYOUT.TITLE_SLIDE.type) {
     const mediaSide =
       layout.type === LAYOUT.MEDIA_SPAN.type
@@ -616,12 +591,107 @@ function convertSlide(
       const centerX = (el.left || 0) + w / 2;
       const centerY = (el.top || 0) + h / 2;
       if (centerY < bodyTop) continue;
+      // A panel flush to an edge and narrower than ~40% of the slide is a
+      // sidebar. Paint it as a slide-level background layer (hard-stop
+      // gradient positioned relative to the slide) so it reaches the slide
+      // edge, which the @main area cannot do because of grid gutters.
+      const isEdgePanel =
+        (el.left || 0) <= slideWidth * 0.02 || (el.left || 0) + w >= slideWidth * 0.98;
+      if (w < slideWidth * 0.4 && isEdgePanel) {
+        const start = Math.max(0, Math.round(((el.left || 0) / slideWidth) * 1000) / 10);
+        const end = Math.min(100, Math.round((((el.left || 0) + w) / slideWidth) * 1000) / 10);
+        const before = start > 0 ? `transparent 0%, transparent ${start}%, ` : "";
+        const after = end < 100 ? `, transparent ${end}%, transparent 100%` : "";
+        slidePanelBg = `linear-gradient(90deg, ${before}${css} ${start}%, ${css} ${end}%${after})`;
+        continue;
+      }
       if (mediaSide === "left" && centerX < midX) {
         areaBg.media = css;
       } else if (mediaSide === "right" && centerX >= midX) {
         areaBg.media = css;
       } else {
         areaBg.main = css;
+      }
+    }
+  }
+
+  // Prepend edge panel color to the slide background so it paints at the
+  // slide level (reaching the slide edge), on top of the scrim and photo.
+  if (slidePanelBg) {
+    slide.background = slide.background ? `${slidePanelBg}, ${slide.background}` : slidePanelBg;
+  }
+
+  parts.push(`layout: ${layout.spec}`);
+
+  if (slide.background) {
+    parts.push(`background: ${slide.background}`);
+  }
+  // Dark theme whenever the slide needs light text: a dark photo background,
+  // a dark area-bg panel, or a dark edge sidebar (light text must stay
+  // readable on the panel). Evaluated even without a `background:` directive
+  // — an area-bg panel can be the only dark surface on the slide.
+  if (
+    bgCandidate ||
+    isColorDark(slide.background) ||
+    Object.values(areaBg).some(isColorDark) ||
+    (slidePanelBg && isColorDark(slidePanelBg))
+  ) {
+    parts.push("theme: dark");
+  }
+
+  // --- FULL-IMAGE OVERRIDE ---
+  // If a full-image candidate was detected, override the layout and render
+  // the image as an <img> tag in @main instead of using CSS background.
+  if (fullImageCandidate) {
+    layout = LAYOUT.FULL_IMAGE;
+    setLayoutDirective(parts, layout);
+    // Remove background/theme if they were set — not needed for full-image.
+    // Locate them by content: speaker notes may precede the directives.
+    const bgIdx = parts.findIndex((p) => p.startsWith("background:"));
+    if (bgIdx !== -1) parts.splice(bgIdx, 1);
+    const themeIdx = parts.findIndex((p) => p === "theme: dark");
+    if (themeIdx !== -1) parts.splice(themeIdx, 1);
+    parts.push("");
+    parts.push(MARKDOWN_TAGS.MAIN);
+    parts.push("");
+    parts.push(formatImage(fullImageCandidate, deckName));
+    return parts.join("\n");
+  }
+
+  // --- media-full-bleed ---
+  // The app supports `media-full-bleed:` (edge-to-edge media column). Emit it
+  // when the source slide's media column is genuinely edge-to-edge, so
+  // media-span slides keep their full-height edge image. The directive is
+  // only pushed once the final layout is known: the media-span render branch
+  // can downgrade to header-content (empty @main) below, which would leave a
+  // media directive in the markdown for a layout that has no media area.
+  const directiveIndex = parts.length;
+  let mediaFullBleed = false;
+  if (layout.type === LAYOUT.MEDIA_SPAN.type) {
+    const mediaSide = layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec ? "left" : "right";
+    // Mirror the @media population exactly (see the media-span render branch)
+    // so full-bleed is judged from the image that actually lands in @media.
+    let mediaEls = dominantImages.filter(
+      (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === mediaSide,
+    );
+    if (mediaEls.length === 0) {
+      mediaEls = dominantImages.filter(
+        (el) => bodyElements.includes(el) || el === dominantImages[0],
+      );
+    }
+    const mediaImage = mediaEls[0] || null;
+    // Full-bleed: the @media image touches the slide's outer edge and spans
+    // (nearly) the full height, so the source column is edge-to-edge. A
+    // single image is required — the render branch only applies the fill
+    // styles to a lone media image, so a multi-image media column would
+    // carry a directive with no visual effect.
+    if (mediaEls.length === 1 && mediaImage.type === ELEMENT_TYPES.IMAGE) {
+      const l = mediaImage.left || 0;
+      const w = mediaImage.width || 0;
+      const h = mediaImage.height || 0;
+      const touchesOuterEdge = mediaSide === "left" ? l <= 2 : l + w >= slideWidth - 2;
+      if (touchesOuterEdge && h >= slideHeight * 0.95) {
+        mediaFullBleed = true;
       }
     }
   }
