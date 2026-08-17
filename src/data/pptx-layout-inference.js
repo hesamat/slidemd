@@ -318,8 +318,17 @@ export function inferLayout(
       // content.  The strict allEls.length===1 check only allowed a lone
       // heading-only slide; relaxing to "only text element" covers the
       // common case of a title panel next to a photo or diagram.
+      // But a full-height panel with many lines of content (e.g. a 5-item
+      // criteria list with headings) is body content, not a header — check
+      // the stripped text length to distinguish a short title from a long
+      // body.
       const otherTextEls = contentEls.filter((e) => e !== el);
-      if (otherTextEls.length === 0 && isHeaderLikeTextElement(el, slideHeight)) {
+      const strippedText = stripHtml(el.content || "").trim();
+      if (
+        otherTextEls.length === 0 &&
+        strippedText.length <= CONFIG.maxHeaderLength &&
+        isHeaderLikeTextElement(el, slideHeight)
+      ) {
         return true;
       }
       return false;

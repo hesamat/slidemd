@@ -1946,6 +1946,56 @@ describe("convertToSlideMd", () => {
     expect(md).toContain('style="width: 100%; height: auto; object-fit: contain;"');
   });
 
+  it("uses media-span for a full-height text panel with heading-marked body content beside an image", () => {
+    // A full-height text panel whose content is a multi-line criteria list
+    // (each line heading-marked) is body content, not a header. The slide
+    // should be media-span, not header-content — the text goes in @main and
+    // the image in @media.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Criteria",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content:
+              "### We want functions that are:\n\n" +
+              "## 1. *Short* (the fewest lines possible)\n\n" +
+              "## 2. *Atomic* (cannot be broken down any further)\n\n" +
+              "## 3. *General* enough to be reused (modular)\n\n" +
+              "## 4. *Understandable* enough to require minimal comments\n\n" +
+              "## 5. *Simple* to test individually.",
+            left: 190000,
+            top: 230000,
+            width: 4700000,
+            height: 4600000,
+          },
+          {
+            type: "image",
+            ref: "criteria-image.png",
+            base64: "abc",
+            left: 5100000,
+            top: 0,
+            width: 5000000,
+            height: 6500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("layout: header-content");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    // The criteria text must be in @main, not @header
+    expect(md.indexOf("We want functions")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("criteria-image.png")).toBeGreaterThan(mediaIdx);
+  });
+
   it("uses focus when the body is a single short caption beside one dominant image", () => {
     // A one-line caption that introduces an image is not a real content
     // column — media-span would shrink the image into a side column and leave

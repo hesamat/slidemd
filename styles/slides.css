@@ -1090,6 +1090,15 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   backdrop-filter: blur(4px);
 }
 
+/* Headerless tables — the empty header row is required by markdown syntax
+   but should not be visible. Hide the entire thead. */
+.slide__area table.table-no-header thead {
+  display: none;
+}
+.slide__area table.table-no-header tbody tr:first-child td {
+  border-top: none;
+}
+
 /* Table body cells */
 .slide__area tbody td {
   padding: 12px 16px;

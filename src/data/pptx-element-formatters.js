@@ -218,7 +218,7 @@ export function formatImage(
  * @param {number} [slideWidth] - Slide width in points (for the width ratio).
  * @returns {string} Markdown table (with optional `table {width: X%}` prefix)
  */
-export function formatTable(table, slideWidth) {
+export function formatTable(table, slideWidth, { noHeader = false } = {}) {
   if (!table.rows?.length) return "";
 
   const escapeCell = (text) =>
@@ -228,6 +228,33 @@ export function formatTable(table, slideWidth) {
       .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
       .trim();
   const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
+
+  // Detect whether the first row is a header. PowerPoint styles header
+  // rows with a distinct fill color from the body rows. When fills are
+  // absent or uniform, fall back to a text heuristic.
+  if (!noHeader && table.rows.length > 1) {
+    const firstFill = table.rows[0].map((c) => c.fillColor || null).join(",");
+    const bodyFills = new Set(
+      table.rows.slice(1).map((r) => r.map((c) => c.fillColor || null).join(",")),
+    );
+    const hasAnyFill = table.rows.some((r) => r.some((c) => c.fillColor));
+    const hasDistinctHeaderFill = hasAnyFill && !bodyFills.has(firstFill);
+    if (!hasDistinctHeaderFill) {
+      // No distinct header fill — use text heuristic: a header row has
+      // short label cells, while body rows have longer content. If the
+      // first row has any cell longer than 20 chars, it's data, not a
+      // label — the table is headerless. If all first-row cells are short
+      // labels, default to treating the first row as a header (the common
+      // case), unless body rows are not longer (ambiguous → keep header).
+      const firstRowTexts = table.rows[0].map((c) => (c.text || "").trim());
+      const isShortLabels = firstRowTexts.every(
+        (t) => t.length <= 20 && !/[.!?]$/.test(t) && !t.includes("\n"),
+      );
+      if (!isShortLabels) {
+        noHeader = true;
+      }
+    }
+  }
 
   // A leading row with a single filled cell is a merged title row (e.g. the
   // "Memory table" caption above a two-column value grid). Render it as a bold
@@ -244,23 +271,41 @@ export function formatTable(table, slideWidth) {
   }
 
   const rows = table.rows.slice(startRow).map(formatRow);
+  const colCount = table.rows[startRow].length;
   const separator = table.rows[startRow].map(() => "---").join(" | ");
   const parts = [];
   if (caption) parts.push(`**${escapeCell(caption)}**`);
-  parts.push(`| ${rows[0]} |`);
-  parts.push(`| ${separator} |`);
-  for (let i = 1; i < rows.length; i++) {
+  if (noHeader) {
+    // Emit an empty header row so all data rows are treated as body,
+    // not as a header. Required because markdown tables need a header
+    // row + separator before the body rows.
+    const emptyHeader = table.rows[startRow].map(() => "").join(" | ");
+    parts.push(`| ${emptyHeader} |`);
+    parts.push(`| ${separator} |`);
+  } else {
+    parts.push(`| ${rows[0]} |`);
+    parts.push(`| ${separator} |`);
+  }
+  const dataStart = noHeader ? 0 : 1;
+  for (let i = dataStart; i < rows.length; i++) {
     parts.push(`| ${rows[i]} |`);
   }
   const tableMd = parts.join("\n");
 
-  // Size the table to the source box when it is meaningfully narrower than
-  // the slide (near-full-width tables keep the default styling).
+  // Build the table directive line: width sizing and/or no-header flag.
+  // Width sizes the table to the source box when it is meaningfully narrower
+  // than the slide (near-full-width tables keep the default styling).
   const widthPct =
     slideWidth > 0 && table.width > 0
       ? Math.min(100, Math.round((table.width / slideWidth) * 100))
       : 100;
-  return widthPct <= 85 ? `table {width: ${widthPct}%}\n\n${tableMd}` : tableMd;
+  const directives = [];
+  if (widthPct <= 85) directives.push(`width: ${widthPct}%`);
+  if (noHeader) directives.push("no-header");
+  if (directives.length > 0) {
+    return `table {${directives.join("; ")}}\n\n${tableMd}`;
+  }
+  return tableMd;
 }
 
 /**

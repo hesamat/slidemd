@@ -594,4 +594,20 @@ describe("MarkdownParser table style directive", () => {
     expect(html).toContain("<table");
     expect(html).not.toContain('style="width:');
   });
+
+  it("applies no-header class to hide the thead", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("table {no-header}\n\n| A | B |\n| --- | --- |\n| 1 | 2 |");
+    expect(html).toContain('class="table-no-header"');
+    expect(html).not.toContain("table {no-header}");
+  });
+
+  it("applies both width and no-header", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 50%; no-header}\n\n| A | B |\n| --- | --- |\n| 1 | 2 |",
+    );
+    expect(html).toContain('class="table-no-header"');
+    expect(html).toContain('style="width:50%"');
+  });
 });

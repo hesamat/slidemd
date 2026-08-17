@@ -48,6 +48,36 @@ describe("formatTable", () => {
     expect(out).not.toContain("fullpage-grid");
   });
 
+  it("marks headerless tables with no-header directive", () => {
+    // A table where the first row has long cells (data, not labels) is
+    // headerless — the no-header directive hides the empty thead.
+    const dataOnlyTable = {
+      width: 300,
+      height: 200,
+      rows: [
+        [{ text: "assert total == expected_total" }, { text: "some long value" }],
+        [{ text: "assert actual != expected" }, { text: "another value" }],
+      ],
+    };
+    const out = formatTable(dataOnlyTable, 960, 540);
+    expect(out).toContain("table {width: 31%; no-header}");
+    expect(out).toContain("|  |  |");
+  });
+
+  it("keeps header for tables with short label first rows", () => {
+    const labelTable = {
+      width: 300,
+      height: 200,
+      rows: [
+        [{ text: "Name" }, { text: "Value" }],
+        [{ text: "a long descriptive sentence here" }, { text: "another long one" }],
+      ],
+    };
+    const out = formatTable(labelTable, 960, 540);
+    expect(out).toContain("| Name | Value |");
+    expect(out).not.toContain("no-header");
+  });
+
   it("returns empty string for an empty table", () => {
     expect(formatTable({ rows: [] }, 960, 540)).toBe("");
   });

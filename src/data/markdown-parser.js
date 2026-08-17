@@ -295,29 +295,38 @@ export class MarkdownParser {
       };
     }
 
-    // Per-table styling without raw HTML: a `table {width: 40%}` line directly
-    // before a markdown table applies the declared width to the rendered
-    // <table> tag (mirroring the `text-block { ... }` directive syntax). Only
-    // safe numeric width declarations are honoured; anything else in the
-    // braces is ignored and the line stays plain text.
+    // Per-table styling without raw HTML: a `table {width: 40%}` or
+    // `table {no-header}` line directly before a markdown table applies the
+    // declared style to the rendered <table> tag (mirroring the `text-block`
+    // directive syntax). Only safe numeric width declarations and the
+    // `no-header` keyword are honoured; anything else in the braces is
+    // ignored and the line stays plain text.
     this.md.core.ruler.push("table_style_directive", (state) => {
       const widths = [];
+      const noHeaders = [];
       const tokens = state.tokens;
       for (let i = 0; i < tokens.length; i++) {
         if (tokens[i].type !== "inline") continue;
         const match = /^\s*table\s*\{([^}]*)\}\s*$/.exec(tokens[i].content || "");
         if (!match) continue;
         const widthMatch = /(?:^|;)\s*width\s*:\s*(\d+(?:\.\d+)?)\s*%\s*(?:;|$)/i.exec(match[1]);
-        if (!widthMatch) continue;
+        const noHeaderMatch = /(?:^|;)\s*no-header\s*(?:;|$)/i.test(match[1]);
+        if (!widthMatch && !noHeaderMatch) continue;
         const prev = tokens[i - 1];
         const next = tokens[i + 1];
         if (prev?.type === "paragraph_open" && next?.type === "paragraph_close") {
           tokens.splice(i - 1, 3);
           i -= 2;
-          widths.push(Math.max(1, Math.min(100, Number(widthMatch[1]))));
+          if (widthMatch) {
+            widths.push(Math.max(1, Math.min(100, Number(widthMatch[1]))));
+          }
+          if (noHeaderMatch) {
+            noHeaders.push(true);
+          }
         }
       }
       if (widths.length) state.env.tableWidths = widths;
+      if (noHeaders.length) state.env.tableNoHeaders = noHeaders;
     });
 
     const originalTableOpen = this.md.renderer.rules.table_open;
@@ -326,9 +335,17 @@ export class MarkdownParser {
         ? originalTableOpen(tokens, idx, options, env, slf)
         : slf.renderToken(tokens, idx, options);
       const widths = env?.tableWidths;
-      if (widths?.length) {
-        const pct = widths.shift();
-        return html.replace(/^<table/, `<table style="width:${pct}%"`);
+      const noHeaders = env?.tableNoHeaders;
+      const pct = widths?.length ? widths.shift() : null;
+      const noHeader = noHeaders?.length ? noHeaders.shift() : false;
+      if (pct != null || noHeader) {
+        const styleParts = [];
+        if (pct != null) styleParts.push(`width:${pct}%`);
+        const classAttr = noHeader ? ' class="table-no-header"' : "";
+        return html.replace(
+          /^<table/,
+          `<table${classAttr}${styleParts.length ? ` style="${styleParts.join(";")}"` : ""}`,
+        );
       }
       return html;
     };

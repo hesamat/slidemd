@@ -485,6 +485,31 @@ function processBlockNodes(nodes, out) {
     }
 
     if (tag === "P" || tag === "DIV") {
+      // Detect headings by font size — use band-specific heading level
+      // but only if the text is short enough to be a heading. This must
+      // run before the monospace/code check, because a heading-sized
+      // text in a monospace font (e.g. "Behold the ancient ASCII table"
+      // rendered in Courier at 40pt) is a heading, not inline code.
+      const headingFontSize = getLargestFontSize(node);
+      const headingBand = HEADING_BANDS.find((b) => headingFontSize >= b.min);
+      if (headingBand) {
+        const headingInline = [];
+        // Use code mode so monospace spans don't get wrapped in backticks —
+        // a heading rendered in Courier is still a heading, not inline code.
+        processInlineNodes(node.childNodes, headingInline, { code: true });
+        const headingRaw = headingInline.join("");
+        const headingTrimmed = normalizeBulletGlyphs(mergeAdjacentMarkers(headingRaw)).trim();
+        if (
+          headingTrimmed &&
+          !isBulletLine(headingTrimmed) &&
+          !isMarkerOnly(headingTrimmed) &&
+          headingTrimmed.length <= 80
+        ) {
+          lastOutputWasBullet = false;
+          out.push(`${headingBand.prefix}${headingTrimmed}\n\n`);
+          continue;
+        }
+      }
       // A paragraph whose content is entirely monospace is code. Render it as
       // a verbatim code line (no per-run inline-code markers, no bullet or
       // marker rewriting) so highlighted multi-run code and leading indentation
@@ -516,17 +541,6 @@ function processBlockNodes(nodes, out) {
       const trimmed = merged.trim();
       const isResidue = isMarkerOnly(trimmed) && !isDivider;
       if (trimmed && !isResidue) {
-        // Detect headings by font size — use band-specific heading level
-        // but only if the text is short enough to be a heading. This must
-        // run on the *un-escaped* text, because # literals below are
-        // escaped and would otherwise leak a backslash into the heading.
-        const fontSize = getLargestFontSize(node);
-        const headingBand = HEADING_BANDS.find((b) => fontSize >= b.min);
-        if (headingBand && !isBulletLine(trimmed) && trimmed.length <= 80) {
-          lastOutputWasBullet = false;
-          out.push(`${headingBand.prefix}${trimmed}\n\n`);
-          continue;
-        }
         // Escape # at start of lines so PPTX text like "# Print using..."
         // is preserved as literal text. Skip lines inside fenced code blocks
         // and lines starting with backticks (inline code).

@@ -189,12 +189,32 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
     const text = (el.content || "").replace(REGEX.HEADING_REPLACE, "").trim();
     return text.length <= CONFIG.maxHeaderLengthShort;
   };
+  // A full-height text panel (taller than the header limit) is only a header
+  // when its stripped text is short — a tall panel with many lines of heading-
+  // marked content (e.g. a 5-item criteria list) is body content, not a title.
+  const isMassivePanel = (el) => (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
+  const strippedLen = (el) =>
+    (el.content || "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/#{1,3}\s/g, "")
+      .trim().length;
 
-  // 1. Prefer explicit heading markers (## / ###) — always a header
+  // 1. Prefer explicit heading markers (## / ###) — always a header,
+  //    unless the element is a massive panel with long content.
   // 2. Fallback: short text in the top portion of the slide
   let header =
-    textElements.find((el) => isHeading(el) && isShortEnough(el)) ||
-    textElements.find((el) => el.top < slideHeight * CONFIG.bodyTopRatio && isShortEnough(el)) ||
+    textElements.find(
+      (el) =>
+        isHeading(el) &&
+        isShortEnough(el) &&
+        !(isMassivePanel(el) && strippedLen(el) > CONFIG.maxHeaderLength),
+    ) ||
+    textElements.find(
+      (el) =>
+        el.top < slideHeight * CONFIG.bodyTopRatio &&
+        isShortEnough(el) &&
+        !(isMassivePanel(el) && strippedLen(el) > CONFIG.maxHeaderLength),
+    ) ||
     null;
 
   if (!header) {
@@ -554,7 +574,17 @@ function convertSlide(
   // and then downgraded back to header-content — the heuristic does not fix
   // multi-box overflow, it only avoids regressing it.
   const bodyOverflows = estimateBodyOverflow(bodyElements);
-  if (bodyOverflows && bodyElements.length > 0 && layout.type === LAYOUT.HEADER_CONTENT.type) {
+  // A table with 8+ rows is a splittable body — upgrade to two-column so
+  // the table can be split at the row midpoint into side-by-side tables.
+  const hasSplittableTableBody =
+    bodyElements.length === 1 &&
+    bodyElements[0].type === ELEMENT_TYPES.TABLE &&
+    (bodyElements[0].rows?.length || 0) >= 8;
+  if (
+    (bodyOverflows || hasSplittableTableBody) &&
+    bodyElements.length > 0 &&
+    layout.type === LAYOUT.HEADER_CONTENT.type
+  ) {
     layout = { type: LAYOUT.TWO_COLUMN.type, spec: LAYOUT.TWO_COLUMN.spec };
   }
 
@@ -585,10 +615,14 @@ function convertSlide(
     }
     if (leftEls.length === 0 || rightEls.length === 0) {
       // Keep TWO_COLUMN if there's a single element that can be content-split:
-      // a wide element (merged code from PPTX) or an overflowing body. The
-      // layout directive is not pushed yet — it picks up the new spec below.
+      // a wide element (merged code from PPTX), an overflowing body, or a
+      // table with 8+ rows that can be split at the row midpoint.
       const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
-      if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows))) {
+      const hasSplittableTable =
+        bodyElements.length === 1 &&
+        bodyElements[0].type === ELEMENT_TYPES.TABLE &&
+        (bodyElements[0].rows?.length || 0) >= 8;
+      if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows || hasSplittableTable))) {
         layout = LAYOUT.HEADER_CONTENT;
       }
     }
@@ -677,7 +711,12 @@ function convertSlide(
       }
       const w = el.width || 0;
       const h = el.height || 0;
-      if (w * h < slideArea * 0.25) continue;
+      // Full-height panels are significant even when narrow (a translucent
+      // content card covering 20% of the slide width but the full height
+      // is still the content surface). Use a lower area threshold for them.
+      const isFullHeight = h >= slideHeight * 0.85;
+      const minArea = isFullHeight ? slideArea * 0.15 : slideArea * 0.25;
+      if (w * h < minArea) continue;
       const css = formatElementFillBackground(el);
       if (!css || css === "transparent") continue;
       const centerX = (el.left || 0) + w / 2;
@@ -722,11 +761,17 @@ function convertSlide(
   // a dark area-bg panel, or a dark edge sidebar (light text must stay
   // readable on the panel). Evaluated even without a `background:` directive
   // — an area-bg panel can be the only dark surface on the slide.
+  // Exception: when area-bg-main is light, the main content needs dark text
+  // to be readable on the light panel — don't force theme: dark even if the
+  // slide background is dark. The header may be less readable, but the main
+  // content (the bulk of the slide) takes priority.
+  const hasLightMain = areaBg.main && !isColorDark(areaBg.main);
   if (
-    bgCandidate ||
-    isColorDark(slide.background) ||
-    Object.values(areaBg).some(isColorDark) ||
-    (slidePanelBg && isColorDark(slidePanelBg))
+    !hasLightMain &&
+    (bgCandidate ||
+      isColorDark(slide.background) ||
+      Object.values(areaBg).some(isColorDark) ||
+      (slidePanelBg && isColorDark(slidePanelBg)))
   ) {
     parts.push("theme: dark");
   }
@@ -821,9 +866,10 @@ function convertSlide(
     if (singleImage) {
       // Only omit dimensions for markdown images (no width/height properties).
       // Extracted PPTX images need explicit dimensions for the click/drag handler.
+      // fitColumn adds object-fit: contain so the image scales without stretching.
       const el = bodyElements[0];
       const hasExplicitDims = el.width && el.height;
-      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
+      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims, fitColumn: true }));
     } else if (hasBody) {
       parts.push(
         renderElementsWithFlex(
@@ -866,12 +912,19 @@ function convertSlide(
     // fenced code block.
     if (leftEls.length === 0 || rightEls.length === 0) {
       const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.8);
-      // Only a single TEXT element can be content-split — a wide image or
-      // table has no lines to split and would otherwise be dropped.
+      // A single TEXT element can be content-split at line boundaries.
+      // A single TABLE element with many rows can be split at the row
+      // midpoint into two side-by-side tables.
       const splitEl =
         bodyElements.length === 1 &&
         bodyElements[0].type === ELEMENT_TYPES.TEXT &&
         (wideEl || bodyOverflows)
+          ? bodyElements[0]
+          : null;
+      const splitTable =
+        bodyElements.length === 1 &&
+        bodyElements[0].type === ELEMENT_TYPES.TABLE &&
+        (bodyElements[0].rows?.length || 0) >= 8
           ? bodyElements[0]
           : null;
       if (splitEl) {
@@ -947,6 +1000,28 @@ function convertSlide(
           parts.push("");
           parts.push(formatTextElement(rightContent));
         }
+      } else if (splitTable) {
+        // Split a wide table at the row midpoint into two side-by-side tables.
+        // Each half fills its own column, so override the source width to
+        // make each table 100% of its column.
+        const allRows = splitTable.rows || [];
+        const mid = Math.ceil(allRows.length / 2);
+        const leftTable = { ...splitTable, rows: allRows.slice(0, mid), width: 0 };
+        const rightTable = { ...splitTable, rows: allRows.slice(mid), width: 0 };
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(formatTable(leftTable, 0));
+        parts.push("");
+        parts.push(MARKDOWN_TAGS.MEDIA);
+        parts.push("");
+        parts.push(formatTable(rightTable, 0));
       } else {
         // No single element to content-split (multiple body elements landed
         // on one side). Downgrade to header-content and render the body
@@ -971,7 +1046,9 @@ function convertSlide(
           // downgrade paths cannot drift.
           const el = bodyElements[0];
           const hasExplicitDims = el.width && el.height;
-          parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
+          parts.push(
+            formatImage(el, deckName, { omitDimensions: !hasExplicitDims, fitColumn: true }),
+          );
         } else {
           parts.push(
             renderElementsWithFlex(
@@ -1094,7 +1171,7 @@ function convertSlide(
       parts.push("");
       parts.push(
         mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref
-          ? formatImage(mediaEls[0], deckName, { omitDimensions: false })
+          ? formatImage(mediaEls[0], deckName, { omitDimensions: false, fitColumn: true })
           : renderElementsWithFlex(
               mediaEls,
               slideWidth,
