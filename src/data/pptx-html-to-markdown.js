@@ -614,6 +614,23 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
     counters[depth] = start - 1;
   }
 
+  // When every item in a top-level list has heading-sized fonts (>= 34pt,
+  // the `##` band), the list is a visual heading sequence (e.g. "1. Sequence
+  // / 2. Selection" rendered at 72pt). Emit each item as a heading with its
+  // number prefix instead of a markdown list — headings inside <li> don't
+  // render as headings, and plain list items lose the visual hierarchy.
+  // The 34pt threshold excludes normal body text (28pt `###` band) which is
+  // just slightly-larger body copy, not a heading sequence.
+  const HEADING_LIST_MIN = HEADING_BANDS.find((b) => b.prefix === "## ").min;
+  const liChildren = Array.from(listNode.children).filter((c) => c.tagName === "LI");
+  const allHeadingSized =
+    depth === 0 &&
+    liChildren.length >= 2 &&
+    liChildren.every((li) => {
+      const fs = getLargestFontSize(li);
+      return fs >= HEADING_LIST_MIN;
+    });
+
   // Track the last emitted list item so a nested list that appears as a
   // direct child of this list (PowerPoint emits <ol> as a sibling of <li>,
   // not wrapped inside the <li>) is attached to the preceding item. Such a
@@ -648,7 +665,13 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
       ? rawItem.replace(/[-*]/g, (marker) => `\\${marker}`)
       : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
     if (merged && !isMarkerOnly(merged)) {
-      if (isOrdered) {
+      if (allHeadingSized) {
+        counters[depth]++;
+        const fontSize = getLargestFontSize(child);
+        const band = HEADING_BANDS.find((b) => fontSize >= b.min) || HEADING_BANDS[0];
+        const prefix = isOrdered ? `${counters[depth]}. ` : "";
+        out.push(`${band.prefix}${prefix}${merged}\n\n`);
+      } else if (isOrdered) {
         counters[depth]++;
         // Top-level ordered lists use numbers; nested ordered lists use
         // letters (a., b., c.) to match PowerPoint's outline convention.

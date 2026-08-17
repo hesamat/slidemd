@@ -73,6 +73,42 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("3. c");
   });
 
+  it("emits heading-sized list items as headings with number prefixes", () => {
+    // When every item in a top-level <ol> has font-size >= 34pt (the `##`
+    // band), the list is a visual heading sequence, not a bullet list.
+    const html =
+      '<ol><li><p><span style="font-size: 72pt;">Sequence</span></p></li>' +
+      '<li><p><span style="font-size: 72pt;">Selection</span></p></li>' +
+      '<li><p><span style="font-size: 72pt;">Repetition</span></p></li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("# 1. Sequence");
+    expect(result).toContain("# 2. Selection");
+    expect(result).toContain("# 3. Repetition");
+    // Must NOT be a markdown list
+    expect(result).not.toMatch(/^\d+\.\s/m);
+  });
+
+  it("keeps heading-sized items as a list when not all items qualify", () => {
+    // Mixed font sizes: one heading-sized, one body-sized → stays a list
+    const html =
+      '<ol><li><p><span style="font-size: 72pt;">Big</span></p></li>' +
+      '<li><p><span style="font-size: 18pt;">Small</span></p></li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Big");
+    expect(result).toContain("2. Small");
+  });
+
+  it("keeps body-sized list items as a list even with many items", () => {
+    // 28pt is the `###` band — below the 34pt threshold for heading lists
+    const html =
+      '<ol><li><p><span style="font-size: 28pt;">Item A</span></p></li>' +
+      '<li><p><span style="font-size: 28pt;">Item B</span></p></li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Item A");
+    expect(result).toContain("2. Item B");
+    expect(result).not.toContain("#");
+  });
+
   it("continues numbering across adjacent same-type lists (PowerPoint split list)", () => {
     const html = "<ol><li>a</li><li>b</li></ol><ol><li>c</li><li>d</li></ol>";
     const result = PptxExtractor.htmlToMarkdown(html);
