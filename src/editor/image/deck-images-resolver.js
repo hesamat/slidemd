@@ -315,6 +315,28 @@ export class DeckImagesResolver {
   }
 
   /**
+   * Check which `images/...` references in the given markdown would fail
+   * to resolve from the registered directory handle. Returns the list of
+   * missing paths (empty when no directory handle is set — the dev-server
+   * path can't be checked proactively).
+   * @param {string} markdown
+   * @returns {Promise<string[]>}
+   */
+  static async checkMissingImageRefs(markdown) {
+    if (!this._directoryHandle) return [];
+    const refs = this.extractImageRefs(markdown);
+    if (refs.length === 0) return [];
+    const missing = [];
+    await Promise.all(
+      refs.map(async (ref) => {
+        const url = await this._readFromDirectory(ref);
+        if (!url) missing.push(ref);
+      }),
+    );
+    return missing;
+  }
+
+  /**
    * Walk a slide element and rewrite any `background` style
    * `url('images/...')` references to HTTP URLs.
    *

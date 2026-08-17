@@ -95,3 +95,68 @@ describe("DeckImagesResolver directory images", () => {
     expect(getDirectoryHandle).not.toHaveBeenCalled();
   });
 });
+
+describe("DeckImagesResolver checkMissingImageRefs", () => {
+  afterEach(() => {
+    DeckImagesResolver.clearDirectoryHandle();
+    vi.restoreAllMocks();
+  });
+
+  it("returns empty when no directory handle is set", async () => {
+    const missing = await DeckImagesResolver.checkMissingImageRefs("![alt](images/missing.png)");
+    expect(missing).toEqual([]);
+  });
+
+  it("returns empty when markdown has no image refs", async () => {
+    DeckImagesResolver.setDirectoryHandle({
+      queryPermission: vi.fn().mockResolvedValue("granted"),
+      getDirectoryHandle: vi.fn().mockResolvedValue({
+        getFileHandle: vi.fn().mockResolvedValue({
+          getFile: vi.fn().mockResolvedValue(new Blob(["x"], { type: "image/png" })),
+        }),
+      }),
+    });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:image");
+    const missing = await DeckImagesResolver.checkMissingImageRefs("No images here");
+    expect(missing).toEqual([]);
+  });
+
+  it("returns missing refs when the file is not found on disk", async () => {
+    DeckImagesResolver.setDirectoryHandle({
+      queryPermission: vi.fn().mockResolvedValue("granted"),
+      getDirectoryHandle: vi.fn().mockRejectedValue(new DOMException("not found", "NotFoundError")),
+    });
+    const missing = await DeckImagesResolver.checkMissingImageRefs(
+      "![a](images/missing.png)\n![b](images/also-missing.jpg)",
+    );
+    expect(missing).toContain("images/missing.png");
+    expect(missing).toContain("images/also-missing.jpg");
+    expect(missing).toHaveLength(2);
+  });
+
+  it("returns empty when all images resolve from disk", async () => {
+    const getFile = vi.fn().mockResolvedValue(new Blob(["x"], { type: "image/png" }));
+    const getFileHandle = vi.fn().mockResolvedValue({ getFile });
+    DeckImagesResolver.setDirectoryHandle({
+      queryPermission: vi.fn().mockResolvedValue("granted"),
+      getDirectoryHandle: vi.fn().mockResolvedValue({ getFileHandle }),
+    });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:image");
+    const missing = await DeckImagesResolver.checkMissingImageRefs("![a](images/found.png)");
+    expect(missing).toEqual([]);
+  });
+
+  it("deduplicates refs that appear multiple times in the markdown", async () => {
+    const getDirectoryHandle = vi
+      .fn()
+      .mockRejectedValue(new DOMException("not found", "NotFoundError"));
+    DeckImagesResolver.setDirectoryHandle({
+      queryPermission: vi.fn().mockResolvedValue("granted"),
+      getDirectoryHandle,
+    });
+    const missing = await DeckImagesResolver.checkMissingImageRefs(
+      "![a](images/dup.png)\n![b](images/dup.png)\n![c](images/dup.png)",
+    );
+    expect(missing).toEqual(["images/dup.png"]);
+  });
+});

@@ -197,6 +197,19 @@ export class SlidePreviewUpdater {
         }
       }
 
+      // Check for missing image references (directory handle only — the
+      // dev-server path can't be checked proactively). Surface as a
+      // warning so the author knows which images are broken.
+      const missingImages = await DeckImagesResolver.checkMissingImageRefs(markdown);
+      if (missingImages.length > 0) {
+        const list = missingImages.slice(0, 3).join(", ");
+        const extra = missingImages.length > 3 ? ` (+${missingImages.length - 3} more)` : "";
+        this.warnings.showEditorWarning(
+          "missing-images",
+          `Missing image${missingImages.length > 1 ? "s" : ""}: ${list}${extra}`,
+        );
+      }
+
       this.deck.slides[this.currentSlideIndex] = slideData;
 
       this.thumbnails.updateThumbnailTitle(this.currentSlideIndex, slideData.title);
