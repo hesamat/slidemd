@@ -290,6 +290,11 @@ function convertSlide(
     // rest of the slide). The panel is the content surface; the photo is the
     // backdrop. Without a panel the image is a genuine media column and must
     // stay in @media.
+    //
+    // Exception: when the panel's text is header-like (short, carries a
+    // heading marker), the panel is a title and the image is the body
+    // content — not a background. The slide should use header-content with
+    // the text in @header and the image in @main.
     const imgCenterX = (el.left || 0) + (el.width || 0) / 2;
     return slide.elements.some((other) => {
       if (other === el) return false;
@@ -300,6 +305,11 @@ function convertSlide(
             !!(other.fillRaw || other.fill) &&
             !!(other.content || "").trim();
       if (!isPanel) return false;
+      // Header-like panel → image is content, not background
+      const panelText = (other.content || "").trim();
+      if (REGEX.HEADING_MARKER.test(panelText) && panelText.length <= CONFIG.maxHeaderLength) {
+        return false;
+      }
       const w = other.width || 0;
       const h = other.height || 0;
       if (w * h < slideArea * 0.25) return false;
@@ -586,6 +596,12 @@ function convertSlide(
           : el.type === "text" && !!(el.fillRaw || el.fill) && !!(el.content || "").trim();
       if (!isPanel) continue;
       if (el === bgCandidate) continue;
+      // Header-like panel text → the panel is a title, not a backing
+      // panel. Don't emit its fill as an area-bg or edge sidebar.
+      const panelText = (el.content || "").trim();
+      if (REGEX.HEADING_MARKER.test(panelText) && panelText.length <= CONFIG.maxHeaderLength) {
+        continue;
+      }
       const w = el.width || 0;
       const h = el.height || 0;
       if (w * h < slideArea * 0.25) continue;
