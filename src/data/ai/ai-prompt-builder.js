@@ -10,6 +10,7 @@
  */
 
 import { MarkdownParser } from "../markdown-parser.js";
+import { parseAllImages } from "../image-markdown-parser.js";
 import {
   composeMessages,
   extractVariant,
@@ -110,6 +111,9 @@ export function buildMessages(markdown, mode) {
  *   (content line count, bullet count, code/image/diagram markers) to each
  *   outline entry. Used by the Remix plan phase so the planning AI has enough
  *   signal to make polish/rewrite/merge decisions without seeing full content.
+ *   Image markers carry alt text (`image: "alt1", "alt2"`) and diagram markers
+ *   carry the `[Diagram: ...]` label (`diagram: "Step 1, Step 2"`) so the
+ *   planning AI can reason about visual content in text-only mode.
  * @returns {string}
  */
 export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerSlide = false) {
@@ -154,8 +158,43 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
       const bulletCount = contentLines.filter((l) => /^([-*+]|\d+\.)\s/.test(l.trim())).length;
       if (bulletCount > 0) meta.push(`${bulletCount} bullet${bulletCount > 1 ? "s" : ""}`);
       if (/```/.test(slide)) meta.push("code");
-      if (/<img/.test(slide)) meta.push("image");
-      if (/\[Diagram:/.test(slide)) meta.push("diagram");
+      // Extract image alt text so the planning AI can reason about image
+      // content without seeing the pixels. Only non-empty alt strings are
+      // listed; images with no alt fall back to the bare "image" marker so
+      // the model still knows an image is present without misleading it
+      // with `image: ""`. Alt text is truncated to 60 chars to keep the
+      // outline compact; double quotes are stripped (not escaped) so the
+      // `image: "..."` envelope stays unambiguous — alt text is advisory
+      // signal for planning, not a verbatim string the model must echo.
+      const slideImages = parseAllImages(slide);
+      const imageAlts = slideImages
+        .map((img) => {
+          if (img.type === "html") {
+            return img.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] || "";
+          }
+          return img.fullMatch.match(/!\[([^\]]*)\]/)?.[1] || "";
+        })
+        .map((a) => a.trim().replace(/"/g, "").slice(0, 60))
+        .filter((a) => a.length > 0);
+      if (imageAlts.length > 0) {
+        const quoted = imageAlts.map((a) => `"${a}"`).join(", ");
+        meta.push(`image: ${quoted}`);
+      } else if (slideImages.length > 0) {
+        meta.push("image");
+      }
+      // Extract diagram labels from [Diagram: ...] markers so the planning
+      // AI knows what the diagram depicts without seeing the rendered
+      // visual. Truncate to 60 chars and strip double quotes for the same
+      // reasons as image alt text above.
+      const diagramMatch = slide.match(/\[Diagram:\s*([^\]]+)\]/);
+      if (diagramMatch) {
+        const labels = diagramMatch[1].trim().replace(/"/g, "").slice(0, 60);
+        if (labels.length > 0) {
+          meta.push(`diagram: "${labels}"`);
+        } else {
+          meta.push("diagram");
+        }
+      }
       if (meta.length) entry += ` (${meta.join(", ")})`;
     }
     return entry;

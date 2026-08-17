@@ -209,6 +209,70 @@ describe("buildDeckSummary", () => {
     // 4 list items total
     expect(summary).toContain("4 bullets");
   });
+
+  it("enriched metadata includes image alt text when present", () => {
+    const md =
+      'layout: media-span-right\n@media\n<img src="arch.png" alt="System architecture diagram">';
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain('image: "System architecture diagram"');
+  });
+
+  it("enriched metadata includes alt text from markdown image syntax", () => {
+    const md = "layout: header-content\n@main\n![Team photo](team.jpg)";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain('image: "Team photo"');
+  });
+
+  it("enriched metadata lists multiple image alt texts in document order", () => {
+    const md =
+      'layout: header-content\n@main\n<img src="a.png" alt="Logo">\n<img src="b.png" alt="Team photo">';
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain('image: "Logo", "Team photo"');
+  });
+
+  it("enriched metadata falls back to bare image marker when alt is empty", () => {
+    const md = 'layout: header-content\n@main\n<img src="decorative.png" alt="">';
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("image");
+    expect(summary).not.toContain("image: ");
+  });
+
+  it("enriched metadata falls back to bare image marker when alt is absent", () => {
+    const md = 'layout: header-content\n@main\n<img src="pic.png">';
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("image");
+    expect(summary).not.toContain("image: ");
+  });
+
+  it("enriched metadata includes diagram labels", () => {
+    const md = "layout: header-content\n@main\n[Diagram: Step 1, Step 2, Step 3]";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain('diagram: "Step 1, Step 2, Step 3"');
+  });
+
+  it("enriched metadata falls back to bare diagram marker when label is empty", () => {
+    const md = "layout: header-content\n@main\n[Diagram:   ]";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("diagram");
+    expect(summary).not.toContain("diagram: ");
+  });
+
+  it("enriched metadata truncates long alt text to 60 characters", () => {
+    const longAlt = "A".repeat(80);
+    const md = `layout: header-content\n@main\n<img src="a.png" alt="${longAlt}">`;
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain(`image: "${"A".repeat(60)}"`);
+    expect(summary).not.toContain("A".repeat(61));
+  });
+
+  it("enriched metadata emits image and diagram markers together in code-after order", () => {
+    const md =
+      'layout: header-content\n@main\n[Diagram: Flow A, Flow B]\n<img src="pic.png" alt="Screenshot">';
+    const summary = buildDeckSummary(md, false, true);
+    // Both markers present, image before diagram (matches the meta.push order)
+    expect(summary).toContain('image: "Screenshot"');
+    expect(summary).toContain('diagram: "Flow A, Flow B"');
+  });
 });
 
 describe("buildBatchMessages", () => {
