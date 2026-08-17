@@ -142,7 +142,6 @@ export const CONFIG = {
   spreadOverlapThreshold: 0.5,
   partitionMidTolerance: 0.05,
   tallColumnHeightRatio: 0.5,
-  fullScreenTableThreshold: 0.8,
   flexRowVerticalTolerance: 0.15,
   flexRowMinHorizontalGap: 0.1,
   // Overflow detection, calibrated to the fixed 1920x1080 render geometry

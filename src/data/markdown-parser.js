@@ -142,8 +142,8 @@ export class MarkdownParser {
    * Derive a readable slide title from raw area markdown: scan lines for the
    * first one that yields text once HTML tags are removed, decode entities,
    * strip markdown formatting, collapse whitespace, and truncate. Lines that
-   * are pure markup (e.g. the flex-row/fullpage-grid wrappers emitted by PPTX
-   * imports) are skipped so the title never shows raw HTML.
+   * are pure markup (e.g. the flex-row wrappers emitted by PPTX imports) are
+   * skipped so the title never shows raw HTML.
    * Returns "" when no line carries readable text.
    * @param {string} raw
    * @returns {string}

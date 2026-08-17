@@ -312,7 +312,13 @@ export function htmlToMarkdown(html) {
   const result = [];
   processBlockNodes(body.childNodes, result);
   let md = assembleOutput(result);
-  md = md.replace(/\n{3,}/g, "\n\n");
+  // Collapse 3+ consecutive newlines to two, but preserve blank lines inside
+  // fenced code blocks (a code block with intentional double blank lines
+  // would otherwise be squashed).
+  md = md
+    .split(/(^```\n[\s\S]*?\n```)/m)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/\n{3,}/g, "\n\n")))
+    .join("");
 
   // Collapse duplicate whitespace (trailing spaces, tabs, nbsp runs) outside
   // fenced code blocks and backtick-wrapped inline code.

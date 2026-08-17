@@ -12,7 +12,7 @@ import interact from "interactjs";
 import { ImagePropertiesPanel } from "./image-properties-panel.js";
 import { ImageInteractionHandler } from "./image-interaction-handler.js";
 import { getStageScale } from "./image-position-presets.js";
-import { readImageSettings } from "./image-markdown-utils.js";
+import { readImageSettings, isMediaSpanFillImage } from "./image-markdown-utils.js";
 
 const MIN_RESIZE_DIM = 50;
 const CROSS_AREA_RESELECT_MS = 400;
@@ -339,8 +339,12 @@ export class ImageDragController {
       // A resize handle on a full-bleed fill image takes it out of fill mode
       // (the fill CSS only matches :not([style*="position"])), so give it an
       // inline position first; otherwise the forced fill geometry would hide
-      // the new size.
-      if (!img.style.position) img.style.position = "relative";
+      // the new size. Only do this for actual fill images — setting
+      // position:relative on a plain markdown image that was never dragged
+      // would switch its paragraph from flex-centred to block layout (via
+      // the CSS p:has(> img[style*="position: relative"]) selector) and
+      // cause a visual jump.
+      if (isMediaSpanFillImage(img)) img.style.position = "relative";
 
       this._resizeState = {
         edge: handle.dataset.edge,

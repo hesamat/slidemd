@@ -156,10 +156,10 @@ falls back to SVG) so a failed position match can never emit an empty image.
 box-like shape (within 20 pt). Decorative side arrows that merely float next
 to a shape (e.g. the arrows pointing at a sudoku's rows/columns) are dropped
 instead of being cropped into the diagram image. When that leaves a single
-`table` element, the sudoku renders as a styled CSS grid: tables with a
-meaningful share of coloured cells (≥25% with luminance below 230/255) keep
-their colours as a `.fullpage-grid` (preserving the source aspect ratio),
-instead of flattening to a plain markdown table.
+`table` element, the sudoku renders as a plain markdown table — tables always
+convert to markdown (cell colours are dropped, since markdown cannot express
+them; a large coloured backing panel is instead emitted as an `area-bg-*`
+directive).
 
 ### Files involved
 

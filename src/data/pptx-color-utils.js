@@ -140,7 +140,11 @@ export function isColorDark(colorHex) {
     for (let i = 0; i < gradientStops.length - 1; i++) {
       const gap = gradientStops[i + 1].pos - gradientStops[i].pos;
       if (gap <= 0) continue;
-      weighted += gradientStops[i].lum * gap;
+      // Interpolate the midpoint luminance of each segment: average of the
+      // two endpoints weighted by the gap. This ensures both stops
+      // contribute — the previous code only used the first stop's luminance,
+      // so a white→black gradient classified as light.
+      weighted += ((gradientStops[i].lum + gradientStops[i + 1].lum) / 2) * gap;
       totalWeight += gap;
     }
     if (totalWeight > 0) {

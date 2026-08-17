@@ -260,7 +260,17 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
     }
   }
   const bodyElements = isHeaderValid
-    ? [...allElements.filter((el) => el !== originalHeader), ...(splitBody ? [splitBody] : [])]
+    ? (() => {
+        const without = allElements.filter((el) => el !== originalHeader);
+        if (!splitBody) return without;
+        // Insert the split body at the original element's position so
+        // downstream consumers that preserve array order (e.g.
+        // renderElementsWithFlex standalone output) keep reading order.
+        const origIdx = allElements.indexOf(originalHeader);
+        const before = without.slice(0, origIdx);
+        const after = without.slice(origIdx);
+        return [...before, splitBody, ...after];
+      })()
     : allElements;
 
   return { header, isHeaderValid, bodyElements };
@@ -757,21 +767,22 @@ function convertSlide(
   if (slide.background) {
     parts.push(`background: ${slide.background}`);
   }
-  // Dark theme whenever the slide needs light text: a dark photo background,
-  // a dark area-bg panel, or a dark edge sidebar (light text must stay
-  // readable on the panel). Evaluated even without a `background:` directive
+  // Dark theme whenever the slide needs light text: a dark photo background
+  // or a dark area-bg panel. Evaluated even without a `background:` directive
   // — an area-bg panel can be the only dark surface on the slide.
   // Exception: when area-bg-main is light, the main content needs dark text
   // to be readable on the light panel — don't force theme: dark even if the
   // slide background is dark. The header may be less readable, but the main
   // content (the bulk of the slide) takes priority.
+  // Note: the edge sidebar (slidePanelBg) is prepended to slide.background,
+  // so isColorDark(slide.background) already accounts for it. A dark sidebar
+  // covering a minority of the slide should not flip the whole slide to dark
+  // when the remaining background is light — the sidebar text color is
+  // handled by the area-bg CSS, not the global slide theme.
   const hasLightMain = areaBg.main && !isColorDark(areaBg.main);
   if (
     !hasLightMain &&
-    (bgCandidate ||
-      isColorDark(slide.background) ||
-      Object.values(areaBg).some(isColorDark) ||
-      (slidePanelBg && isColorDark(slidePanelBg)))
+    (bgCandidate || isColorDark(slide.background) || Object.values(areaBg).some(isColorDark))
   ) {
     parts.push("theme: dark");
   }
@@ -1226,6 +1237,13 @@ function convertSlide(
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const [mediaImage, secondaryImage] = dominantImages;
     if (!mediaImage || !secondaryImage) {
+      // Downgrade to header-content: three-column was inferred but not
+      // enough dominant images survived. Fall through to the default
+      // render branch below (which emits @main) instead of returning
+      // early — the early return skipped the area-bg directive splice
+      // and footer emission that follow the render dispatch.
+      layout = LAYOUT.HEADER_CONTENT;
+      setLayoutDirective(parts, layout);
       parts.push("");
       if (isHeaderValid) {
         parts.push(MARKDOWN_TAGS.HEADER);
@@ -1244,29 +1262,29 @@ function convertSlide(
           formatSingleElement,
         ),
       );
-      return wrapLongLists(parts.join("\n"));
-    }
-    const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
-    parts.push("");
-    if (isHeaderValid) {
-      parts.push(MARKDOWN_TAGS.HEADER);
+    } else {
+      const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
       parts.push("");
-      parts.push(formatTextElement(header.content));
+      if (isHeaderValid) {
+        parts.push(MARKDOWN_TAGS.HEADER);
+        parts.push("");
+        parts.push(formatTextElement(header.content));
+        parts.push("");
+      }
+      parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
+      parts.push(
+        renderElementsWithFlex(mainEls, slideWidth, slideHeight, deckName, formatSingleElement),
+      );
+      parts.push("");
+      parts.push(MARKDOWN_TAGS.MEDIA);
+      parts.push("");
+      parts.push(formatSingleElement(mediaImage));
+      parts.push("");
+      parts.push(MARKDOWN_TAGS.SECONDARY);
+      parts.push("");
+      parts.push(formatSingleElement(secondaryImage));
     }
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    parts.push(
-      renderElementsWithFlex(mainEls, slideWidth, slideHeight, deckName, formatSingleElement),
-    );
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.MEDIA);
-    parts.push("");
-    parts.push(formatSingleElement(mediaImage));
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.SECONDARY);
-    parts.push("");
-    parts.push(formatSingleElement(secondaryImage));
   } else if (layout.type === LAYOUT.FOCUS.type) {
     // Focus layout: content-first, center stage — all elements in @main
     parts.push("");

@@ -388,12 +388,16 @@ export function inferLayout(
       if (!headerEl || !isThinStripHeader) {
         // First slide uses title-slide only if it has no body content (title/subtitle only)
         if (slideIndex === 0 && !hasBodyContent) return LAYOUT.TITLE_SLIDE;
-        // A header beside a dominant image is header-content, not focus —
-        // the image is the body content and belongs in @main.
-        if (hasHeader && dominantImages.length > 0) return LAYOUT.HEADER_CONTENT;
         return LAYOUT.FOCUS;
       }
     }
+
+    // A header beside a dominant image is header-content, not focus —
+    // the image is the body content and belongs in @main. This check
+    // applies regardless of hasMedia (which is true whenever any non-text
+    // element survives, but dominantImages can be non-empty even when
+    // hasMedia is false, e.g. importBackgrounds: false).
+    if (hasHeader && dominantImages.length > 0) return LAYOUT.HEADER_CONTENT;
 
     if (hasHeader && hasBodyBelowHeader) {
       // Use focus for slides where code or single-element content is the center stage

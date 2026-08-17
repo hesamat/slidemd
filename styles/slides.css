@@ -1211,62 +1211,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: 0;
 }
 
-/* --- FULL-PAGE GRID (PPTX visual-layout tables) --- */
-
-/* Emitted by the PPTX converter for full-slide tables (≥80% of the
-   slide) that act as visual layouts (pillar grids, matrices). The
-   converter sets the per-instance column/row counts via inline
-   grid-template-*; everything else is styled here so the markup stays
-   declarative. */
-.slide__area .fullpage-grid {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.slide__area .fullpage-grid__cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: var(--spacing-md);
-  border-radius: var(--radius-sm);
-  /* A subtle border keeps the cells visually separated — coloured cells
-     would otherwise read as one solid block, and transparent cells would
-     blend into the slide background entirely. */
-  border: 1px solid var(--border-color);
-  color: var(--slide-ink);
-  font-size: 0.95em;
-  line-height: 1.4;
-  overflow-wrap: break-word;
-}
-
-/* When a cell has a colored fill, switch to high-contrast text.
-   The converter adds these modifiers based on the fill's luminance:
-   dark fills get white text, light fills get dark text. */
-.slide__area .fullpage-grid__cell--on-color {
-  color: #fff;
-}
-
-.slide__area .fullpage-grid__cell--on-light {
-  color: var(--slide-ink-light);
-}
-
-/* Non-fullscreen tables with meaningful cell colours (e.g. a sudoku grid)
-   keep their source aspect ratio AND size: the converter emits an inline
-   width/max-height proportional to the source box, so a small cell diagram
-   does not blow up to full-slide width. Height derives from the inline
-   aspect-ratio; max-height clamps it. */
-.slide__area .fullpage-grid--content {
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
-  margin: auto;
-}
-
 /* ==========================================================================
    7. Animation & Accessibility
    ========================================================================== */
