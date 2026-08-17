@@ -6,6 +6,7 @@ import {
   alignLeft,
   alignRight,
   fitToWidth,
+  fillContainer,
   rotateBy,
 } from "../editor/image/image-position-presets.js";
 
@@ -147,6 +148,7 @@ describe("fitToWidth", () => {
       height: 960,
       left: 0,
       top: 0,
+      objectFit: "contain",
     });
   });
 
@@ -167,6 +169,7 @@ describe("fitToWidth", () => {
       height: 1080,
       left: 0,
       top: 0,
+      objectFit: "contain",
     });
   });
 
@@ -192,7 +195,80 @@ describe("fitToWidth", () => {
       height: 950,
       left: 0,
       top: 0,
+      objectFit: "contain",
     });
+  });
+
+  it("resets object-fit back to contain after a fill", () => {
+    // A cover-cropped image (Fill chip or imported full-bleed) returns to a
+    // contain fit when the user picks Fit — the crop must not persist with
+    // no UI to undo it.
+    const img = mockImg(
+      { left: "100px", top: "50px", objectFit: "cover" },
+      { left: 100, top: 50, width: 800, height: 400 },
+      1600,
+      800,
+    );
+    const applySettings = vi.fn();
+    fitToWidth(img, 1, applySettings);
+    expect(applySettings).toHaveBeenCalledWith(expect.objectContaining({ objectFit: "contain" }));
+  });
+});
+
+describe("fillContainer", () => {
+  beforeEach(() => {
+    globalThis.getComputedStyle = () => ({
+      paddingLeft: "0px",
+      paddingRight: "0px",
+      paddingTop: "0px",
+      paddingBottom: "0px",
+    });
+  });
+
+  it("sizes the image to the full area content box with object-fit cover", () => {
+    const img = mockImg(
+      { left: "100px", top: "50px", width: "400px", height: "300px" },
+      { left: 100, top: 50, width: 400, height: 300 },
+    );
+    const applySettings = vi.fn();
+    fillContainer(img, 1, applySettings);
+    expect(applySettings).toHaveBeenCalledWith({
+      left: 0,
+      top: 0,
+      width: 1920,
+      height: 1080,
+      objectFit: "cover",
+    });
+  });
+
+  it("accounts for area padding and stage scale", () => {
+    globalThis.getComputedStyle = () => ({
+      paddingLeft: "10px",
+      paddingRight: "10px",
+      paddingTop: "10px",
+      paddingBottom: "10px",
+    });
+    const img = mockImg(
+      { left: "0px", top: "0px", width: "100px", height: "100px" },
+      { left: 0, top: 0, width: 100, height: 100 },
+    );
+    const applySettings = vi.fn();
+    fillContainer(img, 2, applySettings);
+    // Content box: 1900 x 1060 design px at scale 2
+    expect(applySettings).toHaveBeenCalledWith({
+      left: 0,
+      top: 0,
+      width: 950,
+      height: 530,
+      objectFit: "cover",
+    });
+  });
+
+  it("does nothing when no area found", () => {
+    const img = { closest: () => null };
+    const applySettings = vi.fn();
+    fillContainer(img, 1, applySettings);
+    expect(applySettings).not.toHaveBeenCalled();
   });
 });
 

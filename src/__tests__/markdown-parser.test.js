@@ -553,3 +553,91 @@ describe("MarkdownParser fence centering", () => {
     expect(html).toContain('class="code-centered"');
   });
 });
+
+describe("MarkdownParser table style directive", () => {
+  it("applies the declared width to the following table and drops the line", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("table {width: 60%}\n\n| A | B |\n| --- | --- |\n| 1 | 2 |");
+    expect(html).toContain('<table style="width:60%"');
+    expect(html).not.toContain("table {width");
+  });
+
+  it("applies widths per table in order", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 40%}\n\n| A |\n| --- |\n| 1 |\n\ntable {width: 75%}\n\n| C |\n| --- |\n| 2 |",
+    );
+    expect(html).toContain('<table style="width:40%"');
+    expect(html).toContain('<table style="width:75%"');
+    expect(html.match(/<table/g)).toHaveLength(2);
+  });
+
+  it("leaves tables without the directive unmodified", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("| A |\n| --- |\n| 1 |");
+    expect(html).toContain("<table");
+    expect(html).not.toContain('style="width:');
+  });
+
+  it("ignores non-width declarations and keeps the line as text", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("table {background: red}\n\n| A |\n| --- |\n| 1 |");
+    expect(html).toContain("table {background: red}");
+    expect(html).toContain("<table");
+    expect(html).not.toContain('style="width:');
+  });
+
+  it("does not treat an arbitrary paragraph as a directive", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("the table {was: good}\n\n| A |\n| --- |\n| 1 |");
+    expect(html).toContain("<p");
+    expect(html).toContain("<table");
+    expect(html).not.toContain('style="width:');
+  });
+
+  it("applies no-header class to hide the thead", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("table {no-header}\n\n| A | B |\n| --- | --- |\n| 1 | 2 |");
+    expect(html).toContain('class="table-no-header"');
+    expect(html).not.toContain("table {no-header}");
+  });
+
+  it("applies both width and no-header", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 50%; no-header}\n\n| A | B |\n| --- | --- |\n| 1 | 2 |",
+    );
+    expect(html).toContain('class="table-no-header"');
+    expect(html).toContain('style="width:50%"');
+  });
+
+  it("does not drift a directive onto a table that has no directive", () => {
+    // tableA has a width directive, tableB has none, tableC has a different
+    // width. The old flat-queue approach shifted the next entry for every
+    // table, so tableB consumed tableC's 75% and tableC got nothing.
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 40%}\n\n| A |\n| --- |\n| 1 |\n\n| B |\n| --- |\n| 2 |\n\ntable {width: 75%}\n\n| C |\n| --- |\n| 3 |",
+    );
+    const tables = html.match(/<table[^>]*>/g);
+    expect(tables).toHaveLength(3);
+    expect(tables[0]).toContain("width:40%");
+    expect(tables[1]).not.toContain('style="width:');
+    expect(tables[2]).toContain("width:75%");
+  });
+
+  it("does not cross-contaminate width and no-header across tables", () => {
+    // tableA has only width, tableB has only no-header. The old separate-array
+    // approach gave tableA both width AND no-header, and tableB got neither.
+    parser.ensureMarkdownIt();
+    const html = parser.md.render(
+      "table {width: 40%}\n\n| A |\n| --- |\n| 1 |\n\ntable {no-header}\n\n| B |\n| --- |\n| 2 |",
+    );
+    const tables = html.match(/<table[^>]*>/g);
+    expect(tables).toHaveLength(2);
+    expect(tables[0]).toContain("width:40%");
+    expect(tables[0]).not.toContain("table-no-header");
+    expect(tables[1]).toContain("table-no-header");
+    expect(tables[1]).not.toContain('style="width:');
+  });
+});

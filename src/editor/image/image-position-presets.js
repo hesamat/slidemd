@@ -112,6 +112,37 @@ export function fitToWidth(img, scale, applySettings) {
     height: Math.round(height),
     left: 0,
     top: 0,
+    // Fit sizes the box to the image's aspect ratio, so the whole picture
+    // fits — switch back to contain. (The Fill chip is the cover counterpart.)
+    objectFit: "contain",
+  });
+}
+
+/**
+ * Fill the selected image's containing `.slide__area`: size the image to the
+ * full content box and use `object-fit: cover` so it covers the area while
+ * keeping its aspect ratio (cropping overflow like a background-image).
+ * @param {HTMLElement} img
+ * @param {number} scale - Stage scale factor
+ * @param {(settings: object) => void} applySettings
+ */
+export function fillContainer(img, scale, applySettings) {
+  const area = img.closest(".slide__area");
+  if (!area) return;
+
+  const areaRect = area.getBoundingClientRect();
+  const cs = getComputedStyle(area);
+  const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const areaWidthDesign = Math.max(1, Math.round((areaRect.width - padX) / scale));
+  const areaHeightDesign = Math.max(1, Math.round((areaRect.height - padY) / scale));
+
+  applySettings({
+    left: 0,
+    top: 0,
+    width: areaWidthDesign,
+    height: areaHeightDesign,
+    objectFit: "cover",
   });
 }
 

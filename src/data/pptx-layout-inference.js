@@ -305,7 +305,6 @@ export function inferLayout(
   }
 
   const bodyThreshold = slideHeight * CONFIG.bodyTopRatio;
-  const isHeadingMarker = (el) => REGEX.HEADING_MARKER.test(el.content?.trim() || "");
 
   const isHeader = (el) => {
     if (el.top >= bodyThreshold) return false;
@@ -314,7 +313,22 @@ export function inferLayout(
     // as a header when it is the slide's sole element and carries a marker.
     const isMassive = (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
     if (isMassive) {
-      if (contentEls.length === 1 && allEls.length === 1 && isHeadingMarker(el)) {
+      // A full-height text panel (e.g. a title beside an image) is a header
+      // when it's the only text element on the slide — the images are the
+      // content.  The strict allEls.length===1 check only allowed a lone
+      // heading-only slide; relaxing to "only text element" covers the
+      // common case of a title panel next to a photo or diagram.
+      // But a full-height panel with many lines of content (e.g. a 5-item
+      // criteria list with headings) is body content, not a header — check
+      // the stripped text length to distinguish a short title from a long
+      // body.
+      const otherTextEls = contentEls.filter((e) => e !== el);
+      const strippedText = stripHtml(el.content || "").trim();
+      if (
+        otherTextEls.length === 0 &&
+        strippedText.length <= CONFIG.maxHeaderLength &&
+        isHeaderLikeTextElement(el, slideHeight)
+      ) {
         return true;
       }
       return false;
@@ -351,7 +365,14 @@ export function inferLayout(
 
     if (hasSpreadRow) return LAYOUT.TWO_COLUMN;
 
-    const hasBodyBelowHeader = contentEls.some((el) => el !== headerEl && el.top >= bodyThreshold);
+    // Body content "below the header" also includes boxes that START inside
+    // the header band but extend into the body region — PowerPoint content
+    // placeholders commonly begin right at the band edge (y ≈ bodyTopRatio)
+    // and run down the slide. Without this, a heading + code + bullets slide
+    // whose box starts high never reaches the focus/code decisions below.
+    const hasBodyBelowHeader = contentEls.some(
+      (el) => el !== headerEl && el.top + (el.height || 0) > bodyThreshold,
+    );
     const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
 
     if (totalLength < CONFIG.maxTitleLength && contentEls.length <= CONFIG.maxFocusElements) {
@@ -370,6 +391,13 @@ export function inferLayout(
         return LAYOUT.FOCUS;
       }
     }
+
+    // A header beside a dominant image is header-content, not focus —
+    // the image is the body content and belongs in @main. This check
+    // applies regardless of hasMedia (which is true whenever any non-text
+    // element survives, but dominantImages can be non-empty even when
+    // hasMedia is false, e.g. importBackgrounds: false).
+    if (hasHeader && dominantImages.length > 0) return LAYOUT.HEADER_CONTENT;
 
     if (hasHeader && hasBodyBelowHeader) {
       // Use focus for slides where code or single-element content is the center stage

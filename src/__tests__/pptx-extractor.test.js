@@ -73,6 +73,42 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("3. c");
   });
 
+  it("emits heading-sized list items as headings with number prefixes", () => {
+    // When every item in a top-level <ol> has font-size >= 34pt (the `##`
+    // band), the list is a visual heading sequence, not a bullet list.
+    const html =
+      '<ol><li><p><span style="font-size: 72pt;">Sequence</span></p></li>' +
+      '<li><p><span style="font-size: 72pt;">Selection</span></p></li>' +
+      '<li><p><span style="font-size: 72pt;">Repetition</span></p></li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("# 1. Sequence");
+    expect(result).toContain("# 2. Selection");
+    expect(result).toContain("# 3. Repetition");
+    // Must NOT be a markdown list
+    expect(result).not.toMatch(/^\d+\.\s/m);
+  });
+
+  it("keeps heading-sized items as a list when not all items qualify", () => {
+    // Mixed font sizes: one heading-sized, one body-sized → stays a list
+    const html =
+      '<ol><li><p><span style="font-size: 72pt;">Big</span></p></li>' +
+      '<li><p><span style="font-size: 18pt;">Small</span></p></li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Big");
+    expect(result).toContain("2. Small");
+  });
+
+  it("keeps body-sized list items as a list even with many items", () => {
+    // 28pt is the `###` band — below the 34pt threshold for heading lists
+    const html =
+      '<ol><li><p><span style="font-size: 28pt;">Item A</span></p></li>' +
+      '<li><p><span style="font-size: 28pt;">Item B</span></p></li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Item A");
+    expect(result).toContain("2. Item B");
+    expect(result).not.toContain("#");
+  });
+
   it("continues numbering across adjacent same-type lists (PowerPoint split list)", () => {
     const html = "<ol><li>a</li><li>b</li></ol><ol><li>c</li><li>d</li></ol>";
     const result = PptxExtractor.htmlToMarkdown(html);
@@ -166,6 +202,32 @@ describe("PptxExtractor.htmlToMarkdown", () => {
   it("merges adjacent bold markers", () => {
     const result = PptxExtractor.htmlToMarkdown("<p><b>a</b> <b>b</b></p>");
     expect(result).toContain("**a b**");
+  });
+
+  it("repairs adjacent emphasis spans instead of leaking a stray **", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      "<p>We <i>eschew</i><i> global variables</i> in favour</p>",
+    );
+    expect(result).toContain("We *eschew global variables* in favour");
+    expect(result).not.toContain("** global");
+    expect(result).not.toContain("*eschew**");
+  });
+
+  it("does not merge bold runs into one giant bold span", () => {
+    const result = PptxExtractor.htmlToMarkdown("<p>Use <b>in</b> and <b>not in</b> operators</p>");
+    expect(result).toContain("**in** and **not in**");
+  });
+
+  it("keeps underscore-only bold runs as plain text (no __name__ mangling)", () => {
+    // A PPTX highlighting only the "__" halves of "__name__" used to emit
+    // "**__**name**__**", which the spacing fix mangled into
+    // "**__** name** __**". The identifier must read cleanly.
+    const result = PptxExtractor.htmlToMarkdown(
+      "<p>called <b>__</b>name<b>__ </b>to determine</p>",
+    );
+    expect(result).toContain("called __name__ to determine");
+    expect(result).not.toMatch(/\*\*__\*\*/);
+    expect(result).not.toMatch(/\*\*/);
   });
 
   it("handles span with font-weight bold style", () => {
@@ -311,6 +373,40 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     );
     expect(result).not.toContain("# ");
     expect(result).toContain("Plain text");
+  });
+
+  it("does not treat monospace code lines as headings even at heading font-size", () => {
+    // PPTX code examples are often rendered at 28-32pt (the ### band).
+    // Without the code-line guard, `def make_username(...)` would be
+    // emitted as `### def make_username(...)` instead of a code block.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">def make_username(first_name, last_name):</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    initial = first_name[0]</span></p>',
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">    username = f'{initial}{last_name}'.lower()</span></p>",
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    return username</span></p>',
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">print(make_username('Grace', 'Hopper'))</span></p>",
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### def");
+    expect(result).not.toContain("### initial");
+    expect(result).not.toContain("### username");
+    expect(result).not.toContain("### return");
+    expect(result).not.toContain("### print");
+    expect(result).toContain("```");
+    expect(result).toContain("def make_username");
+    expect(result).toContain("initial = first_name");
+    expect(result).toContain("username = f'");
+    expect(result).toContain("return username");
+    expect(result).toContain("print(make_username");
+  });
+
+  it("still treats monospace non-code text as a heading at heading font-size", () => {
+    // A monospace heading like "Behold the ancient ASCII table" at 40pt
+    // is a heading, not code — the code-line guard must not prevent that.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Courier New; font-size: 40pt;">Behold the ancient ASCII table</span></p>',
+    );
+    expect(result).toContain("# Behold the ancient ASCII table");
   });
 });
 
@@ -963,5 +1059,155 @@ describe("PptxExtractor top-level diagram detection", () => {
 
     expect(diagram).toBeDefined();
     expect(diagram.shapes.some((s) => s.hasConnector)).toBe(true);
+  });
+});
+
+describe("PptxExtractor code extraction", () => {
+  it("preserves indentation from whitespace-only monospace spans", () => {
+    const html =
+      '<p><span style="font-family: Consolas;">&nbsp;&nbsp;&nbsp;&nbsp;</span><span style="font-family: Consolas;">global x</span></p>' +
+      '<p><span style="font-family: Consolas;">&nbsp;&nbsp;&nbsp;&nbsp;name = input()</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("```\n    global x\n    name = input()\n```");
+  });
+
+  it("keeps highlighted multi-run code clean (no backtick residue)", () => {
+    const html =
+      '<p><span style="font-family: Consolas; color:#C00000;">student_name </span><span style="font-family: Consolas; color:#FFFFFF;">= \'N/A\'</span></p>' +
+      '<p><span style="font-family: Consolas;">def get_name():</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("```\nstudent_name = 'N/A'\ndef get_name():\n```");
+    expect(result).not.toContain("`` =");
+    expect(result).not.toContain("student_name ``");
+  });
+
+  it("does not treat prose with monospace runs as a code block", () => {
+    const html =
+      '<p>Use <span style="font-family: Consolas;">a</span>    <span style="font-family: Consolas;">b</span> here</p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("`a` `b`");
+    expect(result).not.toContain("```");
+  });
+
+  it("treats code with a body-font indent run as code (no heading misfire)", () => {
+    // PowerPoint styles the leading indentation of a code line with the
+    // body font — that whitespace-only run must not disqualify the
+    // paragraph from code handling, or a short code line gets mis-detected
+    // as a heading with inline backticks.
+    const html =
+      '<p><span style="font-family: Tw Cen MT;">&nbsp;&nbsp;&nbsp;&nbsp;</span>' +
+      "<span style=\"font-family: Consolas;\">word = 'supercalifragilisticexpialidocious'</span></p>" +
+      '<p><span style="font-family: Tw Cen MT;">&nbsp;&nbsp;&nbsp;&nbsp;</span>' +
+      '<span style="font-family: Consolas;">print(word.title())</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain(
+      "```\n    word = 'supercalifragilisticexpialidocious'\n    print(word.title())\n```",
+    );
+    expect(result).not.toContain("###");
+    expect(result).not.toContain("```\n```");
+  });
+
+  it("emits punctuation-only bold spans as plain text", () => {
+    // A bold "( )" adjacent to text (chr**( )**) must read cleanly.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span>chr</span><span style="font-weight: bold;">( )</span><span> returns</span></p>',
+    );
+    expect(result).toContain("chr( ) returns");
+    expect(result).not.toMatch(/\*\*/);
+  });
+
+  it("groups a br-containing code paragraph into one fence", () => {
+    const html =
+      '<p><span style="font-family: Consolas;">def divide(dividend, divisor):<br>    return dividend / divisor<br>quotient = divide(1, 2)</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain(
+      "```\ndef divide(dividend, divisor):\n    return dividend / divisor\nquotient = divide(1, 2)\n```",
+    );
+  });
+});
+
+describe("PptxExtractor <a:br/> reconstruction", () => {
+  it("reinserts line breaks that pptxtojson flattens into spaces", () => {
+    const html =
+      '<p style="text-align:left;"><span style="font-family: Consolas;">def divide(dividend, divisor):    return dividend / divisor   quotient = divide(1, 2) print(result)</span></p>';
+    const textBoxes = [
+      {
+        flatText:
+          "def divide(dividend, divisor):    return dividend / divisor   quotient = divide(1, 2) print(result)",
+        paragraphs: [
+          {
+            xmlWithBreaks:
+              "def divide(dividend, divisor):\n    return dividend / divisor\nquotient = divide(1, 2)\nprint(result)",
+            hasBreak: true,
+          },
+        ],
+      },
+    ];
+    const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
+    expect(injected).toContain("<br>");
+    const md = PptxExtractor.htmlToMarkdown(injected);
+    expect(md).toContain(
+      "```\ndef divide(dividend, divisor):\n    return dividend / divisor\nquotient = divide(1, 2)\nprint(result)\n```",
+    );
+  });
+
+  it("leaves HTML untouched when the XML text box does not match", () => {
+    const html = '<p><span style="font-family: Consolas;">unrelated code</span></p>';
+    const textBoxes = [
+      {
+        flatText: "def divide(dividend, divisor):    return dividend / divisor",
+        paragraphs: [
+          {
+            xmlWithBreaks: "def divide(dividend, divisor):\n    return dividend / divisor",
+            hasBreak: true,
+          },
+        ],
+      },
+    ];
+    const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
+    expect(injected).toBe(html);
+  });
+
+  it("leaves prose paragraphs with soft line breaks untouched (no style flattening)", () => {
+    // The rebuild collapses a paragraph into a single span carrying the
+    // first run's style — for a prose paragraph with Shift+Enter breaks and
+    // mixed formatting that would flatten bold/italic/color. Only
+    // all-monospace (code) paragraphs are rebuilt.
+    const html =
+      '<p><span style="font-weight: bold;">Press Enter</span> to continue    then <span style="color:#C00000;">read the notes</span></p>';
+    const textBoxes = [
+      {
+        flatText: "Press Enter to continue then read the notes",
+        paragraphs: [
+          {
+            xmlWithBreaks: "Press Enter\nto continue\nthen read the notes",
+            hasBreak: true,
+          },
+        ],
+      },
+    ];
+    const injected = PptxExtractor.injectBrBreaksForTest(html, textBoxes);
+    expect(injected).toBe(html);
+  });
+
+  it("matches the canonical self-closing <a:br/> form in the XML text extractor", () => {
+    // PowerPoint's .NET XML serializer emits <a:br/> without a space before
+    // the slash. The extraction regex must match this form, otherwise line
+    // break reconstruction silently fails on real-world files.
+    const regex = /<a:r>[\s\S]*?<\/a:r>|<a:br[^>]*>/gi;
+    const forms = ["<a:br>", "<a:br/>", "<a:br />", '<a:br rPr="x"/>'];
+    for (const form of forms) {
+      regex.lastIndex = 0;
+      expect(form.match(regex)).not.toBeNull();
+    }
+    // A paragraph with a self-closing break between two runs yields three
+    // segments (run, break, run) — the break must be captured so it can be
+    // converted to "\n" during flat-text/paragraph reconstruction.
+    const xml = "<a:p><a:r><a:t>line1</a:t></a:r><a:br/><a:r><a:t>line2</a:t></a:r></a:p>";
+    regex.lastIndex = 0;
+    const segs = xml.match(regex);
+    expect(segs).not.toBeNull();
+    expect(segs).toHaveLength(3);
+    expect(segs[1]).toBe("<a:br/>");
   });
 });

@@ -17,6 +17,7 @@ import {
   formatTable,
   formatChart,
   formatDiagram,
+  formatElementFillBackground,
 } from "./pptx-element-formatters.js";
 import {
   getOverlapArea,
@@ -46,6 +47,36 @@ import {
 function setLayoutDirective(parts, layout) {
   const idx = parts.findIndex((p) => p.startsWith("layout:"));
   if (idx !== -1) parts[idx] = `layout: ${layout.spec}`;
+}
+
+/**
+ * Derive a CSS background-position for a full-slide background image from its
+ * placement in the source slide. All element geometry and the slide size are
+ * in points here (normalised by convertToSlideMd). Edges flush with the slide
+ * anchor the image (left/right/top/bottom; 2% tolerance); an image flush on
+ * both horizontal (or vertical) edges spans that dimension and centres there.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @param {number} slideWidth - Slide width in points.
+ * @param {number} slideHeight - Slide height in points.
+ * @returns {string}
+ */
+function cssBackgroundPosition(el, slideWidth, slideHeight) {
+  const l = el.left || 0;
+  const t = el.top || 0;
+  const r = l + (el.width || 0);
+  const b = t + (el.height || 0);
+  const tol = Math.min(slideWidth, slideHeight) * 0.02;
+  const xs = [];
+  if (l <= tol) xs.push("left");
+  if (r >= slideWidth - tol) xs.push("right");
+  if (xs.length === 0) xs.push("center");
+  const x = xs.length === 2 ? "center" : xs[0];
+  const ys = [];
+  if (t <= tol) ys.push("top");
+  if (b >= slideHeight - tol) ys.push("bottom");
+  if (ys.length === 0) ys.push("center");
+  const y = ys.length === 2 ? "center" : ys[0];
+  return x === "center" && y === "center" ? "center" : `${x} ${y}`;
 }
 
 /**
@@ -158,12 +189,32 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
     const text = (el.content || "").replace(REGEX.HEADING_REPLACE, "").trim();
     return text.length <= CONFIG.maxHeaderLengthShort;
   };
+  // A full-height text panel (taller than the header limit) is only a header
+  // when its stripped text is short — a tall panel with many lines of heading-
+  // marked content (e.g. a 5-item criteria list) is body content, not a title.
+  const isMassivePanel = (el) => (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
+  const strippedLen = (el) =>
+    (el.content || "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/#{1,3}\s/g, "")
+      .trim().length;
 
-  // 1. Prefer explicit heading markers (## / ###) — always a header
+  // 1. Prefer explicit heading markers (## / ###) — always a header,
+  //    unless the element is a massive panel with long content.
   // 2. Fallback: short text in the top portion of the slide
-  const header =
-    textElements.find((el) => isHeading(el) && isShortEnough(el)) ||
-    textElements.find((el) => el.top < slideHeight * CONFIG.bodyTopRatio && isShortEnough(el)) ||
+  let header =
+    textElements.find(
+      (el) =>
+        isHeading(el) &&
+        isShortEnough(el) &&
+        !(isMassivePanel(el) && strippedLen(el) > CONFIG.maxHeaderLength),
+    ) ||
+    textElements.find(
+      (el) =>
+        el.top < slideHeight * CONFIG.bodyTopRatio &&
+        isShortEnough(el) &&
+        !(isMassivePanel(el) && strippedLen(el) > CONFIG.maxHeaderLength),
+    ) ||
     null;
 
   if (!header) {
@@ -174,8 +225,53 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
   const hasBullets = REGEX.BULLET_LINE.test(headerText);
   const hasNumbers = REGEX.NUMBER_LINE.test(headerText);
   const hasCodeBlock = REGEX.CODE_BLOCK.test(headerText);
-  const isHeaderValid = !hasBullets && !hasNumbers && !hasCodeBlock;
-  const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
+  // When the header element starts with a heading marker but also contains
+  // body content (bullets, numbers, code), split it: the heading portion
+  // goes in @header, the rest becomes a synthetic body element for @main.
+  // This handles PPTX text panels that combine a title with a bullet list.
+  const firstLine = headerText.trim().split("\n")[0].trim();
+  const startsWithHeading = REGEX.HEADING_MARKER.test(firstLine);
+  let isHeaderValid = !hasBullets && !hasNumbers && !hasCodeBlock;
+  let splitBody = null;
+  // Keep a reference to the original element so it can be filtered out of
+  // bodyElements even after `header` is reassigned to a split copy.
+  const originalHeader = header;
+  if (!isHeaderValid && startsWithHeading) {
+    // Find where the heading ends (first blank line or first non-heading line)
+    const lines = headerText.split("\n");
+    let splitAt = 1;
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim() === "") {
+        splitAt = i + 1;
+        break;
+      }
+      if (!REGEX.HEADING_MARKER.test(lines[i].trim())) {
+        splitAt = i;
+        break;
+      }
+      splitAt = i + 1;
+    }
+    const headingPart = lines.slice(0, splitAt).join("\n").trim();
+    const bodyPart = lines.slice(splitAt).join("\n").trim();
+    if (bodyPart) {
+      header = { ...originalHeader, content: headingPart };
+      splitBody = { ...originalHeader, content: bodyPart };
+      isHeaderValid = true;
+    }
+  }
+  const bodyElements = isHeaderValid
+    ? (() => {
+        const without = allElements.filter((el) => el !== originalHeader);
+        if (!splitBody) return without;
+        // Insert the split body at the original element's position so
+        // downstream consumers that preserve array order (e.g.
+        // renderElementsWithFlex standalone output) keep reading order.
+        const origIdx = allElements.indexOf(originalHeader);
+        const before = without.slice(0, origIdx);
+        const after = without.slice(origIdx);
+        return [...before, splitBody, ...after];
+      })()
+    : allElements;
 
   return { header, isHeaderValid, bodyElements };
 }
@@ -202,14 +298,67 @@ function convertSlide(
 ) {
   const parts = [];
 
+  // Deduplicate identical images within a slide. PowerPoint authors paste the
+  // same icon multiple times (e.g. one warning icon per error line) at slightly
+  // different offsets; in the flow-based layouts those render as a stack of
+  // identical images. Keep the first occurrence of each (ref, size) pair.
+  {
+    const seenImages = new Set();
+    const deduped = [];
+    for (const el of slide.elements) {
+      if (el.type === ELEMENT_TYPES.IMAGE && el.ref) {
+        const key = `${el.ref}|${el.width}|${el.height}`;
+        if (seenImages.has(key)) continue;
+        seenImages.add(key);
+      }
+      deduped.push(el);
+    }
+    slide = { ...slide, elements: deduped };
+  }
+
   // Detect full-page background images BEFORE stripping images or filtering,
   // so they are always found regardless of the importImages setting.
   // Background images are always uploaded as files (never inlined as data URLs)
   // to keep the markdown lightweight.
   const slideArea = slideWidth * slideHeight;
-  const bgCandidate = slide.elements.find((el) => {
+  // When multiple images qualify as background (e.g. two full-slide photos
+  // stacked in z-order), pick the LAST one — PowerPoint's element order is
+  // back-to-front, so the last match is the visible (top) image.
+  const bgCandidate = [...slide.elements].reverse().find((el) => {
     if (el.type !== ELEMENT_TYPES.IMAGE || !el.ref) return false;
     const imgArea = (el.width || 0) * (el.height || 0);
+    // A header-like text panel beside the image means the image is body
+    // content (header-content layout), not a background — regardless of
+    // how large the image is. Check this before the area thresholds.
+    // Only applies when the text panel has NO fill AND there is no other
+    // filled panel on the slide — a filled panel is a content surface
+    // (sidebar), and the image beside it is a background.
+    const hasFilledPanel = slide.elements.some(
+      (other) =>
+        other !== el &&
+        other.type === ELEMENT_TYPES.TEXT &&
+        (other.fillRaw || other.fill) &&
+        (other.content || "").trim(),
+    );
+    const hasHeaderPanel =
+      !hasFilledPanel &&
+      slide.elements.some((other) => {
+        if (other === el || other.type !== ELEMENT_TYPES.TEXT) return false;
+        if (other.fillRaw || other.fill) return false;
+        // The panel must be a side panel (narrow, not full-width)
+        if ((other.width || 0) >= slideWidth * 0.6) return false;
+        const text = (other.content || "").trim();
+        // Check only the first line — the panel may have a heading followed
+        // by bullet points, but the heading is what makes it header-like.
+        const firstLine = text.split("\n")[0].trim();
+        if (!REGEX.HEADING_MARKER.test(firstLine) || firstLine.length > CONFIG.maxHeaderLength)
+          return false;
+        // The panel must not significantly overlap the image
+        const overlap = getOverlapArea(other, el);
+        const panelArea = (other.width || 0) * (other.height || 0);
+        return panelArea > 0 && overlap / panelArea < 0.2;
+      });
+    if (hasHeaderPanel) return false;
     // Image covers >= 80% of slide — always a background
     if (imgArea >= slideArea * 0.8) return true;
     // Image covers >= 60% of slide — background if it overlaps content
@@ -224,9 +373,45 @@ function convertSlide(
           ELEMENT_TYPES.DIAGRAM,
         ].includes(other.type),
     );
-    return contentEls.some((cel) => {
-      const overlap = getOverlapArea(el, cel);
-      return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
+    if (
+      contentEls.some((cel) => {
+        const overlap = getOverlapArea(el, cel);
+        return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
+      })
+    ) {
+      return true;
+    }
+    // A large image with no content overlap is still a background when the
+    // slide's content sits on a large filled backing panel on the opposite
+    // side (e.g. a red sidebar panel on the left with a photo filling the
+    // rest of the slide). The panel is the content surface; the photo is the
+    // backdrop. Without a panel the image is a genuine media column and must
+    // stay in @media.
+    //
+    // Exception: when the panel's text is header-like (short, carries a
+    // heading marker), the panel is a title and the image is the body
+    // content — not a background. The slide should use header-content with
+    // the text in @header and the image in @main.
+    const imgCenterX = (el.left || 0) + (el.width || 0) / 2;
+    return slide.elements.some((other) => {
+      if (other === el) return false;
+      const isPanel =
+        other.type === "shape"
+          ? !(other.content || "").trim()
+          : other.type === "text" &&
+            !!(other.fillRaw || other.fill) &&
+            !!(other.content || "").trim();
+      if (!isPanel) return false;
+      // Header-like panel → image is content, not background
+      const panelText = (other.content || "").trim();
+      if (REGEX.HEADING_MARKER.test(panelText) && panelText.length <= CONFIG.maxHeaderLength) {
+        return false;
+      }
+      const w = other.width || 0;
+      const h = other.height || 0;
+      if (w * h < slideArea * 0.25) return false;
+      const otherCenterX = (other.left || 0) + w / 2;
+      return otherCenterX < imgCenterX !== imgCenterX < slideWidth / 2;
     });
   });
 
@@ -307,7 +492,27 @@ function convertSlide(
   if (importBackgrounds && bgCandidate && !fullImageCandidate) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    const pos = cssBackgroundPosition(bgCandidate, slideWidth, slideHeight);
+    // Background images keep their source box: a partial photo strip (e.g.
+    // the right 75% of the slide) must render at its own size/position
+    // (`contain`) instead of being zoomed to cover the whole slide. Only a
+    // truly full-slide image uses `cover`.
+    const wPct = Math.min(100, Math.round(((bgCandidate.width || 0) / slideWidth) * 100));
+    const hPct = Math.min(100, Math.round(((bgCandidate.height || 0) / slideHeight) * 100));
+    const isFullSlide = wPct >= 85 && hPct >= 85;
+    const size = isFullSlide ? "cover" : "contain";
+    // The dark scrim keeps light slide text readable over the photo. It is
+    // sized to the image's box (position + width/height percentages) so a
+    // partial background only darkens the photo, not the panels around it
+    // (e.g. a red sidebar must stay bright). Full-slide images scrim the
+    // whole slide.
+    const scrim =
+      CONFIG.bgScrimAlpha > 0
+        ? isFullSlide
+          ? `linear-gradient(rgba(0,0,0,${CONFIG.bgScrimAlpha}),rgba(0,0,0,${CONFIG.bgScrimAlpha})) ${pos} / cover, `
+          : `linear-gradient(rgba(0,0,0,${CONFIG.bgScrimAlpha}),rgba(0,0,0,${CONFIG.bgScrimAlpha})) ${pos} / ${wPct}% ${hPct}%, `
+        : "";
+    slide.background = `${scrim}url(${DEFAULTS.IMAGE_SUBDIR}${filename}) ${pos} / ${size} no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
     dominantImages = dominantImages.filter(
       (el) =>
@@ -356,7 +561,7 @@ function convertSlide(
   const formatSingleElement = (el) => {
     if (el.type === ELEMENT_TYPES.TEXT) return formatTextElement(el.content);
     if (el.type === ELEMENT_TYPES.IMAGE) return formatImage(el, deckName);
-    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el, slideWidth, slideHeight);
+    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el, slideWidth);
     if (el.type === ELEMENT_TYPES.CHART) return formatChart(el);
     if (el.type === ELEMENT_TYPES.DIAGRAM) return formatDiagram(el);
     return "";
@@ -379,7 +584,17 @@ function convertSlide(
   // and then downgraded back to header-content — the heuristic does not fix
   // multi-box overflow, it only avoids regressing it.
   const bodyOverflows = estimateBodyOverflow(bodyElements);
-  if (bodyOverflows && bodyElements.length > 0 && layout.type === LAYOUT.HEADER_CONTENT.type) {
+  // A table with 8+ rows is a splittable body — upgrade to two-column so
+  // the table can be split at the row midpoint into side-by-side tables.
+  const hasSplittableTableBody =
+    bodyElements.length === 1 &&
+    bodyElements[0].type === ELEMENT_TYPES.TABLE &&
+    (bodyElements[0].rows?.length || 0) >= 8;
+  if (
+    (bodyOverflows || hasSplittableTableBody) &&
+    bodyElements.length > 0 &&
+    layout.type === LAYOUT.HEADER_CONTENT.type
+  ) {
     layout = { type: LAYOUT.TWO_COLUMN.type, spec: LAYOUT.TWO_COLUMN.spec };
   }
 
@@ -410,10 +625,14 @@ function convertSlide(
     }
     if (leftEls.length === 0 || rightEls.length === 0) {
       // Keep TWO_COLUMN if there's a single element that can be content-split:
-      // a wide element (merged code from PPTX) or an overflowing body. The
-      // layout directive is not pushed yet — it picks up the new spec below.
+      // a wide element (merged code from PPTX), an overflowing body, or a
+      // table with 8+ rows that can be split at the row midpoint.
       const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
-      if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows))) {
+      const hasSplittableTable =
+        bodyElements.length === 1 &&
+        bodyElements[0].type === ELEMENT_TYPES.TABLE &&
+        (bodyElements[0].rows?.length || 0) >= 8;
+      if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows || hasSplittableTable))) {
         layout = LAYOUT.HEADER_CONTENT;
       }
     }
@@ -455,13 +674,117 @@ function convertSlide(
     }
   }
 
+  // area-bg-*: a filled backing panel (a shape with no text) covering a large
+  // part of the main/media region becomes that region's background, so colored
+  // cards and sidebars survive the conversion. Coloured header bands are
+  // deliberately ignored: the app's header area is padded and fixed-height,
+  // so it cannot reproduce a full-bleed variable-height title bar.
+  // Edge sidebar panels are injected into the slide's `background:` directive
+  // (not `area-bg-main:`) because the @main area is inset by grid gutters and
+  // cannot reach the slide's edge where the original sidebar was.
+  // Computed before the theme directive — a dark area-bg also flips the slide
+  // to dark (light text must stay readable on the dark panel).
+  const areaBg = {};
+  let slidePanelBg = null; // edge panel color, prepended to slide.background
+  if (layout.type !== LAYOUT.TITLE_SLIDE.type) {
+    const mediaSide =
+      layout.type === LAYOUT.MEDIA_SPAN.type
+        ? layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec
+          ? "left"
+          : "right"
+        : layout.type === LAYOUT.TWO_COLUMN.type
+          ? "right"
+          : null;
+    const bodyTop = slideHeight * CONFIG.bodyTopRatio;
+    for (const el of slide.elements) {
+      // Backing panels are bare shapes, OR text placeholders whose fill IS
+      // the panel (PowerPoint fills the title/content placeholders with a
+      // translucent colour instead of drawing a separate rectangle). Shapes
+      // that carry text are diagram labels, not panels.
+      const isPanel =
+        el.type === "shape"
+          ? !(el.content || "").trim()
+          : el.type === "text" && !!(el.fillRaw || el.fill) && !!(el.content || "").trim();
+      if (!isPanel) continue;
+      if (el === bgCandidate) continue;
+      // Header-like panel text → the panel is a title, not a backing
+      // panel. Don't emit its fill as an area-bg or edge sidebar.
+      // Check only the first line — the panel may have a heading followed
+      // by bullets, but the heading is what makes it header-like.
+      const panelText = (el.content || "").trim();
+      const panelFirstLine = panelText.split("\n")[0].trim();
+      if (
+        REGEX.HEADING_MARKER.test(panelFirstLine) &&
+        panelFirstLine.length <= CONFIG.maxHeaderLength
+      ) {
+        continue;
+      }
+      const w = el.width || 0;
+      const h = el.height || 0;
+      // Full-height panels are significant even when narrow (a translucent
+      // content card covering 20% of the slide width but the full height
+      // is still the content surface). Use a lower area threshold for them.
+      const isFullHeight = h >= slideHeight * 0.85;
+      const minArea = isFullHeight ? slideArea * 0.15 : slideArea * 0.25;
+      if (w * h < minArea) continue;
+      const css = formatElementFillBackground(el);
+      if (!css || css === "transparent") continue;
+      const centerX = (el.left || 0) + w / 2;
+      const centerY = (el.top || 0) + h / 2;
+      if (centerY < bodyTop) continue;
+      // A panel flush to an edge and narrower than ~40% of the slide is a
+      // sidebar. Paint it as a slide-level background layer (hard-stop
+      // gradient positioned relative to the slide) so it reaches the slide
+      // edge, which the @main area cannot do because of grid gutters.
+      const isEdgePanel =
+        (el.left || 0) <= slideWidth * 0.02 || (el.left || 0) + w >= slideWidth * 0.98;
+      if (w < slideWidth * 0.4 && isEdgePanel) {
+        const start = Math.max(0, Math.round(((el.left || 0) / slideWidth) * 1000) / 10);
+        const end = Math.min(100, Math.round((((el.left || 0) + w) / slideWidth) * 1000) / 10);
+        const before = start > 0 ? `transparent 0%, transparent ${start}%, ` : "";
+        const after = end < 100 ? `, transparent ${end}%, transparent 100%` : "";
+        slidePanelBg = `linear-gradient(90deg, ${before}${css} ${start}%, ${css} ${end}%${after})`;
+        continue;
+      }
+      if (mediaSide === "left" && centerX < midX) {
+        areaBg.media = css;
+      } else if (mediaSide === "right" && centerX >= midX) {
+        areaBg.media = css;
+      } else {
+        areaBg.main = css;
+      }
+    }
+  }
+
+  // Prepend edge panel color to the slide background so it paints at the
+  // slide level (reaching the slide edge), on top of the scrim and photo.
+  if (slidePanelBg) {
+    slide.background = slide.background ? `${slidePanelBg}, ${slide.background}` : slidePanelBg;
+  }
+
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
     parts.push(`background: ${slide.background}`);
-    if (bgCandidate || isColorDark(slide.background)) {
-      parts.push("theme: dark");
-    }
+  }
+  // Dark theme whenever the slide needs light text: a dark photo background
+  // or a dark area-bg panel. Evaluated even without a `background:` directive
+  // — an area-bg panel can be the only dark surface on the slide.
+  // Exception: when area-bg-main is light, the main content needs dark text
+  // to be readable on the light panel — don't force theme: dark even if the
+  // slide background is dark. The header may be less readable, but the main
+  // content (the bulk of the slide) takes priority.
+  // Note: the edge sidebar (slidePanelBg) is prepended to slide.background,
+  // so isColorDark(slide.background) already accounts for it. A dark sidebar
+  // covering a minority of the slide should not flip the whole slide to dark
+  // when the remaining background is light — the sidebar text color is
+  // handled by the area-bg CSS, not the global slide theme.
+  const hasLightMain = areaBg.main && !isColorDark(areaBg.main);
+  if (
+    !hasLightMain &&
+    (bgCandidate || isColorDark(slide.background) || Object.values(areaBg).some(isColorDark))
+  ) {
+    parts.push("theme: dark");
   }
 
   // --- FULL-IMAGE OVERRIDE ---
@@ -483,6 +806,44 @@ function convertSlide(
     return parts.join("\n");
   }
 
+  // --- media-full-bleed ---
+  // The app supports `media-full-bleed:` (edge-to-edge media column). Emit it
+  // when the source slide's media column is genuinely edge-to-edge, so
+  // media-span slides keep their full-height edge image. The directive is
+  // only pushed once the final layout is known: the media-span render branch
+  // can downgrade to header-content (empty @main) below, which would leave a
+  // media directive in the markdown for a layout that has no media area.
+  const directiveIndex = parts.length;
+  let mediaFullBleed = false;
+  if (layout.type === LAYOUT.MEDIA_SPAN.type) {
+    const mediaSide = layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec ? "left" : "right";
+    // Mirror the @media population exactly (see the media-span render branch)
+    // so full-bleed is judged from the image that actually lands in @media.
+    let mediaEls = dominantImages.filter(
+      (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === mediaSide,
+    );
+    if (mediaEls.length === 0) {
+      mediaEls = dominantImages.filter(
+        (el) => bodyElements.includes(el) || el === dominantImages[0],
+      );
+    }
+    const mediaImage = mediaEls[0] || null;
+    // Full-bleed: the @media image touches the slide's outer edge and spans
+    // (nearly) the full height, so the source column is edge-to-edge. A
+    // single image is required — the render branch only applies the fill
+    // styles to a lone media image, so a multi-image media column would
+    // carry a directive with no visual effect.
+    if (mediaEls.length === 1 && mediaImage.type === ELEMENT_TYPES.IMAGE) {
+      const l = mediaImage.left || 0;
+      const w = mediaImage.width || 0;
+      const h = mediaImage.height || 0;
+      const touchesOuterEdge = mediaSide === "left" ? l <= 2 : l + w >= slideWidth - 2;
+      if (touchesOuterEdge && h >= slideHeight * 0.95) {
+        mediaFullBleed = true;
+      }
+    }
+  }
+
   // --- RENDER SECTIONS ---
   // INVARIANT: every branch below pushes an area marker (usually @main) or
   // returns early. There is no late fallback anymore — a future downgrade
@@ -493,6 +854,12 @@ function convertSlide(
     parts.push("");
     parts.push(allElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
   } else if (layout.type === LAYOUT.HEADER_CONTENT.type) {
+    // No valid header → downgrade to focus so the layout name matches the
+    // actual render (everything in @main, no @header area).
+    if (!isHeaderValid || !header) {
+      layout = LAYOUT.FOCUS;
+      setLayoutDirective(parts, layout);
+    }
     const singleImage =
       bodyElements.length === 1 &&
       bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
@@ -510,9 +877,10 @@ function convertSlide(
     if (singleImage) {
       // Only omit dimensions for markdown images (no width/height properties).
       // Extracted PPTX images need explicit dimensions for the click/drag handler.
+      // fitColumn adds object-fit: contain so the image scales without stretching.
       const el = bodyElements[0];
       const hasExplicitDims = el.width && el.height;
-      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
+      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims, fitColumn: true }));
     } else if (hasBody) {
       parts.push(
         renderElementsWithFlex(
@@ -555,12 +923,19 @@ function convertSlide(
     // fenced code block.
     if (leftEls.length === 0 || rightEls.length === 0) {
       const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.8);
-      // Only a single TEXT element can be content-split — a wide image or
-      // table has no lines to split and would otherwise be dropped.
+      // A single TEXT element can be content-split at line boundaries.
+      // A single TABLE element with many rows can be split at the row
+      // midpoint into two side-by-side tables.
       const splitEl =
         bodyElements.length === 1 &&
         bodyElements[0].type === ELEMENT_TYPES.TEXT &&
         (wideEl || bodyOverflows)
+          ? bodyElements[0]
+          : null;
+      const splitTable =
+        bodyElements.length === 1 &&
+        bodyElements[0].type === ELEMENT_TYPES.TABLE &&
+        (bodyElements[0].rows?.length || 0) >= 8
           ? bodyElements[0]
           : null;
       if (splitEl) {
@@ -636,6 +1011,44 @@ function convertSlide(
           parts.push("");
           parts.push(formatTextElement(rightContent));
         }
+      } else if (splitTable) {
+        // Split a wide table at the row midpoint into two side-by-side tables.
+        // Each half fills its own column, so override the source width to
+        // make each table 100% of its column.
+        const allRows = splitTable.rows || [];
+        // Determine the header row index: skip a leading single-cell caption
+        // row (mirrors formatTable's caption detection). The header row is
+        // repeated at the top of the right half so formatTable's header
+        // detection reaches the same conclusion as the left half — otherwise
+        // the first data row in the right half is misdetected as a header.
+        let headerIdx = 0;
+        if (allRows.length > 1) {
+          const firstRow = allRows[0];
+          const filled = firstRow.filter((cell) => (cell.text || "").trim());
+          if (filled.length === 1 && firstRow.length > 1) headerIdx = 1;
+        }
+        const headerRow = allRows[headerIdx];
+        const mid = Math.ceil(allRows.length / 2);
+        const leftTable = { ...splitTable, rows: allRows.slice(0, mid), width: 0 };
+        const rightTable = {
+          ...splitTable,
+          rows: [headerRow, ...allRows.slice(mid)],
+          width: 0,
+        };
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(formatTable(leftTable, 0));
+        parts.push("");
+        parts.push(MARKDOWN_TAGS.MEDIA);
+        parts.push("");
+        parts.push(formatTable(rightTable, 0));
       } else {
         // No single element to content-split (multiple body elements landed
         // on one side). Downgrade to header-content and render the body
@@ -660,7 +1073,9 @@ function convertSlide(
           // downgrade paths cannot drift.
           const el = bodyElements[0];
           const hasExplicitDims = el.width && el.height;
-          parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
+          parts.push(
+            formatImage(el, deckName, { omitDimensions: !hasExplicitDims, fitColumn: true }),
+          );
         } else {
           parts.push(
             renderElementsWithFlex(
@@ -701,6 +1116,9 @@ function convertSlide(
         // No elements on the right — downgrade to header-content
         layout = LAYOUT.HEADER_CONTENT;
         setLayoutDirective(parts, layout);
+        // The downgraded layout has no media area — drop the media directive
+        // computed for the two-column layout (area-bg-main stays valid).
+        delete areaBg.media;
         parts.push("");
         if (isHeaderValid) {
           parts.push(MARKDOWN_TAGS.HEADER);
@@ -764,6 +1182,11 @@ function convertSlide(
     if (leftEls.length === 0) {
       layout = LAYOUT.HEADER_CONTENT;
       setLayoutDirective(parts, layout);
+      // The downgraded layout has no media area — drop the media directives
+      // that were computed for the media-span layout. area-bg-main survives:
+      // the main area exists in every layout.
+      mediaFullBleed = false;
+      delete areaBg.media;
       parts.push("");
       if (isHeaderValid) {
         parts.push(MARKDOWN_TAGS.HEADER);
@@ -775,7 +1198,7 @@ function convertSlide(
       parts.push("");
       parts.push(
         mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref
-          ? formatImage(mediaEls[0], deckName, { omitDimensions: false })
+          ? formatImage(mediaEls[0], deckName, { omitDimensions: false, fitColumn: true })
           : renderElementsWithFlex(
               mediaEls,
               slideWidth,
@@ -801,7 +1224,12 @@ function convertSlide(
       parts.push(MARKDOWN_TAGS.MEDIA);
       parts.push("");
       if (mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref) {
-        parts.push(formatImage(mediaEls[0], deckName, { fitColumn: true }));
+        parts.push(
+          formatImage(mediaEls[0], deckName, {
+            fitColumn: true,
+            objectFit: mediaFullBleed ? "cover" : "contain",
+          }),
+        );
       } else {
         parts.push(mediaEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
       }
@@ -809,6 +1237,13 @@ function convertSlide(
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const [mediaImage, secondaryImage] = dominantImages;
     if (!mediaImage || !secondaryImage) {
+      // Downgrade to header-content: three-column was inferred but not
+      // enough dominant images survived. Fall through to the default
+      // render branch below (which emits @main) instead of returning
+      // early — the early return skipped the area-bg directive splice
+      // and footer emission that follow the render dispatch.
+      layout = LAYOUT.HEADER_CONTENT;
+      setLayoutDirective(parts, layout);
       parts.push("");
       if (isHeaderValid) {
         parts.push(MARKDOWN_TAGS.HEADER);
@@ -827,29 +1262,29 @@ function convertSlide(
           formatSingleElement,
         ),
       );
-      return wrapLongLists(parts.join("\n"));
-    }
-    const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
-    parts.push("");
-    if (isHeaderValid) {
-      parts.push(MARKDOWN_TAGS.HEADER);
+    } else {
+      const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
       parts.push("");
-      parts.push(formatTextElement(header.content));
+      if (isHeaderValid) {
+        parts.push(MARKDOWN_TAGS.HEADER);
+        parts.push("");
+        parts.push(formatTextElement(header.content));
+        parts.push("");
+      }
+      parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
+      parts.push(
+        renderElementsWithFlex(mainEls, slideWidth, slideHeight, deckName, formatSingleElement),
+      );
+      parts.push("");
+      parts.push(MARKDOWN_TAGS.MEDIA);
+      parts.push("");
+      parts.push(formatSingleElement(mediaImage));
+      parts.push("");
+      parts.push(MARKDOWN_TAGS.SECONDARY);
+      parts.push("");
+      parts.push(formatSingleElement(secondaryImage));
     }
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    parts.push(
-      renderElementsWithFlex(mainEls, slideWidth, slideHeight, deckName, formatSingleElement),
-    );
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.MEDIA);
-    parts.push("");
-    parts.push(formatSingleElement(mediaImage));
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.SECONDARY);
-    parts.push("");
-    parts.push(formatSingleElement(secondaryImage));
   } else if (layout.type === LAYOUT.FOCUS.type) {
     // Focus layout: content-first, center stage — all elements in @main
     parts.push("");
@@ -867,11 +1302,26 @@ function convertSlide(
     );
   }
 
+  // Emit the media-full-bleed / area-bg directives now that the layout is
+  // final (downgrade branches above may have cleared them). Inserted after
+  // the layout/background/theme directives and before the content sections.
+  const extraDirectives = [];
+  if (mediaFullBleed) {
+    extraDirectives.push("media-full-bleed: true");
+  }
+  for (const [area, css] of Object.entries(areaBg)) {
+    extraDirectives.push(`area-bg-${area}: ${css}`);
+  }
+  if (extraDirectives.length > 0) {
+    parts.splice(directiveIndex, 0, ...extraDirectives);
+  }
+
   if (footerElements.length > 0) {
-    const footerText = footerElements
-      .map((el) => el.content?.trim())
-      .filter(Boolean)
-      .join(" ");
+    // Deduplicate identical footer texts — a slide can carry the same footer
+    // placeholder twice (slide layout + slide), which would otherwise repeat.
+    const footerText = [
+      ...new Set(footerElements.map((el) => el.content?.trim()).filter(Boolean)),
+    ].join(" ");
     if (footerText) {
       parts.push("");
       parts.push(MARKDOWN_TAGS.FOOTER);

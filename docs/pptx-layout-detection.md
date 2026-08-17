@@ -64,6 +64,30 @@ because it likely represents merged two-column content from PPTX.
 If MEDIA_SPAN rendering would produce an empty `@main` (all body elements are
 dominant images), downgrade to `HEADER_CONTENT` and put images in `@main`.
 
+## Slide-level directives emitted beyond `layout:` / `background:` / `theme:`
+
+The converter also mirrors two source visuals the app supports natively:
+
+- **`media-full-bleed: true`** — emitted for `MEDIA_SPAN` slides whose `@media`
+  image touches the slide's outer edge and spans ≥95% of the slide height, and
+  whose media column holds exactly one image (the render branch only applies
+  the fill styles to a lone media image). The source column is edge-to-edge,
+  so the media column is rendered full-bleed (`object-fit: cover`) instead of
+  letterboxing. Detection mirrors the `@media` population logic exactly
+  (including its fallback).
+- **`area-bg-main:` / `area-bg-media:`** — a filled backing panel (a `shape`
+  with no text, `fillRaw` present) covering ≥25% of the slide becomes that
+  area's background, so colored cards and sidebars survive the conversion.
+  The fill is converted with `formatElementFillBackground()` (solid colors and
+  gradients; image/transparent fills are skipped). Panels whose center sits in
+  the top `bodyTopRatio` band are treated as header decorations and ignored.
+
+Both directives are emitted only when the final layout still has the
+corresponding area: if the `MEDIA_SPAN` or `TWO_COLUMN` render branch
+downgrades to `HEADER_CONTENT` (empty `@main` / empty right column), the
+media directives are dropped (`area-bg-main:` survives — every layout has a
+main area).
+
 ## Code detection
 
 The code detection in `inferLayout` checks for:
@@ -132,10 +156,10 @@ falls back to SVG) so a failed position match can never emit an empty image.
 box-like shape (within 20 pt). Decorative side arrows that merely float next
 to a shape (e.g. the arrows pointing at a sudoku's rows/columns) are dropped
 instead of being cropped into the diagram image. When that leaves a single
-`table` element, the sudoku renders as a styled CSS grid: tables with a
-meaningful share of coloured cells (≥25% with luminance below 230/255) keep
-their colours as a `.fullpage-grid` (preserving the source aspect ratio),
-instead of flattening to a plain markdown table.
+`table` element, the sudoku renders as a plain markdown table — tables always
+convert to markdown (cell colours are dropped, since markdown cannot express
+them; a large coloured backing panel is instead emitted as an `area-bg-*`
+directive).
 
 ### Files involved
 

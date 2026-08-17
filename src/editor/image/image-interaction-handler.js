@@ -30,6 +30,7 @@ import {
   alignLeft,
   alignRight,
   fitToWidth,
+  fillContainer,
   rotateBy,
   getStageScale,
 } from "./image-position-presets.js";
@@ -159,7 +160,6 @@ export class ImageInteractionHandler {
     overlay.style.top = `${top - OVERLAY_BORDER}px`;
     overlay.style.width = `${w + OVERLAY_BORDER_DOUBLE}px`;
     overlay.style.height = `${h + OVERLAY_BORDER_DOUBLE}px`;
-    overlay.classList?.toggle("image-overlay--fixed-size", isMediaSpanFillImage(img));
   }
 
   // ── Selection ───────────────────────────────────────────────────────────
@@ -636,7 +636,7 @@ export class ImageInteractionHandler {
       s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
       s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
       "border: none",
-      "object-fit: contain",
+      `object-fit: ${s.objectFit || "contain"}`,
       "cursor: move",
     ]
       .filter(Boolean)
@@ -717,17 +717,23 @@ export class ImageInteractionHandler {
     const img = this._selectedImg;
     if (!img) return;
     const s = { ...(settings || {}) };
-    if (isMediaSpanFillImage(img)) {
-      // The media column owns the fill image's geometry. Ignore direct size
-      // edits instead of writing dimensions that CSS !important will hide.
-      for (const key of ["left", "top", "width", "height"]) delete s[key];
+    if (isMediaSpanFillImage(img) && (s.width != null || s.height != null)) {
+      // A size edit takes a full-bleed fill image out of fill mode: give it an
+      // explicit position so the full-bleed CSS (:not([style*="position"]))
+      // stops force-filling it and the chosen size actually applies. Without
+      // this the width/height would be hidden by the CSS !important fill rules.
+      s.position = "relative";
+      s.left = s.left ?? 0;
+      s.top = s.top ?? 0;
     }
 
+    if (s.position != null) img.style.position = s.position;
     if (s.left != null) img.style.left = `${Math.round(s.left)}px`;
     if (s.top != null) img.style.top = `${Math.round(s.top)}px`;
     if (s.width != null) img.style.width = `${Math.round(s.width)}px`;
     if (s.height != null) img.style.height = `${Math.round(s.height)}px`;
     if (s.opacity != null) img.style.opacity = String(s.opacity);
+    if (s.objectFit != null) img.style.objectFit = s.objectFit;
     if (s.borderRadius != null) img.style.borderRadius = `${Math.round(s.borderRadius)}px`;
     if (s.boxShadow != null) img.style.boxShadow = s.boxShadow;
     if (s.rotation != null) {
@@ -804,6 +810,11 @@ export class ImageInteractionHandler {
   static fitToWidth() {
     if (!this._selectedImg) return;
     fitToWidth(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
+  }
+
+  static fillContainer() {
+    if (!this._selectedImg) return;
+    fillContainer(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
   }
 
   static rotateBy(delta) {

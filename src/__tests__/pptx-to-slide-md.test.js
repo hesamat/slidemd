@@ -420,7 +420,8 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
 
-    expect(md).toContain("layout: header-content");
+    // No header on an image-only slide → downgrades to focus (no @header area)
+    expect(md).toContain("layout: focus");
     expect(md).toContain("@main");
     expect(md).not.toContain("@media");
     expect(md).not.toContain("@secondary");
@@ -1940,8 +1941,59 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@header");
     expect(md).toContain("@main");
     expect(md).toContain("@media");
-    // The media-span image fills its column edge to edge (full-bleed media).
-    expect(md).toContain('style="width: 100%; height: auto;"');
+    // The media-span image fills its column via the fitColumn inline style
+    // (contain; cover is reserved for full-bleed media).
+    expect(md).toContain('style="width: 100%; height: auto; object-fit: contain;"');
+  });
+
+  it("uses media-span for a full-height text panel with heading-marked body content beside an image", () => {
+    // A full-height text panel whose content is a multi-line criteria list
+    // (each line heading-marked) is body content, not a header. The slide
+    // should be media-span, not header-content — the text goes in @main and
+    // the image in @media.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Criteria",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content:
+              "### We want functions that are:\n\n" +
+              "## 1. *Short* (the fewest lines possible)\n\n" +
+              "## 2. *Atomic* (cannot be broken down any further)\n\n" +
+              "## 3. *General* enough to be reused (modular)\n\n" +
+              "## 4. *Understandable* enough to require minimal comments\n\n" +
+              "## 5. *Simple* to test individually.",
+            left: 190000,
+            top: 230000,
+            width: 4700000,
+            height: 4600000,
+          },
+          {
+            type: "image",
+            ref: "criteria-image.png",
+            base64: "abc",
+            left: 5100000,
+            top: 0,
+            width: 5000000,
+            height: 6500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("layout: header-content");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    // The criteria text must be in @main, not @header
+    expect(md.indexOf("We want functions")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("criteria-image.png")).toBeGreaterThan(mediaIdx);
   });
 
   it("uses focus when the body is a single short caption beside one dominant image", () => {
@@ -3231,5 +3283,862 @@ describe("flex-row rendering", () => {
     expect(md).toContain("image20-f6a2.jpeg");
     expect(md).toContain("image21-xxxx.jpeg");
     expect(md).toContain("image22-0bac.jpeg");
+  });
+});
+
+describe("convertToSlideMd table / image / footer edge cases", () => {
+  it("renders a merged table title row as a bold caption", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "table",
+            rows: [
+              [{ text: "Memory table", colSpan: 2 }, { text: "" }],
+              [{ text: "Address" }, { text: "Value" }],
+              [{ text: "4399779840" }, { text: "0" }],
+              [{ text: "4399779872" }, { text: "1" }],
+            ],
+            order: 5,
+            left: 1000000,
+            top: 1500000,
+            width: 6000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("**Memory table**");
+    expect(md).toContain("| Address | Value |");
+    expect(md).not.toContain("| Memory table |");
+  });
+
+  it("orders diagram shape texts in reading order", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "diagram",
+            content: "Step 3, Step 1, Step 2",
+            order: 5,
+            left: 1000000,
+            top: 2000000,
+            width: 3000000,
+            height: 1500000,
+            shapes: [
+              { type: "text", content: "Step 3", left: 100, top: 300 },
+              { type: "text", content: "Step 1", left: 100, top: 100 },
+              { type: "text", content: "Step 2", left: 100, top: 200 },
+            ],
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("[Diagram: Step 1, Step 2, Step 3]");
+  });
+
+  it("strips markdown markers from diagram shape texts", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "diagram",
+            content: "A, B",
+            order: 5,
+            left: 1000000,
+            top: 2000000,
+            width: 3000000,
+            height: 1500000,
+            shapes: [
+              { type: "text", content: "### Pair Programming", left: 100, top: 100 },
+              { type: "text", content: "***bold node***", left: 100, top: 200 },
+            ],
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("[Diagram: Pair Programming, bold node]");
+  });
+
+  it("renders a coloured full-page table as a markdown table (no HTML grid)", () => {
+    // Tables always convert to markdown — cell colours are dropped rather
+    // than emitting a raw HTML grid.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "table",
+            rows: [
+              [
+                { text: "A", fillColor: "#d9d9d9" },
+                { text: "B", fillColor: "#0f172a" },
+              ],
+              [
+                { text: "C", fillColor: "" },
+                { text: "D", fillColor: "#0f172a" },
+              ],
+            ],
+            order: 5,
+            left: 0,
+            top: 0,
+            width: 9000000,
+            height: 5000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("| A | B |");
+    expect(md).not.toContain("fullpage-grid");
+  });
+
+  it("deduplicates identical footer texts", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Header",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "COMP 1510 202630",
+            placeholderType: "footer",
+            left: 0,
+            top: 0,
+            width: 1000,
+            height: 100,
+          },
+          {
+            type: "text",
+            content: "COMP 1510 202630",
+            placeholderType: "footer",
+            left: 0,
+            top: 0,
+            width: 1000,
+            height: 100,
+          },
+          { type: "text", content: "Header", left: 0, top: 0, width: 8000, height: 500 },
+          { type: "text", content: "Body text", left: 0, top: 1500, width: 8000, height: 1000 },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain("COMP 1510 202630 COMP 1510 202630");
+    expect(md.match(/COMP 1510 202630/g)?.length).toBe(1);
+  });
+
+  it("deduplicates identical repeated images within a slide", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "images/icon.png",
+            width: 600000,
+            height: 600000,
+            left: 100,
+            top: 100,
+            order: 1,
+          },
+          {
+            type: "image",
+            ref: "images/icon.png",
+            width: 600000,
+            height: 600000,
+            left: 200,
+            top: 200,
+            order: 2,
+          },
+          {
+            type: "image",
+            ref: "images/icon.png",
+            width: 600000,
+            height: 600000,
+            left: 300,
+            top: 300,
+            order: 3,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md.match(/images\/icon\.png/g)?.length).toBe(1);
+  });
+});
+
+describe("convertToSlideMd media-full-bleed / area-bg emission", () => {
+  const mediaSpanSlide = (imageLeft, imageWidth, imageHeight) => ({
+    index: 0,
+    title: "Two Pics",
+    notes: "",
+    elements: [
+      {
+        type: "text",
+        content: "## Header",
+        left: 500000,
+        top: 200000,
+        width: 8000000,
+        height: 500000,
+      },
+      {
+        type: "text",
+        content: "Left column body text that carries the main content",
+        left: 762000,
+        top: 1524000,
+        width: 3556000,
+        height: 1016000,
+      },
+      // Illustration inside the text column
+      {
+        type: "image",
+        ref: "illustration.png",
+        base64: "abc",
+        left: 1016000,
+        top: 2540000,
+        width: 2540000,
+        height: 1905000,
+      },
+      // The media-only column
+      {
+        type: "image",
+        ref: "photo.png",
+        base64: "abc",
+        left: imageLeft,
+        top: 0,
+        width: imageWidth,
+        height: imageHeight,
+      },
+    ],
+    background: "",
+  });
+
+  it("emits media-full-bleed when the media image is edge-flush and full-height", () => {
+    // Image touches the right edge (left + width === slide width) and spans
+    // the full slide height.
+    const md = convertToSlideMd(
+      makeExtraction([mediaSpanSlide(5588000, DEFAULT_SIZE.width - 5588000, DEFAULT_SIZE.height)]),
+    );
+    expect(md).toContain("layout: media-span-right");
+    expect(md).toContain("media-full-bleed: true");
+    // Full-bleed media images cover (fill) the column instead of containing it.
+    expect(md).toContain("object-fit: cover");
+  });
+
+  it("does not emit media-full-bleed for an inset media image", () => {
+    // Image ends well before the right edge.
+    const md = convertToSlideMd(
+      makeExtraction([mediaSpanSlide(5334000, 2000000, DEFAULT_SIZE.height)]),
+    );
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("media-full-bleed");
+    // Inset media-span images keep the contain behavior.
+    expect(md).toContain("object-fit: contain");
+  });
+
+  it("drops the media-full-bleed directive when the media-span layout downgrades to header-content", () => {
+    // An image-only slide with three dominant images clustered on one side
+    // infers media-span but leaves @main empty, so the render branch
+    // downgrades to header-content. The media directive computed for the
+    // abandoned layout (the first image is edge-flush and full-height, which
+    // would qualify it) must not leak into the markdown.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "a.png",
+            base64: "abc",
+            left: 0,
+            top: 0,
+            width: 4000000,
+            height: DEFAULT_SIZE.height,
+          },
+          {
+            type: "image",
+            ref: "b.png",
+            base64: "abc",
+            left: 100000,
+            top: 1500000,
+            width: 2000000,
+            height: 1200000,
+          },
+          {
+            type: "image",
+            ref: "c.png",
+            base64: "abc",
+            left: 100000,
+            top: 3000000,
+            width: 2000000,
+            height: 1200000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).not.toContain("media-full-bleed");
+    expect(md).not.toContain("area-bg-");
+  });
+
+  it("does not emit media-full-bleed for a multi-image media column", () => {
+    // The render branch only applies the full-bleed fill styles to a lone
+    // media image; a multi-image @media would carry the directive with no
+    // visual effect, so it must not be emitted even when the first media
+    // image is edge-flush and full-height.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Left column body text that carries the main content",
+            left: 762000,
+            top: 1524000,
+            width: 3556000,
+            height: 1016000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 7288000,
+            top: 0,
+            width: 1856000,
+            height: DEFAULT_SIZE.height,
+          },
+          {
+            type: "image",
+            ref: "photo2.png",
+            base64: "abc",
+            left: 5588000,
+            top: 0,
+            width: 1700000,
+            height: DEFAULT_SIZE.height,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("media-full-bleed");
+  });
+
+  it("emits area-bg-main for a large filled backing panel", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "shape",
+            shapType: "rect",
+            fill: "#eef4fb",
+            fillRaw: { type: "color", value: "#eef4fb" },
+            content: "",
+            left: 400000,
+            top: 1500000,
+            width: 8300000,
+            height: 3200000,
+          },
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body content here",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #eef4fb");
+  });
+
+  it("does not emit area-bg for small filled shapes", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "shape",
+            shapType: "rect",
+            fill: "#eef4fb",
+            fillRaw: { type: "color", value: "#eef4fb" },
+            content: "",
+            left: 400000,
+            top: 1500000,
+            width: 500000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body content here",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain("area-bg-");
+  });
+});
+
+it("renders a large unfilled table as a markdown table, not a bare grid", () => {
+  // PowerPoint's built-in banded table style lives in the theme and is not
+  // extracted, so a large data table arrives with all cells unfilled. It
+  // must render as a markdown table (borders, header, zebra striping)
+  // rather than a borderless CSS grid of transparent divs.
+  const extraction = makeExtraction([
+    {
+      index: 0,
+      title: "",
+      notes: "",
+      elements: [
+        {
+          type: "table",
+          rows: [
+            [{ text: "Specifier" }, { text: "Usage" }, { text: "Example" }, { text: "Output" }],
+            [
+              { text: "%d" },
+              { text: "For a decimal integer" },
+              { text: "print('%d' % 128)" },
+              { text: "128" },
+            ],
+            [
+              { text: "%f" },
+              { text: "For a float" },
+              { text: "print('%f' % 1.5)" },
+              { text: "1.500000" },
+            ],
+            [
+              { text: "%s" },
+              { text: "For a string" },
+              { text: "print('%s' % 'ada')" },
+              { text: "ada" },
+            ],
+          ],
+          order: 5,
+          left: 0,
+          top: 0,
+          width: 9000000,
+          height: 5000000,
+        },
+      ],
+      background: "",
+    },
+  ]);
+  const md = convertToSlideMd(extraction);
+  expect(md).toContain("| Specifier | Usage | Example | Output |");
+  expect(md).not.toContain("fullpage-grid");
+});
+
+describe("convertToSlideMd split table header repetition", () => {
+  it("repeats the header row in the right half of a split table", () => {
+    // A table with 8+ rows triggers hasSplittableTableBody, which upgrades
+    // to two-column and splits the table at the row midpoint. The right
+    // half must repeat the header row so a data row is not misdetected as
+    // the header.
+    const rows = [
+      [{ text: "Name" }, { text: "Value" }],
+      ...Array.from({ length: 8 }, (_, i) => [{ text: `key${i}` }, { text: `val${i}` }]),
+    ];
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "table",
+            rows,
+            order: 5,
+            left: 0,
+            top: 0,
+            width: 9000000,
+            height: 5000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    // The header row label must appear in both halves — the right half
+    // repeats the header instead of promoting the first data row.
+    const headerMatches = md.match(/\| Name \| Value \|/g);
+    expect(headerMatches).toHaveLength(2);
+    // The first data row of the right half (key4) must appear as a data
+    // row, not as the header — it should be preceded by the repeated
+    // header row in the @media section.
+    const mediaSection = md.split("@media")[1] || "";
+    expect(mediaSection.indexOf("| Name | Value |")).toBeLessThan(
+      mediaSection.indexOf("| key4 | val4 |"),
+    );
+  });
+});
+
+describe("convertToSlideMd background image geometry", () => {
+  const bgSlide = (image) => ({
+    index: 0,
+    title: "",
+    notes: "",
+    elements: [
+      {
+        type: "text",
+        content: "## Title",
+        left: 500000,
+        top: 200000,
+        width: 8000000,
+        height: 500000,
+      },
+      {
+        type: "text",
+        content: "Body content",
+        left: 500000,
+        top: 1500000,
+        width: 8000000,
+        height: 1000000,
+      },
+      image,
+    ],
+    background: "",
+  });
+
+  it("uses cover + scrim for a full-slide background image", () => {
+    const md = convertToSlideMd(
+      makeExtraction([
+        bgSlide({
+          type: "image",
+          ref: "ppt/media/photo.jpeg",
+          base64: "abc",
+          left: 0,
+          top: 0,
+          width: DEFAULT_SIZE.width,
+          height: DEFAULT_SIZE.height,
+        }),
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) center / cover no-repeat");
+    expect(md).toContain("rgba(0,0,0,0.4)");
+  });
+
+  it("uses contain + a box-matched scrim for a partial background image", () => {
+    // A full-height image occupying the right 70% of the slide: flush right
+    // edge, flush top and bottom → "right center". Partial backgrounds keep
+    // their source box (contain) instead of being zoomed to cover, and the
+    // scrim is sized to the same box so it only darkens the photo.
+    const md = convertToSlideMd(
+      makeExtraction([
+        bgSlide({
+          type: "image",
+          ref: "ppt/media/photo.jpeg",
+          base64: "abc",
+          left: Math.round(DEFAULT_SIZE.width * 0.3),
+          top: 0,
+          width: Math.round(DEFAULT_SIZE.width * 0.7),
+          height: DEFAULT_SIZE.height,
+        }),
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) right center / contain no-repeat");
+    expect(md).toContain("rgba(0,0,0,0.4)) right center / 70% 100%");
+  });
+
+  it("centres a background image inset on all edges", () => {
+    const md = convertToSlideMd(
+      makeExtraction([
+        bgSlide({
+          type: "image",
+          ref: "ppt/media/photo.jpeg",
+          base64: "abc",
+          left: Math.round(DEFAULT_SIZE.width * 0.1),
+          top: Math.round(DEFAULT_SIZE.height * 0.1),
+          width: Math.round(DEFAULT_SIZE.width * 0.8),
+          height: Math.round(DEFAULT_SIZE.height * 0.8),
+        }),
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) center / contain no-repeat");
+    expect(md).toContain("rgba(0,0,0,0.4)) center / 80% 80%");
+  });
+
+  it("turns a large non-overlapping image beside a filled panel into a contain background", () => {
+    // Slide 48 pattern: a filled sidebar panel on the left with a photo
+    // filling the rest of the slide. The photo becomes the background.
+    const md = convertToSlideMd(
+      makeExtraction([
+        {
+          index: 0,
+          title: "",
+          notes: "",
+          elements: [
+            {
+              type: "text",
+              content: "## The first two repetition control structures",
+              left: 0,
+              top: 0,
+              width: 3000000,
+              height: 1000000,
+            },
+            {
+              type: "text",
+              content: "- for\n- while",
+              left: 0,
+              top: 0,
+              width: 3000000,
+              height: 5143500,
+              fillRaw: { type: "color", value: "#C6322E" },
+            },
+            {
+              type: "image",
+              ref: "ppt/media/photo.jpeg",
+              base64: "abc",
+              left: 3000000,
+              top: 0,
+              width: 6144000,
+              height: 5143500,
+            },
+          ],
+          background: "",
+        },
+      ]),
+    );
+    expect(md).toContain("url(images/photo.jpeg) right center / contain no-repeat");
+    // The sidebar color is a slide-level background layer (not area-bg-main)
+    // because the @main area is inset by grid gutters and cannot reach the
+    // slide edge where the original sidebar was.
+    expect(md).toContain(
+      "background: linear-gradient(90deg, #C6322E 0%, #C6322E 32.8%, transparent 32.8%, transparent 100%)",
+    );
+    expect(md).not.toContain("area-bg-main:");
+  });
+
+  it("keeps a large non-overlapping image as a media image when there is no panel", () => {
+    // Slides 93/106 pattern: a big media-span photo with substantive body
+    // text — the image must stay in @media, not become a background.
+    const md = convertToSlideMd(
+      makeExtraction([
+        {
+          index: 0,
+          title: "",
+          notes: "",
+          elements: [
+            {
+              type: "text",
+              content: "## How do we create these functions?",
+              left: 0,
+              top: 200000,
+              width: 5000000,
+              height: 500000,
+            },
+            {
+              type: "text",
+              content:
+                "- The loop body is repeated once for each element\n- The loop body is indented\n- There is no maximum loop duration",
+              left: 0,
+              top: 1500000,
+              width: 4000000,
+              height: 2000000,
+            },
+            {
+              type: "image",
+              ref: "ppt/media/photo.jpeg",
+              base64: "abc",
+              left: 2400000,
+              top: 0,
+              width: 6800000,
+              height: 5143500,
+            },
+          ],
+          background: "",
+        },
+      ]),
+    );
+    expect(md).not.toContain("background: ");
+    expect(md).toMatch(/layout: media-span-right/);
+  });
+});
+
+describe("convertToSlideMd area-bg from filled text placeholders", () => {
+  it("emits area-bg-main with the placeholder fill (alpha preserved)", () => {
+    // PowerPoint fills the title/content placeholders with a translucent
+    // colour instead of drawing a separate rectangle; that fill is the
+    // backing panel and must become an area-bg directive.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## The Python string (str)",
+            left: 500000,
+            top: 200000,
+            width: 6000000,
+            height: 600000,
+            fillRaw: { type: "color", value: "#000000a8" },
+          },
+          {
+            type: "text",
+            content: "- A string is a sequence of Unicode codepoints",
+            left: 500000,
+            top: 1500000,
+            width: 6000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "#000000a8" },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #000000a8");
+  });
+
+  it("converts a separate fill opacity to rgba()", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "- Body text on a translucent panel",
+            left: 0,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "0D0D0D", opacity: 0.73 },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: rgba(13, 13, 13, 0.73)");
+  });
+
+  it("flips the theme to dark for a dark area-bg panel (no background directive)", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 6000000,
+            height: 600000,
+          },
+          {
+            type: "text",
+            content: "- Body text on a dark panel",
+            left: 500000,
+            top: 1500000,
+            width: 6000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "#000000a8" },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #000000a8");
+    expect(md).toContain("theme: dark");
+  });
+
+  it("keeps a light theme for a light area-bg panel", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "- Body text on a light panel",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "#C1986A" },
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("area-bg-main: #C1986A");
+    expect(md).not.toContain("theme: dark");
   });
 });

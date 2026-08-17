@@ -5,9 +5,9 @@
  * Extracted from pptx-to-slide-md.js for clarity and reuse.
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml, escapeHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
-import { sanitizeCssColor, isColorDark, hexToLuminance } from "./pptx-color-utils.js";
-import { CONVERSION, DEFAULTS, REGEX, CONFIG, MARKDOWN_TAGS } from "./pptx-slide-config.js";
+import { stripHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
+import { sanitizeCssColor } from "./pptx-color-utils.js";
+import { CONVERSION, DEFAULTS, REGEX, MARKDOWN_TAGS } from "./pptx-slide-config.js";
 
 /**
  * Format raw text content into clean markdown.
@@ -165,13 +165,13 @@ export function wrapLongLists(markdown) {
  *
  * @param {object} img - Image element with ref, blob, width, height
  * @param {string} _deckName - Deck name for image path
- * @param {object} opts - Options: omitDimensions, fitColumn, caption
+ * @param {object} opts - Options: omitDimensions, fitColumn, objectFit, caption
  * @returns {string} HTML img tag
  */
 export function formatImage(
   img,
   _deckName = DEFAULTS.DECK_NAME,
-  { omitDimensions = false, fitColumn = false, caption } = {},
+  { omitDimensions = false, fitColumn = false, objectFit = "contain", caption } = {},
 ) {
   const rawName = (img.ref || DEFAULTS.IMAGE_FILENAME).split("/").pop();
   const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
@@ -186,9 +186,10 @@ export function formatImage(
   const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(/"/g, "&quot;");
 
   // fitColumn: media-span image — the media-span CSS fills the column via
-  // absolute insets and object-fit: contain; the inline style stays
-  // layout-agnostic so the image renders naturally if the layout changes.
-  const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
+  // absolute insets and object-fit; the inline style stays layout-agnostic
+  // so the image renders naturally if the layout changes. objectFit lets a
+  // full-bleed media image cover the column (fill) instead of containing it.
+  const style = fitColumn ? ` style="width: 100%; height: auto; object-fit: ${objectFit};"` : "";
 
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
@@ -202,98 +203,23 @@ export function formatImage(
 }
 
 /**
- * True when a meaningful share of a table's cells carry a real fill colour
- * (perceived luminance below FILL_LUMINANCE_MAX).  Used to decide between a
- * styled CSS grid (preserves colours) and a plain markdown table (text only).
+ * Format a table element as a markdown table.
  *
- * @param {object} table - Table element with rows of { text, fillColor }.
- * @returns {boolean}
- */
-function tableHasMeaningfulFills(table) {
-  // FILL_LUMINANCE_MAX is on the 0-255 scale used by hexToLuminance.  Near-white
-  // fills (>= 230) are not "meaningful"; a visibly coloured cell is.
-  const MIN_FILL_RATIO = 0.25;
-  const FILL_LUMINANCE_MAX = 230;
-  let total = 0;
-  let meaningful = 0;
-  for (const row of table.rows || []) {
-    for (const cell of row || []) {
-      total += 1;
-      if (fillLuminance(cell.fillColor) < FILL_LUMINANCE_MAX) meaningful += 1;
-    }
-  }
-  return total > 0 && meaningful / total >= MIN_FILL_RATIO;
-}
-
-/**
- * Perceived luminance (0..255) of a cell fill.  Near-white, transparent and
- * empty fills return 255 (treated as "no meaningful colour").
+ * Tables always render as markdown tables — never as raw HTML. Cell colours
+ * are not carried (markdown cannot express them); a large coloured backing
+ * panel in the source is instead emitted as an `area-bg-*:` directive by the
+ * slide converter, keeping the slide free of embedded HTML.
  *
- * @param {string} fill - Raw fill color from the PPTX (may be a hex, keyword, or empty).
- * @returns {number}
- */
-function fillLuminance(fill) {
-  const css = sanitizeCssColor(fill);
-  if (!css || css === "transparent" || css === "white") return 255;
-  if (css.startsWith("#")) {
-    let hex = css.slice(1);
-    if (hex.length === 3)
-      hex = hex
-        .split("")
-        .map((c) => c + c)
-        .join("");
-    if (hex.length === 8) hex = hex.slice(0, 6);
-    if (hex.length !== 6) return 255;
-    return hexToLuminance(hex);
-  }
-  // rgb()/rgba()/named colours that survived the sanitizer — assume visibly filled.
-  return 0;
-}
-
-/**
- * Format a table element as a markdown table or CSS grid.
+ * Sizing is a markdown directive too: when the source table is narrower than
+ * the slide, a `table {width: X%}` line precedes the table, which the app's
+ * markdown renderer applies to the rendered <table> (no HTML in the source).
  *
  * @param {object} table - Table element with rows
- * @param {number} slideWidth - Slide width in points
- * @param {number} slideHeight - Slide height in points
- * @returns {string} Markdown table or HTML grid
+ * @param {number} [slideWidth] - Slide width in points (for the width ratio).
+ * @returns {string} Markdown table (with optional `table {width: X%}` prefix)
  */
-export function formatTable(table, slideWidth, slideHeight) {
+export function formatTable(table, slideWidth, { noHeader = false } = {}) {
   if (!table.rows?.length) return "";
-
-  // Full-page tables (covering ≥80% of the slide) are visual layouts
-  // (e.g., four-pillar grids, flowchart matrices). Render as CSS grid
-  // to preserve the 2D visual structure.  Tables with a meaningful share of
-  // coloured cells (e.g. a sudoku grid) keep their colours as a CSS grid too.
-  const tableArea = (table.width || 0) * (table.height || 0);
-  const slideArea = (slideWidth || 960) * (slideHeight || 540);
-  const isFullScreen = tableArea >= slideArea * CONFIG.fullScreenTableThreshold;
-  const hasMeaningfulFills = tableHasMeaningfulFills(table);
-  const useGrid = isFullScreen || hasMeaningfulFills;
-
-  if (useGrid) {
-    const cols = table.rows[0].length;
-    const rows = table.rows.length;
-    const cells = [];
-    for (const row of table.rows) {
-      for (const cell of row) {
-        // Strip HTML tags then escape to prevent XSS from entity-decoded content
-        const text = escapeHtml(stripHtml(cell.text || "").trim());
-        const bg = sanitizeCssColor(cell.fillColor);
-        const isDarkBg = isColorDark(bg);
-        cells.push(
-          `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${bg}">${text}</div>`,
-        );
-      }
-    }
-    // Non-fullscreen grids preserve the source table's aspect ratio and centre
-    // in their area instead of stretching to fill the whole column.
-    const modifier = isFullScreen ? "" : " fullpage-grid--content";
-    const aspect = isFullScreen
-      ? ""
-      : `;aspect-ratio:${Math.max(table.width || 1, 1)}/${Math.max(table.height || 1, 1)}`;
-    return `<div class="fullpage-grid${modifier}" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)${aspect}">${cells.join("")}</div>`;
-  }
 
   const escapeCell = (text) =>
     (text || "")
@@ -302,15 +228,116 @@ export function formatTable(table, slideWidth, slideHeight) {
       .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
       .trim();
   const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
-  const separator = table.rows[0].map(() => "---").join(" | ");
-  const rows = table.rows.map(formatRow);
+
+  // Detect whether the first row is a header. PowerPoint styles header
+  // rows with a distinct fill color from the body rows. When fills are
+  // absent or uniform, fall back to a text heuristic.
+  if (!noHeader && table.rows.length > 1) {
+    const firstFill = table.rows[0].map((c) => c.fillColor || null).join(",");
+    const bodyFills = new Set(
+      table.rows.slice(1).map((r) => r.map((c) => c.fillColor || null).join(",")),
+    );
+    const hasAnyFill = table.rows.some((r) => r.some((c) => c.fillColor));
+    const hasDistinctHeaderFill = hasAnyFill && !bodyFills.has(firstFill);
+    if (!hasDistinctHeaderFill) {
+      // No distinct header fill — use text heuristic: a header row has
+      // short label cells, while body rows have longer content. If the
+      // first row has any cell longer than 20 chars, it's data, not a
+      // label — the table is headerless. If all first-row cells are short
+      // labels, default to treating the first row as a header (the common
+      // case), unless body rows are not longer (ambiguous → keep header).
+      const firstRowTexts = table.rows[0].map((c) => (c.text || "").trim());
+      const isShortLabels = firstRowTexts.every(
+        (t) => t.length <= 20 && !/[.!?]$/.test(t) && !t.includes("\n"),
+      );
+      if (!isShortLabels) {
+        noHeader = true;
+      }
+    }
+  }
+
+  // A leading row with a single filled cell is a merged title row (e.g. the
+  // "Memory table" caption above a two-column value grid). Render it as a bold
+  // caption instead of a two-column row with an empty cell.
+  let startRow = 0;
+  let caption = "";
+  if (table.rows.length > 1) {
+    const firstRow = table.rows[0];
+    const filled = firstRow.filter((cell) => (cell.text || "").trim());
+    if (filled.length === 1 && firstRow.length > 1) {
+      caption = stripHtml(filled[0].text).trim();
+      startRow = 1;
+    }
+  }
+
+  const rows = table.rows.slice(startRow).map(formatRow);
+  const separator = table.rows[startRow].map(() => "---").join(" | ");
   const parts = [];
-  parts.push(`| ${rows[0]} |`);
-  parts.push(`| ${separator} |`);
-  for (let i = 1; i < rows.length; i++) {
+  if (caption) parts.push(`**${escapeCell(caption)}**`);
+  if (noHeader) {
+    // Emit an empty header row so all data rows are treated as body,
+    // not as a header. Required because markdown tables need a header
+    // row + separator before the body rows.
+    const emptyHeader = table.rows[startRow].map(() => "").join(" | ");
+    parts.push(`| ${emptyHeader} |`);
+    parts.push(`| ${separator} |`);
+  } else {
+    parts.push(`| ${rows[0]} |`);
+    parts.push(`| ${separator} |`);
+  }
+  const dataStart = noHeader ? 0 : 1;
+  for (let i = dataStart; i < rows.length; i++) {
     parts.push(`| ${rows[i]} |`);
   }
-  return parts.join("\n");
+  const tableMd = parts.join("\n");
+
+  // Build the table directive line: width sizing and/or no-header flag.
+  // Width sizes the table to the source box when it is meaningfully narrower
+  // than the slide (near-full-width tables keep the default styling).
+  const widthPct =
+    slideWidth > 0 && table.width > 0
+      ? Math.min(100, Math.round((table.width / slideWidth) * 100))
+      : 100;
+  const directives = [];
+  if (widthPct <= 85) directives.push(`width: ${widthPct}%`);
+  if (noHeader) directives.push("no-header");
+  if (directives.length > 0) {
+    return `table {${directives.join("; ")}}\n\n${tableMd}`;
+  }
+  return tableMd;
+}
+
+/**
+ * Build a CSS `background` value from a PPTX element's fill (solid color or
+ * gradient), for use as an `area-bg-*:` directive. Returns "" when the element
+ * has no usable fill — image fills and transparent fills are skipped.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @returns {string}
+ */
+export function formatElementFillBackground(el) {
+  const fill = el.fillRaw || (el.fill ? { type: "color", value: el.fill } : null);
+  if (!fill) return "";
+  if (fill.type === "color" && fill.value) {
+    let css = sanitizeCssColor(fill.value);
+    // Preserve transparency: PowerPoint often bakes the alpha into the hex
+    // ("#000000a8") or carries it in a separate opacity property. A backing
+    // panel with a translucent fill must stay translucent as an area-bg.
+    if (fill.opacity != null && css.startsWith("#") && css.length === 7) {
+      const alpha = Math.max(0, Math.min(1, Number(fill.opacity)));
+      const r = parseInt(css.slice(1, 3), 16);
+      const g = parseInt(css.slice(3, 5), 16);
+      const b = parseInt(css.slice(5, 7), 16);
+      css = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return css;
+  }
+  if (fill.type === "gradient" && fill.value?.colors?.length) {
+    const stops = fill.value.colors
+      .map((c) => `${sanitizeCssColor(c.color)} ${c.pos}`.trim())
+      .join(", ");
+    return stops ? `linear-gradient(${stops})` : "";
+  }
+  return "";
 }
 
 /**
@@ -340,14 +367,36 @@ export function formatChart(chart) {
 /**
  * Format a diagram element as a [Diagram: ...] marker.
  *
+ * The diagram's constituent shapes carry geometry, so when they are available
+ * the shape texts are emitted in reading order (top-to-bottom, then
+ * left-to-right) instead of pptxtojson's raw element order — a flow whose
+ * boxes were authored out of sequence otherwise reads in a jumbled order.
+ *
  * @param {object} diagram - Diagram element with content
  * @returns {string} Diagram marker or plain text
  */
 export function formatDiagram(diagram) {
   if (!diagram.content) return "";
 
-  const items = diagram.content
-    .split(", ")
+  // Prefer position-ordered shape texts; fall back to the raw comma-joined
+  // content for diagrams without shape geometry (synthetic fixtures, etc.).
+  // Shape content is markdown (headings, emphasis) — strip the markers so the
+  // diagram marker reads as plain node labels.
+  const cleanShapeText = (md) =>
+    (md || "")
+      .replace(/^#{1,3}\s+/gm, "")
+      .replace(/`/g, "")
+      .replace(/\*+/g, "")
+      .trim();
+  const shapeTexts = (diagram.shapes || [])
+    .filter((s) => s.type === "text" && s.content?.trim())
+    .sort((a, b) => a.top - b.top || a.left - b.left)
+    .map((s) => cleanShapeText(s.content))
+    .filter(Boolean);
+  const rawItems = shapeTexts.length > 0 ? shapeTexts : diagram.content.split(", ");
+
+  const items = rawItems
+    .flatMap((item) => item.split("\n"))
     .map((item) => item.trim())
     .filter(Boolean);
 

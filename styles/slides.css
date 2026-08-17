@@ -930,14 +930,16 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   > img:not([style*="position"]) {
   /* Fill the media column: absolute insets plus forced width/height. The
       imported inline style ("height: auto") must stay layout-agnostic so the
-      image renders naturally if the layout changes, hence !important. Fixed
-      fill images have their resize handles disabled so saved dimensions
-      cannot diverge from the view-managed size. */
+      image renders naturally if the layout changes, hence !important. The
+      image content is contained (never cropped) so a mismatched aspect ratio
+      letterboxes instead of zooming into the picture. Fixed fill images have
+      their resize handles disabled so saved dimensions cannot diverge from
+      the view-managed size; a size edit takes the image out of fill mode. */
   position: absolute;
   inset: 0;
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover;
+  object-fit: contain;
   max-height: none;
   display: block;
 }
@@ -961,7 +963,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   > img:not([style*="position"]) {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   max-height: none;
   display: block;
 }
@@ -1046,7 +1048,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* --- TABLES --- */
 
 .slide__area table {
-  width: 100%;
+  /* Content-sized: tables shrink to fit their text instead of stretching
+     full-width, and the auto horizontal margins centre them. PPTX-imported
+     tables (often narrower than the slide) keep their natural proportions
+     without needing any width annotation. */
+  width: auto;
+  max-width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 0.95em;
@@ -1054,7 +1061,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  margin: var(--spacing-sm) 0;
+  margin: var(--spacing-sm) auto;
 }
 
 /* Table caption */
@@ -1081,6 +1088,15 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   top: 0;
   z-index: 2;
   backdrop-filter: blur(4px);
+}
+
+/* Headerless tables — the empty header row is required by markdown syntax
+   but should not be visible. Hide the entire thead. */
+.slide__area table.table-no-header thead {
+  display: none;
+}
+.slide__area table.table-no-header tbody tr:first-child td {
+  border-top: none;
 }
 
 /* Table body cells */
@@ -1193,51 +1209,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 .slide__area--cards > blockquote {
   margin: 0;
-}
-
-/* --- FULL-PAGE GRID (PPTX visual-layout tables) --- */
-
-/* Emitted by the PPTX converter for full-slide tables (≥80% of the
-   slide) that act as visual layouts (pillar grids, matrices). The
-   converter sets the per-instance column/row counts via inline
-   grid-template-*; everything else is styled here so the markup stays
-   declarative. */
-.slide__area .fullpage-grid {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.slide__area .fullpage-grid__cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: var(--spacing-md);
-  border-radius: var(--radius-sm);
-  color: var(--slide-ink);
-  font-size: 0.95em;
-  line-height: 1.4;
-  overflow-wrap: break-word;
-}
-
-/* When a cell has a colored fill, switch to high-contrast text.
-   The converter adds this modifier for dark fills. */
-.slide__area .fullpage-grid__cell--on-color {
-  color: #fff;
-}
-
-/* Non-fullscreen tables with meaningful cell colours (e.g. a sudoku grid)
-   keep their source aspect ratio and centre in their area instead of
-   stretching to fill the whole column. */
-.slide__area .fullpage-grid--content {
-  width: 100%;
-  height: auto;
-  max-height: 100%;
-  margin: auto;
 }
 
 /* ==========================================================================

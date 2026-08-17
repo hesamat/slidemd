@@ -252,6 +252,7 @@ export function readImageSettings(imgElement) {
     boxShadow: style.boxShadow || "none",
     rotation: rotMatch ? parseFloat(rotMatch[1]) : 0,
     zIndex: parseInt(style.zIndex, 10) || 0,
+    objectFit: style.objectFit || "contain",
     alt: imgElement.getAttribute("alt") || "",
   };
 }
@@ -277,7 +278,7 @@ export function buildInlineStyleString(imgElement) {
     s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
     s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
     "border: none",
-    "object-fit: contain",
+    `object-fit: ${s.objectFit || "contain"}`,
     "cursor: move",
   ];
   return parts.filter(Boolean).join("; ");
@@ -298,7 +299,7 @@ export function buildMediaSpanStyleString(imgElement) {
     s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
     s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
     "border: none",
-    "object-fit: contain",
+    `object-fit: ${s.objectFit || "contain"}`,
     "cursor: move",
   ]
     .filter(Boolean)
@@ -334,7 +335,7 @@ export function buildRepositionedImgTag(imgElement, src, alt, width, height, lef
     s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
     s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
     "border: none",
-    "object-fit: contain",
+    `object-fit: ${s.objectFit || "contain"}`,
     "cursor: move",
   ];
   return `<img src="${src}" alt="${alt}" style="${parts.filter(Boolean).join("; ")}" />`;
