@@ -374,6 +374,34 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     expect(result).not.toContain("# ");
     expect(result).toContain("Plain text");
   });
+
+  it("does not treat monospace code lines as headings even at heading font-size", () => {
+    // PPTX code examples are often rendered at 28-32pt (the ### band).
+    // Without the code-line guard, `def make_username(...)` would be
+    // emitted as `### def make_username(...)` instead of a code block.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">def make_username(first_name, last_name):</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    return username</span></p>',
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">print(make_username('Grace', 'Hopper'))</span></p>",
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### def");
+    expect(result).not.toContain("### return");
+    expect(result).not.toContain("### print");
+    expect(result).toContain("```");
+    expect(result).toContain("def make_username");
+    expect(result).toContain("return username");
+    expect(result).toContain("print(make_username");
+  });
+
+  it("still treats monospace non-code text as a heading at heading font-size", () => {
+    // A monospace heading like "Behold the ancient ASCII table" at 40pt
+    // is a heading, not code — the code-line guard must not prevent that.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Courier New; font-size: 40pt;">Behold the ancient ASCII table</span></p>',
+    );
+    expect(result).toContain("# Behold the ancient ASCII table");
+  });
 });
 
 describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge cases", () => {

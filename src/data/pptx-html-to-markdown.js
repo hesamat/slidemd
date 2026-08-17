@@ -21,6 +21,13 @@ const HEADING_BANDS = [
 const MONOSPACE_PATTERN =
   /font-family:\s*(?:consolas|courier\s*new|courier|lucida\s*console|monaco|monospace)/i;
 
+// Heuristic for detecting a single code line. Used to prevent heading
+// detection from swallowing code that happens to be rendered at a
+// heading-sized font (common in PPTX code examples: 28-32pt is typical
+// for a code block on a slide, which overlaps the ### band).
+const CODE_LINE_PATTERN =
+  /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|\w+\s*[=:]\s*[({[]|<\/?\w+>)/;
+
 // Bullet glyphs PowerPoint authors sometimes type as literal text runs.
 // Matches a leading glyph followed by whitespace, end of line, or any other
 // character — so "•item" (no space) normalizes to "- item" as well.
@@ -496,9 +503,15 @@ function processBlockNodes(nodes, out) {
       // run before the monospace/code check, because a heading-sized
       // text in a monospace font (e.g. "Behold the ancient ASCII table"
       // rendered in Courier at 40pt) is a heading, not inline code.
+      // Exception: an all-monospace paragraph that looks like a code line
+      // (def, return, print, etc.) is code, not a heading — PPTX code
+      // examples are often rendered at 28-32pt, which overlaps the ###
+      // band. The code check below handles it.
       const headingFontSize = getLargestFontSize(node);
       const headingBand = HEADING_BANDS.find((b) => headingFontSize >= b.min);
-      if (headingBand) {
+      const looksLikeCodeLine =
+        isAllMonospace(node) && CODE_LINE_PATTERN.test(node.textContent || "");
+      if (headingBand && !looksLikeCodeLine) {
         const headingInline = [];
         // Use code mode so monospace spans don't get wrapped in backticks —
         // a heading rendered in Courier is still a heading, not inline code.
