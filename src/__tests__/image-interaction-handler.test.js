@@ -562,6 +562,7 @@ describe("ImageInteractionHandler", () => {
         style: { position: "" },
         classList: { contains: () => false, add: vi.fn() },
         closest: (sel) => (sel === ".slide__area--media" ? area : null),
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
       };
       const area = {
         children: [label, img],
@@ -607,6 +608,67 @@ describe("ImageInteractionHandler", () => {
 
         ImageDragController._onDragEnd({ clientX: 50, clientY: 0 });
         expect(syncToMarkdown).toHaveBeenCalled();
+      } finally {
+        globalThis.document.elementFromPoint = origElementFromPoint;
+      }
+    });
+
+    it("counteracts layout shift on first drag move so the image does not jump", () => {
+      const img = {
+        // position starts empty so the prepare-block runs on first move.
+        // prepareMdImgForDrag mock will set left/top to simulate the
+        // offsets it writes in production.
+        style: { position: "", left: "", top: "" },
+        classList: { contains: () => false, add: vi.fn() },
+        closest: () => null,
+        // First call (in _onDragStart) returns the pre-conversion rect.
+        // Second call (in _onDragMove, after prepare) returns the
+        // post-conversion rect — shifted up-left by 50px to simulate the
+        // flex→block layout change.
+        getBoundingClientRect: vi
+          .fn()
+          .mockReturnValueOnce({ left: 200, top: 300, width: 100, height: 100 })
+          .mockReturnValueOnce({ left: 150, top: 250, width: 100, height: 100 }),
+      };
+
+      const prepareMdImgForDrag = vi.fn((el) => {
+        // Simulate the offsets _prepareMdImgForDrag writes in production.
+        el.style.left = "190px";
+        el.style.top = "290px";
+      });
+      const select = vi.fn();
+      const updateOverlay = vi.fn();
+      ImageDragController._ctx = {
+        getSelectedImg: () => img,
+        select,
+        prepareMdImgForDrag,
+        syncToMarkdown: vi.fn(),
+        updateOverlay,
+      };
+      ImageDragController._container = null;
+      ImageDragController._dropIndicator = null;
+      ImageDragController._dropTargetAreaEl = null;
+      ImageDragController._dragMoved = false;
+      ImageDragController._dragPrepared = false;
+      ImageDragController._dragIgnored = false;
+      ImageDragController._dragSourceArea = null;
+
+      const origElementFromPoint = globalThis.document.elementFromPoint;
+      globalThis.document.elementFromPoint = () => null;
+      try {
+        ImageDragController._onDragStart({
+          target: { closest: () => img },
+          clientX: 200,
+          clientY: 300,
+        });
+
+        // First drag move with zero delta — the correction should
+        // counteract the 50px layout shift so the image stays put.
+        ImageDragController._onDragMove({ dx: 0, dy: 0, clientX: 200, clientY: 300 });
+
+        // curLeft(190) + (200-150)/1 = 240, curTop(290) + (300-250)/1 = 340
+        expect(img.style.left).toBe("240px");
+        expect(img.style.top).toBe("340px");
       } finally {
         globalThis.document.elementFromPoint = origElementFromPoint;
       }

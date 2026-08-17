@@ -32,6 +32,7 @@ export class ImageDragController {
   static _dragPrepared = false;
   static _dragIgnored = false;
   static _dragStartInsertBefore = null;
+  static _dragStartImgRect = null;
   static _dropInsertBeforeEl = null;
   static _dropTargetAreaEl = null;
   static _resizeState = null;
@@ -107,6 +108,11 @@ export class ImageDragController {
     this._dragSnapped = false;
     this._dragMoved = false;
     this._dragPrepared = false;
+    // Capture the image's pre-conversion rect so the first drag move can
+    // counteract the layout shift caused by switching a markdown image to
+    // position:relative + .img-positioned (which changes the surrounding
+    // flex/block layout and would otherwise make the image jump).
+    this._dragStartImgRect = img.getBoundingClientRect();
 
     const areaEl = img.closest(".slide__area");
     if (areaEl) {
@@ -138,6 +144,18 @@ export class ImageDragController {
     if (!this._dragPrepared && !img.style.position) {
       ctx.prepareMdImgForDrag(img);
       img.classList.add("img-positioned");
+      // Counteract the layout shift caused by the position:relative +
+      // .img-positioned conversion so the picture stays visually in place
+      // and only moves by the pointer delta from here on. Add the delta to
+      // the left/top that prepareMdImgForDrag already set, since
+      // position:relative offsets from the in-flow position, not from the
+      // area origin.
+      const scale = getStageScale();
+      const newRect = img.getBoundingClientRect();
+      const curLeft = parseFloat(img.style.left) || 0;
+      const curTop = parseFloat(img.style.top) || 0;
+      img.style.left = `${curLeft + (this._dragStartImgRect.left - newRect.left) / scale}px`;
+      img.style.top = `${curTop + (this._dragStartImgRect.top - newRect.top) / scale}px`;
       this._dragPrepared = true;
     }
     this._dragMoved = true;
@@ -318,6 +336,7 @@ export class ImageDragController {
     this._dragMoved = false;
     this._dragPrepared = false;
     this._dragIgnored = false;
+    this._dragStartImgRect = null;
   }
 
   // ── Resize (manual mouse events on overlay handles) ─────────────────────
