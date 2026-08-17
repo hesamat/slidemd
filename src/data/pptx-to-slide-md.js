@@ -256,7 +256,10 @@ function convertSlide(
   // Background images are always uploaded as files (never inlined as data URLs)
   // to keep the markdown lightweight.
   const slideArea = slideWidth * slideHeight;
-  const bgCandidate = slide.elements.find((el) => {
+  // When multiple images qualify as background (e.g. two full-slide photos
+  // stacked in z-order), pick the LAST one — PowerPoint's element order is
+  // back-to-front, so the last match is the visible (top) image.
+  const bgCandidate = [...slide.elements].reverse().find((el) => {
     if (el.type !== ELEMENT_TYPES.IMAGE || !el.ref) return false;
     const imgArea = (el.width || 0) * (el.height || 0);
     // Image covers >= 80% of slide — always a background
