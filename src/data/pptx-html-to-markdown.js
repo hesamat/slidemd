@@ -25,8 +25,11 @@ const MONOSPACE_PATTERN =
 // detection from swallowing code that happens to be rendered at a
 // heading-sized font (common in PPTX code examples: 28-32pt is typical
 // for a code block on a slide, which overlaps the ### band).
+// Patterns are intentionally broad — the check is gated by isAllMonospace,
+// so false positives on natural language are unlikely (a monospace paragraph
+// with `x = y` is almost certainly code, not a heading).
 const CODE_LINE_PATTERN =
-  /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|\w+\s*[=:]\s*[({[]|<\/?\w+>)/;
+  /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|<\/?\w+>|f['"]|\w+\s*[=:]\s*\S|\w+\.\w+\(|\w+\[)/;
 
 // Bullet glyphs PowerPoint authors sometimes type as literal text runs.
 // Matches a leading glyph followed by whitespace, end of line, or any other

@@ -381,15 +381,21 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     // emitted as `### def make_username(...)` instead of a code block.
     const html = [
       '<p><span style="font-family: Consolas; font-size: 28pt;">def make_username(first_name, last_name):</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    initial = first_name[0]</span></p>',
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">    username = f'{initial}{last_name}'.lower()</span></p>",
       '<p><span style="font-family: Consolas; font-size: 28pt;">    return username</span></p>',
       "<p><span style=\"font-family: Consolas; font-size: 28pt;\">print(make_username('Grace', 'Hopper'))</span></p>",
     ].join("");
     const result = PptxExtractor.htmlToMarkdown(html);
     expect(result).not.toContain("### def");
+    expect(result).not.toContain("### initial");
+    expect(result).not.toContain("### username");
     expect(result).not.toContain("### return");
     expect(result).not.toContain("### print");
     expect(result).toContain("```");
     expect(result).toContain("def make_username");
+    expect(result).toContain("initial = first_name");
+    expect(result).toContain("username = f'");
     expect(result).toContain("return username");
     expect(result).toContain("print(make_username");
   });
