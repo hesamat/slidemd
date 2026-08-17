@@ -96,4 +96,56 @@ describe("SlideWarningManager", () => {
     expect(banners).toHaveLength(1);
     expect(banners[0].textContent).toBe("Second message");
   });
+
+  it("accumulates pending warnings from different keys", () => {
+    const mgr = makeManager(makeSlideEl());
+    mgr.showEditorWarning("layout", "Unknown layout");
+    mgr.showEditorWarning("images", "Missing images: foo.png");
+    mgr.showEditorWarning("empty", "Empty slide");
+    expect(mgr.pendingSlideWarning).toBe(
+      "Unknown layout; Missing images: foo.png; Empty slide",
+    );
+  });
+
+  it("updates a pending warning when the same key fires again", () => {
+    const mgr = makeManager(makeSlideEl());
+    mgr.showEditorWarning("layout", "Unknown layout A");
+    // Same key, different message — should replace, not accumulate
+    mgr.lastDiagnostics.delete("layout"); // clear debounce
+    mgr.showEditorWarning("layout", "Unknown layout B");
+    expect(mgr.pendingSlideWarning).toBe("Unknown layout B");
+  });
+
+  it("applyPendingSlideWarning renders all accumulated warnings joined", () => {
+    const slideEl = makeSlideEl();
+    const mgr = makeManager(slideEl);
+    mgr.showEditorWarning("a", "Warning A");
+    mgr.showEditorWarning("b", "Warning B");
+    mgr.applyPendingSlideWarning(slideEl);
+    const banner = slideEl.querySelector(":scope > .editor-slide-warning");
+    expect(banner.textContent).toBe("Warning A; Warning B");
+  });
+
+  it("resetPending clears all accumulated warnings", () => {
+    const mgr = makeManager(makeSlideEl());
+    mgr.showEditorWarning("a", "Warning A");
+    mgr.showEditorWarning("b", "Warning B");
+    mgr.resetPending();
+    expect(mgr.pendingSlideWarning).toBe("");
+  });
+
+  it("pendingSlideWarning setter clears all and sets single default key", () => {
+    const mgr = makeManager(makeSlideEl());
+    mgr.showEditorWarning("a", "Warning A");
+    mgr.showEditorWarning("b", "Warning B");
+    mgr.pendingSlideWarning = "Override";
+    expect(mgr.pendingSlideWarning).toBe("Override");
+  });
+
+  it("pendingSlideWarning setter with empty string clears all", () => {
+    const mgr = makeManager(makeSlideEl());
+    mgr.showEditorWarning("a", "Warning A");
+    mgr.pendingSlideWarning = "";
+    expect(mgr.pendingSlideWarning).toBe("");
+  });
 });

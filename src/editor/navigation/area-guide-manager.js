@@ -280,7 +280,16 @@ export class AreaGuideManager {
     } else if (overflowing.length > 0) {
       warnings.showSlideWarning(`Content overflows: ${overflowing.join(", ")}`);
     } else {
-      warnings.clearSlideWarning();
+      // No overflow or mismatch. Don't unconditionally clear the banner —
+      // it may have been created by applyPendingSlideWarning (advisory
+      // messages like missing images, empty slide, style-lint). Re-apply
+      // pending warnings so they survive; only clear if there's nothing
+      // pending.
+      if (warnings.pendingSlideWarning) {
+        warnings.applyPendingSlideWarning();
+      } else {
+        warnings.clearSlideWarning();
+      }
     }
   }
 
