@@ -562,6 +562,7 @@ describe("ImageInteractionHandler", () => {
         style: { position: "" },
         classList: { contains: () => false, add: vi.fn() },
         closest: (sel) => (sel === ".slide__area--media" ? area : null),
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
       };
       const area = {
         children: [label, img],
@@ -610,6 +611,81 @@ describe("ImageInteractionHandler", () => {
       } finally {
         globalThis.document.elementFromPoint = origElementFromPoint;
       }
+    });
+
+    it("counteracts layout shift on first drag move so the image does not jump", () => {
+      // Use a call-counter keyed mock so the test is robust against
+      // additional getBoundingClientRect reads being inserted between
+      // _onDragStart and the correction block.
+      let rectCallCount = 0;
+      const startRect = { left: 200, top: 300, width: 100, height: 100 };
+      const shiftedRect = { left: 150, top: 250, width: 100, height: 100 };
+
+      const img = {
+        style: { position: "", left: "", top: "" },
+        classList: { contains: () => false, add: vi.fn() },
+        closest: () => null,
+        getBoundingClientRect: vi.fn(() => {
+          rectCallCount++;
+          // Call 1: _onDragStart captures the pre-conversion rect.
+          // Call 2+: _compensateLayoutShift measures the post-conversion rect.
+          return rectCallCount === 1 ? startRect : shiftedRect;
+        }),
+      };
+
+      const prepareMdImgForDrag = vi.fn((el) => {
+        // Simulate the area-relative offsets _prepareMdImgForDrag writes.
+        el.style.left = "190px";
+        el.style.top = "290px";
+      });
+      const select = vi.fn();
+      const updateOverlay = vi.fn();
+      ImageDragController._ctx = {
+        getSelectedImg: () => img,
+        select,
+        prepareMdImgForDrag,
+        syncToMarkdown: vi.fn(),
+        updateOverlay,
+      };
+      ImageDragController._container = null;
+      ImageDragController._dropIndicator = null;
+      ImageDragController._dropTargetAreaEl = null;
+      ImageDragController._dragMoved = false;
+      ImageDragController._dragPrepared = false;
+      ImageDragController._dragIgnored = false;
+      ImageDragController._dragSourceArea = null;
+
+      const origElementFromPoint = globalThis.document.elementFromPoint;
+      globalThis.document.elementFromPoint = () => null;
+      try {
+        ImageDragController._onDragStart({
+          target: { closest: () => img },
+          clientX: 200,
+          clientY: 300,
+        });
+
+        // First drag move with zero delta — the correction should
+        // counteract the 50px layout shift so the image stays put.
+        ImageDragController._onDragMove({ dx: 0, dy: 0, clientX: 200, clientY: 300 });
+
+        // curLeft(190) + (200-150)/1 = 240, curTop(290) + (300-250)/1 = 340
+        expect(img.style.left).toBe("240px");
+        expect(img.style.top).toBe("340px");
+      } finally {
+        globalThis.document.elementFromPoint = origElementFromPoint;
+      }
+    });
+
+    it("_compensateLayoutShift is null-safe when no start rect is captured", () => {
+      const img = {
+        style: { left: "10px", top: "20px" },
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 0, height: 0 }),
+      };
+      ImageDragController._dragStartImgRect = null;
+      // Should not throw and should not modify left/top.
+      ImageDragController._compensateLayoutShift(img);
+      expect(img.style.left).toBe("10px");
+      expect(img.style.top).toBe("20px");
     });
   });
 });

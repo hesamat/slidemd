@@ -32,6 +32,7 @@ export class ImageDragController {
   static _dragPrepared = false;
   static _dragIgnored = false;
   static _dragStartInsertBefore = null;
+  static _dragStartImgRect = null;
   static _dropInsertBeforeEl = null;
   static _dropTargetAreaEl = null;
   static _resizeState = null;
@@ -107,6 +108,11 @@ export class ImageDragController {
     this._dragSnapped = false;
     this._dragMoved = false;
     this._dragPrepared = false;
+    // Capture the image's pre-conversion rect so the first drag move can
+    // counteract the layout shift caused by switching a markdown image to
+    // position:relative + .img-positioned (which changes the surrounding
+    // flex/block layout and would otherwise make the image jump).
+    this._dragStartImgRect = img.getBoundingClientRect();
 
     const areaEl = img.closest(".slide__area");
     if (areaEl) {
@@ -138,6 +144,15 @@ export class ImageDragController {
     if (!this._dragPrepared && !img.style.position) {
       ctx.prepareMdImgForDrag(img);
       img.classList.add("img-positioned");
+      // Counteract the layout shift caused by the position:relative +
+      // .img-positioned conversion so the picture stays visually in place
+      // and only moves by the pointer delta from here on. Add the delta to
+      // the left/top that prepareMdImgForDrag already set, since
+      // position:relative offsets from the in-flow position, not from the
+      // area origin. The CSS rule (margin-bottom:auto on the positioned
+      // <p>) minimizes this shift, but a residual remains from the image
+      // size change (100%/100% → explicit px) and the flex→block switch.
+      this._compensateLayoutShift(img);
       this._dragPrepared = true;
     }
     this._dragMoved = true;
@@ -318,6 +333,29 @@ export class ImageDragController {
     this._dragMoved = false;
     this._dragPrepared = false;
     this._dragIgnored = false;
+    this._dragStartImgRect = null;
+  }
+
+  /**
+   * Counteract the layout shift caused by switching an image to
+   * position:relative + .img-positioned (or just position:relative for
+   * fill images). The conversion changes the surrounding flex/block
+   * layout and the image size (100%/100% → explicit px), which would
+   * otherwise make the picture jump. Adds the shift delta to the
+   * existing left/top so the image stays visually in place.
+   * @param {HTMLElement} img - The image element, already converted.
+   * @param {DOMRect|null} startRect - Pre-conversion rect; falls back to
+   *   this._dragStartImgRect. Null-safe: no-op if no rect is available.
+   */
+  static _compensateLayoutShift(img, startRect = null) {
+    const rect = startRect || this._dragStartImgRect;
+    if (!rect || !img) return;
+    const scale = getStageScale();
+    const newRect = img.getBoundingClientRect();
+    const curLeft = parseFloat(img.style.left) || 0;
+    const curTop = parseFloat(img.style.top) || 0;
+    img.style.left = `${curLeft + (rect.left - newRect.left) / scale}px`;
+    img.style.top = `${curTop + (rect.top - newRect.top) / scale}px`;
   }
 
   // ── Resize (manual mouse events on overlay handles) ─────────────────────
@@ -343,8 +381,14 @@ export class ImageDragController {
       // position:relative on a plain markdown image that was never dragged
       // would switch its paragraph from flex-centred to block layout (via
       // the CSS p:has(> img[style*="position: relative"]) selector) and
-      // cause a visual jump.
-      if (isMediaSpanFillImage(img)) img.style.position = "relative";
+      // cause a visual jump. For fill images, capture the pre-conversion
+      // rect and compensate the layout shift so the resize starts from the
+      // image's current visual position instead of jumping.
+      if (isMediaSpanFillImage(img)) {
+        const fillStartRect = img.getBoundingClientRect();
+        img.style.position = "relative";
+        this._compensateLayoutShift(img, fillStartRect);
+      }
 
       this._resizeState = {
         edge: handle.dataset.edge,
