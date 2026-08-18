@@ -832,12 +832,20 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* When an image is being positioned (dragged/resized), disable the
    flex centering so position:relative left/top work from the content
-   box origin rather than from the centered position. */
+   box origin rather than from the centered position. Pin the <p> to
+   the top of the area with margin-bottom:auto so the in-flow position
+   equals the area content origin — which is what _prepareMdImgForDrag
+   and the position presets compute left/top against. Without this,
+   justify-content:center on the area re-centers the <p> after its
+   height shrinks to the image's explicit size, and the relative top
+   offset is applied from the centered position, not the area origin. */
 .slide__area p:has(> .img-positioned),
 .slide__area p:has(> img[style*="position: relative"]) {
   display: block !important;
   align-self: stretch !important;
   max-width: 100% !important;
+  margin-top: 0;
+  margin-bottom: auto;
 }
 
 /* Figure-like layout with captions */
