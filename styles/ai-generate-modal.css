@@ -215,3 +215,14 @@
   color: var(--warning, #d97706);
   font-weight: 500;
 }
+
+/* ── Export error message (inline, non-blocking) ── */
+.ai-generate-modal__export-error {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--danger, #dc2626);
+  background: var(--danger-bg, rgba(220, 38, 38, 0.08));
+  border: 1px solid var(--danger-border, rgba(220, 38, 38, 0.2));
+}

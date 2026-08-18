@@ -399,6 +399,7 @@ export class EditController {
         enhanceSlide: () => this.runSingleSlideAi("enhanceSlide"),
         addSpeakerNotes: () => this.runSingleSlideAi("addSpeakerNotes"),
         generate: () => this.runWholeDeckAi(),
+        importResult: () => this.importAiResult(),
       },
     });
 
@@ -816,6 +817,13 @@ export class EditController {
    */
   async runWholeDeckAi() {
     return this.aiEdit.runWholeDeckAi();
+  }
+
+  /**
+   * Import an AI-generated deck markdown produced by an external tool.
+   */
+  async importAiResult() {
+    return this.aiEdit.importWholeDeckResult();
   }
 
   /**

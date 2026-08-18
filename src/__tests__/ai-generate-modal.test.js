@@ -143,4 +143,98 @@ describe("AiGenerateModal", () => {
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
+
+  it("shows Copy/Download prompt buttons when onExport is provided", async () => {
+    const onExport = () => {};
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    expect(dialog.querySelector('[data-action="copy-prompt"]')).not.toBeNull();
+    expect(dialog.querySelector('[data-action="download-prompt"]')).not.toBeNull();
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("does not show export buttons when onExport is absent", async () => {
+    const promise = AiGenerateModal.show(BASIC_MD);
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    expect(dialog.querySelector('[data-action="copy-prompt"]')).toBeNull();
+    expect(dialog.querySelector('[data-action="download-prompt"]')).toBeNull();
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("invokes onExport with current options and resolves null on copy", async () => {
+    let captured = null;
+    const onExport = (options, kind) => {
+      captured = { options, kind };
+    };
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    const modeSelect = dialog.querySelector("#ai-generate-modal__mode");
+    modeSelect.value = "remix";
+    modeSelect.dispatchEvent(new Event("change"));
+    dialog.querySelector('[data-action="copy-prompt"]').click();
+    const result = await promise;
+    expect(result).toBeNull();
+    expect(captured.kind).toBe("copy");
+    expect(captured.options.mode).toBe("remix");
+    expect(captured.options.flow).toBe("instructional");
+  });
+
+  it("invokes onExport with kind=download on download click", async () => {
+    let captured = null;
+    const onExport = (options, kind) => {
+      captured = { options, kind };
+    };
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    dialog.querySelector('[data-action="download-prompt"]').click();
+    await promise;
+    expect(captured.kind).toBe("download");
+    expect(captured.options.mode).toBe("polish");
+  });
+
+  it("shows an inline error and stays open when onExport throws", async () => {
+    const onExport = () => {
+      throw new Error("boom");
+    };
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    dialog.querySelector('[data-action="copy-prompt"]').click();
+    // Allow the microtask queue to flush so the async handler runs.
+    await new Promise((r) => setTimeout(r, 0));
+    const err = dialog.querySelector(".ai-generate-modal__export-error");
+    expect(err).not.toBeNull();
+    expect(err.textContent).toContain("boom");
+    // Modal should still be open (promise not resolved).
+    expect(dialog.isConnected).toBe(true);
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("import purpose hides export/generate buttons and renames primary to Next", async () => {
+    const onExport = () => {};
+    const promise = AiGenerateModal.show(BASIC_MD, {
+      purpose: "import",
+      onExport,
+    });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    expect(dialog.querySelector('[data-action="copy-prompt"]')).toBeNull();
+    expect(dialog.querySelector('[data-action="download-prompt"]')).toBeNull();
+    expect(dialog.querySelector('[data-action="generate"]')).toBeNull();
+    const nextBtn = dialog.querySelector('[data-action="next"]');
+    expect(nextBtn).not.toBeNull();
+    expect(nextBtn.textContent).toBe("Next");
+    // Cost rows hidden in import mode.
+    expect(dialog.querySelector("#ai-generate-modal__model-row")).toBeNull();
+    nextBtn.click();
+    const result = await promise;
+    expect(result).toEqual({
+      mode: "polish",
+      flow: "instructional",
+      addSpeakerNotes: false,
+      includeImages: false,
+      preserveVisualIdentity: true,
+    });
+  });
 });

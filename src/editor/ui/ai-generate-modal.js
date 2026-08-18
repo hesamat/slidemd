@@ -6,6 +6,12 @@
  * an estimated cost before committing to the AI call. The user can cancel to
  * avoid any API charges.
  *
+ * For the export flow (issue #240), "Copy prompt" and "Download prompt"
+ * buttons build the same options object and hand it to `opts.onExport` so the
+ * caller can produce the exact prompt without an API key. For the import flow,
+ * the modal is opened with `opts.purpose = "import"` to collect the mode/flow
+ * used to validate pasted AI output.
+ *
  * Returns a promise that resolves to the user's options, or null if cancelled.
  */
 
@@ -31,10 +37,20 @@ export class AiGenerateModal {
    * @param {string} markdown — the current deck markdown (for cost estimation)
    * @param {object} [opts]
    * @param {() => Promise<void>} [opts.onOpenSettings] — callback to open Settings modal
+   * @param {(options: GenerateOptions, kind: "copy"|"download") => void|Promise<void>} [opts.onExport]
+   *   Invoked when the user clicks "Copy prompt" or "Download prompt". The modal
+   *   closes after the callback resolves, resolving the show() promise with
+   *   null so the caller does not proceed to an AI generate call.
+   * @param {"generate"|"import"} [opts.purpose="generate"] — when "import",
+   *   hides the Generate/Export buttons and cost rows, renames the primary
+   *   button to "Next", and changes the title. Used by the import-AI-result
+   *   flow to collect the mode/flow that drive output validation.
    * @returns {Promise<GenerateOptions|null>}
    */
   static show(markdown, opts = {}) {
     return new Promise((resolve) => {
+      const purpose = opts.purpose === "import" ? "import" : "generate";
+      const isImport = purpose === "import";
       const backdrop = document.createElement("div");
       backdrop.className = `${P}backdrop`;
 
@@ -47,11 +63,49 @@ export class AiGenerateModal {
 <option value="remix">Remix</option>
 <option value="reimagine">Reimagine</option>`;
 
+      const title = isImport ? "AI: Import result" : "AI: Refine all slides";
+      const subtitle = isImport
+        ? "Pick the mode you used when generating the result externally, so the imported output is validated with the right rules."
+        : "Choose how much the AI should change the deck, set the tone, and pick optional creative controls.";
+      const primaryLabel = isImport ? "Next" : "Generate";
+      const primaryAction = isImport ? "next" : "generate";
+
+      // Cost-estimation rows are only relevant when an API call will be made.
+      const costRowsHtml = isImport
+        ? ""
+        : `
+          <div class="${P}cost-row">
+            <span>Current slides</span>
+            <span>${slideCount}</span>
+          </div>
+          <div class="${P}cost-row">
+            <span>Estimated API calls</span>
+            <span>${batchCount}</span>
+          </div>
+          <div class="${P}cost-row" id="${P}model-row">
+            <span>Model</span>
+            <span class="${P}model-display">
+              <span id="${P}model-name">${escapeHtml(opts.modelName || "Not configured")}</span>
+              ${opts.onOpenSettings ? `<button type="button" class="${P}link-btn" data-action="open-settings">Change</button>` : ""}
+            </span>
+          </div>
+          <div class="${P}cost-row" id="${P}reasoning-row" ${!opts.useReasoning ? 'style="display:none"' : ""}>
+            <span>Reasoning</span>
+            <span class="${P}cost-warn">Enabled (higher cost)</span>
+          </div>`;
+
+      // Export buttons only appear in the generate purpose.
+      const exportButtonsHtml =
+        isImport || !opts.onExport
+          ? ""
+          : `<button type="button" class="${P}btn" data-action="copy-prompt">Copy prompt</button>
+             <button type="button" class="${P}btn" data-action="download-prompt">Download prompt</button>`;
+
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
-        <h2 class="${P}title">AI: Refine all slides</h2>
-        <p class="${P}subtitle">Choose how much the AI should change the deck, set the tone, and pick optional creative controls.</p>
+        <h2 class="${P}title">${escapeHtml(title)}</h2>
+        <p class="${P}subtitle">${escapeHtml(subtitle)}</p>
 
         <div class="${P}field">
           <label class="${P}label" for="${P}mode">Mode</label>
@@ -73,25 +127,7 @@ export class AiGenerateModal {
         </div>
 
         <div class="${P}cost">
-          <div class="${P}cost-row">
-            <span>Current slides</span>
-            <span>${slideCount}</span>
-          </div>
-          <div class="${P}cost-row">
-            <span>Estimated API calls</span>
-            <span>${batchCount}</span>
-          </div>
-          <div class="${P}cost-row" id="${P}model-row">
-            <span>Model</span>
-            <span class="${P}model-display">
-              <span id="${P}model-name">${escapeHtml(opts.modelName || "Not configured")}</span>
-              ${opts.onOpenSettings ? `<button type="button" class="${P}link-btn" data-action="open-settings">Change</button>` : ""}
-            </span>
-          </div>
-          <div class="${P}cost-row" id="${P}reasoning-row" ${!opts.useReasoning ? 'style="display:none"' : ""}>
-            <span>Reasoning</span>
-            <span class="${P}cost-warn">Enabled (higher cost)</span>
-          </div>
+          ${costRowsHtml}
           <div class="${P}cost-row ${P}vision-row" id="${P}vision-row" style="display:none">
             <label class="${P}checkbox-label">
               <input type="checkbox" id="${P}vision-toggle" />
@@ -117,7 +153,8 @@ export class AiGenerateModal {
 
         <div class="${P}actions">
           <button type="button" class="${P}btn" data-action="cancel">Cancel</button>
-          <button type="button" class="${P}btn ${P}btn--primary" data-action="generate">Generate</button>
+          ${exportButtonsHtml}
+          <button type="button" class="${P}btn ${P}btn--primary" data-action="${primaryAction}">${escapeHtml(primaryLabel)}</button>
         </div>
       `;
 
@@ -215,7 +252,10 @@ export class AiGenerateModal {
       modeSelect.addEventListener("change", updateModeUI);
       updateModeUI();
 
-      dialog.querySelector('[data-action="generate"]').addEventListener("click", () => {
+      // Read the current form state into a GenerateOptions object. Shared by
+      // the Generate, Next (import), Copy prompt, and Download prompt buttons
+      // so every action sees the same options.
+      const readOptions = () => {
         const mode = modeSelect.value || "polish";
         const flow = flowSelect.value || "instructional";
         const visionToggle = dialog.querySelector(`#${P}vision-toggle`);
@@ -225,15 +265,42 @@ export class AiGenerateModal {
         const addSpeakerNotes = notesToggle?.checked || false;
         const preserveVisualIdentity =
           mode === "polish" || (mode === "remix" && identityToggle?.checked);
+        return { mode, flow, addSpeakerNotes, includeImages, preserveVisualIdentity };
+      };
 
-        close({
-          mode,
-          flow,
-          addSpeakerNotes,
-          includeImages,
-          preserveVisualIdentity,
-        });
-      });
+      // Primary action: "Generate" (generate purpose) or "Next" (import purpose).
+      const primaryBtn = dialog.querySelector(`[data-action="${primaryAction}"]`);
+      if (primaryBtn) {
+        primaryBtn.addEventListener("click", () => close(readOptions()));
+      }
+
+      // Export buttons: hand the options to the caller and close with null so
+      // the caller does not proceed to an AI generate call. The caller is
+      // responsible for building the prompt and copying/downloading it.
+      const copyBtn = dialog.querySelector('[data-action="copy-prompt"]');
+      const downloadBtn = dialog.querySelector('[data-action="download-prompt"]');
+      const handleExport = async (kind) => {
+        try {
+          await opts.onExport(readOptions(), kind);
+        } catch (err) {
+          // Surface a non-blocking error message in the dialog instead of
+          // closing, so the user can retry without re-opening the modal.
+          const existing = dialog.querySelector(`.${P}export-error`);
+          if (existing) existing.remove();
+          const msg = document.createElement("p");
+          msg.className = `${P}export-error`;
+          msg.textContent = `Could not ${kind === "copy" ? "copy" : "download"} prompt: ${err?.message || err}`;
+          dialog.querySelector(`.${P}actions`).before(msg);
+          return;
+        }
+        close(null);
+      };
+      if (copyBtn && opts.onExport) {
+        copyBtn.addEventListener("click", () => handleExport("copy"));
+      }
+      if (downloadBtn && opts.onExport) {
+        downloadBtn.addEventListener("click", () => handleExport("download"));
+      }
 
       // Open Settings to change model
       const settingsBtn = dialog.querySelector('[data-action="open-settings"]');

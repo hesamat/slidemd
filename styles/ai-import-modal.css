@@ -1,0 +1,130 @@
+/* ── AI Import Modal (paste external AI result) ──────────────────── */
+.ai-import-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.ai-import-modal__dialog {
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  border-radius: 12px;
+  padding: 24px;
+  width: 640px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.ai-import-modal__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ai-import-modal__subtitle {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-medium, #666);
+  line-height: 1.5;
+}
+
+.ai-import-modal__textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--mono-font, ui-monospace, SFMono-Regular, Menlo, monospace);
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  resize: vertical;
+  box-sizing: border-box;
+  min-height: 240px;
+}
+
+.ai-import-modal__textarea:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.1));
+}
+
+.ai-import-modal__status {
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 1em;
+}
+
+.ai-import-modal__status-ok {
+  margin: 0 0 6px;
+  color: var(--success, #16a34a);
+  font-weight: 500;
+}
+
+.ai-import-modal__status-error {
+  margin: 0 0 6px;
+  color: var(--danger, #dc2626);
+  font-weight: 500;
+}
+
+.ai-import-modal__status-warn {
+  margin: 0 0 6px;
+  color: var(--warning, #d97706);
+  font-weight: 500;
+}
+
+.ai-import-modal__status-list {
+  margin: 0 0 6px;
+  padding-left: 20px;
+  color: var(--text-medium, #666);
+}
+
+.ai-import-modal__status-list li {
+  margin: 2px 0;
+}
+
+.ai-import-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.ai-import-modal__btn {
+  padding: 8px 20px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.ai-import-modal__btn:hover {
+  background: var(--surface-2-bg, rgba(0, 0, 0, 0.04));
+}
+
+.ai-import-modal__btn--primary {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: var(--accent, #6366f1);
+}
+
+.ai-import-modal__btn--primary:hover {
+  background: var(--accent-hover, #5558e0);
+}
+
+.ai-import-modal__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
