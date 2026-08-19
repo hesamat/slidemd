@@ -140,7 +140,7 @@ Rules:
 
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.
 - Keep the same number of chapters, in the same order, with the same titles as the input.
-- Each chapter's `slides` array must have at least 1 slide and should match the `suggestedSlideCount` for that chapter when possible.
+- Each chapter's `slides` array must have at least 1 slide. Use the `suggestedSlideCount` as a starting point, but add or remove slides when the chapter's content demands it. The final slide count should serve the narrative, not the exact target.
 - Each slide has:
   - `title` — a short slide title (2-6 words).
   - `intent` — one sentence describing what the slide should accomplish and what content it should contain.
@@ -154,12 +154,12 @@ Rules:
 - Slide titles must not include internal chapter labels, step numbers, stage markers, or brief metadata. Titles should be clean, human-facing headings (e.g., "Trace the path before you run it", not "chapter 03 / prediction").
 - Use the chapter summary as the primary guide for what the slides should cover. The summary specifies the key points; distribute them across the slides.
 - Enrich technical content with analogies, real-world examples, historical remarks, or memorable stories. The intent for at least a few slides per chapter should explicitly include a concrete comparison or a non-technical context that helps learners connect the concept to something familiar.
-- Do not level up the material. Each slide must cover the same conceptual depth as the source deck. Do not introduce new concepts, jargon, or examples that assume more prior knowledge than the original.
+- Do not advance the conceptual level. Each slide must cover the same conceptual depth as the source deck. You may enrich content with concrete comparisons, real-world examples, historical remarks, and memorable stories, but do not introduce new concepts, jargon, or examples that assume more prior knowledge than the original.
 
 Success criteria:
 
 - The output has the same chapters (same count, same titles, same order) as the input.
-- Each chapter has the suggested number of slides (or close to it).
+- Each chapter has a sensible number of slides for its content; the suggested count is a guide, not a requirement.
 - Each slide has a distinct purpose within its chapter.
 - The slide intents are specific enough to guide full slide generation.
 - The visual beats create rhythm — high-impact beats are used sparingly and not repeated on adjacent slides.

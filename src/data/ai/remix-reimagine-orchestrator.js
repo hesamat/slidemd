@@ -378,17 +378,6 @@ export class RemixReimagineOrchestrator {
     );
     if (!outline) return null;
 
-    // Slide-count guard: soft warn if the suggested total is outside 70-120%.
-    const totalSuggested = this.#countSuggestedSlides(outline);
-    const minTarget = Math.max(1, Math.round(sourceCount * 0.7));
-    const maxTarget = Math.round(sourceCount * 1.2);
-    if (totalSuggested < minTarget || totalSuggested > maxTarget) {
-      onLog?.(
-        `Warning: outline suggests ${totalSuggested} slides, target is ${minTarget}-${maxTarget} (70-120% of ${sourceCount} source slides).`,
-        "warn",
-      );
-    }
-
     // ── Phase 2: User review ──
     // Pass a deep copy so the callback can't mutate the original before we
     // apply the edited version. Also pass a `regenerate` function that the
@@ -515,15 +504,6 @@ export class RemixReimagineOrchestrator {
     const slides = splitSlides(cleaned);
     const collapsed = slides.map((slide) => collapseBackgroundDirectives(slide));
     return collapsed.join("\n\n---\n\n");
-  }
-
-  /**
-   * Count total suggested slides across all chapters in a Reimagine outline.
-   * @param {ReimagineOutline} outline
-   * @returns {number}
-   */
-  #countSuggestedSlides(outline) {
-    return outline.chapters.reduce((sum, ch) => sum + (ch.suggestedSlideCount || 0), 0);
   }
 
   /**
