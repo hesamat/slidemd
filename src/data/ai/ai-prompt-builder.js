@@ -109,11 +109,9 @@ export function buildMessages(markdown, mode) {
  *   identifying information for the first slide's footer.
  * @param {boolean} [enrichPerSlide=false] - When true, adds per-slide metadata
  *   (content line count, bullet count, code/image/diagram markers) to each
- *   outline entry. Used by the Remix plan phase so the planning AI has enough
- *   signal to make polish/rewrite/merge decisions without seeing full content.
- *   Image markers carry alt text (`image: "alt1", "alt2"`) and diagram markers
- *   carry the `[Diagram: ...]` label (`diagram: "Step 1, Step 2"`) so the
- *   planning AI can reason about visual content in text-only mode.
+ *   outline entry. Image markers include alt text (`image: "..."`) and diagram
+ *   markers include labels (`diagram: "..."`) so the planning AI can reason
+ *   about visuals in text-only mode.
  * @returns {string}
  */
 export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerSlide = false) {
@@ -158,29 +156,20 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
       const bulletCount = contentLines.filter((l) => /^([-*+]|\d+\.)\s/.test(l.trim())).length;
       if (bulletCount > 0) meta.push(`${bulletCount} bullet${bulletCount > 1 ? "s" : ""}`);
       if (/```/.test(slide)) meta.push("code");
-      // Extract image alt text so the planning AI can reason about image
-      // content without seeing the pixels. Only non-empty alt strings are
-      // listed; images with no alt fall back to the bare "image" marker so
-      // the model still knows an image is present without misleading it
-      // with `image: ""`. Alt text is truncated to 60 chars to keep the
-      // outline compact; double quotes are stripped (not escaped) so the
-      // `image: "..."` envelope stays unambiguous — alt text is advisory
-      // signal for planning, not a verbatim string the model must echo.
-      // Use the fence-aware parser so `<img>`/`![alt](src)` inside fenced
-      // code samples (common in technical decks) are not mistaken for real
-      // slide visuals — the old fence-unaware `/<img/.test(slide)` check
-      // could not distinguish them.
+      // Add image alt text as `image: "..."` when available, or bare
+      // `image` if no useful alt. Use the fence-aware parser so images in
+      // code samples are not treated as slide visuals.
       const slideImages = parseAllImagesOutsideFences(slide);
       const imageAlts = slideImages
         .map((img) => {
           if (img.type === "html") {
-            return img.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] || "";
+            // Match opening/closing quotes separately so apostrophes inside
+            // alt text do not end the attribute early.
+            return img.fullTag.match(/alt=(["'])(.*?)\1/is)?.[2] || "";
           }
           return img.fullMatch.match(/!\[([^\]]*)\]/)?.[1] || "";
         })
-        // Collapse internal whitespace (including newlines from multiline
-        // `<img>` tags) to a single space so the outline entry stays on
-        // one line; strip double quotes and truncate to 60 chars.
+        // Normalize whitespace, strip double quotes, and truncate to 60 chars.
         .map((a) => a.trim().replace(/\s+/g, " ").replace(/"/g, "").slice(0, 60))
         .filter((a) => a.length > 0);
       if (imageAlts.length > 0) {
@@ -189,16 +178,8 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
       } else if (slideImages.length > 0) {
         meta.push("image");
       }
-      // Extract diagram labels from [Diagram: ...] markers so the planning
-      // AI knows what the diagram depicts without seeing the rendered
-      // visual. Truncate to 60 chars and strip double quotes for the same
-      // reasons as image alt text above. The `\s*` after the colon accepts
-      // the degenerate `[Diagram:]` (no label) — matched by the
-      // `[^\]]*` (zero-or-more) capture — which falls back to the bare
-      // `diagram` marker so the deck-level `Features: diagrams` line and
-      // the per-slide marker stay consistent. A slide may contain more
-      // than one diagram marker; the global regex collects all labels in
-      // document order so none are silently dropped.
+      // Add diagram labels as `diagram: "..."` when present, or bare
+      // `diagram` if the marker has no useful label.
       const diagramMatches = [...slide.matchAll(/\[Diagram:\s*([^\]]*)\]/g)];
       if (diagramMatches.length > 0) {
         const diagramLabels = diagramMatches
@@ -218,11 +199,8 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
 
   const hasCode = slides.some((s) => /```/.test(s));
   const hasDiagrams = slides.some((s) => /\[Diagram:/.test(s));
-  // Detect both HTML `<img>` and markdown `![alt](src)` image syntax so a
-  // deck with only markdown images is still flagged in the `Features:` line.
-  // This is fence-unaware (consistent with the pre-existing `hasCode` and
-  // `hasDiagrams` checks here) — the deck-level feature line is a rough
-  // signal, not a precise count.
+  // Detect both HTML `<img>` and markdown `![alt](src)` for the rough
+  // deck-level `Features:` line (fence-unaware, like hasCode/hasDiagrams).
   const hasImages = slides.some((s) => /<img|!\[[^\]]*\]\([^)]*\)/.test(s));
   const uniqueLayouts = [
     ...new Set(

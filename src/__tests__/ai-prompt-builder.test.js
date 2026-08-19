@@ -271,11 +271,17 @@ describe("buildDeckSummary", () => {
     expect(summary).not.toContain("A".repeat(61));
   });
 
+  it("enriched metadata preserves apostrophes in HTML image alt text", () => {
+    const md = 'layout: header-content\n@main\n<img src="a.png" alt="It\'s the team\'s photo">';
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("image: \"It's the team's photo\"");
+  });
+
   it("enriched metadata emits image and diagram markers together in code-after order", () => {
     const md =
       'layout: header-content\n@main\n[Diagram: Flow A, Flow B]\n<img src="pic.png" alt="Screenshot">';
     const summary = buildDeckSummary(md, false, true);
-    // Both markers present, image before diagram (matches the meta.push order)
+    // meta.push order: image before diagram.
     expect(summary).toContain('image: "Screenshot"');
     expect(summary).toContain('diagram: "Flow A, Flow B"');
   });
@@ -283,11 +289,7 @@ describe("buildDeckSummary", () => {
   it("enriched metadata ignores <img> tags inside fenced code blocks", () => {
     const md = 'layout: header-content\n@main\n```\n<img src="x.png" alt="Code example img">\n```';
     const summary = buildDeckSummary(md, false, true);
-    // The code block is still marked as code, but the <img> inside it must
-    // not be treated as a real slide visual — the per-slide outline entry
-    // must not carry an image marker or the alt text. (The deck-level
-    // `Features:` line may still say "images" because that check is
-    // fence-unaware; this test scopes to the per-slide entry.)
+    // Code-block <img> should not appear in the per-slide outline.
     expect(summary).toContain("code");
     const outlineLine = summary.split("\n").find((l) => l.startsWith("1. "));
     expect(outlineLine).toBeDefined();
@@ -308,9 +310,7 @@ describe("buildDeckSummary", () => {
   it("enriched metadata collapses newlines in multiline <img> alt text", () => {
     const md = 'layout: header-content\n@main\n<img src="x.png"\n alt="Multi\nline\nalt">';
     const summary = buildDeckSummary(md, false, true);
-    // The outline entry must stay on a single line — newlines in the alt
-    // text are collapsed to spaces so the per-slide entry is not split
-    // across lines and confuse the planning AI's outline parsing.
+    // Newlines in alt text must be collapsed to keep the outline on one line.
     expect(summary).toContain('image: "Multi line alt"');
     const outlineLine = summary.split("\n").find((l) => l.startsWith("1. "));
     expect(outlineLine).toContain('image: "Multi line alt"');
