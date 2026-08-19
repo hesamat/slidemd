@@ -17,7 +17,6 @@
 
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
 import { countContentImages } from "../../data/ai/slide-image-extractor.js";
-import { escapeHtml } from "../../core/utils.js";
 import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const P = "ai-generate-modal__";
@@ -59,10 +58,6 @@ export class AiGenerateModal {
       const { count: imageCount, estimatedTokens: imageTokens } = countContentImages(markdown);
       const hasImages = imageCount > 0;
 
-      const modeOptions = `<option value="polish" selected>Polish</option>
-<option value="remix">Remix</option>
-<option value="reimagine">Reimagine</option>`;
-
       const title = isImport ? "AI: Import result" : "AI: Refine all slides";
       const subtitle = isImport
         ? "Pick the mode you used when generating the result externally, so the imported output is validated with the right rules."
@@ -70,93 +65,233 @@ export class AiGenerateModal {
       const primaryLabel = isImport ? "Next" : "Generate";
       const primaryAction = isImport ? "next" : "generate";
 
-      // Cost-estimation rows are only relevant when an API call will be made.
-      const costRowsHtml = isImport
-        ? ""
-        : `
-          <div class="${P}cost-row">
-            <span>Current slides</span>
-            <span>${slideCount}</span>
-          </div>
-          <div class="${P}cost-row">
-            <span>Estimated API calls</span>
-            <span>${batchCount}</span>
-          </div>
-          <div class="${P}cost-row" id="${P}model-row">
-            <span>Model</span>
-            <span class="${P}model-display">
-              <span id="${P}model-name">${escapeHtml(opts.modelName || "Not configured")}</span>
-              ${opts.onOpenSettings ? `<button type="button" class="${P}link-btn" data-action="open-settings">Change</button>` : ""}
-            </span>
-          </div>
-          <div class="${P}cost-row" id="${P}reasoning-row" ${!opts.useReasoning ? 'style="display:none"' : ""}>
-            <span>Reasoning</span>
-            <span class="${P}cost-warn">Enabled (higher cost)</span>
-          </div>`;
-
-      // Export buttons only appear in the generate purpose.
-      const exportButtonsHtml =
-        isImport || !opts.onExport
-          ? ""
-          : `<button type="button" class="${P}btn" data-action="copy-prompt">Copy prompt</button>
-             <button type="button" class="${P}btn" data-action="download-prompt">Download prompt</button>`;
-
+      // --- Build dialog via safe DOM construction (no innerHTML) ---
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
-      dialog.innerHTML = `
-        <h2 class="${P}title">${escapeHtml(title)}</h2>
-        <p class="${P}subtitle">${escapeHtml(subtitle)}</p>
 
-        <div class="${P}field">
-          <label class="${P}label" for="${P}mode">Mode</label>
-          <select id="${P}mode" class="${P}select">
-            ${modeOptions}
-          </select>
-          <p id="${P}mode-desc" class="${P}note"></p>
-        </div>
+      const h2 = document.createElement("h2");
+      h2.className = `${P}title`;
+      h2.textContent = title;
+      dialog.appendChild(h2);
 
-        <div class="${P}field" id="${P}flow-field">
-          <label class="${P}label" for="${P}flow">Flow</label>
-          <select id="${P}flow" class="${P}select">
-            <option value="instructional">Instructional</option>
-            <option value="story">Story</option>
-            <option value="technical">Technical</option>
-            <option value="persuasive">Persuasive</option>
-          </select>
-          <p id="${P}flow-desc" class="${P}note"></p>
-        </div>
+      const subtitleP = document.createElement("p");
+      subtitleP.className = `${P}subtitle`;
+      subtitleP.textContent = subtitle;
+      dialog.appendChild(subtitleP);
 
-        <div class="${P}cost">
-          ${costRowsHtml}
-          <div class="${P}cost-row ${P}vision-row" id="${P}vision-row" style="display:none">
-            <label class="${P}checkbox-label">
-              <input type="checkbox" id="${P}vision-toggle" />
-              Send slide images to AI (vision)
-            </label>
-            <span class="${P}cost-warn">~${imageTokens.toLocaleString()} image tokens (${imageCount} images)</span>
-          </div>
-          <div class="${P}cost-row" id="${P}notes-row">
-            <label class="${P}checkbox-label">
-              <input type="checkbox" id="${P}notes-toggle" />
-              Add speaker notes
-            </label>
-            <span class="${P}note">Generate notes for slides that don't have them</span>
-          </div>
-          <div class="${P}cost-row" id="${P}identity-row" style="display:none">
-            <label class="${P}checkbox-label">
-              <input type="checkbox" id="${P}identity-toggle" />
-              Preserve visual identity
-            </label>
-            <span class="${P}note">Keep theme, colors, and backgrounds</span>
-          </div>
-        </div>
+      // Mode field
+      const modeField = document.createElement("div");
+      modeField.className = `${P}field`;
+      const modeLabel = document.createElement("label");
+      modeLabel.className = `${P}label`;
+      modeLabel.setAttribute("for", `${P}mode`);
+      modeLabel.textContent = "Mode";
+      modeField.appendChild(modeLabel);
+      const modeSelect = document.createElement("select");
+      modeSelect.id = `${P}mode`;
+      modeSelect.className = `${P}select`;
+      for (const [val, label] of [
+        ["polish", "Polish"],
+        ["remix", "Remix"],
+        ["reimagine", "Reimagine"],
+      ]) {
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = label;
+        if (val === "polish") opt.selected = true;
+        modeSelect.appendChild(opt);
+      }
+      modeField.appendChild(modeSelect);
+      const modeDesc = document.createElement("p");
+      modeDesc.id = `${P}mode-desc`;
+      modeDesc.className = `${P}note`;
+      modeField.appendChild(modeDesc);
+      dialog.appendChild(modeField);
 
-        <div class="${P}actions">
-          <button type="button" class="${P}btn" data-action="cancel">Cancel</button>
-          ${exportButtonsHtml}
-          <button type="button" class="${P}btn ${P}btn--primary" data-action="${primaryAction}">${escapeHtml(primaryLabel)}</button>
-        </div>
-      `;
+      // Flow field
+      const flowField = document.createElement("div");
+      flowField.className = `${P}field`;
+      flowField.id = `${P}flow-field`;
+      const flowLabel = document.createElement("label");
+      flowLabel.className = `${P}label`;
+      flowLabel.setAttribute("for", `${P}flow`);
+      flowLabel.textContent = "Flow";
+      flowField.appendChild(flowLabel);
+      const flowSelect = document.createElement("select");
+      flowSelect.id = `${P}flow`;
+      flowSelect.className = `${P}select`;
+      for (const [val, label] of [
+        ["instructional", "Instructional"],
+        ["story", "Story"],
+        ["technical", "Technical"],
+        ["persuasive", "Persuasive"],
+      ]) {
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = label;
+        flowSelect.appendChild(opt);
+      }
+      flowField.appendChild(flowSelect);
+      const flowDesc = document.createElement("p");
+      flowDesc.id = `${P}flow-desc`;
+      flowDesc.className = `${P}note`;
+      flowField.appendChild(flowDesc);
+      dialog.appendChild(flowField);
+
+      // Cost section
+      const costDiv = document.createElement("div");
+      costDiv.className = `${P}cost`;
+
+      // Cost-estimation rows are only relevant when an API call will be made.
+      // Hoisted so the settings-change handler can update them after the row is
+      // built (only in generate mode).
+      let modelNameSpan = null;
+      let reasoningRow = null;
+      if (!isImport) {
+        const slidesRow = document.createElement("div");
+        slidesRow.className = `${P}cost-row`;
+        const slidesLabel = document.createElement("span");
+        slidesLabel.textContent = "Current slides";
+        const slidesValue = document.createElement("span");
+        slidesValue.textContent = String(slideCount);
+        slidesRow.append(slidesLabel, slidesValue);
+        costDiv.appendChild(slidesRow);
+
+        const callsRow = document.createElement("div");
+        callsRow.className = `${P}cost-row`;
+        const callsLabel = document.createElement("span");
+        callsLabel.textContent = "Estimated API calls";
+        const callsValue = document.createElement("span");
+        callsValue.textContent = String(batchCount);
+        callsRow.append(callsLabel, callsValue);
+        costDiv.appendChild(callsRow);
+
+        const modelRow = document.createElement("div");
+        modelRow.className = `${P}cost-row`;
+        modelRow.id = `${P}model-row`;
+        const modelLabel = document.createElement("span");
+        modelLabel.textContent = "Model";
+        const modelDisplay = document.createElement("span");
+        modelDisplay.className = `${P}model-display`;
+        modelNameSpan = document.createElement("span");
+        modelNameSpan.id = `${P}model-name`;
+        modelNameSpan.textContent = opts.modelName || "Not configured";
+        modelDisplay.appendChild(modelNameSpan);
+        if (opts.onOpenSettings) {
+          const changeBtn = document.createElement("button");
+          changeBtn.type = "button";
+          changeBtn.className = `${P}link-btn`;
+          changeBtn.dataset.action = "open-settings";
+          changeBtn.textContent = "Change";
+          modelDisplay.appendChild(changeBtn);
+        }
+        modelRow.append(modelLabel, modelDisplay);
+        costDiv.appendChild(modelRow);
+
+        reasoningRow = document.createElement("div");
+        reasoningRow.className = `${P}cost-row`;
+        reasoningRow.id = `${P}reasoning-row`;
+        if (!opts.useReasoning) reasoningRow.style.display = "none";
+        const reasoningLabel = document.createElement("span");
+        reasoningLabel.textContent = "Reasoning";
+        const reasoningValue = document.createElement("span");
+        reasoningValue.className = `${P}cost-warn`;
+        reasoningValue.textContent = "Enabled (higher cost)";
+        reasoningRow.append(reasoningLabel, reasoningValue);
+        costDiv.appendChild(reasoningRow);
+      }
+
+      // Vision row
+      const visionRow = document.createElement("div");
+      visionRow.className = `${P}cost-row ${P}vision-row`;
+      visionRow.id = `${P}vision-row`;
+      visionRow.style.display = "none";
+      const visionLabel = document.createElement("label");
+      visionLabel.className = `${P}checkbox-label`;
+      const visionToggle = document.createElement("input");
+      visionToggle.type = "checkbox";
+      visionToggle.id = `${P}vision-toggle`;
+      visionLabel.appendChild(visionToggle);
+      visionLabel.appendChild(document.createTextNode(" Send slide images to AI (vision)"));
+      const visionNote = document.createElement("span");
+      visionNote.className = `${P}cost-warn`;
+      visionNote.textContent = `~${imageTokens.toLocaleString()} image tokens (${imageCount} images)`;
+      visionRow.append(visionLabel, visionNote);
+      costDiv.appendChild(visionRow);
+
+      // Notes row
+      const notesRow = document.createElement("div");
+      notesRow.className = `${P}cost-row`;
+      notesRow.id = `${P}notes-row`;
+      const notesLabel = document.createElement("label");
+      notesLabel.className = `${P}checkbox-label`;
+      const notesToggle = document.createElement("input");
+      notesToggle.type = "checkbox";
+      notesToggle.id = `${P}notes-toggle`;
+      notesLabel.appendChild(notesToggle);
+      notesLabel.appendChild(document.createTextNode(" Add speaker notes"));
+      const notesNote = document.createElement("span");
+      notesNote.className = `${P}note`;
+      notesNote.textContent = "Generate notes for slides that don't have them";
+      notesRow.append(notesLabel, notesNote);
+      costDiv.appendChild(notesRow);
+
+      // Identity row
+      const identityRow = document.createElement("div");
+      identityRow.className = `${P}cost-row`;
+      identityRow.id = `${P}identity-row`;
+      identityRow.style.display = "none";
+      const identityLabel = document.createElement("label");
+      identityLabel.className = `${P}checkbox-label`;
+      const identityToggle = document.createElement("input");
+      identityToggle.type = "checkbox";
+      identityToggle.id = `${P}identity-toggle`;
+      identityLabel.appendChild(identityToggle);
+      identityLabel.appendChild(document.createTextNode(" Preserve visual identity"));
+      const identityNote = document.createElement("span");
+      identityNote.className = `${P}note`;
+      identityNote.textContent = "Keep theme, colors, and backgrounds";
+      identityRow.append(identityLabel, identityNote);
+      costDiv.appendChild(identityRow);
+
+      dialog.appendChild(costDiv);
+
+      // Actions
+      const actions = document.createElement("div");
+      actions.className = `${P}actions`;
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = `${P}btn`;
+      cancelBtn.dataset.action = "cancel";
+      cancelBtn.textContent = "Cancel";
+      actions.appendChild(cancelBtn);
+
+      // Export buttons only appear in the generate purpose.
+      let copyBtn = null;
+      let downloadBtn = null;
+      if (!isImport && opts.onExport) {
+        copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = `${P}btn`;
+        copyBtn.dataset.action = "copy-prompt";
+        copyBtn.textContent = "Copy prompt";
+        actions.appendChild(copyBtn);
+
+        downloadBtn = document.createElement("button");
+        downloadBtn.type = "button";
+        downloadBtn.className = `${P}btn`;
+        downloadBtn.dataset.action = "download-prompt";
+        downloadBtn.textContent = "Download prompt";
+        actions.appendChild(downloadBtn);
+      }
+
+      const primaryBtn = document.createElement("button");
+      primaryBtn.type = "button";
+      primaryBtn.className = `${P}btn ${P}btn--primary`;
+      primaryBtn.dataset.action = primaryAction;
+      primaryBtn.textContent = primaryLabel;
+      actions.appendChild(primaryBtn);
+      dialog.appendChild(actions);
 
       backdrop.appendChild(dialog);
       document.body.appendChild(backdrop);
@@ -188,13 +323,7 @@ export class AiGenerateModal {
 
       backdrop.addEventListener("wheel", onWheel, { passive: true });
 
-      dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
-
-      const modeSelect = dialog.querySelector(`#${P}mode`);
-      const modeDesc = dialog.querySelector(`#${P}mode-desc`);
-      const visionRow = dialog.querySelector(`#${P}vision-row`);
-      const identityRow = dialog.querySelector(`#${P}identity-row`);
-      const identityToggle = dialog.querySelector(`#${P}identity-toggle`);
+      cancelBtn.addEventListener("click", () => close(null));
 
       const MODE_DESCRIPTIONS = {
         polish:
@@ -212,16 +341,11 @@ export class AiGenerateModal {
         instructional: "Learning-driven: objectives, step-by-step guidance, examples, recap.",
       };
 
-      const flowSelect = dialog.querySelector(`#${P}flow`);
-      const flowDesc = dialog.querySelector(`#${P}flow-desc`);
-
       const updateFlowUI = () => {
         flowDesc.textContent = FLOW_DESCRIPTIONS[flowSelect.value] || "";
       };
       flowSelect.addEventListener("change", updateFlowUI);
       updateFlowUI();
-
-      const flowField = dialog.querySelector(`#${P}flow-field`);
 
       // Track whether the user has explicitly toggled visual identity so we
       // don't clobber their choice when they switch modes and switch back.
@@ -258,27 +382,20 @@ export class AiGenerateModal {
       const readOptions = () => {
         const mode = modeSelect.value || "polish";
         const flow = flowSelect.value || "instructional";
-        const visionToggle = dialog.querySelector(`#${P}vision-toggle`);
-        const notesToggle = dialog.querySelector(`#${P}notes-toggle`);
         const includeImages =
-          (mode === "remix" || mode === "reimagine") && hasImages && visionToggle?.checked;
-        const addSpeakerNotes = notesToggle?.checked || false;
+          (mode === "remix" || mode === "reimagine") && hasImages && visionToggle.checked;
+        const addSpeakerNotes = notesToggle.checked || false;
         const preserveVisualIdentity =
-          mode === "polish" || (mode === "remix" && identityToggle?.checked);
+          mode === "polish" || (mode === "remix" && identityToggle.checked);
         return { mode, flow, addSpeakerNotes, includeImages, preserveVisualIdentity };
       };
 
       // Primary action: "Generate" (generate purpose) or "Next" (import purpose).
-      const primaryBtn = dialog.querySelector(`[data-action="${primaryAction}"]`);
-      if (primaryBtn) {
-        primaryBtn.addEventListener("click", () => close(readOptions()));
-      }
+      primaryBtn.addEventListener("click", () => close(readOptions()));
 
       // Export buttons: hand the options to the caller and close with null so
       // the caller does not proceed to an AI generate call. The caller is
       // responsible for building the prompt and copying/downloading it.
-      const copyBtn = dialog.querySelector('[data-action="copy-prompt"]');
-      const downloadBtn = dialog.querySelector('[data-action="download-prompt"]');
       const handleExport = async (kind) => {
         try {
           await opts.onExport(readOptions(), kind);
@@ -290,7 +407,7 @@ export class AiGenerateModal {
           const msg = document.createElement("p");
           msg.className = `${P}export-error`;
           msg.textContent = `Could not ${kind === "copy" ? "copy" : "download"} prompt: ${err?.message || err}`;
-          dialog.querySelector(`.${P}actions`).before(msg);
+          actions.before(msg);
           return;
         }
         close(null);
@@ -315,9 +432,8 @@ export class AiGenerateModal {
           // Update model display after settings change
           if (opts.getModelName) {
             const newName = opts.getModelName();
-            dialog.querySelector(`#${P}model-name`).textContent = newName;
+            modelNameSpan.textContent = newName;
             // Update reasoning display
-            const reasoningRow = dialog.querySelector(`#${P}reasoning-row`);
             if (opts.getReasoning) {
               reasoningRow.style.display = opts.getReasoning() ? "" : "none";
             }

@@ -418,7 +418,7 @@ export class AiEditController {
         expectedSlideCount,
         skipOverflow: op.opts.mode === "polish",
         enforcePreserveIdentity: op.opts.enforcePreserveIdentity === true,
-        restrictImageSources: op.opts.mode === "polish",
+        restrictImageSources: op.opts.restrictImageSources === true || op.opts.mode === "polish",
         allowedImageSrcs:
           op.opts.mode === "polish"
             ? collectOwnImageSources(fullMarkdown)
