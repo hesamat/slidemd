@@ -1204,6 +1204,118 @@ describe("PptxExtractor top-level diagram detection", () => {
     expect(diagram).toBeDefined();
     expect(diagram.shapes.some((s) => s.hasConnector)).toBe(true);
   });
+
+  it("keeps a text label anchored to a hollow shape and connector", () => {
+    // A hollow box with a separate text label and an arrow is still a useful
+    // diagram. The label makes it substantial, even though the box has no fill.
+    const hollowBox = {
+      type: "shape",
+      content: "",
+      left: 100,
+      top: 100,
+      width: 100,
+      height: 50,
+      order: 0,
+      shapType: "rect",
+      fill: null,
+      fillRaw: null,
+      strokeOnly: true,
+      hasConnector: false,
+      borderColor: "000000",
+      borderWidth: 1,
+      borderType: "solid",
+      path: null,
+      pathViewBox: null,
+      rotate: 0,
+      isFlipV: false,
+      isFlipH: false,
+      shadow: null,
+    };
+    const label = {
+      type: "text",
+      content: "Process",
+      left: 100,
+      top: 160,
+      width: 100,
+      height: 20,
+      order: 1,
+    };
+    const arrowDown = arrow(150, 150, 50); // touches the hollow box's bottom edge
+
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([hollowBox, label, arrowDown]);
+    const diagram = result.find((el) => el.type === "diagram");
+
+    expect(diagram).toBeDefined();
+    expect(diagram.shapes.length).toBe(3);
+    expect(diagram.content).toBe("Process");
+    expect(diagram.shapes.some((s) => s.hasConnector)).toBe(true);
+  });
+
+  it("does not create a diagram from empty stroked shapes and a connector", () => {
+    // Mirrors a real PPTX with two red-outlined empty circles and an arrow
+    // between them. The circles have no text and no fill, so converting the
+    // group to a PNG would only produce a meaningless red outline image.
+    const circle = (left, top) => ({
+      type: "shape",
+      content: "",
+      left,
+      top,
+      width: 120,
+      height: 120,
+      order: Math.round(top * 10),
+      shapType: "ellipse",
+      fill: null,
+      fillRaw: null,
+      strokeOnly: true,
+      hasConnector: false,
+      borderColor: "FF0000",
+      borderWidth: 2,
+      borderType: "solid",
+      path: null,
+      pathViewBox: null,
+      rotate: 0,
+      isFlipV: false,
+      isFlipH: false,
+      shadow: null,
+    });
+    const arrowRight = (left, top, w = 80) => ({
+      type: "connector",
+      content: "",
+      left,
+      top,
+      width: w,
+      height: 0,
+      order: 100,
+      shapType: "straightConnector1",
+      fill: "FF0000",
+      fillRaw: { type: "color", value: "FF0000" },
+      strokeOnly: true,
+      hasConnector: true,
+      path: `M0,0 L${w},0`,
+      pathViewBox: { x: 0, y: 0, width: w, height: 0 },
+      borderColor: "FF0000",
+      borderWidth: 2,
+      borderType: "solid",
+      rotate: 0,
+      isFlipV: false,
+      isFlipH: false,
+      shadow: null,
+    });
+
+    const elements = [
+      circle(100, 100),
+      circle(300, 100),
+      arrowRight(220, 160), // touches both circles at their centers
+    ];
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+
+    // No diagram is formed from empty shapes and a connector.
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
+    // The arrow is not consumed into a diagram; it (and the empty circles) will
+    // be discarded by the downstream meaningful-element filter.
+    expect(result.some((el) => el.type === "connector" && el.hasConnector)).toBe(true);
+    expect(result.some((el) => el.type === "shape" && el.shapType === "ellipse")).toBe(true);
+  });
 });
 
 describe("PptxExtractor code extraction", () => {
