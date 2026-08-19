@@ -41,6 +41,13 @@ const PPTX_IMPORT_IMAGES_DIR = path.join(PPTX_IMPORT_DIR, "images");
 // deck's imagesDir. NOT wiped on restart — same rationale as PPTX imports.
 const EXPORTED_IMAGES_DIR = path.join(ROOT, ".webdeck-exported", "images");
 
+// Persistent file for the source deck's per-slide directives (theme,
+// background, mediaFullBleed, areaBg) captured at export time. The import
+// flow reads this to gap-fill directives the external AI dropped, mirroring
+// the live orchestrator's extractDirectives + injectDirectives step. NOT
+// wiped on restart — same rationale as the exported images directory.
+const EXPORTED_DIRECTIVES_FILE = path.join(ROOT, ".webdeck-exported", "directives.json");
+
 // ── Args ──────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -664,6 +671,51 @@ function createHandler(format) {
       return;
     }
 
+    // ── POST /api/directives/snapshot ──
+    // Stores the source deck's per-slide directives (extracted client-side
+    // via extractDirectives) so the import flow can gap-fill theme/background
+    // the external AI dropped. The body is the directives array as JSON.
+    if (pathname === "/api/directives/snapshot" && req.method === "POST") {
+      try {
+        const body = await readBody(req);
+        const parsed = JSON.parse(body.toString("utf8"));
+        if (!Array.isArray(parsed)) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Expected a directives array" }));
+          return;
+        }
+        fs.mkdirSync(path.dirname(EXPORTED_DIRECTIVES_FILE), { recursive: true });
+        fs.writeFileSync(EXPORTED_DIRECTIVES_FILE, JSON.stringify(parsed));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, count: parsed.length }));
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
+    // ── GET /api/directives/snapshot ──
+    // Returns the stored directives array, or an empty array if no snapshot
+    // exists (e.g. first export, or wiped directory).
+    if (pathname === "/api/directives/snapshot" && req.method === "GET") {
+      try {
+        if (!fs.existsSync(EXPORTED_DIRECTIVES_FILE)) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify([]));
+          return;
+        }
+        const raw = fs.readFileSync(EXPORTED_DIRECTIVES_FILE, "utf8");
+        const parsed = JSON.parse(raw);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(parsed));
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
     // ── POST /api/upload-image ──
     if (pathname === "/api/upload-image" && req.method === "POST") {
       if (!format) {
@@ -857,6 +909,8 @@ async function main() {
   fs.mkdirSync(PPTX_IMPORT_IMAGES_DIR, { recursive: true });
   // Ensure the exported-images directory exists (same persistence rationale).
   fs.mkdirSync(EXPORTED_IMAGES_DIR, { recursive: true });
+  // The directives snapshot file lives in the same parent directory.
+  fs.mkdirSync(path.dirname(EXPORTED_DIRECTIVES_FILE), { recursive: true });
 
   let format = null;
 

@@ -17,6 +17,7 @@ import { copyText, downloadText } from "../../core/clipboard.js";
 import { buildExportablePrompt } from "../../data/ai/ai-prompt-export.js";
 import { AiOutputValidator } from "../../data/ai/ai-output-validator.js";
 import { parseAiResponse, slidesToMarkdown } from "../../data/ai/ai-response-parser.js";
+import { extractDirectives, injectDirectives } from "../../data/ai/ai-directive-utils.js";
 
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
@@ -309,6 +310,22 @@ export class AiEditController {
       } catch {
         // Non-fatal: images may already be available if same deck is open.
       }
+      // Snapshot the source deck's per-slide directives (theme, background,
+      // mediaFullBleed, areaBg) so the import flow can gap-fill any the
+      // external AI dropped — mirroring the live orchestrator's
+      // extractDirectives + injectDirectives step. Use the fence-aware
+      // splitSlides directly (not splitSlidesForAi, which strips layout:
+      // directives in generate mode) so layouts are preserved in the snapshot.
+      try {
+        const directives = extractDirectives(fullMarkdown);
+        await fetch("/api/directives/snapshot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(directives),
+        });
+      } catch {
+        // Non-fatal: same-deck imports can fall back to the current deck.
+      }
       if (kind === "copy") {
         await copyText(formattedText);
         Notification.success("AI prompt copied to clipboard.");
@@ -411,6 +428,18 @@ export class AiEditController {
     // asks for) or slide markdown (some models ignore format instructions).
     // We parse the response with parseAiResponse (which handles both) and
     // convert to slide markdown for validation and application.
+    //
+    // Gap-fill theme/background directives the external AI dropped, using the
+    // snapshot captured at export time (mirrors the live orchestrator's
+    // extractDirectives + injectDirectives step). If no snapshot is available
+    // (e.g. first run, or imported without exporting), the gap-fill is a no-op.
+    let snapshotDirectives = [];
+    try {
+      const resp = await fetch("/api/directives/snapshot");
+      if (resp.ok) snapshotDirectives = await resp.json();
+    } catch {
+      // Non-fatal: same-deck imports may still have directives in the AI output.
+    }
     const validator = new AiOutputValidator({ inputMarkdown: "" });
     let lastConvertedMarkdown = null;
     const validate = (text) => {
@@ -422,6 +451,13 @@ export class AiEditController {
         markdown = slidesToMarkdown(parsed.slides);
       } else {
         markdown = text;
+      }
+      // Gap-fill missing theme/background/mediaFullBleed/areaBg directives
+      // from the export-time snapshot. Generate mode: only fill directives
+      // the AI dropped, never overwrite AI-chosen values. No-op when the
+      // slide count differs from the snapshot (cross-deck restructure).
+      if (Array.isArray(snapshotDirectives) && snapshotDirectives.length > 0) {
+        markdown = injectDirectives(markdown, snapshotDirectives, "generate");
       }
       lastConvertedMarkdown = markdown;
       // Structural validation only: no expected slide count, no image-source
