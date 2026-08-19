@@ -291,6 +291,9 @@ export class AiEditController {
 
     // Export handler: builds the exact prompt the orchestrator would send and
     // copies/downloads it. No API key or provider is needed for export.
+    // Also snapshots the current deck's images to a persistent server-side
+    // directory so they remain available if the user imports the result into
+    // a different deck later.
     const onExport = async (generateOpts, kind) => {
       const op = createOperation("generate", null, fullMarkdown, {
         flow: generateOpts.flow,
@@ -300,6 +303,12 @@ export class AiEditController {
         preserveVisualIdentity: generateOpts.preserveVisualIdentity ?? true,
       });
       const { formattedText } = buildExportablePrompt(op);
+      // Snapshot images so they survive a deck switch before import.
+      try {
+        await fetch("/api/images/snapshot", { method: "POST" });
+      } catch {
+        // Non-fatal: images may already be available if same deck is open.
+      }
       if (kind === "copy") {
         await copyText(formattedText);
         Notification.success("AI prompt copied to clipboard.");

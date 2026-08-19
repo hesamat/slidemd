@@ -34,6 +34,13 @@ const ROOT = path.resolve(__dirname, "..");
 const PPTX_IMPORT_DIR = path.join(ROOT, ".webdeck-pptx-imports");
 const PPTX_IMPORT_IMAGES_DIR = path.join(PPTX_IMPORT_DIR, "images");
 
+// Persistent directory for images from exported AI prompts. When the user
+// exports a prompt, the current deck's images are copied here so they remain
+// available even after the user loads a different deck and imports the AI
+// result. The /images/* handler checks this as a fallback after the current
+// deck's imagesDir. NOT wiped on restart — same rationale as PPTX imports.
+const EXPORTED_IMAGES_DIR = path.join(ROOT, ".webdeck-exported", "images");
+
 // ── Args ──────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -577,6 +584,7 @@ function createHandler(format) {
         // editor's image picker.
         const dirs = [];
         if (format?.imagesDir) dirs.push(format.imagesDir);
+        dirs.push(EXPORTED_IMAGES_DIR);
         dirs.push(PPTX_IMPORT_IMAGES_DIR);
         for (const dir of dirs) {
           if (!fs.existsSync(dir)) continue;
@@ -619,6 +627,36 @@ function createHandler(format) {
         }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
+    // ── POST /api/images/snapshot ──
+    // Copies the current deck's images to the persistent exported-images
+    // directory so they remain available after the user loads a different
+    // deck and imports an AI result that references them.
+    if (pathname === "/api/images/snapshot" && req.method === "POST") {
+      try {
+        if (!format?.imagesDir || !fs.existsSync(format.imagesDir)) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, copied: 0, note: "No images dir" }));
+          return;
+        }
+        fs.mkdirSync(EXPORTED_IMAGES_DIR, { recursive: true });
+        let copied = 0;
+        for (const file of fs.readdirSync(format.imagesDir)) {
+          const src = path.join(format.imagesDir, file);
+          if (!fs.statSync(src).isFile()) continue;
+          if (!IMAGE_RE.test(path.extname(file))) continue;
+          const dest = path.join(EXPORTED_IMAGES_DIR, file);
+          fs.copyFileSync(src, dest);
+          copied++;
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, copied }));
       } catch (e) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
@@ -746,6 +784,7 @@ function createHandler(format) {
 
       const candidateDirs = [];
       if (format?.imagesDir) candidateDirs.push(format.imagesDir);
+      candidateDirs.push(EXPORTED_IMAGES_DIR);
       candidateDirs.push(PPTX_IMPORT_IMAGES_DIR);
 
       for (const dir of candidateDirs) {
@@ -816,6 +855,8 @@ async function main() {
   // this directory is NOT wiped on restart — images here belong to decks the
   // user saved as .md and would be lost if deleted.
   fs.mkdirSync(PPTX_IMPORT_IMAGES_DIR, { recursive: true });
+  // Ensure the exported-images directory exists (same persistence rationale).
+  fs.mkdirSync(EXPORTED_IMAGES_DIR, { recursive: true });
 
   let format = null;
 
