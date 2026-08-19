@@ -8,7 +8,7 @@
   - `media-span-left` / `media-span-right`: `@header` is one line; `@main` should hold about 8–12 lines; `@media` holds one image or one Mermaid diagram.
   - `full-image`: `@main` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
 - Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
-- Long lists and tables may exceed a single column without being "too dense." When they do, use a multi-column text block (`::: text-block { column-count=N markdown=true } ... :::`) or a multi-column layout (`two-column`, `three-column`, `left-heavy`, `right-heavy`). For a `column-count=N` text block, the line budget for that content is multiplied by N. Do not trim or delete list items or table rows just to fit the per-area budget.
+- Long lists and tables may exceed a single column without being "too dense." When they do, use a multi-column text block (`::: text-block { column-count=N markdown=true } ... :::`) or a multi-column layout (`two-column`, `three-column`, `left-heavy`, `right-heavy`). For a `column-count=N` text block, the line budget for that content is multiplied by N. Do not trim or delete list items or table rows just to fit the per-area budget. If a list or table is genuinely too long or contains redundant items, trim the redundant or least important items after trying multi-column; never remove the sole coverage of a key concept.
 
 <!-- variant: compact -->
 

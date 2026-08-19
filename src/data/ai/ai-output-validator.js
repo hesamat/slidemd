@@ -740,7 +740,7 @@ export class AiOutputValidator {
         errors.push({
           slide: index,
           code: "SLIDE_CONTENT_OVERFLOW",
-          message: `Slide ${index + 1} @${areaName} has too much content (${metrics.lineCount} lines, max ${areaLimits.maxLines}). Trim to one key idea, move detail to speaker notes, or split into multiple slides.`,
+          message: `Slide ${index + 1} @${areaName} has too much content (${metrics.lineCount} lines, max ${areaLimits.maxLines}). Wrap long lists or tables in a multi-column text block (::: text-block { column-count=N markdown=true } ... :::) or a multi-column layout first. If still too dense, trim only redundant, duplicated, or tangential content, or move detail to speaker notes. Do not delete list items or table rows just to fit the budget, and do not split the slide.`,
         });
       }
     }

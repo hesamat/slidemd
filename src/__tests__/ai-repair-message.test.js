@@ -75,7 +75,7 @@ describe("buildRepairMessage", () => {
     const msg = buildRepairMessage(errors);
     expect(msg).toContain("Guidance:");
     expect(msg).toContain(
-      "Reduce content density — trim bullets, move detail to speaker notes, or split the slide.",
+      "For long lists or tables, use a multi-column text block (`::: text-block { column-count=N markdown=true } ... :::`) first.",
     );
   });
 
