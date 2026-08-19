@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MERMAID_INIT_OPTIONS, buildMermaidScriptTag } from "../core/mermaid-config.js";
+import { MERMAID_INIT_OPTIONS, buildInlinedMermaidScriptTag } from "../core/mermaid-config.js";
 
 describe("MERMAID_INIT_OPTIONS", () => {
   it("has startOnLoad disabled", () => {
@@ -18,37 +18,39 @@ describe("MERMAID_INIT_OPTIONS", () => {
   });
 });
 
-describe("buildMermaidScriptTag", () => {
-  it("returns a string containing a script tag", () => {
-    const result = buildMermaidScriptTag("11.14.0");
+describe("buildInlinedMermaidScriptTag", () => {
+  it("returns a string containing script tags", () => {
+    const result = buildInlinedMermaidScriptTag("var x = 1;");
     expect(result).toContain("<script");
     expect(result).toContain("</script>");
   });
 
-  it("includes the versioned CDN URL in the import", () => {
-    const result = buildMermaidScriptTag("11.14.0");
-    expect(result).toContain("mermaid@11.14.0");
-    expect(result).toContain(".mjs");
+  it("inlines the Mermaid JS source directly (no CDN URL)", () => {
+    const js = "var mermaid = { render: function() {} };";
+    const result = buildInlinedMermaidScriptTag(js);
+    expect(result).toContain(js);
+    expect(result).not.toContain("cdn.jsdelivr.net");
+    expect(result).not.toContain("import mermaid from");
   });
 
   it("includes mermaid.initialize call", () => {
-    const result = buildMermaidScriptTag("11.14.0");
+    const result = buildInlinedMermaidScriptTag("var x = 1;");
     expect(result).toContain("mermaid.initialize(");
   });
 
-  it("sets the __WEBDECK_HAS_MERMAID__ synchronously and __WEBDECK_MERMAID__ in the module", () => {
-    const result = buildMermaidScriptTag("11.14.0");
+  it("sets the __WEBDECK_HAS_MERMAID__ synchronously and __WEBDECK_MERMAID__ after load", () => {
+    const result = buildInlinedMermaidScriptTag("var x = 1;");
     expect(result).toContain("window.__WEBDECK_HAS_MERMAID__ = true");
-    expect(result).toContain("window.__WEBDECK_MERMAID__={mermaid}");
+    expect(result).toContain("window.__WEBDECK_MERMAID__={mermaid:window.mermaid}");
   });
 
   it("applies indent prefix when provided", () => {
-    const result = buildMermaidScriptTag("11.14.0", "  ");
+    const result = buildInlinedMermaidScriptTag("var x = 1;", "  ");
     expect(result.startsWith("  <script")).toBe(true);
   });
 
   it("defaults to empty indent", () => {
-    const result = buildMermaidScriptTag("11.14.0");
+    const result = buildInlinedMermaidScriptTag("var x = 1;");
     expect(result.startsWith("<script")).toBe(true);
   });
 });

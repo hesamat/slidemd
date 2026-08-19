@@ -6,7 +6,7 @@
  * keyboard-shortcuts.js.
  */
 
-import { SHORTCUTS, formatShortcut } from "./keyboard-shortcuts.js";
+import { SHORTCUTS, formatShortcut } from "../core/keyboard-shortcuts.js";
 
 /**
  * @typedef {Object} CommandDefinition
