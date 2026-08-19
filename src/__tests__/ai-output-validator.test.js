@@ -356,7 +356,9 @@ ${bullets}
       expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
     });
 
-    it("passes a long table inside a two-column text block", () => {
+    it("does not scale a long table inside a multi-column text block", () => {
+      // Tables do not fragment across CSS columns, so the multi-column discount
+      // must not be applied even when the text block has column-count > 1.
       const rows = Array.from({ length: 16 }, (_, i) => `| Cell ${i + 1}A | Cell ${i + 1}B |`).join(
         "\n",
       );
@@ -373,7 +375,7 @@ ${bullets}
 ${rows}
 :::`;
       const result = validate("", output, "generate");
-      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+      expect(result.errors.some((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toBe(true);
     });
 
     it("still flags an overflowing list not in a multi-column text block", () => {
@@ -419,6 +421,128 @@ ${bullets}
 :::`;
       const result = validate("", output, "generate");
       expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("clamps an excessive column-count to 3 for overflow checking", () => {
+      const bullets = Array.from({ length: 60 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=8 markdown=true }
+${bullets}
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.some((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toBe(true);
+    });
+
+    it("floors and clamps non-integer column-count values", () => {
+      const bullets = Array.from({ length: 30 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=2.5 markdown=true }
+${bullets}
+:::`;
+      const result = validate("", output, "generate");
+      // 2.5 is floored to 2, so 30 bullets in 2 columns is 15 lines (> 13).
+      expect(result.errors.some((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toBe(true);
+    });
+
+    it("passes when a floored non-integer column-count genuinely fits", () => {
+      const bullets = Array.from({ length: 20 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=2.5 markdown=true }
+${bullets}
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("does not scale a text block that contains a fenced code block", () => {
+      const code = Array.from({ length: 15 }, (_, i) => `line ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=2 markdown=true }
+\`\`\`
+${code}
+\`\`\`
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.some((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toBe(true);
+    });
+
+    it("does not scale an empty multi-column text block", () => {
+      const bullets = Array.from({ length: 13 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+${bullets}
+
+::: text-block { column-count=2 markdown=true }
+
+:::`;
+      const result = validate("", output, "generate");
+      // Empty block should not add a phantom line and push the area over.
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("ignores floating text blocks when measuring area content", () => {
+      const bullets = Array.from({ length: 20 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+- Only visible item
+
+::: text-block { float=true x=10 y=20 fontSize=12 }
+${bullets}
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("ignores text-block syntax inside fenced code blocks", () => {
+      const fakeBullets = Array.from({ length: 15 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+- Real visible item
+
+\`\`\`
+::: text-block { column-count=2 markdown=true }
+${fakeBullets}
+:::
+\`\`\``;
+      const result = validate("", output, "generate");
+      // 15 code lines + 1 bullet = 16, which exceeds the @main budget.
+      expect(result.errors.some((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toBe(true);
     });
   });
 

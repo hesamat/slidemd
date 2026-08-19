@@ -36,6 +36,14 @@ const MAIN_LINE_OVERRIDES = {
 };
 
 /**
+ * Maximum number of columns to honor when scaling multi-column text-block
+ * content in overflow checks. The prompt guidance only demonstrates 2–3
+ * columns, so larger or non-integer claims are clamped/floored to this bound
+ * to prevent the overflow check from being bypassed by an absurd column count.
+ */
+const MAX_TEXT_BLOCK_COLUMNS = 3;
+
+/**
  * Multipliers applied by area type. Compact areas (header, footer, title)
  * get a lower multiplier because they hold short labels, not body content.
  * Media areas get a higher multiplier because image/mermaid markdown is
@@ -999,19 +1007,54 @@ export class AiOutputValidator {
    */
   _measureAreaContent(content) {
     const metrics = this._countAreaContent(content);
-    const blocks = parseTextBlockDirectives(content);
+
+    // Ignore text-block directives that appear inside fenced code blocks; those
+    // are code samples, not real text blocks. This keeps the outer area count
+    // and the text-block sub-count in sync.
+    const fencedRanges = findFencedRanges(content);
+    const inFence = (offset) => fencedRanges.some((r) => offset >= r.start && offset < r.end);
+    const blocks = parseTextBlockDirectives(content).filter((b) => !inFence(b.start));
 
     let rawBlockLines = 0;
     let scaledBlockLines = 0;
+
     for (const block of blocks) {
-      const columnCount = block.settings?.columnCount || 0;
-      if (columnCount > 1) {
-        const blockMetrics = this._countAreaContent(block.content);
+      const blockMetrics = this._countAreaContent(block.content);
+
+      // Floating text blocks are absolutely positioned and consume no vertical
+      // space in the area, so remove their content from the area line count.
+      if (block.settings?.float) {
         rawBlockLines += blockMetrics.lineCount;
-        scaledBlockLines += Math.max(1, Math.ceil(blockMetrics.lineCount / columnCount));
+        continue;
+      }
+
+      // Only apply column scaling when the block has measurable content and
+      // does not contain elements that do not fragment across CSS columns.
+      // Tables and fenced code blocks inside a multi-column text block do not
+      // flow across columns, so scaling their line count would undercount them.
+      if (
+        blockMetrics.lineCount === 0 ||
+        blockMetrics.tableRowCount > 0 ||
+        blockMetrics.codeLineCount > 0
+      ) {
+        continue;
+      }
+
+      const columnCount = block.settings?.columnCount || 0;
+      // Clamp the claimed column count to the supported maximum and floor it
+      // to an integer. This stops the model from bypassing the overflow check
+      // with `column-count=8` or non-integer values like `2.5`.
+      const effectiveColumns = Math.min(MAX_TEXT_BLOCK_COLUMNS, Math.floor(columnCount));
+      if (effectiveColumns > 1) {
+        rawBlockLines += blockMetrics.lineCount;
+        scaledBlockLines += Math.ceil(blockMetrics.lineCount / effectiveColumns);
       }
     }
 
+    // The area count and the text-block sub-count use the same `_countAreaContent`
+    // logic, so subtracting the raw inner lines and adding the scaled inner lines
+    // correctly replaces the multi-column block's contribution. `Math.max(0, ...)`
+    // guards against any tiny rounding or counting mismatches.
     metrics.lineCount = Math.max(0, metrics.lineCount - rawBlockLines + scaledBlockLines);
     return metrics;
   }
@@ -1045,7 +1088,11 @@ export class AiOutputValidator {
         continue;
       }
 
-      if (line === ":::" || /^:::\s+/.test(line)) continue; // text-block directive markers
+      // Skip text-block directive markers (opening `::: text-block { ... }`,
+      // closing `:::`, or variants with no space after `:::`). These are
+      // counted by the outer `_countAreaContent` pass; their inner content is
+      // subtracted and (optionally) rescaled in `_measureAreaContent`.
+      if (/^:::/.test(line)) continue;
       if (
         /^(layout|theme|background|media-full-bleed|media-span|hidden|code-font-size|align|area-style|area-bg(?:-[a-zA-Z0-9_-]+)?)\s*:/i.test(
           line,
