@@ -38,7 +38,7 @@ import { buildChartDataRows } from "./pptx-chart-data.js";
  * @property {number} top - Y position (EMU).
  * @property {number} width - Width in EMU.
  * @property {number} height - Height in EMU.
- * @property {'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
+ * @property {'title'|'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
  * @property {string} [shapType] - Preset shape type (e.g., 'rect', 'ellipse', 'triangle').
  * @property {string} [fill] - Fill color or gradient description.
  * @property {boolean} [strokeOnly] - Whether shape is stroke-only (arrows, lines).
@@ -203,10 +203,12 @@ export class PptxExtractor {
    * Convert HTML to Markdown. Public wrapper for testing.
    * @static
    * @param {string} html
+   * @param {object} [opts]
+   * @param {string} [opts.placeholderType] - PPTX placeholder type ('title', 'footer', etc.)
    * @returns {string}
    */
-  static htmlToMarkdown(html) {
-    return htmlToMarkdown(html);
+  static htmlToMarkdown(html, opts) {
+    return htmlToMarkdown(html, opts);
   }
 
   /**
@@ -534,7 +536,7 @@ export class PptxExtractor {
       if (html.includes("<ol") && olStartValues.length > 0 && opts?.startIdxRef) {
         html = this.injectOlStartAttributes(html, olStartValues, opts.startIdxRef);
       }
-      const content = htmlToMarkdown(html);
+      const content = htmlToMarkdown(html, { placeholderType });
 
       // Preserve shape metadata for diagram detection and PNG rendering.
       // `fill` stays a plain color string for backwards compatibility with
@@ -728,13 +730,17 @@ export class PptxExtractor {
 
   /**
    * Detect placeholder type from the element's name attribute.
+   * PowerPoint names title placeholders "Title 1", "Title 2", etc.
+   * Content/body placeholders are "Content Placeholder N", "Text Placeholder N",
+   * or "PlaceHolder N". Text boxes (non-placeholder shapes) are "TextBox N".
    * @static
    * @param {string} name
-   * @returns {'footer'|'date'|'slideNumber'|null}
+   * @returns {'title'|'footer'|'date'|'slideNumber'|null}
    */
   static #detectPlaceholderType(name) {
     if (!name) return null;
     const lower = name.toLowerCase();
+    if (/^\s*title\b/.test(lower)) return "title";
     if (/\bfooter\b/.test(lower)) return "footer";
     if (/\bdate\b/.test(lower)) return "date";
     if (/\bslide\s*number\b/.test(lower) || /\bslidenum\b/.test(lower)) return "slideNumber";

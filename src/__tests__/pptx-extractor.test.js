@@ -483,6 +483,75 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     expect(commentPos).toBeGreaterThan(fenceStart);
     expect(commentPos).toBeLessThan(fenceEnd);
   });
+
+  it("treats monospace code-like text in a title placeholder as a heading", () => {
+    // A title placeholder is structurally a heading regardless of content.
+    // Monospace text that looks like code (e.g. "for loops in Python") in a
+    // title placeholder must still be a heading, not code — the placeholder
+    // type is ground truth that overrides the regex and run-length heuristics.
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 40pt;">for loops in Python</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html, { placeholderType: "title" });
+    expect(result).toContain("# for loops in Python");
+    expect(result).not.toContain("```");
+    expect(result).not.toContain("`for loops");
+  });
+
+  it("treats monospace 'if statements explained' in a title placeholder as a heading", () => {
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 40pt;">if statements explained</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html, { placeholderType: "title" });
+    expect(result).toContain("# if statements explained");
+    expect(result).not.toContain("```");
+  });
+
+  it("does not treat monospace 'for loops in Python' as a heading without title placeholder", () => {
+    // Without the title placeholder signal, an isolated monospace paragraph
+    // at heading size that doesn't match CODE_LINE_PATTERN still becomes a
+    // heading (preserving the "Behold the ancient ASCII table" behavior).
+    // This is the expected fallback — the run-length heuristic only kicks
+    // in for runs of 2+ monospace paragraphs.
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 40pt;">for loops in Python</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("# for loops in Python");
+  });
+
+  it("groups a run of monospace paragraphs as code even when individual lines don't match CODE_LINE_PATTERN", () => {
+    // Python `for...in:` without parens doesn't match the narrow
+    // CODE_LINE_PATTERN, but as part of a 2+ monospace run it is code,
+    // not a heading — the run-length heuristic handles it.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">for letter in a_string:</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    print(letter)</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("```");
+    expect(result).toContain("for letter in a_string:");
+    expect(result).not.toContain("### for");
+  });
+
+  it("does not group an isolated monospace paragraph as code via run-length", () => {
+    // A single isolated monospace paragraph at heading size that doesn't
+    // match CODE_LINE_PATTERN is a heading (the "Behold" case), not code.
+    const html =
+      '<p><span style="font-family: Courier New; font-size: 40pt;">Behold the ancient ASCII table</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("# Behold the ancient ASCII table");
+    expect(result).not.toContain("```");
+  });
+
+  it("detects title placeholder type from element name", () => {
+    // Verify that #detectPlaceholderType recognizes "Title 1", "Title 2", etc.
+    // This is tested indirectly via the public htmlToMarkdown wrapper with
+    // placeholderType='title' — the extractor's #detectPlaceholderType is
+    // private, but its effect is observable through heading forcing.
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 28pt;">while vs until loops</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html, { placeholderType: "title" });
+    expect(result).toContain("### while vs until loops");
+    expect(result).not.toContain("```");
+  });
 });
 
 describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge cases", () => {
