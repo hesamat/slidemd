@@ -640,6 +640,24 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   padding-left: 1em;
 }
 
+/* Keep list items, headings, and block elements whole across columns so
+   multi-column text blocks do not clip or split a single item. */
+.text-block--multi-column li,
+.multi-column-list li {
+  break-inside: avoid;
+}
+
+/* Headings, code blocks, and blockquotes should also avoid column breaks. */
+.text-block--multi-column h1,
+.text-block--multi-column h2,
+.text-block--multi-column h3,
+.text-block--multi-column h4,
+.text-block--multi-column pre,
+.text-block--multi-column blockquote,
+.text-block--multi-column p {
+  break-inside: avoid;
+}
+
 /* Allow media shadows to render beyond the content box */
 .slide__area--media {
   overflow: visible;
