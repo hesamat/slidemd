@@ -439,6 +439,29 @@ When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleAppl
 - `tools/build.mjs` — Build script
 - `tools/pdf.mjs` — PDF export script
 
+### Layering & Dependency Injection
+
+The layer order is: **core → data → renderer → engine → editor → ui**.
+
+Lower layers must never import from higher layers — neither static `import` nor dynamic `import()`. This is enforced by `src/__tests__/layering-invariants.test.js`.
+
+**Engine → editor/ui dependencies use DI.** Engine modules (`DeckController`, `ReloadManager`, `PresentationCreator`, `PptxImporter`, `deck-keyboard`, `deck-events`) receive editor/ui dependencies via constructor/factory options from `deck.js` (the entry point, which sits above all layers). They must not import editor/ui modules directly.
+
+When adding a new editor/ui dependency to an engine module:
+
+1. Add it as a constructor/factory option with `= null` default.
+2. Use optional chaining (`this._dep?.method()`) at call sites.
+3. Pass it from `deck.js` in the `DeckController` construction, guarded by `isExported ? null : Dep` (exported HTML is a read-only viewer and doesn't include editor files in its bundle).
+4. The guardrail test verifies that every `= null` DI option in `DeckController` is wired in `deck.js`.
+
+### Offline-First
+
+No runtime `fetch()` or `import()` from external CDN URLs. Vendor JS/CSS (DOMPurify, Prism, KaTeX, Mermaid) must be inlined from `node_modules/`. The only accepted CDN deviations are in `src/data/pptx-diagram-cropper.js` (Google Fonts for PPTX font measurement — non-fatal, timeout-protected) and `src/renderer/html-export-manager.js` (CDN fallbacks when `node_modules` fetch fails — primary path is local). The guardrail test locks the count of these exceptions.
+
+### Sanitization Perimeter
+
+All user-authored slide content must pass through `SlideRenderer.sanitizeAreaHtml` (DOMPurify) before assignment to `.innerHTML`. The guardrail test scans all `.innerHTML =` assignments in `renderer/` and `engine/` and flags any that don't use `sanitizeAreaHtml`, `DOMPurify.sanitize`, or static string literals. Files with audited safe patterns (e.g., `escapeHtml`-based highlighting) are listed in `trustedStaticContent` with justification comments.
+
 ---
 
 ## When Working with Layouts

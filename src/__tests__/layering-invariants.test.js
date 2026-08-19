@@ -140,6 +140,12 @@ describe("layering invariants", () => {
     ];
     // Files with documented, non-fatal CDN fallbacks (best-effort enhancements
     // with local-first paths and timeouts). These are acceptable deviations.
+    // ─── IMPORTANT ───────────────────────────────────────────────────────
+    // This list must NOT grow without review. Each entry must have a comment
+    // explaining why the CDN reference is non-fatal and what the local-first
+    // primary path is. The test below asserts the exact count to prevent
+    // silent additions.
+    // ─────────────────────────────────────────────────────────────────────
     const documentedFallbacks = new Set([
       // PPTX import: loads metric-compatible fonts for shape text measurement.
       // Non-fatal: skipped when offline, short timeout, import always completes.
@@ -148,6 +154,10 @@ describe("layering invariants", () => {
       // fails. Primary path is local node_modules inlining.
       "src/renderer/html-export-manager.js",
     ]);
+    // Lock the count — any new entry requires explicit review and updating
+    // this expected number.
+    expect(documentedFallbacks.size).toBe(2);
+
     const violations = [];
     for (const file of allFiles) {
       const rel = path.relative(root, file);
@@ -167,6 +177,117 @@ describe("layering invariants", () => {
     if (violations.length > 0) {
       const details = violations.map((v) => `  ${v.file} contains ${v.pattern}`).join("\n");
       expect.fail(`Found ${violations.length} external CDN reference(s):\n${details}`);
+    }
+  });
+
+  it("all .innerHTML= assignments in renderer/ and engine/ use sanitizeAreaHtml or static templates", () => {
+    // Scan for .innerHTML = assignments that interpolate dynamic values.
+    // Safe patterns:
+    //   - .innerHTML = "" (clearing)
+    //   - .innerHTML = sanitizeAreaHtml(...) or SlideRenderer.sanitizeAreaHtml(...)
+    //   - .innerHTML = STATIC_STRING (no ${} interpolation, no variable refs)
+    //   - .innerHTML = someConstant (assigned from a string literal elsewhere)
+    //
+    // This test flags any .innerHTML = that references a variable or template
+    // literal with interpolation but does NOT call sanitizeAreaHtml on the
+    // right-hand side. It may produce false positives for trusted static
+    // content — those should be suppressed by adding the file to the
+    // trustedStaticContent set below with a justification comment.
+    const trustedStaticContent = new Set([
+      // slide-renderer.js: showBootError escapes < and > manually.
+      "src/renderer/slide-renderer.js",
+      // content-enhancer.js: enhances already-sanitized slide content with
+      // trusted library output (Prism, KaTeX, Mermaid).
+      "src/renderer/content-enhancer.js",
+      // html-export-manager.js: builds the export HTML template from
+      // already-escaped/sanitized components.
+      "src/renderer/html-export-manager.js",
+      // print-manager.js: uses the print iframe with sanitized content.
+      "src/renderer/print-manager.js",
+      // notification.js: uses static template strings.
+      "src/renderer/notification.js",
+      // deck-controller.js: renderNotes() routes through
+      // SlideRenderer.sanitizeAreaHtml or escapeHtml — audited safe.
+      "src/engine/deck-controller.js",
+      // command-palette.js: _highlight() uses escapeHtml for all interpolated
+      // text — audited safe.
+      "src/engine/command-palette.js",
+      // slide-navigator.js: uses static HTML strings for badges/buttons.
+      "src/engine/slide-navigator.js",
+      // slide-search.js: _highlightTerms() uses escapeHtml for all
+      // interpolated text — audited safe.
+      "src/engine/slide-search.js",
+    ]);
+
+    const violations = [];
+    const layers = ["renderer", "engine"];
+    for (const file of allFiles) {
+      const layer = layerOf(file);
+      if (!layers.includes(LAYER_ORDER[layer])) continue;
+      const rel = path.relative(root, file);
+      if (trustedStaticContent.has(rel)) continue;
+      const source = fs.readFileSync(file, "utf8");
+      // Match .innerHTML = <expression> up to end of statement (; or newline)
+      const innerHtmlRe = /\.innerHTML\s*=\s*([^\n;]+)/g;
+      let m;
+      while ((m = innerHtmlRe.exec(source)) !== null) {
+        const rhs = m[1].trim();
+        // Safe: clearing
+        if (rhs === '""' || rhs === "''" || rhs === "``") continue;
+        // Safe: sanitizeAreaHtml call
+        if (rhs.includes("sanitizeAreaHtml")) continue;
+        // Safe: DOMPurify.sanitize call
+        if (rhs.includes("DOMPurify.sanitize")) continue;
+        // Safe: pure string literal (no interpolation, no variable)
+        if (/^["'`][^"'`]*["'`]$/.test(rhs) && !rhs.includes("${")) continue;
+        // Flag: anything else that might interpolate dynamic content
+        if (rhs.includes("${") || /[a-zA-Z_]/.test(rhs.replace(/["'`]/g, ""))) {
+          violations.push({
+            file: rel,
+            line: source.slice(0, m.index).split("\n").length,
+            snippet: m[0].slice(0, 80),
+          });
+        }
+      }
+    }
+    if (violations.length > 0) {
+      const details = violations.map((v) => `  ${v.file}:${v.line} — ${v.snippet}`).join("\n");
+      expect.fail(
+        `Found ${violations.length} potentially unsafe .innerHTML= assignment(s) in renderer/ or engine/.\n` +
+          `If the content is trusted/static, add the file to trustedStaticContent with a justification.\n${details}`,
+      );
+    }
+  });
+
+  it("deck.js passes all required DI dependencies to DeckController", () => {
+    const deckJs = fs.readFileSync(path.join(root, "deck.js"), "utf8");
+    const controllerJs = fs.readFileSync(path.join(srcDir, "engine", "deck-controller.js"), "utf8");
+
+    // Extract DI option names from the DeckController constructor signature.
+    // Matches: optionName = null, or optionName = defaultValue,
+    const diRe = /^\s*(\w+)\s*=\s*null\s*,?\s*$/gm;
+    const requiredDeps = new Set();
+    let m;
+    while ((m = diRe.exec(controllerJs)) !== null) {
+      // Skip non-DI options (deckStore is not an editor/ui dep)
+      if (m[1] === "deckStore") continue;
+      requiredDeps.add(m[1]);
+    }
+
+    // Check that each required dep appears in the DeckController construction
+    // in deck.js. We look for the pattern: depName: (some value)
+    const missing = [];
+    for (const dep of requiredDeps) {
+      const usageRe = new RegExp(`${dep}\\s*:\\s*[^,}\\s]+`);
+      if (!usageRe.test(deckJs)) {
+        missing.push(dep);
+      }
+    }
+    if (missing.length > 0) {
+      expect.fail(
+        `deck.js is missing DI dependency(ies) for DeckController: ${missing.join(", ")}. ` +
+          `Add them to the constructor call in deck.js.`,
+      );
     }
   });
 });
