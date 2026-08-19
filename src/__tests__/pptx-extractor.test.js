@@ -1208,6 +1208,9 @@ describe("PptxExtractor top-level diagram detection", () => {
   it("keeps a text label anchored to a hollow shape and connector", () => {
     // A hollow box with a separate text label and an arrow is still a useful
     // diagram. The label makes it substantial, even though the box has no fill.
+    // The label sits 30 pt below the box (beyond the old 15 pt text gap) but
+    // overlaps the arrow, so it is only kept when connectors are part of the
+    // text-anchor set with the widened 30 pt gap.
     const hollowBox = {
       type: "shape",
       content: "",
@@ -1235,7 +1238,7 @@ describe("PptxExtractor top-level diagram detection", () => {
       type: "text",
       content: "Process",
       left: 100,
-      top: 160,
+      top: 180,
       width: 100,
       height: 20,
       order: 1,
@@ -1302,10 +1305,13 @@ describe("PptxExtractor top-level diagram detection", () => {
       shadow: null,
     });
 
+    // Circles are positioned so their centers fall inside the connector's
+    // expanded candidate bbox (otherwise they never reach #isManualDiagram
+    // and the test would pass on main without exercising the new logic).
     const elements = [
-      circle(100, 100),
-      circle(300, 100),
-      arrowRight(220, 160), // touches both circles at their centers
+      circle(120, 100), // center x=180, inside expanded bbox [170,350]
+      circle(280, 100), // center x=340, inside expanded bbox [170,350]
+      arrowRight(220, 160), // overlaps both circles' edges
     ];
     const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
 
