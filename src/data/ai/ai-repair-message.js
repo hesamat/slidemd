@@ -23,7 +23,7 @@ import { replacePlaceholders } from "./ai-prompt-composer.js";
 const CODE_GUIDANCE = new Map([
   [
     "SLIDE_CONTENT_OVERFLOW",
-    "Reduce content density — trim bullets, move detail to speaker notes, or split the slide.",
+    "For long lists, use a multi-column text block (`::: text-block { column-count=2 }`) with 2–3 columns. For tables or code, use a multi-column layout or trim. Then trim redundant/tangential items or move them to notes. Do not delete key items or split the slide.",
   ],
   // The system prompt already lists every valid layout name with its
   // allowed @areas (both orchestrators append this repair message to the
