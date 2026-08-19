@@ -16,6 +16,7 @@ import { MarkdownParser } from "../../data/markdown-parser.js";
 import { copyText, downloadText } from "../../core/clipboard.js";
 import { buildExportablePrompt } from "../../data/ai/ai-prompt-export.js";
 import { AiOutputValidator, collectOwnImageSources } from "../../data/ai/ai-output-validator.js";
+import { parseAiResponse, slidesToMarkdown } from "../../data/ai/ai-response-parser.js";
 import { splitSlidesForAi } from "../../data/ai/ai-prompt-builder.js";
 
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
@@ -402,11 +403,27 @@ export class AiEditController {
     // deck, use polish-style validation (strict image sources, skip overflow
     // warnings); otherwise use generate-style validation (loose images, check
     // overflow). This replaces the former options modal step.
+    //
+    // The external AI may return either JSON (the format the exported prompt
+    // asks for) or slide markdown (some models ignore format instructions).
+    // We parse the response with parseAiResponse (which handles both) and
+    // convert to slide markdown for validation and application.
     const validator = new AiOutputValidator({ inputMarkdown: fullMarkdown });
+    let lastConvertedMarkdown = null;
     const validate = (text) => {
-      const pastedSlideCount = splitSlidesForAi(text, "generate").length;
+      // Try parsing as an AI JSON response first; fall back to raw text if
+      // it's already slide markdown.
+      const parsed = parseAiResponse(text);
+      let markdown;
+      if (parsed && parsed.slides && parsed.slides.length > 0) {
+        markdown = slidesToMarkdown(parsed.slides);
+      } else {
+        markdown = text;
+      }
+      lastConvertedMarkdown = markdown;
+      const pastedSlideCount = splitSlidesForAi(markdown, "generate").length;
       const isPolish = pastedSlideCount === expectedSlideCount;
-      return validator.validate(text, "generate", {
+      return validator.validate(markdown, "generate", {
         expectedSlideCount,
         skipOverflow: isPolish,
         enforcePreserveIdentity: false,
@@ -426,8 +443,12 @@ export class AiEditController {
     }
     if (!pasted) return; // cancelled
 
+    // Use the converted markdown (JSON→markdown) from the last validation
+    // call. This ensures we apply the same text that was validated.
+    const markdownToApply = lastConvertedMarkdown || pasted;
+
     try {
-      await this._applyWholeDeckResult(pasted);
+      await this._applyWholeDeckResult(markdownToApply);
       Notification.success("AI result imported. Press Ctrl+Z to undo.");
     } catch (err) {
       Notification.error(`Import failed: ${err.message || err}`);
