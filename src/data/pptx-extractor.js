@@ -12,6 +12,7 @@ import { htmlToMarkdown, stripHtml, isAllMonospace } from "./pptx-html-to-markdo
 import { convertEmfImages, convertTiffImages } from "./pptx-image-converter.js";
 import { renderDiagramsToPng } from "./pptx-shape-renderer.js";
 import { buildChartDataRows } from "./pptx-chart-data.js";
+import { sanitizeCssColor } from "./pptx-color-utils.js";
 
 /**
  * @typedef {Object} ExtractedSlide
@@ -1169,10 +1170,10 @@ export class PptxExtractor {
    *    clusters). This prevents one large connector bbox from swallowing
    *    unrelated, nearby clusters.
    * 6. For each component, keep plain text only if it is within 15 pt of a
-   *    non-connector shape-like element (an actual box, not an arrow) in
-   *    that component, and keep connectors only when they touch a box-like
-   *    shape (within 20 pt).  Decorative side arrows that only float near a
-   *    shape are dropped rather than cropped into the diagram image.
+   *    box-like element (a real box or a kept connector; 30 pt when connectors
+   *    are present) in that component, and keep connectors only when they touch
+   *    a box-like shape (within 20 pt).  Decorative side arrows that only float
+   *    near a shape are dropped rather than cropped into the diagram image.
    * 7. Convert each remaining component that passes #isManualDiagram into
    *    a diagram element, leaving all other elements unchanged.
    *
@@ -1344,28 +1345,35 @@ export class PptxExtractor {
     }
 
     // For each component, keep plain text only when it is within 15 pt of a
-    // non-connector shape-like element (a real box, not an arrow). Bordered
-    // text boxes and shapType text are treated as boxes themselves.
-    const textGapPt = 15;
-    // Connectors are kept only when they actually touch a box-like shape (an
-    // arrow between flowchart boxes).  Decorative side arrows (e.g. the arrows
-    // pointing at a sudoku's rows/columns) float near the shape without
-    // touching it and would otherwise be cropped into the diagram image.
+    // box-like element (a real box or a kept connector). Labels can sit along
+    // an arrow far from the source shape, so connectors that touch a box are
+    // also part of the text-anchor set. Bordered text boxes and shapType text
+    // are treated as boxes themselves.
     const connectorTouchPt = 20;
     const diagrams = [];
     const consumed = new Set();
     for (const component of components) {
+      const hasConnectors = component.some((el) => el.type === "connector" || el.hasConnector);
+      // Labels can sit a little further from the shape when connectors are
+      // present (e.g. a "Yes" label at the end of a decision arrow).
+      const textGapPt = hasConnectors ? 30 : 15;
       const boxLike = component.filter(
         (el) =>
           !el.hasConnector &&
           el.type !== "connector" &&
           (el.type === "shape" || el.shapType || (el.type === "text" && (el.borderWidth || 0) > 0)),
       );
+      const keptConnectors = component.filter(
+        (el) =>
+          (el.type === "connector" || el.hasConnector) &&
+          boxLike.some((box) => this.#bboxEdgeDistance(el, box) <= connectorTouchPt),
+      );
+      const textAnchor = [...boxLike, ...keptConnectors];
       const kept = [];
       for (const el of component) {
         if (el.type === "text" && !el.shapType && (el.borderWidth || 0) === 0) {
-          if (boxLike.length === 0) continue;
-          const closest = boxLike.reduce((min, box) => {
+          if (textAnchor.length === 0) continue;
+          const closest = textAnchor.reduce((min, box) => {
             const d = this.#bboxEdgeDistance(el, box);
             return d < min ? d : min;
           }, Infinity);
@@ -1458,6 +1466,62 @@ export class PptxExtractor {
   }
 
   /**
+   * A non-connector shape is "substantial" when it carries either a text label
+   * or a real (non-transparent) fill. Empty stroked shapes (e.g. red-outlined
+   * circles with no fill and no text) are not substantial, so an arrow between
+   * two of them is not treated as a meaningful diagram.
+   * @static
+   * @param {ExtractedElement} el
+   * @returns {boolean}
+   */
+  static #isSubstantialShape(el) {
+    if (el.type === "connector" || el.hasConnector) return false;
+    if (el.content && el.content.trim()) return true;
+    return this.#hasRealFill(el);
+  }
+
+  /**
+   * Check whether an element has a real, non-transparent fill (solid color,
+   * gradient, pattern, or image fill). Used by #isSubstantialShape.
+   * @static
+   * @param {ExtractedElement} el
+   * @returns {boolean}
+   */
+  static #hasRealFill(el) {
+    if (this.#isRealFillValue(el.fill)) return true;
+    if (!el.fillRaw) return false;
+    const raw = el.fillRaw;
+    if (raw.type === "color" && this.#isRealFillValue(raw.value)) return true;
+    if (raw.type === "gradient" && raw.value?.colors?.length) {
+      const first = raw.value.colors[0]?.color;
+      if (this.#isRealFillValue(first)) return true;
+    }
+    if (raw.type === "pattern" && raw.value?.foregroundColor) {
+      if (this.#isRealFillValue(raw.value.foregroundColor)) return true;
+    }
+    if (raw.type === "image") return true;
+    return false;
+  }
+
+  /**
+   * Determine whether a fill value represents a real (non-transparent) fill.
+   * Known CSS colors are checked with sanitizeCssColor; unknown truthy strings
+   * are preserved as real because pptxtojson may report PPTX theme/reference
+   * colors (e.g. "accent1") that the sanitizer does not understand.
+   * @static
+   * @param {string} [value]
+   * @returns {boolean}
+   */
+  static #isRealFillValue(value) {
+    if (!value || typeof value !== "string") return false;
+    const lower = value.toLowerCase();
+    if (lower === "transparent" || lower === "none") return false;
+    if (sanitizeCssColor(value) !== "transparent") return true;
+    // Preserve non-empty, non-transparent theme/reference color names.
+    return true;
+  }
+
+  /**
    * Detect if a group of elements forms a manual diagram (shapes + connectors).
    * @static
    * @param {ExtractedElement[]} elements - Elements in the group.
@@ -1469,20 +1533,21 @@ export class PptxExtractor {
     // Count connectors (arrows, lines)
     const connectors = elements.filter((el) => el.type === "connector" || el.hasConnector);
 
-    // Count shapes with visual properties (fills, borders)
-    const filledShapes = elements.filter(
-      (el) =>
-        (el.type === "shape" || el.type === "text") && (el.fill || el.strokeOnly || el.shapType),
-    );
+    // Count substantial non-connector shapes (text labels or real fills).
+    // Empty stroked shapes with no text are not substantial, so an arrow
+    // between two red-outlined empty circles is not treated as a diagram.
+    const substantialShapes = elements.filter((el) => this.#isSubstantialShape(el));
 
-    // Rule 1: Any connectors present → likely a diagram
-    if (connectors.length > 0) return true;
+    // Rule 1: connectors require at least one substantial shape to anchor them.
+    if (connectors.length > 0) {
+      return substantialShapes.length > 0;
+    }
 
-    // Rule 2: 2+ filled shapes that overlap or are nested → likely a diagram
+    // Rule 2: 2+ substantial shapes that overlap or are nested → likely a diagram
     // (e.g. Venn diagrams with nested ovals)
-    if (filledShapes.length >= 2) {
-      const overlap = filledShapes.some((a, i) =>
-        filledShapes.some((b, j) => {
+    if (substantialShapes.length >= 2) {
+      const overlap = substantialShapes.some((a, i) =>
+        substantialShapes.some((b, j) => {
           if (i >= j) return false;
           return this.#bboxEdgeDistance(a, b) === 0;
         }),
@@ -1490,18 +1555,18 @@ export class PptxExtractor {
       if (overlap) return true;
     }
 
-    // Rule 3: 3+ filled shapes in close proximity → likely a diagram
-    if (filledShapes.length >= 3) {
+    // Rule 3: 3+ substantial shapes in close proximity → likely a diagram
+    if (substantialShapes.length >= 3) {
       // Check if shapes are in reasonable proximity (within 3x the average dimension)
       const avgDim =
-        filledShapes.reduce((sum, el) => sum + (el.width || 0) + (el.height || 0), 0) /
-        (filledShapes.length * 2);
+        substantialShapes.reduce((sum, el) => sum + (el.width || 0) + (el.height || 0), 0) /
+        (substantialShapes.length * 2);
       const maxDist = avgDim * 3;
 
-      const minX = Math.min(...filledShapes.map((el) => el.left || 0));
-      const maxX = Math.max(...filledShapes.map((el) => (el.left || 0) + (el.width || 0)));
-      const minY = Math.min(...filledShapes.map((el) => el.top || 0));
-      const maxY = Math.max(...filledShapes.map((el) => (el.top || 0) + (el.height || 0)));
+      const minX = Math.min(...substantialShapes.map((el) => el.left || 0));
+      const maxX = Math.max(...substantialShapes.map((el) => (el.left || 0) + (el.width || 0)));
+      const minY = Math.min(...substantialShapes.map((el) => el.top || 0));
+      const maxY = Math.max(...substantialShapes.map((el) => (el.top || 0) + (el.height || 0)));
 
       if (maxX - minX < maxDist && maxY - minY < maxDist) {
         return true;
