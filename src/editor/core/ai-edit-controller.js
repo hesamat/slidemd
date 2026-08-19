@@ -373,14 +373,14 @@ export class AiEditController {
 
   /**
    * Import an AI-generated deck markdown produced by an external tool
-   * (issue #240). Shows the generate modal in "import" purpose to collect the
-   * mode/flow that drive validation, then a paste modal that validates the
-   * pasted markdown with the same AiOutputValidator options the in-app flow
-   * uses, and applies it through the same replaceDeck path.
+   * (issue #240). Goes straight to a paste modal that validates the pasted
+   * markdown with the same AiOutputValidator options the in-app flow uses, and
+   * applies it through the same replaceDeck path. The validation strictness
+   * (polish vs. generate) is auto-detected from the pasted slide count: if it
+   * matches the current deck, polish-style validation is used (strict image
+   * sources, skip overflow); otherwise generate-style validation is used.
    */
   async importWholeDeckResult() {
-    const { createOperation } = await import("../../data/ai/ai-operation.js");
-    const { AiGenerateModal } = await import("../ui/ai-generate-modal.js");
     const { AiImportModal } = await import("../ui/ai-import-modal.js");
 
     const deckStore = this._getDeckStore();
@@ -395,37 +395,27 @@ export class AiEditController {
     this._prepareStoreOperation();
     const fullMarkdown = deckStore.toMarkdown();
     const expectedSlideCount = splitSlidesForAi(fullMarkdown, "generate").length;
+    const ownImageSrcs = collectOwnImageSources(fullMarkdown);
 
-    // Collect mode/flow used to run the external AI so validation matches.
-    const generateOpts = await AiGenerateModal.show(fullMarkdown, {
-      purpose: "import",
-    });
-    if (!generateOpts) return; // cancelled
-
-    const op = createOperation("generate", null, fullMarkdown, {
-      flow: generateOpts.flow,
-      mode: generateOpts.mode,
-      addSpeakerNotes: generateOpts.addSpeakerNotes || false,
-      includeImages: false,
-      preserveVisualIdentity: generateOpts.preserveVisualIdentity ?? true,
-    });
-
-    // Build the validator with the same options the orchestrator uses
-    // (whole-deck-orchestrator.js lines 224-240).
+    // Build the validator. The validation mode (polish vs. generate) is
+    // auto-detected from the pasted slide count: if it matches the current
+    // deck, use polish-style validation (strict image sources, skip overflow
+    // warnings); otherwise use generate-style validation (loose images, check
+    // overflow). This replaces the former options modal step.
     const validator = new AiOutputValidator({ inputMarkdown: fullMarkdown });
-    const validate = (text) =>
-      validator.validate(text, "generate", {
+    const validate = (text) => {
+      const pastedSlideCount = splitSlidesForAi(text, "generate").length;
+      const isPolish = pastedSlideCount === expectedSlideCount;
+      return validator.validate(text, "generate", {
         expectedSlideCount,
-        skipOverflow: op.opts.mode === "polish",
-        enforcePreserveIdentity: op.opts.enforcePreserveIdentity === true,
-        restrictImageSources: op.opts.restrictImageSources === true || op.opts.mode === "polish",
-        allowedImageSrcs:
-          op.opts.mode === "polish"
-            ? collectOwnImageSources(fullMarkdown)
-            : op.opts.allowedImageSrcs,
-        onlyExplicitImageSources: op.opts.onlyExplicitImageSources === true,
-        visualSystem: op.opts.visualSystem,
+        skipOverflow: isPolish,
+        enforcePreserveIdentity: false,
+        restrictImageSources: isPolish,
+        allowedImageSrcs: isPolish ? ownImageSrcs : undefined,
+        onlyExplicitImageSources: false,
+        visualSystem: undefined,
       });
+    };
 
     let pasted;
     try {

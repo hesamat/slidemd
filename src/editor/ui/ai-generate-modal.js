@@ -8,15 +8,21 @@
  *
  * For the export flow (issue #240), "Copy prompt" and "Download prompt"
  * buttons build the same options object and hand it to `opts.onExport` so the
- * caller can produce the exact prompt without an API key. For the import flow,
- * the modal is opened with `opts.purpose = "import"` to collect the mode/flow
- * used to validate pasted AI output.
+ * caller can produce the exact prompt without an API key. The modal stays open
+ * after a successful export so the user can copy AND download, then close
+ * manually. A prompt-size estimate and a guidance note linking export to
+ * import are shown near the export buttons. Remix and reimagine modes show a
+ * warning that the exported prompt is a simplified single-call version (the
+ * in-app flow uses a two-phase plan→execute process that can't be replicated
+ * externally).
  *
  * Returns a promise that resolves to the user's options, or null if cancelled.
  */
 
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
 import { countContentImages } from "../../data/ai/slide-image-extractor.js";
+import { buildExportablePrompt } from "../../data/ai/ai-prompt-export.js";
+import { createOperation } from "../../data/ai/ai-operation.js";
 import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const P = "ai-generate-modal__";
@@ -38,18 +44,12 @@ export class AiGenerateModal {
    * @param {() => Promise<void>} [opts.onOpenSettings] — callback to open Settings modal
    * @param {(options: GenerateOptions, kind: "copy"|"download") => void|Promise<void>} [opts.onExport]
    *   Invoked when the user clicks "Copy prompt" or "Download prompt". The modal
-   *   closes after the callback resolves, resolving the show() promise with
-   *   null so the caller does not proceed to an AI generate call.
-   * @param {"generate"|"import"} [opts.purpose="generate"] — when "import",
-   *   hides the Generate/Export buttons and cost rows, renames the primary
-   *   button to "Next", and changes the title. Used by the import-AI-result
-   *   flow to collect the mode/flow that drive output validation.
+   *   stays open after a successful export (the user closes it via Cancel or
+   *   Generate). On error, an inline message is shown and the modal stays open.
    * @returns {Promise<GenerateOptions|null>}
    */
   static show(markdown, opts = {}) {
     return new Promise((resolve) => {
-      const purpose = opts.purpose === "import" ? "import" : "generate";
-      const isImport = purpose === "import";
       const backdrop = document.createElement("div");
       backdrop.className = `${P}backdrop`;
 
@@ -58,12 +58,11 @@ export class AiGenerateModal {
       const { count: imageCount, estimatedTokens: imageTokens } = countContentImages(markdown);
       const hasImages = imageCount > 0;
 
-      const title = isImport ? "AI: Import result" : "AI: Refine all slides";
-      const subtitle = isImport
-        ? "Pick the mode you used when generating the result externally, so the imported output is validated with the right rules."
-        : "Choose how much the AI should change the deck, set the tone, and pick optional creative controls.";
-      const primaryLabel = isImport ? "Next" : "Generate";
-      const primaryAction = isImport ? "next" : "generate";
+      const title = "AI: Refine all slides";
+      const subtitle =
+        "Choose how much the AI should change the deck, set the tone, and pick optional creative controls.";
+      const primaryLabel = "Generate";
+      const primaryAction = "generate";
 
       // --- Build dialog via safe DOM construction (no innerHTML) ---
       const dialog = document.createElement("div");
@@ -144,10 +143,10 @@ export class AiGenerateModal {
 
       // Cost-estimation rows are only relevant when an API call will be made.
       // Hoisted so the settings-change handler can update them after the row is
-      // built (only in generate mode).
+      // built.
       let modelNameSpan = null;
       let reasoningRow = null;
-      if (!isImport) {
+      {
         const slidesRow = document.createElement("div");
         slidesRow.className = `${P}cost-row`;
         const slidesLabel = document.createElement("span");
@@ -266,10 +265,31 @@ export class AiGenerateModal {
       cancelBtn.textContent = "Cancel";
       actions.appendChild(cancelBtn);
 
-      // Export buttons only appear in the generate purpose.
+      // Export section: guidance note, size estimate, mode warning, and
+      // Copy/Download buttons. Only shown when onExport is provided.
       let copyBtn = null;
       let downloadBtn = null;
-      if (!isImport && opts.onExport) {
+      let exportSize = null;
+      let exportWarning = null;
+      if (opts.onExport) {
+        // Guidance note linking export to import.
+        const exportNote = document.createElement("p");
+        exportNote.className = `${P}export-note`;
+        exportNote.textContent =
+          "Copy or download the prompt, run it in an external AI tool, then use Import AI result to apply the output.";
+        dialog.appendChild(exportNote);
+
+        // Prompt size estimate.
+        exportSize = document.createElement("p");
+        exportSize.className = `${P}export-size`;
+        dialog.appendChild(exportSize);
+
+        // Mode-specific warning (remix/reimagine: simplified prompt).
+        exportWarning = document.createElement("p");
+        exportWarning.className = `${P}export-warning`;
+        exportWarning.style.display = "none";
+        dialog.appendChild(exportWarning);
+
         copyBtn = document.createElement("button");
         copyBtn.type = "button";
         copyBtn.className = `${P}btn`;
@@ -354,6 +374,57 @@ export class AiGenerateModal {
         identityTouched = true;
       });
 
+      // Read the current form state into a GenerateOptions object. Shared by
+      // the Generate, Copy prompt, and Download prompt buttons so every action
+      // sees the same options.
+      const readOptions = () => {
+        const mode = modeSelect.value || "polish";
+        const flow = flowSelect.value || "instructional";
+        const includeImages =
+          (mode === "remix" || mode === "reimagine") && hasImages && visionToggle.checked;
+        const addSpeakerNotes = notesToggle.checked || false;
+        const preserveVisualIdentity =
+          mode === "polish" || (mode === "remix" && identityToggle.checked);
+        return { mode, flow, addSpeakerNotes, includeImages, preserveVisualIdentity };
+      };
+
+      // Update the export warning (remix/reimagine) and prompt size estimate.
+      // Called on mode change and initial render.
+      const updateExportInfo = () => {
+        if (!opts.onExport) return;
+        const mode = modeSelect.value;
+        if (exportWarning) {
+          if (mode === "remix" || mode === "reimagine") {
+            exportWarning.style.display = "";
+            exportWarning.textContent =
+              mode === "remix"
+                ? "Note: the exported prompt is a simplified single-call version. The in-app Remix flow uses a two-phase plan→execute process that can't be replicated externally."
+                : "Note: the exported prompt is a simplified single-call version. The in-app Reimagine flow uses a two-phase plan→execute process that can't be replicated externally.";
+          } else {
+            exportWarning.style.display = "none";
+          }
+        }
+        if (exportSize) {
+          try {
+            const options = readOptions();
+            const op = createOperation("generate", null, markdown, {
+              flow: options.flow,
+              mode: options.mode,
+              addSpeakerNotes: options.addSpeakerNotes,
+              includeImages: options.includeImages,
+              preserveVisualIdentity: options.preserveVisualIdentity,
+            });
+            const { formattedText } = buildExportablePrompt(op);
+            const charCount = formattedText.length;
+            const approxTokens = Math.round(charCount / 4);
+            exportSize.textContent = `Prompt size: ~${charCount.toLocaleString()} characters (~${approxTokens.toLocaleString()} tokens)`;
+            exportSize.classList.toggle(`${P}export-size--large`, charCount > 100_000);
+          } catch {
+            exportSize.textContent = "";
+          }
+        }
+      };
+
       const updateModeUI = () => {
         const mode = modeSelect.value;
         modeDesc.textContent = MODE_DESCRIPTIONS[mode];
@@ -372,31 +443,21 @@ export class AiGenerateModal {
         if (mode === "remix" && !identityTouched) {
           identityToggle.checked = true;
         }
+
+        // Update export warning and size estimate when mode changes.
+        updateExportInfo();
       };
       modeSelect.addEventListener("change", updateModeUI);
       updateModeUI();
 
-      // Read the current form state into a GenerateOptions object. Shared by
-      // the Generate, Next (import), Copy prompt, and Download prompt buttons
-      // so every action sees the same options.
-      const readOptions = () => {
-        const mode = modeSelect.value || "polish";
-        const flow = flowSelect.value || "instructional";
-        const includeImages =
-          (mode === "remix" || mode === "reimagine") && hasImages && visionToggle.checked;
-        const addSpeakerNotes = notesToggle.checked || false;
-        const preserveVisualIdentity =
-          mode === "polish" || (mode === "remix" && identityToggle.checked);
-        return { mode, flow, addSpeakerNotes, includeImages, preserveVisualIdentity };
-      };
-
-      // Primary action: "Generate" (generate purpose) or "Next" (import purpose).
+      // Primary action: "Generate".
       primaryBtn.addEventListener("click", () => close(readOptions()));
 
-      // Export buttons: hand the options to the caller and close with null so
-      // the caller does not proceed to an AI generate call. The caller is
-      // responsible for building the prompt and copying/downloading it.
+      // Export buttons: hand the options to the caller. The modal stays open
+      // after a successful export so the user can copy AND download. A
+      // transient success indicator is shown on the clicked button.
       const handleExport = async (kind) => {
+        const btn = kind === "copy" ? copyBtn : downloadBtn;
         try {
           await opts.onExport(readOptions(), kind);
         } catch (err) {
@@ -410,7 +471,20 @@ export class AiGenerateModal {
           actions.before(msg);
           return;
         }
-        close(null);
+        // Show a transient success indicator on the clicked button, then
+        // restore the original label. The modal stays open so the user can
+        // also download after copying (or vice versa).
+        if (btn) {
+          const originalText = btn.textContent;
+          btn.textContent = kind === "copy" ? "Copied!" : "Downloaded!";
+          btn.classList.add(`${P}btn--success`);
+          setTimeout(() => {
+            if (btn.isConnected) {
+              btn.textContent = originalText;
+              btn.classList.remove(`${P}btn--success`);
+            }
+          }, 2000);
+        }
       };
       if (copyBtn && opts.onExport) {
         copyBtn.addEventListener("click", () => handleExport("copy"));

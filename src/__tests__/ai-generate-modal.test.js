@@ -163,7 +163,7 @@ describe("AiGenerateModal", () => {
     await promise;
   });
 
-  it("invokes onExport with current options and resolves null on copy", async () => {
+  it("invokes onExport with current options and stays open on copy", async () => {
     let captured = null;
     const onExport = (options, kind) => {
       captured = { options, kind };
@@ -174,11 +174,16 @@ describe("AiGenerateModal", () => {
     modeSelect.value = "remix";
     modeSelect.dispatchEvent(new Event("change"));
     dialog.querySelector('[data-action="copy-prompt"]').click();
-    const result = await promise;
-    expect(result).toBeNull();
+    // Allow the microtask queue to flush so the async handler runs.
+    await new Promise((r) => setTimeout(r, 0));
     expect(captured.kind).toBe("copy");
     expect(captured.options.mode).toBe("remix");
     expect(captured.options.flow).toBe("instructional");
+    // Modal stays open after successful export.
+    expect(dialog.isConnected).toBe(true);
+    dialog.querySelector('[data-action="cancel"]').click();
+    const result = await promise;
+    expect(result).toBeNull();
   });
 
   it("invokes onExport with kind=download on download click", async () => {
@@ -189,9 +194,11 @@ describe("AiGenerateModal", () => {
     const promise = AiGenerateModal.show(BASIC_MD, { onExport });
     const dialog = document.querySelector(".ai-generate-modal__dialog");
     dialog.querySelector('[data-action="download-prompt"]').click();
-    await promise;
+    await new Promise((r) => setTimeout(r, 0));
     expect(captured.kind).toBe("download");
     expect(captured.options.mode).toBe("polish");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
   });
 
   it("shows an inline error and stays open when onExport throws", async () => {
@@ -212,29 +219,49 @@ describe("AiGenerateModal", () => {
     await promise;
   });
 
-  it("import purpose hides export/generate buttons and renames primary to Next", async () => {
+  it("shows export guidance note when onExport is provided", async () => {
     const onExport = () => {};
-    const promise = AiGenerateModal.show(BASIC_MD, {
-      purpose: "import",
-      onExport,
-    });
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
     const dialog = document.querySelector(".ai-generate-modal__dialog");
-    expect(dialog.querySelector('[data-action="copy-prompt"]')).toBeNull();
-    expect(dialog.querySelector('[data-action="download-prompt"]')).toBeNull();
-    expect(dialog.querySelector('[data-action="generate"]')).toBeNull();
-    const nextBtn = dialog.querySelector('[data-action="next"]');
-    expect(nextBtn).not.toBeNull();
-    expect(nextBtn.textContent).toBe("Next");
-    // Cost rows hidden in import mode.
-    expect(dialog.querySelector("#ai-generate-modal__model-row")).toBeNull();
-    nextBtn.click();
-    const result = await promise;
-    expect(result).toEqual({
-      mode: "polish",
-      flow: "instructional",
-      addSpeakerNotes: false,
-      includeImages: false,
-      preserveVisualIdentity: true,
-    });
+    const note = dialog.querySelector(".ai-generate-modal__export-note");
+    expect(note).not.toBeNull();
+    expect(note.textContent).toContain("Import AI result");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("shows prompt size estimate when onExport is provided", async () => {
+    const onExport = () => {};
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    const size = dialog.querySelector(".ai-generate-modal__export-size");
+    expect(size).not.toBeNull();
+    expect(size.textContent).toMatch(/characters/);
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("shows remix export warning when mode is remix", async () => {
+    const onExport = () => {};
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    const modeSelect = dialog.querySelector("#ai-generate-modal__mode");
+    modeSelect.value = "remix";
+    modeSelect.dispatchEvent(new Event("change"));
+    const warning = dialog.querySelector(".ai-generate-modal__export-warning");
+    expect(warning.style.display).toBe("");
+    expect(warning.textContent).toContain("simplified single-call version");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("hides export warning when mode is polish", async () => {
+    const onExport = () => {};
+    const promise = AiGenerateModal.show(BASIC_MD, { onExport });
+    const dialog = document.querySelector(".ai-generate-modal__dialog");
+    const warning = dialog.querySelector(".ai-generate-modal__export-warning");
+    expect(warning.style.display).toBe("none");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
   });
 });

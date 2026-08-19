@@ -226,3 +226,41 @@
   background: var(--danger-bg, rgba(220, 38, 38, 0.08));
   border: 1px solid var(--danger-border, rgba(220, 38, 38, 0.2));
 }
+
+/* ── Export guidance note ── */
+.ai-generate-modal__export-note {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  color: var(--text-medium, #666);
+  line-height: 1.4;
+}
+
+/* ── Export size estimate ── */
+.ai-generate-modal__export-size {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--text-medium, #666);
+}
+
+.ai-generate-modal__export-size--large {
+  color: var(--warning, #d97706);
+  font-weight: 500;
+}
+
+/* ── Export mode warning (remix/reimagine) ── */
+.ai-generate-modal__export-warning {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--warning, #d97706);
+  background: rgba(217, 119, 6, 0.08);
+  border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+/* ── Export success button state ── */
+.ai-generate-modal__btn--success {
+  border-color: var(--success, #16a34a);
+  color: var(--success, #16a34a);
+}
