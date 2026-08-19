@@ -490,7 +490,7 @@ describe("AiOrchestrator", () => {
       expect(result).not.toContain("example.com");
     });
 
-    it("strips stale theme/background directives from the final deck in discard mode", async () => {
+    it("keeps model-chosen theme/background directives in discard mode", async () => {
       const THEMED_DECK =
         "layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Point A\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
       const THEMED_PLAN_RESPONSE = JSON.stringify({
@@ -511,14 +511,14 @@ describe("AiOrchestrator", () => {
           },
         ],
       });
-      // The AI echoes the old theme/background even though the plan context
-      // was stripped — the orchestrator must strip them from the final deck.
+      // The source was stripped before execute, so the model may choose a new
+      // theme/background. The new visual direction must survive in the result.
       const ECHO_EXECUTE_RESPONSE = JSON.stringify({
         slides: [
           {
             layout: "header-content",
             content:
-              "theme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Concise point",
+              "theme: light\nbackground: #ffffff\n@header\n## Slide 1\n\n@main\n- Concise point",
           },
           {
             layout: "header-content",
@@ -539,8 +539,12 @@ describe("AiOrchestrator", () => {
       const result = await orchestrator.runWholeDeckOperation(op);
 
       expect(result).toContain("Concise point");
-      expect(result).not.toContain("theme:");
-      expect(result).not.toContain("background:");
+      // The original dark theme was stripped before execute.
+      expect(result).not.toContain("theme: dark");
+      expect(result).not.toContain("background: #1a1a2e");
+      // The model-chosen light theme/background should survive.
+      expect(result).toContain("theme: light");
+      expect(result).toContain("background: #ffffff");
     });
 
     it("removes fabricated image references from the final deck mechanically", async () => {
@@ -802,7 +806,7 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("background: url(images/bg.png) center/cover");
     });
 
-    it("remix discard mode preserves kept-slide inline images while stripping theme/color", async () => {
+    it("remix discard mode preserves kept-slide images and allows new theme/background", async () => {
       // Discard mode strips theme/color from the final deck, but kept-slide
       // inline images must survive (they are content, not identity).
       const deck =
@@ -821,7 +825,7 @@ describe("AiOrchestrator", () => {
           },
           {
             layout: "header-content",
-            content: "theme: dark\nbackground: #1a1a2e\n@header\n## Slide 2\n\n@main\n- Tightened",
+            content: "theme: light\nbackground: #f0f0e8\n@header\n## Slide 2\n\n@main\n- Tightened",
           },
         ],
       });
@@ -834,8 +838,12 @@ describe("AiOrchestrator", () => {
       const result = await orchestrator.runWholeDeckOperation(op);
 
       expect(result).toContain('src="images/kept.png"');
-      expect(result).not.toContain("theme:");
+      // The original dark identity was stripped before execute.
+      expect(result).not.toContain("theme: dark");
       expect(result).not.toContain("background: #1a1a2e");
+      // The model-chosen new identity should survive in discard mode.
+      expect(result).toContain("theme: light");
+      expect(result).toContain("background: #f0f0e8");
     });
 
     it("deterministic backstop restores dropped theme/background on a rewritten slide", async () => {

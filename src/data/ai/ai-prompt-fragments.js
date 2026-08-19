@@ -320,16 +320,26 @@ export function buildRemixFlowGuidance(flow) {
  *   color directives instead of emitting neutral styling.
  * - "absent" — default: the app provides its own neutral color scheme and no
  *   custom `background:`/`theme:`/color directives may be emitted.
+ * - "remix-discard" — used when remix discards the original visual identity:
+ *   the AI may choose a new professional color scheme, `theme:`, `background:`,
+ *   and colored text. Vary backgrounds across the deck.
  * @param {boolean} hasVisualSystem
  * @param {boolean} [preserveVisualIdentity]
+ * @param {string} [mode] — "remix", "reimagine", "polish", "generate", etc.
  * @returns {string}
  */
-export function buildVisualStylingNote(hasVisualSystem, preserveVisualIdentity = false) {
+export function buildVisualStylingNote(
+  hasVisualSystem,
+  preserveVisualIdentity = false,
+  mode = null,
+) {
   const variant = hasVisualSystem
     ? "present"
-    : preserveVisualIdentity
-      ? "absent-preserve"
-      : "absent";
+    : mode === "remix" && !preserveVisualIdentity
+      ? "remix-discard"
+      : preserveVisualIdentity
+        ? "absent-preserve"
+        : "absent";
   return extractVariant(getFragment("visual-styling-note.md"), variant);
 }
 

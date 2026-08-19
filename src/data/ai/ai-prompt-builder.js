@@ -75,7 +75,8 @@ export function buildGenerateOptionsSuffix(opts = {}) {
     // would contradict them by ordering the AI to strip all theme/background
     // and introduce no new ones, so it must be skipped here. "discard" only
     // applies when the app falls back to its own neutral styling.
-    parts.push(`\n${extractVariant(visualIdentityGuidance, "discard")}`);
+    const variant = opts.mode === "remix" ? "remix" : "discard";
+    parts.push(`\n${extractVariant(visualIdentityGuidance, variant)}`);
   }
   if (opts.visualSystem) {
     parts.push(buildVisualSystemBrief(opts.visualSystem));
@@ -95,7 +96,7 @@ export function buildMessages(markdown, mode) {
     mode === "fix" ? getFragment("fix-prompt.md") : getFragment("generate-prompt.md");
   const substitutions = { markdown: cleaned };
   if (mode !== "fix") {
-    substitutions.visualStylingNote = buildVisualStylingNote(false);
+    substitutions.visualStylingNote = buildVisualStylingNote(false, false, mode);
     substitutions.densityBudgets = buildDensityBudgets("full");
   }
   return composeMessages(getFragment("system-prompt.md"), fragment, substitutions);
@@ -237,8 +238,10 @@ export const BATCH_SIZE = 8;
  * @param {number} endIdx - 0-based index of the last slide (exclusive).
  * @param {number} totalSlides - Total number of slides in the deck.
  * @param {string} [deckSummary] - Pre-generated deck summary (generate mode only).
- * @param {string} [batchMode] - "polish" | undefined. When "polish",
- *   uses polish-prompt.md (specific cleanup rules) instead of generate-prompt.md.
+ * @param {string} [batchMode] - "polish" | "remix" | "reimagine" | undefined.
+ *   When "polish", uses polish-prompt.md (specific cleanup rules) instead of
+ *   generate-prompt.md. "remix"/"reimagine" select the appropriate visual
+ *   styling/identity guidance.
  * @param {boolean} [hasVisualSystem=false] — when true, the visual system brief
  *   (options suffix) overrides the generic visual-styling note.
  * @param {boolean} [preserveVisualIdentity=false] — when true (remix preserve),
@@ -310,6 +313,7 @@ export function buildBatchMessages(
     substitutions.visualStylingNote = buildVisualStylingNote(
       hasVisualSystem,
       preserveVisualIdentity,
+      batchMode,
     );
     substitutions.densityBudgets = buildDensityBudgets("full");
   } else if (mode !== "fix" && batchMode === "polish") {
