@@ -408,6 +408,81 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     );
     expect(result).toContain("# Behold the ancient ASCII table");
   });
+
+  it("detects Python for-in without parens as code, not a heading", () => {
+    // Python `for ... in ...:` does not use parens (unlike C-style for(;;)).
+    // At heading-size font it must still be code, not `### for ...`.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">a_string = "ABC"</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">for letter in a_string:</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    print(letter)</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### for");
+    expect(result).toContain("```");
+    expect(result).toContain("for letter in a_string:");
+  });
+
+  it("detects Python if without parens as code, not a heading", () => {
+    // Python `if condition:` (no parens) at heading-size font must be code.
+    const html = [
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">if __name__ == '__main__':</span></p>",
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    main()</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### if");
+    expect(result).toContain("```");
+    expect(result).toContain("if __name__");
+    expect(result).toContain("main()");
+  });
+
+  it("detects Python REPL >>> prompts as code, not headings", () => {
+    // Python REPL lines starting with `>>>` at heading-size font must be code.
+    const html = [
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">>>> name = 'Chris'</span></p>",
+      '<p><span style="font-family: Consolas; font-size: 28pt;">>>> print(name)</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### >>>");
+    expect(result).toContain("```");
+    expect(result).toContain(">>> name = 'Chris'");
+  });
+
+  it("detects Python traceback and bare function calls as code, not headings", () => {
+    // Traceback lines and bare function calls (main(), not print()) at
+    // heading-size font must be code, not headings.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">Traceback (most recent call last):</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">TypeError: bad type</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">main()</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### Traceback");
+    expect(result).not.toContain("### main");
+    expect(result).toContain("```");
+    expect(result).toContain("Traceback");
+    expect(result).toContain("main()");
+  });
+
+  it("detects Python # comments as code, not headings", () => {
+    // A Python comment like `# comment` at heading-size font must be code,
+    // not a markdown H1 heading.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;"># This is a comment</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">x = 1</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    // The comment must be inside a fenced block, not a standalone H1 heading.
+    expect(result).toContain("```");
+    expect(result).toContain("# This is a comment");
+    // A heading would appear before the opening fence or after the closing
+    // fence; inside the fence it is code.
+    const fenceStart = result.indexOf("```");
+    const fenceEnd = result.indexOf("```", fenceStart + 3);
+    const commentPos = result.indexOf("# This is a comment");
+    expect(commentPos).toBeGreaterThan(fenceStart);
+    expect(commentPos).toBeLessThan(fenceEnd);
+  });
 });
 
 describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge cases", () => {

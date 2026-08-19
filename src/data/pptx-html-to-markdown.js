@@ -28,8 +28,11 @@ const MONOSPACE_PATTERN =
 // Patterns are intentionally broad — the check is gated by isAllMonospace,
 // so false positives on natural language are unlikely (a monospace paragraph
 // with `x = y` is almost certainly code, not a heading).
+// Covers both C-style (if/for/while with parens) and Python-style (if/for/while
+// without parens, for-in, REPL `>>>`/`...` prompts, `#` comments, bare function
+// calls like `main()`, and traceback lines).
 const CODE_LINE_PATTERN =
-  /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|<\/?\w+>|f['"]|\w+\s*[=:]\s*\S|\w+\.\w+\(|\w+\[)/;
+  /^\s*(>>>|\.\.\.|def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#|for\b|while\b|if\b|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|with\b|async\s|await\s|void\s+\w|console\.|self\.|this\.|<\/?\w+>|f['"]|Traceback|File\s+"|\w+\s*\(|\w+\s*[=:]\s*\S|\w+\.\w+\(|\w+\[)/;
 
 // Bullet glyphs PowerPoint authors sometimes type as literal text runs.
 // Matches a leading glyph followed by whitespace, end of line, or any other
