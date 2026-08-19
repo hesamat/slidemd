@@ -11,10 +11,7 @@ import { AssetLoader } from "../core/asset-loader.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { Notification } from "../renderer/notification.js";
 import { resetModalState } from "../core/modal-state.js";
-import { UiActions } from "../ui/ui-actions.js";
 import { RoleManager } from "./role-manager.js";
-import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
-import { ImagePicker } from "../editor/image/image-picker.js";
 import { DirectoryHandleStore } from "../core/directory-handle-store.js";
 
 export class ReloadManager extends EventEmitter {
@@ -39,6 +36,9 @@ export class ReloadManager extends EventEmitter {
     this.freezeManager = options.freezeManager;
     this.getDeckId = options.getDeckId || (() => "webdeck");
     this.deckStore = options.deckStore || null;
+    this._uiActions = options.uiActions || null;
+    this._deckImagesResolver = options.deckImagesResolver || null;
+    this._imagePicker = options.imagePicker || null;
     this.bc = null;
     this.deckChannel = null;
   }
@@ -206,20 +206,21 @@ export class ReloadManager extends EventEmitter {
    * deck, or drop it for decks served by the CLI server / example / new.
    */
   async _syncDirectoryHandle() {
+    if (!this._deckImagesResolver) return;
     try {
       const fromPicker = localStorage.getItem("webdeck_opened_from_picker") === "1";
       if (!fromPicker || !window.showDirectoryPicker) {
-        DeckImagesResolver.clearDirectoryHandle();
+        this._deckImagesResolver.clearDirectoryHandle();
         return;
       }
       const fileName = localStorage.getItem("webdeck_local_file_name");
       if (!fileName) {
-        DeckImagesResolver.clearDirectoryHandle();
+        this._deckImagesResolver.clearDirectoryHandle();
         return;
       }
       const dir = await DirectoryHandleStore.load(fileName);
       if (!dir.handle) {
-        DeckImagesResolver.clearDirectoryHandle();
+        this._deckImagesResolver.clearDirectoryHandle();
         return;
       }
       let perm = dir.handle.queryPermission
@@ -233,15 +234,17 @@ export class ReloadManager extends EventEmitter {
         }
       }
       if (perm === "granted") {
-        DeckImagesResolver.setDirectoryHandle(
+        this._deckImagesResolver.setDirectoryHandle(
           dir.handle,
-          DeckImagesResolver.extractImageRefs(localStorage.getItem("webdeck_local_file") || ""),
+          this._deckImagesResolver.extractImageRefs(
+            localStorage.getItem("webdeck_local_file") || "",
+          ),
         );
       } else {
-        DeckImagesResolver.clearDirectoryHandle();
+        this._deckImagesResolver.clearDirectoryHandle();
       }
     } catch {
-      DeckImagesResolver.clearDirectoryHandle();
+      this._deckImagesResolver.clearDirectoryHandle();
     }
   }
 
@@ -318,7 +321,7 @@ export class ReloadManager extends EventEmitter {
 
     const title = DeckLoader.getDisplayTitle(newDeck);
     document.title = title;
-    UiActions.updateDeckTitle(this.elements, title);
+    this._uiActions?.updateDeckTitle(this.elements, title);
 
     this.elements.slidesContainer.innerHTML = "";
     newDeck.slides.forEach((s, i) => {
@@ -329,7 +332,7 @@ export class ReloadManager extends EventEmitter {
 
     // Count only visible slides for UI
     const visibleSlideCount = newDeck.slides.filter((s) => !s.hidden).length;
-    UiActions.updateSlideCount(this.elements, visibleSlideCount, newDeck);
+    this._uiActions?.updateSlideCount(this.elements, visibleSlideCount, newDeck);
     if (this.elements.floatSlideCounter) {
       this.elements.floatSlideCounter.textContent = `${this.slideNavigator.currentIndex + 1} / ${visibleSlideCount}`;
     }
@@ -367,9 +370,9 @@ export class ReloadManager extends EventEmitter {
 
       // Flush cached images so the new deck doesn't show stale thumbnails.
       // Example/local decks are server-backed, not a picker-opened folder.
-      DeckImagesResolver.clearDirectoryHandle();
-      DeckImagesResolver.invalidateCache();
-      ImagePicker.clearImageCache();
+      this._deckImagesResolver?.clearDirectoryHandle();
+      this._deckImagesResolver?.invalidateCache();
+      this._imagePicker?.clearImageCache();
 
       const newDeck = await DeckLoader.parseMarkdown(text);
       await this.replaceDeck(newDeck, { startAtFirstSlide: true });

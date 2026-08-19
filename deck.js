@@ -13,6 +13,14 @@ import { ReloadManager } from "./src/engine/reload-manager.js";
 import { ElementGatherer } from "./src/core/element-gatherer.js";
 import { UiActions } from "./src/ui/ui-actions.js";
 import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
+import { DeckImagesResolver } from "./src/editor/image/deck-images-resolver.js";
+import { ImagePicker } from "./src/editor/image/image-picker.js";
+import { NewPresentationModal } from "./src/editor/new-presentation-modal.js";
+import { ConversionModal } from "./src/editor/conversion-modal.js";
+import { SlideStylePanel } from "./src/editor/ui/slide-style-panel.js";
+import { TextBlockHandler } from "./src/editor/text/text-block-handler.js";
+import { SettingsModal } from "./src/editor/settings-modal.js";
+import { ImageInteractionHandler } from "./src/editor/image/image-interaction-handler.js";
 import { DeckStore } from "./src/data/store/deck-store.js";
 import { Logger } from "./src/core/logger.js";
 (() => {
@@ -112,11 +120,28 @@ import { Logger } from "./src/core/logger.js";
     }
 
     // 4. Update UI Initial State
-    DeckController.updateSlideCount(elements, deck.slides.length);
+    DeckController.updateSlideCount(elements, deck.slides.length, null, UiActions);
     UiActions.renderShortcutHints();
 
     // 5. Initialize Controller
-    const controller = new DeckController(deck, elements, { deckStore });
+    // Editor/ui dependencies are only wired in the live app — exported HTML
+    // is a read-only viewer and JS_BUNDLE_ORDER (src/data/bundle-order.js)
+    // doesn't include editor files. The isExported ternary is load-bearing:
+    // it prevents ReferenceError for undeclared identifiers in the exported
+    // bundle. Do NOT refactor these into a shared object or remove the guard
+    // without also adding the editor files to JS_BUNDLE_ORDER.
+    const controller = new DeckController(deck, elements, {
+      deckStore,
+      uiActions: UiActions,
+      deckImagesResolver: isExported ? null : DeckImagesResolver,
+      imagePicker: isExported ? null : ImagePicker,
+      newPresentationModal: isExported ? null : NewPresentationModal,
+      conversionModal: isExported ? null : ConversionModal,
+      slideStylePanel: isExported ? null : SlideStylePanel,
+      textBlockHandler: isExported ? null : TextBlockHandler,
+      settingsModal: isExported ? null : SettingsModal,
+      imageInteractionHandler: isExported ? null : ImageInteractionHandler,
+    });
     await controller.init();
     deckStore?.setActiveIndex(controller.slideNavigator.currentIndex);
 

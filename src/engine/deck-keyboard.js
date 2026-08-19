@@ -7,8 +7,6 @@
  */
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
-import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
-import { TextBlockHandler } from "../editor/text/text-block-handler.js";
 import { isEmbedded } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
 
@@ -24,6 +22,8 @@ import { Logger } from "../core/logger.js";
  * @param {Function} opts.toggleEditMode - Toggle edit mode callback
  * @param {Function} opts.toggleFullscreen - Toggle fullscreen callback
  * @param {Function} opts.isEditMode - Check if in edit mode
+ * @param {object} [opts.slideStylePanel] - Slide style panel (editor layer, injected)
+ * @param {object} [opts.textBlockHandler] - Text block handler (editor layer, injected)
  * @returns {KeyboardHandler}
  */
 export function createKeyboardHandler({
@@ -35,6 +35,8 @@ export function createKeyboardHandler({
   toggleEditMode,
   toggleFullscreen,
   isEditMode,
+  slideStylePanel = null,
+  textBlockHandler = null,
 }) {
   const edit = () => window.__WEBDECK_EDIT_CONTROLLER__;
 
@@ -63,7 +65,7 @@ export function createKeyboardHandler({
     },
     styles: () => {
       try {
-        SlideStylePanel.toggle();
+        slideStylePanel?.toggle?.();
       } catch {
         /* style panel may not be available */
       }
@@ -119,7 +121,7 @@ export function createKeyboardHandler({
     },
     insertText: () => {
       try {
-        TextBlockHandler.insertTextBlock();
+        textBlockHandler?.insertTextBlock?.();
       } catch (e) {
         Logger.warn("Insert text shortcut failed:", e);
       }

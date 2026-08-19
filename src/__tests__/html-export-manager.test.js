@@ -410,10 +410,23 @@ describe("HtmlExportManager", () => {
       slides: [{ areas: { main: "<pre><code>mermaid\ngraph TD;</code></pre>" } }],
     };
 
-    it("emits a CDN script tag using the fallback version when node_modules is unavailable", async () => {
+    it("inlines the Mermaid IIFE bundle from node_modules (no CDN URL)", async () => {
+      const fakeMermaidJs = "var mermaid = { initialize: function() {} };";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve(fakeMermaidJs) }),
+      );
+      const tag = await HtmlExportManager.buildMermaidScriptTagIfNeeded(mermaidDeck);
+      expect(tag).toContain(fakeMermaidJs);
+      expect(tag).not.toContain("cdn.jsdelivr.net");
+      expect(tag).not.toContain("import mermaid from");
+      expect(tag).toContain("mermaid.initialize(");
+    });
+
+    it("returns an empty string when node_modules is unavailable (no CDN fallback)", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
       const tag = await HtmlExportManager.buildMermaidScriptTagIfNeeded(mermaidDeck);
-      expect(tag).toContain(`mermaid@${HtmlExportManager.FALLBACK_VENDOR_VERSIONS.mermaid}`);
+      expect(tag).toBe("");
     });
 
     it("returns an empty string when the deck has no Mermaid content", async () => {

@@ -1005,26 +1005,20 @@ export class SettingsModal {
       const data = await res.json();
       const models = Array.isArray(data.data) ? data.data : [];
 
-      // For OpenAI, also ask OpenRouter's public model list for reasoning metadata.
-      // OpenRouter's /models endpoint is CORS-enabled and does not require auth.
-      const openRouterReasoning =
-        provider === "OpenAI" ? await this.#fetchOpenRouterReasoning() : new Map();
-
       this._allModels = [];
       for (const m of models) {
         const id = m.id || m.model || String(m);
         const name = m.name || id;
         this._allModels.push({ id, name });
-        // Prefer the provider's own per-model reasoning metadata, then OpenRouter's,
-        // then fall back to the best-effort heuristic so known reasoning models still work.
-        // A meaningful `reasoning` object (non-empty) means the model supports
-        // reasoning even when supported_efforts is null (all efforts accepted)
-        // or omitted (effort selection not exposed — use reasoning.enabled
-        // instead). A bare `{}` is rejected — some providers include it for
-        // non-reasoning models.
+        // Prefer the provider's own per-model reasoning metadata, then fall
+        // back to the best-effort heuristic so known reasoning models still
+        // work. A meaningful `reasoning` object (non-empty) means the model
+        // supports reasoning even when supported_efforts is null (all efforts
+        // accepted) or omitted (effort selection not exposed — use
+        // reasoning.enabled instead). A bare `{}` is rejected — some
+        // providers include it for non-reasoning models.
         const apiReasoning = isMeaningfulReasoning(m.reasoning) ? m.reasoning : null;
-        const crossRefReasoning = openRouterReasoning.get(id);
-        const reasoning = apiReasoning || crossRefReasoning || guessReasoningForModel(id);
+        const reasoning = apiReasoning || guessReasoningForModel(id);
         if (reasoning) {
           this._modelReasoningMap.set(id, reasoning);
         }
@@ -1036,8 +1030,7 @@ export class SettingsModal {
       }
 
       if (saved && !this._modelReasoningMap.has(saved)) {
-        const openRouterSaved = openRouterReasoning.get(saved);
-        const guessed = openRouterSaved || guessReasoningForModel(saved);
+        const guessed = guessReasoningForModel(saved);
         if (guessed) {
           this._modelReasoningMap.set(saved, guessed);
         }
@@ -1051,37 +1044,6 @@ export class SettingsModal {
 
     this._loadingModels = false;
     onLoaded?.();
-  }
-
-  /**
-   * Fetch OpenRouter's public /models list and return a map of OpenAI model IDs
-   * to their reasoning metadata. This lets OpenAI users see the exact effort
-   * levels OpenRouter advertises for `openai/{id}` models.
-   * @returns {Promise<Map<string, object>>}
-   */
-  static async #fetchOpenRouterReasoning() {
-    const map = new Map();
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch("https://openrouter.ai/api/v1/models", {
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (!res.ok) return map;
-      const data = await res.json();
-      const models = Array.isArray(data.data) ? data.data : [];
-      for (const m of models) {
-        const id = m.id || "";
-        const reasoning = isMeaningfulReasoning(m.reasoning) ? m.reasoning : null;
-        if (!id.startsWith("openai/") || !reasoning) continue;
-        const openaiId = id.replace("openai/", "");
-        map.set(openaiId, reasoning);
-      }
-    } catch {
-      // ignore — best-effort cross-reference
-    }
-    return map;
   }
 
   static #createDom() {
