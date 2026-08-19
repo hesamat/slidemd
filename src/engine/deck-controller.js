@@ -22,19 +22,25 @@ import { CommandPalette } from "./command-palette.js";
 import { buildPaletteCommands } from "./command-registry.js";
 
 export class DeckController extends EventEmitter {
-  static updateDeckTitle(elements, title, uiActions = null) {
-    const actions = uiActions || DeckController._uiActions;
-    actions?.updateDeckTitle(elements, title);
+  static updateDeckTitle(elements, title, uiActions) {
+    if (!uiActions) {
+      Logger.warn("DeckController.updateDeckTitle called without uiActions");
+      return;
+    }
+    uiActions.updateDeckTitle(elements, title);
   }
 
-  static updateSlideCount(elements, count, deck = null, uiActions = null) {
+  static updateSlideCount(elements, count, deck = null, uiActions) {
+    if (!uiActions) {
+      Logger.warn("DeckController.updateSlideCount called without uiActions");
+      return;
+    }
     // If deck is provided, count only visible slides
     if (deck) {
       const visibleSlideCount = deck.slides.filter((s) => !s.hidden).length;
       count = visibleSlideCount;
     }
-    const actions = uiActions || DeckController._uiActions;
-    actions?.updateSlideCount(elements, count);
+    uiActions.updateSlideCount(elements, count);
   }
 
   constructor(
@@ -71,7 +77,6 @@ export class DeckController extends EventEmitter {
     this._textBlockHandler = textBlockHandler;
     this._settingsModal = settingsModal;
     this._imageInteractionHandler = imageInteractionHandler;
-    DeckController._uiActions = uiActions;
     this._enhanceIdleId = null;
 
     this.initIds();
@@ -232,7 +237,7 @@ export class DeckController extends EventEmitter {
 
     const title = DeckLoader.getDisplayTitle(this.deck);
     document.title = title;
-    DeckController.updateDeckTitle(this.elements, title);
+    DeckController.updateDeckTitle(this.elements, title, this._uiActions);
 
     this.preloadEnhancers();
 
@@ -414,8 +419,11 @@ export class DeckController extends EventEmitter {
       }
     }
 
-    // Fallback to plain text with line breaks
-    return `<div class="notes-content"><pre>${escapeHtml(notes)}</pre></div>`;
+    // Fallback to plain text with line breaks — still sanitize since it
+    // goes into .innerHTML.
+    return SlideRenderer.sanitizeAreaHtml(
+      `<div class="notes-content"><pre>${escapeHtml(notes)}</pre></div>`,
+    );
   }
 
   render() {

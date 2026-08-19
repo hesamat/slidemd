@@ -167,40 +167,6 @@ export class DeckLoader {
   }
 
   /**
-   * Load the bundled example deck via HTTP.
-   * Fetches the markdown from a known path and dispatches it.
-   */
-  static async openExampleFile() {
-    try {
-      const res = await fetch("docs/example/slides.md");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const markdown = await res.text();
-
-      // Tell the CLI server where the example deck lives so it can serve images
-      await fetch("/api/deck/load", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dir: "docs/example" }),
-      }).catch(() => {});
-
-      localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "md");
-      localStorage.setItem("webdeck_local_file_name", "example");
-      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
-      localStorage.removeItem("webdeck_opened_from_picker");
-
-      window.dispatchEvent(
-        new CustomEvent("webdeck-load-local", {
-          detail: { text: markdown, fileType: "md", fileName: "example" },
-        }),
-      );
-    } catch (e) {
-      Logger.error("Failed to load example deck:", e);
-    }
-  }
-
-  /**
    * Reload a deck from a previously saved file handle.
    * @static
    * @param {string} deckId - Key to look up in the file handle registry.

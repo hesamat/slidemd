@@ -668,6 +668,17 @@ ${escapedInitScript}
       Logger.warn("HtmlExport: Could not load Mermaid from node_modules; skipping Mermaid script.");
       return "";
     }
+    // Verify the bundle is a classic (IIFE/UMD) script, not an ESM module.
+    // ESM files start with import/export and would cause a syntax error in
+    // a classic <script> tag. If the package ships ESM at this path in a
+    // future version, skip inlining rather than emitting broken HTML.
+    const firstChars = mermaidJs.slice(0, 200).trim();
+    if (/^(import|export)\s/m.test(firstChars)) {
+      Logger.warn(
+        "HtmlExport: mermaid.min.js appears to be an ESM module, not a classic bundle; skipping Mermaid inlining.",
+      );
+      return "";
+    }
     const escapedMermaidJs = HtmlExportManager.escapeInlineScriptText(mermaidJs);
     return buildInlinedMermaidScriptTag(escapedMermaidJs, "    ");
   }

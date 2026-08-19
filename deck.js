@@ -125,7 +125,11 @@ import { Logger } from "./src/core/logger.js";
 
     // 5. Initialize Controller
     // Editor/ui dependencies are only wired in the live app — exported HTML
-    // is a read-only viewer and the bundle order doesn't include editor files.
+    // is a read-only viewer and JS_BUNDLE_ORDER (src/data/bundle-order.js)
+    // doesn't include editor files. The isExported ternary is load-bearing:
+    // it prevents ReferenceError for undeclared identifiers in the exported
+    // bundle. Do NOT refactor these into a shared object or remove the guard
+    // without also adding the editor files to JS_BUNDLE_ORDER.
     const controller = new DeckController(deck, elements, {
       deckStore,
       uiActions: UiActions,

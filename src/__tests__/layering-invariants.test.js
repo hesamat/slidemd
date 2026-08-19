@@ -89,7 +89,7 @@ describe("layering invariants", () => {
         if (targetLayer < 0) continue;
         if (targetLayer > importerLayer) {
           violations.push({
-            file: path.relative(root, file),
+            file: path.relative(root, file).replace(/\\/g, "/"),
             import: imp,
             importerLayer: LAYER_ORDER[importerLayer],
             targetLayer: LAYER_ORDER[targetLayer],
@@ -116,7 +116,7 @@ describe("layering invariants", () => {
         const re = new RegExp(`import\\(['"]${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]\\)`);
         if (re.test(source)) {
           violations.push({
-            file: path.relative(root, file),
+            file: path.relative(root, file).replace(/\\/g, "/"),
             pkg,
           });
         }
@@ -160,7 +160,7 @@ describe("layering invariants", () => {
 
     const violations = [];
     for (const file of allFiles) {
-      const rel = path.relative(root, file);
+      const rel = path.relative(root, file).replace(/\\/g, "/");
       // Skip test files — they legitimately reference CDN URLs in assertions.
       if (rel.includes("__tests__/") || rel.includes("tools/")) continue;
       if (documentedFallbacks.has(rel)) continue;
@@ -206,17 +206,8 @@ describe("layering invariants", () => {
       "src/renderer/print-manager.js",
       // notification.js: uses static template strings.
       "src/renderer/notification.js",
-      // deck-controller.js: renderNotes() routes through
-      // SlideRenderer.sanitizeAreaHtml or escapeHtml — audited safe.
-      "src/engine/deck-controller.js",
-      // command-palette.js: _highlight() uses escapeHtml for all interpolated
-      // text — audited safe.
-      "src/engine/command-palette.js",
       // slide-navigator.js: uses static HTML strings for badges/buttons.
       "src/engine/slide-navigator.js",
-      // slide-search.js: _highlightTerms() uses escapeHtml for all
-      // interpolated text — audited safe.
-      "src/engine/slide-search.js",
     ]);
 
     const violations = [];
@@ -224,20 +215,23 @@ describe("layering invariants", () => {
     for (const file of allFiles) {
       const layer = layerOf(file);
       if (!layers.includes(LAYER_ORDER[layer])) continue;
-      const rel = path.relative(root, file);
+      const rel = path.relative(root, file).replace(/\\/g, "/");
       if (trustedStaticContent.has(rel)) continue;
       const source = fs.readFileSync(file, "utf8");
-      // Match .innerHTML = <expression> up to end of statement (; or newline)
-      const innerHtmlRe = /\.innerHTML\s*=\s*([^\n;]+)/g;
+      // Match .innerHTML = <expression> — capture across lines until
+      // a semicolon followed by newline (end of statement).
+      const innerHtmlRe = /\.innerHTML\s*=\s*([\s\S]*?);\s*\n/g;
       let m;
       while ((m = innerHtmlRe.exec(source)) !== null) {
         const rhs = m[1].trim();
         // Safe: clearing
         if (rhs === '""' || rhs === "''" || rhs === "``") continue;
-        // Safe: sanitizeAreaHtml call
+        // Safe: sanitizeAreaHtml call (direct or via a method that wraps it)
         if (rhs.includes("sanitizeAreaHtml")) continue;
         // Safe: DOMPurify.sanitize call
         if (rhs.includes("DOMPurify.sanitize")) continue;
+        // Safe: renderNotes() wraps output through sanitizeAreaHtml
+        if (rhs.includes("renderNotes")) continue;
         // Safe: pure string literal (no interpolation, no variable)
         if (/^["'`][^"'`]*["'`]$/.test(rhs) && !rhs.includes("${")) continue;
         // Flag: anything else that might interpolate dynamic content
@@ -263,23 +257,35 @@ describe("layering invariants", () => {
     const deckJs = fs.readFileSync(path.join(root, "deck.js"), "utf8");
     const controllerJs = fs.readFileSync(path.join(srcDir, "engine", "deck-controller.js"), "utf8");
 
-    // Extract DI option names from the DeckController constructor signature.
-    // Matches: optionName = null, or optionName = defaultValue,
-    const diRe = /^\s*(\w+)\s*=\s*null\s*,?\s*$/gm;
+    // Extract DI option names from the DeckController constructor's
+    // destructured parameter block only (not the whole file).
+    const ctorMatch = controllerJs.match(/constructor\s*\([^)]*\{([^}]*)\}\s*=\s*\{[^}]*\}/s);
+    if (!ctorMatch) {
+      expect.fail("Could not find DeckController constructor parameter block");
+    }
+    const ctorParams = ctorMatch[1];
+    // Matches: optionName = null,
+    const diRe = /(\w+)\s*=\s*null\s*,?/g;
     const requiredDeps = new Set();
     let m;
-    while ((m = diRe.exec(controllerJs)) !== null) {
+    while ((m = diRe.exec(ctorParams)) !== null) {
       // Skip non-DI options (deckStore is not an editor/ui dep)
       if (m[1] === "deckStore") continue;
       requiredDeps.add(m[1]);
     }
 
     // Check that each required dep appears in the DeckController construction
-    // in deck.js. We look for the pattern: depName: (some value)
+    // in deck.js. We look for the pattern: depName: (some value) inside the
+    // new DeckController(...) call.
+    const ctorCallMatch = deckJs.match(/new DeckController\s*\([^)]*\{([^}]*)\}/s);
+    if (!ctorCallMatch) {
+      expect.fail("Could not find DeckController construction in deck.js");
+    }
+    const ctorCallArgs = ctorCallMatch[1];
     const missing = [];
     for (const dep of requiredDeps) {
       const usageRe = new RegExp(`${dep}\\s*:\\s*[^,}\\s]+`);
-      if (!usageRe.test(deckJs)) {
+      if (!usageRe.test(ctorCallArgs)) {
         missing.push(dep);
       }
     }
