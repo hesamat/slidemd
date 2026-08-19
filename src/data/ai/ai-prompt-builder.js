@@ -10,6 +10,7 @@
  */
 
 import { MarkdownParser } from "../markdown-parser.js";
+import { parseAllImagesOutsideFences } from "../image-markdown-parser.js";
 import {
   composeMessages,
   extractVariant,
@@ -108,8 +109,9 @@ export function buildMessages(markdown, mode) {
  *   identifying information for the first slide's footer.
  * @param {boolean} [enrichPerSlide=false] - When true, adds per-slide metadata
  *   (content line count, bullet count, code/image/diagram markers) to each
- *   outline entry. Used by the Remix plan phase so the planning AI has enough
- *   signal to make polish/rewrite/merge decisions without seeing full content.
+ *   outline entry. Image markers include alt text (`image: "..."`) and diagram
+ *   markers include labels (`diagram: "..."`) so the planning AI can reason
+ *   about visuals in text-only mode.
  * @returns {string}
  */
 export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerSlide = false) {
@@ -154,8 +156,42 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
       const bulletCount = contentLines.filter((l) => /^([-*+]|\d+\.)\s/.test(l.trim())).length;
       if (bulletCount > 0) meta.push(`${bulletCount} bullet${bulletCount > 1 ? "s" : ""}`);
       if (/```/.test(slide)) meta.push("code");
-      if (/<img/.test(slide)) meta.push("image");
-      if (/\[Diagram:/.test(slide)) meta.push("diagram");
+      // Add image alt text as `image: "..."` when available, or bare
+      // `image` if no useful alt. Use the fence-aware parser so images in
+      // code samples are not treated as slide visuals.
+      const slideImages = parseAllImagesOutsideFences(slide);
+      const imageAlts = slideImages
+        .map((img) => {
+          if (img.type === "html") {
+            // Match opening/closing quotes separately so apostrophes inside
+            // alt text do not end the attribute early.
+            return img.fullTag.match(/alt=(["'])(.*?)\1/is)?.[2] || "";
+          }
+          return img.fullMatch.match(/!\[([^\]]*)\]/)?.[1] || "";
+        })
+        // Normalize whitespace, strip double quotes, and truncate to 60 chars.
+        .map((a) => a.trim().replace(/\s+/g, " ").replace(/"/g, "").slice(0, 60))
+        .filter((a) => a.length > 0);
+      if (imageAlts.length > 0) {
+        const quoted = imageAlts.map((a) => `"${a}"`).join(", ");
+        meta.push(`image: ${quoted}`);
+      } else if (slideImages.length > 0) {
+        meta.push("image");
+      }
+      // Add diagram labels as `diagram: "..."` when present, or bare
+      // `diagram` if the marker has no useful label.
+      const diagramMatches = [...slide.matchAll(/\[Diagram:\s*([^\]]*)\]/g)];
+      if (diagramMatches.length > 0) {
+        const diagramLabels = diagramMatches
+          .map((m) => m[1].trim().replace(/\s+/g, " ").replace(/"/g, "").slice(0, 60))
+          .filter((l) => l.length > 0);
+        if (diagramLabels.length > 0) {
+          const quoted = diagramLabels.map((l) => `"${l}"`).join(", ");
+          meta.push(`diagram: ${quoted}`);
+        } else {
+          meta.push("diagram");
+        }
+      }
       if (meta.length) entry += ` (${meta.join(", ")})`;
     }
     return entry;
@@ -163,7 +199,9 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
 
   const hasCode = slides.some((s) => /```/.test(s));
   const hasDiagrams = slides.some((s) => /\[Diagram:/.test(s));
-  const hasImages = slides.some((s) => /<img/.test(s));
+  // Detect both HTML `<img>` and markdown `![alt](src)` for the rough
+  // deck-level `Features:` line (fence-unaware, like hasCode/hasDiagrams).
+  const hasImages = slides.some((s) => /<img|!\[[^\]]*\]\([^)]*\)/.test(s));
   const uniqueLayouts = [
     ...new Set(
       slides.map((s) => {
