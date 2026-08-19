@@ -25,11 +25,16 @@ const MONOSPACE_PATTERN =
 // detection from swallowing code that happens to be rendered at a
 // heading-sized font (common in PPTX code examples: 28-32pt is typical
 // for a code block on a slide, which overlaps the ### band).
-// Patterns are intentionally broad — the check is gated by isAllMonospace,
+// Patterns are intentionally narrow — the check is gated by isAllMonospace,
 // so false positives on natural language are unlikely (a monospace paragraph
-// with `x = y` is almost certainly code, not a heading).
+// with `x = y` is almost certainly code, not a heading). The primary
+// heading-vs-code signal is the PPTX placeholder type (title placeholders
+// are always headings); this regex is only the fallback for non-title
+// text boxes where font size alone is ambiguous.
+// Covers C-style control flow (if/for/while with parens), Python REPL
+// prompts (`>>>`, `...`), and traceback lines — all unambiguously code.
 const CODE_LINE_PATTERN =
-  /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|<\/?\w+>|f['"]|\w+\s*[=:]\s*\S|\w+\.\w+\(|\w+\[)/;
+  /^\s*(>>>|\.{3}|def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|<\/?\w+>|f['"]|Traceback|File\s+"|\w+\s*[=:]\s*\S|\w+\.\w+\(|\w+\[)/;
 
 // Bullet glyphs PowerPoint authors sometimes type as literal text runs.
 // Matches a leading glyph followed by whitespace, end of line, or any other
@@ -295,9 +300,15 @@ function assembleOutput(parts) {
 /**
  * Convert HTML to Markdown using native DOM parsing.
  * @param {string} html
+ * @param {object} [opts]
+ * @param {string} [opts.placeholderType] - PPTX placeholder type from the
+ *   element's name attribute ('title', 'footer', 'date', 'slideNumber').
+ *   When 'title', heading detection is forced (a title placeholder is a
+ *   heading regardless of font size or monospace content) so monospace
+ *   code-like text in a title placeholder is still treated as a heading.
  * @returns {string}
  */
-export function htmlToMarkdown(html) {
+export function htmlToMarkdown(html, opts = {}) {
   if (!html) return "";
 
   // Detect CSS-based bullets: PowerPoint uses text-indent: -XXpt
@@ -320,7 +331,7 @@ export function htmlToMarkdown(html) {
   const body = doc.body;
 
   const result = [];
-  processBlockNodes(body.childNodes, result);
+  processBlockNodes(body.childNodes, result, { placeholderType: opts.placeholderType });
   let md = assembleOutput(result);
   // Collapse 3+ consecutive newlines to two, but preserve blank lines inside
   // fenced code blocks (a code block with intentional double blank lines
@@ -386,32 +397,217 @@ export function stripHtml(html) {
 }
 
 /**
+ * Clean a list item's raw text: strip literal bullet glyphs the author
+ * typed (the <li> already provides the marker), escape divider items'
+ * markers so they aren't misread as horizontal rules, and merge adjacent
+ * bullet markers. Returns empty string for marker-only residue.
+ * @param {string} rawItem
+ * @returns {string}
+ */
+function cleanListItemText(rawItem) {
+  const merged = isDividerLine(rawItem)
+    ? rawItem.replace(/[-*]/g, (m) => `\\${m}`)
+    : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
+  return isMarkerOnly(merged) ? "" : merged;
+}
+
+/**
+ * Find all-monospace <p>/<div> nodes that are part of a run of 2+
+ * consecutive monospace paragraphs. A run of consecutive monospace
+ * paragraphs is almost certainly a code block, not a sequence of
+ * headings. Title placeholders are excluded — a title is always a
+ * single heading, never part of a code run.
+ * @param {NodeList} nodes
+ * @param {boolean} isTitlePlaceholder
+ * @returns {Set<Node>}
+ */
+function findMonospaceRunNodes(nodes, isTitlePlaceholder) {
+  const runNodes = new Set();
+  if (isTitlePlaceholder) return runNodes;
+  const blockNodes = [];
+  for (const node of nodes) {
+    if (
+      node.nodeType === 1 &&
+      (node.tagName === "P" || node.tagName === "DIV") &&
+      isAllMonospace(node)
+    ) {
+      blockNodes.push(node);
+    } else if (blockNodes.length > 0) {
+      if (blockNodes.length >= 2) blockNodes.forEach((n) => runNodes.add(n));
+      blockNodes.length = 0;
+    }
+  }
+  if (blockNodes.length >= 2) blockNodes.forEach((n) => runNodes.add(n));
+  return runNodes;
+}
+
+/**
+ * Try to emit a heading from a <p>/<div> node. Returns true if a heading
+ * was emitted, false if the node should fall through to code/inline handling.
+ *
+ * Heading detection uses three signals in priority order:
+ * 1. Title placeholder — always a heading (structural ground truth).
+ * 2. Monospace run membership — code, not a heading (skip).
+ * 3. CODE_LINE_PATTERN — isolated monospace code line (skip).
+ * @param {Element} node
+ * @param {string[]} out
+ * @param {object} ctx
+ * @returns {boolean}
+ */
+function tryHeading(node, out, ctx) {
+  const { isTitlePlaceholder, monospaceRunNodes } = ctx;
+  const headingFontSize = getLargestFontSize(node);
+  const headingBand = HEADING_BANDS.find((b) => headingFontSize >= b.min);
+  if (!headingBand) return false;
+
+  const inMonospaceRun = monospaceRunNodes.has(node);
+  if (inMonospaceRun) return false;
+
+  const looksLikeCodeLine =
+    !isTitlePlaceholder && isAllMonospace(node) && CODE_LINE_PATTERN.test(node.textContent || "");
+  if (looksLikeCodeLine) return false;
+
+  const headingInline = [];
+  // Code mode so monospace spans don't get backtick-wrapped.
+  processInlineNodes(node.childNodes, headingInline, { code: true });
+  const headingTrimmed = normalizeBulletGlyphs(mergeAdjacentMarkers(headingInline.join(""))).trim();
+  if (!headingTrimmed || isBulletLine(headingTrimmed) || isMarkerOnly(headingTrimmed)) {
+    return false;
+  }
+  if (headingTrimmed.length > 80) return false;
+
+  out.push(`${headingBand.prefix}${headingTrimmed}\n\n`);
+  return true;
+}
+
+/**
+ * Emit an all-monospace paragraph as a code line (grouped into fences
+ * by assembleOutput). Returns true if emitted, false if not monospace.
+ * @param {Element} node
+ * @param {string[]} out
+ * @returns {boolean}
+ */
+function tryCodeLine(node, out) {
+  if (!isAllMonospace(node)) return false;
+  const codeInline = [];
+  processInlineNodes(node.childNodes, codeInline, { code: true });
+  const codeLine = codeInline.join("").replace(/[ \t\u00a0]+$/, "");
+  if (codeLine) out.push({ code: codeLine });
+  return true;
+}
+
+/**
+ * Escape `#` at the start of lines so PPTX text like "# Print using..."
+ * is preserved as literal text. Skips lines inside fenced code blocks
+ * and lines starting with backticks (inline code).
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeLeadingHash(text) {
+  const lines = text.split("\n");
+  let inCodeBlock = false;
+  return lines
+    .map((line) => {
+      const t = line.trim();
+      if (t === "```") {
+        inCodeBlock = !inCodeBlock;
+        return line;
+      }
+      if (inCodeBlock || /^`/.test(t)) return line;
+      return line.replace(/^#/gm, "\\#");
+    })
+    .join("\n");
+}
+
+/**
+ * Process a <p>/<div> node: heading, code, or inline paragraph.
+ * @param {Element} node
+ * @param {string[]} out
+ * @param {object} ctx
+ * @param {object} state
+ * @returns {boolean} true if lastOutputWasBullet should be set
+ */
+function processParagraph(node, out, ctx, state) {
+  if (tryHeading(node, out, ctx)) return false;
+  if (tryCodeLine(node, out)) return false;
+
+  const inline = [];
+  processInlineNodes(node.childNodes, inline);
+  const rawJoined = inline.join("");
+  const isDivider = isDividerLine(rawJoined.trim());
+  const merged = isDivider
+    ? rawJoined.trim()
+    : normalizeBulletGlyphs(mergeAdjacentMarkers(rawJoined));
+  const trimmed = merged.trim();
+  const isResidue = isMarkerOnly(trimmed) && !isDivider;
+  if (!trimmed || isResidue) return state.lastOutputWasBullet;
+
+  const escaped = escapeLeadingHash(merged);
+  const isGlyphBullet = isBulletLine(trimmed) && !isDivider;
+  if (isGlyphBullet) tightenPreviousBullet(out, state.lastOutputWasBullet);
+  out.push(escaped + "\n\n");
+  return isGlyphBullet;
+}
+
+/**
+ * Process a standalone <li> (from CSS bullet detection).
+ * @param {Element} node
+ * @param {string[]} out
+ * @param {object} state
+ * @returns {boolean} true if lastOutputWasBullet should be set
+ */
+function processListItem(node, out, state) {
+  const inline = [];
+  processInlineNodes(node.childNodes, inline);
+  const merged = cleanListItemText(inline.join("").trim());
+  if (!merged) return state.lastOutputWasBullet;
+
+  let indent = state.lastWasOl ? "   " : "";
+  if (!indent) {
+    const innerP = node.querySelector("p");
+    if (innerP) {
+      const pStyle = innerP.getAttribute("style") || "";
+      const mlMatch = pStyle.match(/margin-left:\s*([\d.]+)pt/);
+      if (mlMatch) {
+        const ml = parseFloat(mlMatch[1]);
+        if (ml < state.minMarginLeft) state.minMarginLeft = ml;
+        if (state.minMarginLeft !== Infinity && ml > state.minMarginLeft + 5) {
+          indent = "   ";
+        }
+      }
+    }
+  }
+  tightenPreviousBullet(out, state.lastOutputWasBullet);
+  out.push(indent + "- " + merged + "\n");
+  return true;
+}
+
+/**
  * Process block-level nodes and accumulate markdown output.
  * @param {NodeList} nodes
  * @param {string[]} out
+ * @param {object} [ctx]
+ * @param {string} [ctx.placeholderType] - PPTX placeholder type. When
+ *   'title', heading detection is forced.
  */
-function processBlockNodes(nodes, out) {
-  // Shared across all top-level lists in this text box so adjacent same-type
-  // lists continue numbering (PowerPoint frequently splits one logical list
-  // into multiple <ol>/<ul> blocks).
+function processBlockNodes(nodes, out, ctx = {}) {
+  const isTitlePlaceholder = ctx.placeholderType === "title";
+  const monospaceRunNodes = findMonospaceRunNodes(nodes, isTitlePlaceholder);
+  const headingCtx = { isTitlePlaceholder, monospaceRunNodes };
+
   const counters = {};
-  let lastListType = null;
-  let lastWasOl = false;
-  // Track minimum margin-left among standalone <li> items for nested bullet
-  // detection.  Items with margin-left significantly larger than the minimum
-  // are indented as sub-bullets.
-  let minMarginLeft = Infinity;
-  // True when the last pushed paragraph was a literal-glyph bullet line.
-  // Consecutive glyph bullets are joined without a blank line so markdown-it
-  // renders them as a tight list, like real PowerPoint bullets.
-  let lastOutputWasBullet = false;
+  const state = {
+    lastListType: null,
+    lastWasOl: false,
+    minMarginLeft: Infinity,
+    lastOutputWasBullet: false,
+  };
 
   for (const node of nodes) {
     if (node.nodeType === 3) {
-      const text = node.textContent;
-      if (text.trim()) {
-        lastOutputWasBullet = false;
-        out.push(text);
+      if (node.textContent.trim()) {
+        state.lastOutputWasBullet = false;
+        out.push(node.textContent);
       }
       continue;
     }
@@ -420,187 +616,57 @@ function processBlockNodes(nodes, out) {
     const tag = node.tagName;
 
     if (tag === "UL" || tag === "OL") {
-      // Share one counter object across all top-level lists in this text box
-      // so that PowerPoint's split lists (separated into distinct <ol>/<ul>
-      // blocks, often with only whitespace between) continue numbering
-      // instead of restarting. A list continues only when the immediately
-      // preceding top-level block was a list of the same type.
-      const reset = !(lastListType && lastListType === tag);
-      // Join the list tightly onto a preceding bullet paragraph or list.
-      tightenPreviousBullet(out, lastOutputWasBullet);
+      const reset = !(state.lastListType && state.lastListType === tag);
+      tightenPreviousBullet(out, state.lastOutputWasBullet);
       processList(node, 0, out, counters, { reset });
       out.push("\n");
-      lastOutputWasBullet = true;
-      lastListType = tag;
-      lastWasOl = tag === "OL";
-      minMarginLeft = Infinity;
+      state.lastOutputWasBullet = true;
+      state.lastListType = tag;
+      state.lastWasOl = tag === "OL";
+      state.minMarginLeft = Infinity;
       continue;
-    } else if (tag !== "P" && tag !== "DIV" && tag !== "LI") {
-      // Non-list blocks break the continuation chain, except for <p>/<div>
-      // which are common sub-item formatting between split lists in PPTX,
-      // and <li> which are standalone list items from CSS bullet detection.
-      lastListType = null;
-      lastWasOl = false;
-      minMarginLeft = Infinity;
+    }
+    // Non-list blocks break the list continuation chain.
+    if (tag !== "P" && tag !== "DIV" && tag !== "LI") {
+      state.lastListType = null;
+      state.lastWasOl = false;
+      state.minMarginLeft = Infinity;
     }
 
-    // Standalone <li> (from CSS bullet detection) — treat as a list item
     if (tag === "LI") {
-      const inline = [];
-      processInlineNodes(node.childNodes, inline);
-      // The <li> provides the "- " marker, so drop any literal bullet glyph
-      // that the author also typed ("- • item" -> "- item"), and skip items
-      // whose remaining content is marker-only ("- -" residue). Divider items
-      // ("---") are kept as list items with their markers escaped — kept
-      // verbatim they would be misread as a divider by formatTextElement,
-      // and mergeAdjacentMarkers would mangle "* * *".
-      const rawItem = inline.join("").trim();
-      const merged = isDividerLine(rawItem)
-        ? rawItem.replace(/[-*]/g, (marker) => `\\${marker}`)
-        : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
-      if (merged && !isMarkerOnly(merged)) {
-        // Determine nesting depth from margin-left on the inner <p>.
-        // Items with margin-left significantly larger than the minimum are
-        // sub-bullets (e.g. "Thursdays" at margin-left 54pt under "Lectures"
-        // at margin-left 18pt).
-        let indent = lastWasOl ? "   " : "";
-        if (!indent) {
-          const innerP = node.querySelector("p");
-          if (innerP) {
-            const pStyle = innerP.getAttribute("style") || "";
-            const mlMatch = pStyle.match(/margin-left:\s*([\d.]+)pt/);
-            if (mlMatch) {
-              const ml = parseFloat(mlMatch[1]);
-              if (ml < minMarginLeft) minMarginLeft = ml;
-              if (minMarginLeft !== Infinity && ml > minMarginLeft + 5) {
-                indent = "   ";
-              }
-            }
-          }
-        }
-        // Join the item tightly onto a preceding bullet paragraph or list.
-        tightenPreviousBullet(out, lastOutputWasBullet);
-        out.push(indent + "- " + merged + "\n");
-        lastOutputWasBullet = true;
-      }
+      state.lastOutputWasBullet = processListItem(node, out, state);
       continue;
     }
 
     if (tag === "TABLE") {
-      lastOutputWasBullet = false;
+      state.lastOutputWasBullet = false;
       continue;
     }
 
     if (tag === "PRE") {
       const text = node.textContent || "";
-      if (text.trim()) {
-        out.push("```\n" + text + "\n```\n\n");
-      }
-      lastOutputWasBullet = false;
+      if (text.trim()) out.push("```\n" + text + "\n```\n\n");
+      state.lastOutputWasBullet = false;
       continue;
     }
 
     if (tag === "P" || tag === "DIV") {
-      // Detect headings by font size — use band-specific heading level
-      // but only if the text is short enough to be a heading. This must
-      // run before the monospace/code check, because a heading-sized
-      // text in a monospace font (e.g. "Behold the ancient ASCII table"
-      // rendered in Courier at 40pt) is a heading, not inline code.
-      // Exception: an all-monospace paragraph that looks like a code line
-      // (def, return, print, etc.) is code, not a heading — PPTX code
-      // examples are often rendered at 28-32pt, which overlaps the ###
-      // band. The code check below handles it.
-      const headingFontSize = getLargestFontSize(node);
-      const headingBand = HEADING_BANDS.find((b) => headingFontSize >= b.min);
-      const looksLikeCodeLine =
-        isAllMonospace(node) && CODE_LINE_PATTERN.test(node.textContent || "");
-      if (headingBand && !looksLikeCodeLine) {
-        const headingInline = [];
-        // Use code mode so monospace spans don't get wrapped in backticks —
-        // a heading rendered in Courier is still a heading, not inline code.
-        processInlineNodes(node.childNodes, headingInline, { code: true });
-        const headingRaw = headingInline.join("");
-        const headingTrimmed = normalizeBulletGlyphs(mergeAdjacentMarkers(headingRaw)).trim();
-        if (
-          headingTrimmed &&
-          !isBulletLine(headingTrimmed) &&
-          !isMarkerOnly(headingTrimmed) &&
-          headingTrimmed.length <= 80
-        ) {
-          lastOutputWasBullet = false;
-          out.push(`${headingBand.prefix}${headingTrimmed}\n\n`);
-          continue;
-        }
-      }
-      // A paragraph whose content is entirely monospace is code. Render it as
-      // a verbatim code line (no per-run inline-code markers, no bullet or
-      // marker rewriting) so highlighted multi-run code and leading indentation
-      // survive. Consecutive such paragraphs are grouped into a fenced block by
-      // assembleOutput. Mixed paragraphs (prose + inline code) fall through to
-      // the normal inline handling below.
-      const allMono = isAllMonospace(node);
-      if (allMono) {
-        const codeInline = [];
-        processInlineNodes(node.childNodes, codeInline, { code: true });
-        const codeLine = codeInline.join("").replace(/[ \t\u00a0]+$/, "");
-        if (codeLine) {
-          lastOutputWasBullet = false;
-          out.push({ code: codeLine });
-        }
-        continue;
-      }
-      const inline = [];
-      processInlineNodes(node.childNodes, inline);
-      // Turn literal bullet glyphs into markdown bullets, and skip paragraphs
-      // that contain only a leftover marker (empty text boxes). Divider lines
-      // ("---", "- - -", "* * *") are kept verbatim — mergeAdjacentMarkers
-      // would mangle "* * *" — and converted to "***" by formatTextElement.
-      const rawJoined = inline.join("");
-      const isDivider = isDividerLine(rawJoined.trim());
-      let merged = isDivider
-        ? rawJoined.trim()
-        : normalizeBulletGlyphs(mergeAdjacentMarkers(rawJoined));
-      const trimmed = merged.trim();
-      const isResidue = isMarkerOnly(trimmed) && !isDivider;
-      if (trimmed && !isResidue) {
-        // Escape # at start of lines so PPTX text like "# Print using..."
-        // is preserved as literal text. Skip lines inside fenced code blocks
-        // and lines starting with backticks (inline code).
-        const lines = merged.split("\n");
-        let inCodeBlock = false;
-        merged = lines
-          .map((line) => {
-            const t = line.trim();
-            if (t === "```") {
-              inCodeBlock = !inCodeBlock;
-              return line;
-            }
-            if (inCodeBlock || /^`/.test(t)) return line;
-            return line.replace(/^#/gm, "\\#");
-          })
-          .join("\n");
-        const isGlyphBullet = isBulletLine(trimmed) && !isDivider;
-        // Consecutive glyph-bullet paragraphs must form a tight list: drop
-        // the previous bullet's trailing blank line so markdown-it does not
-        // wrap every item in <p> like real PowerPoint bullets would.
-        if (isGlyphBullet) tightenPreviousBullet(out, lastOutputWasBullet);
-        out.push(merged + "\n\n");
-        lastOutputWasBullet = isGlyphBullet;
-      }
+      state.lastOutputWasBullet = processParagraph(node, out, headingCtx, state);
       continue;
     }
 
     if (tag === "BR") {
-      lastOutputWasBullet = false;
+      state.lastOutputWasBullet = false;
       out.push("\n");
       continue;
     }
 
+    // Fallback: inline any other element.
     const inline = [];
     processInlineNodes(node.childNodes, inline);
     const merged = mergeAdjacentMarkers(inline.join(""));
     if (merged.trim()) {
-      lastOutputWasBullet = false;
+      state.lastOutputWasBullet = false;
       out.push(merged + "\n\n");
     }
   }
@@ -691,16 +757,9 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
         processInlineNodes([cn], inline);
       }
     }
-    // The list marker is provided by the <li>, so drop literal bullet glyphs
-    // the author typed as text, and skip items with no content left. Divider
-    // items ("---") are kept as list items with their markers escaped — kept
-    // verbatim they would be misread as a divider by formatTextElement, and
-    // mergeAdjacentMarkers would mangle "* * *".
-    const rawItem = inline.join("").trim();
-    const merged = isDividerLine(rawItem)
-      ? rawItem.replace(/[-*]/g, (marker) => `\\${marker}`)
-      : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
-    if (merged && !isMarkerOnly(merged)) {
+    // Clean the item text: strip literal glyphs, escape dividers, skip residue.
+    const merged = cleanListItemText(inline.join("").trim());
+    if (merged) {
       if (allHeadingSized) {
         counters[depth]++;
         const fontSize = getLargestFontSize(child);

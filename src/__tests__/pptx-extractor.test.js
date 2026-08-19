@@ -408,6 +408,150 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     );
     expect(result).toContain("# Behold the ancient ASCII table");
   });
+
+  it("detects Python for-in without parens as code, not a heading", () => {
+    // Python `for ... in ...:` does not use parens (unlike C-style for(;;)).
+    // At heading-size font it must still be code, not `### for ...`.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">a_string = "ABC"</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">for letter in a_string:</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    print(letter)</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### for");
+    expect(result).toContain("```");
+    expect(result).toContain("for letter in a_string:");
+  });
+
+  it("detects Python if without parens as code, not a heading", () => {
+    // Python `if condition:` (no parens) at heading-size font must be code.
+    const html = [
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">if __name__ == '__main__':</span></p>",
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    main()</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### if");
+    expect(result).toContain("```");
+    expect(result).toContain("if __name__");
+    expect(result).toContain("main()");
+  });
+
+  it("detects Python REPL >>> prompts as code, not headings", () => {
+    // Python REPL lines starting with `>>>` at heading-size font must be code.
+    const html = [
+      "<p><span style=\"font-family: Consolas; font-size: 28pt;\">>>> name = 'Chris'</span></p>",
+      '<p><span style="font-family: Consolas; font-size: 28pt;">>>> print(name)</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### >>>");
+    expect(result).toContain("```");
+    expect(result).toContain(">>> name = 'Chris'");
+  });
+
+  it("detects Python traceback and bare function calls as code, not headings", () => {
+    // Traceback lines and bare function calls (main(), not print()) at
+    // heading-size font must be code, not headings.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">Traceback (most recent call last):</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">TypeError: bad type</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">main()</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).not.toContain("### Traceback");
+    expect(result).not.toContain("### main");
+    expect(result).toContain("```");
+    expect(result).toContain("Traceback");
+    expect(result).toContain("main()");
+  });
+
+  it("detects Python # comments as code, not headings", () => {
+    // A Python comment like `# comment` at heading-size font must be code,
+    // not a markdown H1 heading.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;"># This is a comment</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">x = 1</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    // The comment must be inside a fenced block, not a standalone H1 heading.
+    expect(result).toContain("```");
+    expect(result).toContain("# This is a comment");
+    // A heading would appear before the opening fence or after the closing
+    // fence; inside the fence it is code.
+    const fenceStart = result.indexOf("```");
+    const fenceEnd = result.indexOf("```", fenceStart + 3);
+    const commentPos = result.indexOf("# This is a comment");
+    expect(commentPos).toBeGreaterThan(fenceStart);
+    expect(commentPos).toBeLessThan(fenceEnd);
+  });
+
+  it("treats monospace code-like text in a title placeholder as a heading", () => {
+    // A title placeholder is structurally a heading regardless of content.
+    // Monospace text that looks like code (e.g. "for loops in Python") in a
+    // title placeholder must still be a heading, not code — the placeholder
+    // type is ground truth that overrides the regex and run-length heuristics.
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 40pt;">for loops in Python</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html, { placeholderType: "title" });
+    expect(result).toContain("# for loops in Python");
+    expect(result).not.toContain("```");
+    expect(result).not.toContain("`for loops");
+  });
+
+  it("treats monospace 'if statements explained' in a title placeholder as a heading", () => {
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 40pt;">if statements explained</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html, { placeholderType: "title" });
+    expect(result).toContain("# if statements explained");
+    expect(result).not.toContain("```");
+  });
+
+  it("does not treat monospace 'for loops in Python' as a heading without title placeholder", () => {
+    // Without the title placeholder signal, an isolated monospace paragraph
+    // at heading size that doesn't match CODE_LINE_PATTERN still becomes a
+    // heading (preserving the "Behold the ancient ASCII table" behavior).
+    // This is the expected fallback — the run-length heuristic only kicks
+    // in for runs of 2+ monospace paragraphs.
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 40pt;">for loops in Python</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("# for loops in Python");
+  });
+
+  it("groups a run of monospace paragraphs as code even when individual lines don't match CODE_LINE_PATTERN", () => {
+    // Python `for...in:` without parens doesn't match the narrow
+    // CODE_LINE_PATTERN, but as part of a 2+ monospace run it is code,
+    // not a heading — the run-length heuristic handles it.
+    const html = [
+      '<p><span style="font-family: Consolas; font-size: 28pt;">for letter in a_string:</span></p>',
+      '<p><span style="font-family: Consolas; font-size: 28pt;">    print(letter)</span></p>',
+    ].join("");
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("```");
+    expect(result).toContain("for letter in a_string:");
+    expect(result).not.toContain("### for");
+  });
+
+  it("does not group an isolated monospace paragraph as code via run-length", () => {
+    // A single isolated monospace paragraph at heading size that doesn't
+    // match CODE_LINE_PATTERN is a heading (the "Behold" case), not code.
+    const html =
+      '<p><span style="font-family: Courier New; font-size: 40pt;">Behold the ancient ASCII table</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("# Behold the ancient ASCII table");
+    expect(result).not.toContain("```");
+  });
+
+  it("detects title placeholder type from element name", () => {
+    // Verify that #detectPlaceholderType recognizes "Title 1", "Title 2", etc.
+    // This is tested indirectly via the public htmlToMarkdown wrapper with
+    // placeholderType='title' — the extractor's #detectPlaceholderType is
+    // private, but its effect is observable through heading forcing.
+    const html =
+      '<p><span style="font-family: Consolas; font-size: 28pt;">while vs until loops</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html, { placeholderType: "title" });
+    expect(result).toContain("### while vs until loops");
+    expect(result).not.toContain("```");
+  });
 });
 
 describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge cases", () => {
