@@ -27,6 +27,10 @@ import { trimTransparentMargins } from "./pptx-image-converter.js";
 import { sanitizeCssColor } from "./pptx-color-utils.js";
 import { cropSlideToDiagram, parsePresentation } from "./pptx-diagram-cropper.js";
 
+/** Detect WebKit-based Safari (macOS / iOS).  Excludes Chrome/Edge on those platforms. */
+const isSafari =
+  typeof navigator !== "undefined" && /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
 /** Points-to-pixels scale (72 points = 96 pixels at 96 DPI). */
 const PT_TO_PX = 96 / 72;
 
@@ -419,7 +423,11 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
       }
 
       let dataUrl = null;
-      const canCrop = pptxBuffer && !el.fromGroup && el.width != null && el.height != null;
+      // Safari's WebKit can hang inside html-to-image when rasterizing slides
+      // that contain image-filled shapes, so we skip the high-fidelity crop
+      // path there and use the SVG builder instead.
+      const canCrop =
+        !isSafari && pptxBuffer && !el.fromGroup && el.width != null && el.height != null;
       if (canCrop) {
         try {
           const presentation = await getPresentation();

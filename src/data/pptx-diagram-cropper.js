@@ -36,6 +36,9 @@ const CROP_PADDING_PT = 15;
  * extractor's point-based coordinates and the renderer's pixel-based ones. */
 const POSITION_TOLERANCE_PX = 3;
 
+/** How long to wait for html-to-image rasterization before falling back to SVG. */
+const RASTER_TIMEOUT_MS = 3_000;
+
 /** A pixel counts as opaque content when its alpha is above this value. */
 const MIN_OPAQUE_ALPHA = 32;
 
@@ -101,6 +104,22 @@ let fontsLoadedPromise = null;
  *
  * @returns {Promise<void>}
  */
+function withTimeout(promise, ms, makeError) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(makeError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 async function loadReplacementFonts() {
   if (typeof document === "undefined") return;
 
@@ -680,14 +699,23 @@ export async function cropSlideToDiagram(
     // skipFonts: true prevents html-to-image from trying to embed web fonts
     // (which would fetch and inline @font-face CSS).  The Google Fonts are
     // already loaded in the browser's font cache, so the canvas rendering
-    // will use them correctly.
-    const fullCanvas = await toCanvas(handle.element, {
-      pixelRatio: 1,
-      backgroundColor: undefined,
-      width: fullW,
-      height: fullH,
-      skipFonts: true,
-    });
+    // will use them correctly.  A short timeout prevents Safari from hanging
+    // on image-filled diagrams (html-to-image can stall on those); the caller
+    // falls back to the SVG renderer if this times out.
+    const fullCanvas = await withTimeout(
+      toCanvas(handle.element, {
+        pixelRatio: 1,
+        backgroundColor: undefined,
+        width: fullW,
+        height: fullH,
+        skipFonts: true,
+      }),
+      RASTER_TIMEOUT_MS,
+      () =>
+        new Error(
+          `html-to-image rasterization timed out after ${RASTER_TIMEOUT_MS}ms for slide ${slideIndex}`,
+        ),
+    );
 
     // Compute the crop rectangle in scaled CSS pixels.
     const padPx = Math.round(CROP_PADDING_PT * PT_TO_PX * scale);
