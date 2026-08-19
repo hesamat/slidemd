@@ -61,6 +61,7 @@ Content depth:
 Slide density and overflow prevention:
 
 - One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
+- For long lists or tables that would exceed a single column's line budget, use a multi-column text block (`::: text-block { column-count=2 markdown=true } ... :::`) or a multi-column layout (`two-column`, `three-column`, `left-heavy`, `right-heavy`) and split the content across columns. Do not trim or delete list items or table rows just to fit the budget.
 - Respect these per-area line budgets.
   {{densityBudgets}}
 - Speaker notes are where detail lives: common misconceptions, step-by-step narration, extra examples, and transition scripts should go in `<!-- notes: ... -->`, not on the slide.
@@ -74,7 +75,7 @@ Success criteria:
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
 - No fabricated images: every `<img>` and `background: url(...)` in the output references an image from the input deck or a `reuse:<path>` directive.
-- Each slide's content fits its layout — no area exceeds the density caps above. Trim overflowing content rather than creating extra slides.
+- Each slide's content fits its layout — no area exceeds the density caps above. For overflowing lists or tables, prefer multi-column text blocks or multi-column layouts; only trim content or split into multiple slides when multi-column is not appropriate.
 - The JSON is valid and parseable; use `\n` escapes for line breaks inside the `content` strings.
 
 Input markdown:

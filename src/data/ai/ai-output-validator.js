@@ -991,11 +991,38 @@ export class AiOutputValidator {
 
   /**
    * Count visible content lines, bullets, code lines, and table rows in an
-   * area's raw markdown.
+   * area's raw markdown, scaling multi-column text blocks down by their column
+   * count because their content is flowed across columns and consumes less
+   * vertical space.
    * @param {string} content
    * @returns {{lineCount: number, bulletCount: number, codeLineCount: number, tableRowCount: number}}
    */
   _measureAreaContent(content) {
+    const metrics = this._countAreaContent(content);
+    const blocks = parseTextBlockDirectives(content);
+
+    let rawBlockLines = 0;
+    let scaledBlockLines = 0;
+    for (const block of blocks) {
+      const columnCount = block.settings?.columnCount || 0;
+      if (columnCount > 1) {
+        const blockMetrics = this._countAreaContent(block.content);
+        rawBlockLines += blockMetrics.lineCount;
+        scaledBlockLines += Math.max(1, Math.ceil(blockMetrics.lineCount / columnCount));
+      }
+    }
+
+    metrics.lineCount = Math.max(0, metrics.lineCount - rawBlockLines + scaledBlockLines);
+    return metrics;
+  }
+
+  /**
+   * Raw count of visible content lines, bullets, code lines, and table rows.
+   * Does not apply multi-column scaling; that is handled by `_measureAreaContent`.
+   * @param {string} content
+   * @returns {{lineCount: number, bulletCount: number, codeLineCount: number, tableRowCount: number}}
+   */
+  _countAreaContent(content) {
     const lines = content.split("\n");
     let lineCount = 0;
     let bulletCount = 0;

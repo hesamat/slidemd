@@ -339,6 +339,89 @@ Footer`;
     }
   });
 
+  describe("multi-column text block overflow relaxation", () => {
+    it("passes a long list inside a two-column text block", () => {
+      const bullets = Array.from({ length: 20 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=2 markdown=true }
+${bullets}
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("passes a long table inside a two-column text block", () => {
+      const rows = Array.from({ length: 16 }, (_, i) => `| Cell ${i + 1}A | Cell ${i + 1}B |`).join(
+        "\n",
+      );
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=2 markdown=true }
+| Header A | Header B |
+| --- | --- |
+${rows}
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("still flags an overflowing list not in a multi-column text block", () => {
+      const bullets = Array.from({ length: 20 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+${bullets}`;
+      const result = validate("", output, "generate");
+      expect(result.errors.some((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toBe(true);
+    });
+
+    it("does not apply scaling to a text block with column-count=1", () => {
+      const bullets = Array.from({ length: 20 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=1 markdown=true }
+${bullets}
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.some((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toBe(true);
+    });
+
+    it("scales with column-count=3 for very long lists", () => {
+      const bullets = Array.from({ length: 30 }, (_, i) => `- Item ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+
+::: text-block { column-count=3 markdown=true }
+${bullets}
+:::`;
+      const result = validate("", output, "generate");
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+  });
+
   describe("addSpeakerNotes intent", () => {
     const slideWithNotes = (notes) => `layout: header-content
 
