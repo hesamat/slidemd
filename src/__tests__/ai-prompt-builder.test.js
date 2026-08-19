@@ -98,6 +98,12 @@ describe("buildDeckSummary", () => {
     expect(summary).toContain("Features: code blocks, diagrams, images");
   });
 
+  it("detects markdown images in the deck-level Features line", () => {
+    const md = "layout: header-content\n@main\n![Chart](chart.png)";
+    const summary = buildDeckSummary(md);
+    expect(summary).toContain("Features: images.");
+  });
+
   it("handles single slide", () => {
     const md = "layout: title-slide\n@title\n# Welcome";
     const summary = buildDeckSummary(md);
@@ -272,6 +278,62 @@ describe("buildDeckSummary", () => {
     // Both markers present, image before diagram (matches the meta.push order)
     expect(summary).toContain('image: "Screenshot"');
     expect(summary).toContain('diagram: "Flow A, Flow B"');
+  });
+
+  it("enriched metadata ignores <img> tags inside fenced code blocks", () => {
+    const md = 'layout: header-content\n@main\n```\n<img src="x.png" alt="Code example img">\n```';
+    const summary = buildDeckSummary(md, false, true);
+    // The code block is still marked as code, but the <img> inside it must
+    // not be treated as a real slide visual — the per-slide outline entry
+    // must not carry an image marker or the alt text. (The deck-level
+    // `Features:` line may still say "images" because that check is
+    // fence-unaware; this test scopes to the per-slide entry.)
+    expect(summary).toContain("code");
+    const outlineLine = summary.split("\n").find((l) => l.startsWith("1. "));
+    expect(outlineLine).toBeDefined();
+    expect(outlineLine).not.toContain("image");
+    expect(outlineLine).not.toContain('image: "Code example img"');
+  });
+
+  it("enriched metadata ignores markdown images inside fenced code blocks", () => {
+    const md = "layout: header-content\n@main\n```\n![Code example](x.png)\n```";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("code");
+    const outlineLine = summary.split("\n").find((l) => l.startsWith("1. "));
+    expect(outlineLine).toBeDefined();
+    expect(outlineLine).not.toContain("image");
+    expect(outlineLine).not.toContain('image: "Code example"');
+  });
+
+  it("enriched metadata collapses newlines in multiline <img> alt text", () => {
+    const md = 'layout: header-content\n@main\n<img src="x.png"\n alt="Multi\nline\nalt">';
+    const summary = buildDeckSummary(md, false, true);
+    // The outline entry must stay on a single line — newlines in the alt
+    // text are collapsed to spaces so the per-slide entry is not split
+    // across lines and confuse the planning AI's outline parsing.
+    expect(summary).toContain('image: "Multi line alt"');
+    const outlineLine = summary.split("\n").find((l) => l.startsWith("1. "));
+    expect(outlineLine).toContain('image: "Multi line alt"');
+  });
+
+  it("enriched metadata falls back to bare diagram marker for [Diagram:] with no label", () => {
+    const md = "layout: header-content\n@main\n[Diagram:]";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("diagram");
+    expect(summary).not.toContain("diagram: ");
+  });
+
+  it("enriched metadata lists all diagram labels when a slide has multiple [Diagram: ...] markers", () => {
+    const md = "layout: header-content\n@main\n[Diagram: Flow A]\nmore text\n[Diagram: Flow B]";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain('diagram: "Flow A", "Flow B"');
+  });
+
+  it("enriched metadata falls back to bare diagram marker when all diagram labels are empty", () => {
+    const md = "layout: header-content\n@main\n[Diagram: ]\n[Diagram: ]";
+    const summary = buildDeckSummary(md, false, true);
+    expect(summary).toContain("diagram");
+    expect(summary).not.toContain("diagram: ");
   });
 });
 

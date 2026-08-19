@@ -10,7 +10,7 @@
  */
 
 import { MarkdownParser } from "../markdown-parser.js";
-import { parseAllImages } from "../image-markdown-parser.js";
+import { parseAllImagesOutsideFences } from "../image-markdown-parser.js";
 import {
   composeMessages,
   extractVariant,
@@ -166,7 +166,11 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
       // outline compact; double quotes are stripped (not escaped) so the
       // `image: "..."` envelope stays unambiguous — alt text is advisory
       // signal for planning, not a verbatim string the model must echo.
-      const slideImages = parseAllImages(slide);
+      // Use the fence-aware parser so `<img>`/`![alt](src)` inside fenced
+      // code samples (common in technical decks) are not mistaken for real
+      // slide visuals — the old fence-unaware `/<img/.test(slide)` check
+      // could not distinguish them.
+      const slideImages = parseAllImagesOutsideFences(slide);
       const imageAlts = slideImages
         .map((img) => {
           if (img.type === "html") {
@@ -174,7 +178,10 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
           }
           return img.fullMatch.match(/!\[([^\]]*)\]/)?.[1] || "";
         })
-        .map((a) => a.trim().replace(/"/g, "").slice(0, 60))
+        // Collapse internal whitespace (including newlines from multiline
+        // `<img>` tags) to a single space so the outline entry stays on
+        // one line; strip double quotes and truncate to 60 chars.
+        .map((a) => a.trim().replace(/\s+/g, " ").replace(/"/g, "").slice(0, 60))
         .filter((a) => a.length > 0);
       if (imageAlts.length > 0) {
         const quoted = imageAlts.map((a) => `"${a}"`).join(", ");
@@ -185,12 +192,21 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
       // Extract diagram labels from [Diagram: ...] markers so the planning
       // AI knows what the diagram depicts without seeing the rendered
       // visual. Truncate to 60 chars and strip double quotes for the same
-      // reasons as image alt text above.
-      const diagramMatch = slide.match(/\[Diagram:\s*([^\]]+)\]/);
-      if (diagramMatch) {
-        const labels = diagramMatch[1].trim().replace(/"/g, "").slice(0, 60);
-        if (labels.length > 0) {
-          meta.push(`diagram: "${labels}"`);
+      // reasons as image alt text above. The `\s*` after the colon accepts
+      // the degenerate `[Diagram:]` (no label) — matched by the
+      // `[^\]]*` (zero-or-more) capture — which falls back to the bare
+      // `diagram` marker so the deck-level `Features: diagrams` line and
+      // the per-slide marker stay consistent. A slide may contain more
+      // than one diagram marker; the global regex collects all labels in
+      // document order so none are silently dropped.
+      const diagramMatches = [...slide.matchAll(/\[Diagram:\s*([^\]]*)\]/g)];
+      if (diagramMatches.length > 0) {
+        const diagramLabels = diagramMatches
+          .map((m) => m[1].trim().replace(/\s+/g, " ").replace(/"/g, "").slice(0, 60))
+          .filter((l) => l.length > 0);
+        if (diagramLabels.length > 0) {
+          const quoted = diagramLabels.map((l) => `"${l}"`).join(", ");
+          meta.push(`diagram: ${quoted}`);
         } else {
           meta.push("diagram");
         }
@@ -202,7 +218,12 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
 
   const hasCode = slides.some((s) => /```/.test(s));
   const hasDiagrams = slides.some((s) => /\[Diagram:/.test(s));
-  const hasImages = slides.some((s) => /<img/.test(s));
+  // Detect both HTML `<img>` and markdown `![alt](src)` image syntax so a
+  // deck with only markdown images is still flagged in the `Features:` line.
+  // This is fence-unaware (consistent with the pre-existing `hasCode` and
+  // `hasDiagrams` checks here) — the deck-level feature line is a rough
+  // signal, not a precise count.
+  const hasImages = slides.some((s) => /<img|!\[[^\]]*\]\([^)]*\)/.test(s));
   const uniqueLayouts = [
     ...new Set(
       slides.map((s) => {
