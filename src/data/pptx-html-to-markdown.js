@@ -34,7 +34,7 @@ const MONOSPACE_PATTERN =
 // Covers C-style control flow (if/for/while with parens), Python REPL
 // prompts (`>>>`, `...`), and traceback lines — all unambiguously code.
 const CODE_LINE_PATTERN =
-  /^\s*(>>>|\.\.\.|def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|<\/?\w+>|f['"]|Traceback|File\s+"|\w+\s*[=:]\s*\S|\w+\.\w+\(|\w+\[)/;
+  /^\s*(>>>|\.{3}|def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|elif\s|else\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|print\s*\(|console\.|self\.|this\.|<\/?\w+>|f['"]|Traceback|File\s+"|\w+\s*[=:]\s*\S|\w+\.\w+\(|\w+\[)/;
 
 // Bullet glyphs PowerPoint authors sometimes type as literal text runs.
 // Matches a leading glyph followed by whitespace, end of line, or any other
