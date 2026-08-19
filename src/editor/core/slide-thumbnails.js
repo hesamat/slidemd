@@ -10,7 +10,7 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
-import { formatShortcut } from "../../engine/keyboard-shortcuts.js";
+import { formatShortcut } from "../../core/keyboard-shortcuts.js";
 import { Logger } from "../../core/logger.js";
 
 // Touch long-press: how long (in ms) the user must hold a thumbnail

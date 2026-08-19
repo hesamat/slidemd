@@ -8,7 +8,6 @@
 import { AssetLoader } from "../core/asset-loader.js";
 import { MarkdownParser } from "./markdown-parser.js";
 import { safeString, getDeckId, DESIGN_SIZE } from "../core/utils.js";
-import { Notification } from "../renderer/notification.js";
 import { Logger } from "../core/logger.js";
 
 /** @class */
@@ -198,7 +197,6 @@ export class DeckLoader {
       );
     } catch (e) {
       Logger.error("Failed to load example deck:", e);
-      Notification.error("Could not load example deck");
     }
   }
 

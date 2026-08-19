@@ -455,7 +455,7 @@ export function cropIsBlank(ctx, width, height) {
  * diagram crops in a single import (zip parsing is the dominant cost).
  *
  * @param {ArrayBuffer|Uint8Array} pptxBuffer
- * @returns {Promise<import('@aiden0z/pptx-renderer').Presentation>}
+ * @returns {Promise<object>} Parsed PPTX presentation (vendor type mapped at boundary).
  */
 export async function parsePresentation(pptxBuffer) {
   const parsed = await parseZip(pptxBuffer, RECOMMENDED_ZIP_LIMITS);

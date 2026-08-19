@@ -6,8 +6,6 @@
 import { Notification } from "../renderer/notification.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
-import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
-import { ImagePicker } from "../editor/image/image-picker.js";
 import { DraftManager } from "../core/draft-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { uploadImagesInBatches } from "../core/image-batch-uploader.js";
@@ -19,19 +17,32 @@ export class PptxImporter {
    * @param {object} opts
    * @param {object} opts.reloadManager - Deck reload manager
    * @param {Function} opts.toggleEditMode - Toggle edit mode callback
+   * @param {object} [opts.conversionModal] - Conversion modal (editor layer, injected)
+   * @param {object} [opts.deckImagesResolver] - Deck images resolver (editor layer, injected)
+   * @param {object} [opts.imagePicker] - Image picker (editor layer, injected)
    */
-  constructor({ reloadManager, toggleEditMode }) {
+  constructor({
+    reloadManager,
+    toggleEditMode,
+    conversionModal = null,
+    deckImagesResolver = null,
+    imagePicker = null,
+  }) {
     this._reloadManager = reloadManager;
     this._toggleEditMode = toggleEditMode;
+    this._conversionModal = conversionModal;
+    this._deckImagesResolver = deckImagesResolver;
+    this._imagePicker = imagePicker;
   }
 
   async import() {
-    const { ConversionModal } = await import("../editor/conversion-modal.js");
-    const result = await ConversionModal.show();
+    const modal = this._conversionModal;
+    if (!modal) return;
+    const result = await modal.show();
     if (!result || !result.markdown) return;
 
     // Close the conversion modal
-    ConversionModal.close();
+    modal.close();
 
     let { markdown, images, deckName } = result;
 
@@ -82,9 +93,9 @@ export class PptxImporter {
       // Flush cached images so the new deck doesn't show stale thumbnails.
       // PPTX images are served from the upload temp dir, not the previous
       // .md deck's on-disk folder.
-      DeckImagesResolver.clearDirectoryHandle();
-      DeckImagesResolver.invalidateCache();
-      ImagePicker.clearImageCache();
+      this._deckImagesResolver?.clearDirectoryHandle();
+      this._deckImagesResolver?.invalidateCache();
+      this._imagePicker?.clearImageCache();
 
       loading.updateProgress(70);
 

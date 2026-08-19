@@ -418,7 +418,7 @@ When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleAppl
 
 ### Source Structure (`src`)
 
-- **core/** — Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config)
+- **core/** — Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config, keyboard-shortcuts)
 - **data/** — Data parsing (layout-data, layout-parser, markdown-parser, image-markdown-parser, deck-loader, layouts.json)
 - **editor/** — Live editing features
 
@@ -534,7 +534,7 @@ export class NewModule {
 - **Modify deck content:** Edit `docs/example/slides.md`
 - **Change build input:** Update argument in `tools/build.mjs`
 - **Add a rendering feature:** Enhance `src/renderer/content-enhancer.js` or `src/renderer/slide-renderer.js`
-- **Add or change a keyboard shortcut:** Update `src/engine/keyboard-shortcuts.js`, then run the quality gates.
+- **Add or change a keyboard shortcut:** Update `src/core/keyboard-shortcuts.js`, then run the quality gates.
 - **Release a version:** Follow `docs/RELEASING.md`. Feature branches stay code-only (no `package.json` version bump, no `CHANGELOG.md` edit); release content (version, changelog, `npm update` lockfile) goes on a `release/X.Y.Z` branch off `main` merged via its own PR, then tagged `vX.Y.Z`.
 
 ---
