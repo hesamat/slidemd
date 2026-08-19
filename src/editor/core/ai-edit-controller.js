@@ -15,9 +15,8 @@ import { AssetLoader } from "../../core/asset-loader.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { copyText, downloadText } from "../../core/clipboard.js";
 import { buildExportablePrompt } from "../../data/ai/ai-prompt-export.js";
-import { AiOutputValidator, collectOwnImageSources } from "../../data/ai/ai-output-validator.js";
+import { AiOutputValidator } from "../../data/ai/ai-output-validator.js";
 import { parseAiResponse, slidesToMarkdown } from "../../data/ai/ai-response-parser.js";
-import { splitSlidesForAi } from "../../data/ai/ai-prompt-builder.js";
 
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
@@ -375,11 +374,11 @@ export class AiEditController {
   /**
    * Import an AI-generated deck markdown produced by an external tool
    * (issue #240). Goes straight to a paste modal that validates the pasted
-   * markdown with the same AiOutputValidator options the in-app flow uses, and
-   * applies it through the same replaceDeck path. The validation strictness
-   * (polish vs. generate) is auto-detected from the pasted slide count: if it
-   * matches the current deck, polish-style validation is used (strict image
-   * sources, skip overflow); otherwise generate-style validation is used.
+   * output structurally (valid layouts, areas, non-empty content) and applies
+   * it through the same replaceDeck path. The output is not compared against
+   * the current deck — the user may have exported the prompt from a different
+   * deck and is replacing the current one entirely. Supports both JSON
+   * responses (the format the exported prompt asks for) and slide markdown.
    */
   async importWholeDeckResult() {
     const { AiImportModal } = await import("../ui/ai-import-modal.js");
@@ -392,23 +391,18 @@ export class AiEditController {
       return;
     }
 
-    // Sync editor state so the validator compares against the live deck.
-    this._prepareStoreOperation();
-    const fullMarkdown = deckStore.toMarkdown();
-    const expectedSlideCount = splitSlidesForAi(fullMarkdown, "generate").length;
-    const ownImageSrcs = collectOwnImageSources(fullMarkdown);
-
-    // Build the validator. The validation mode (polish vs. generate) is
-    // auto-detected from the pasted slide count: if it matches the current
-    // deck, use polish-style validation (strict image sources, skip overflow
-    // warnings); otherwise use generate-style validation (loose images, check
-    // overflow). This replaces the former options modal step.
+    // The import flow validates the pasted output structurally (valid layouts,
+    // valid area names, non-empty content, parseable) but does NOT compare it
+    // against the current deck. The user may have exported the prompt from a
+    // different deck and is replacing the current one entirely — enforcing
+    // slide count or image-source parity against the current deck would reject
+    // legitimate cross-deck imports.
     //
     // The external AI may return either JSON (the format the exported prompt
     // asks for) or slide markdown (some models ignore format instructions).
     // We parse the response with parseAiResponse (which handles both) and
     // convert to slide markdown for validation and application.
-    const validator = new AiOutputValidator({ inputMarkdown: fullMarkdown });
+    const validator = new AiOutputValidator({ inputMarkdown: "" });
     let lastConvertedMarkdown = null;
     const validate = (text) => {
       // Try parsing as an AI JSON response first; fall back to raw text if
@@ -421,14 +415,15 @@ export class AiEditController {
         markdown = text;
       }
       lastConvertedMarkdown = markdown;
-      const pastedSlideCount = splitSlidesForAi(markdown, "generate").length;
-      const isPolish = pastedSlideCount === expectedSlideCount;
+      // Structural validation only: no expected slide count, no image-source
+      // restrictions, no identity enforcement. The validator still checks
+      // layouts, areas, non-empty content, and basic schema rules.
       return validator.validate(markdown, "generate", {
-        expectedSlideCount,
-        skipOverflow: isPolish,
+        expectedSlideCount: undefined,
+        skipOverflow: true,
         enforcePreserveIdentity: false,
-        restrictImageSources: isPolish,
-        allowedImageSrcs: isPolish ? ownImageSrcs : undefined,
+        restrictImageSources: false,
+        allowedImageSrcs: undefined,
         onlyExplicitImageSources: false,
         visualSystem: undefined,
       });
