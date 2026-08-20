@@ -46,6 +46,9 @@ export class AiGenerateModal {
    *   Invoked when the user clicks "Copy prompt" or "Download prompt". The modal
    *   stays open after a successful export (the user closes it via Cancel or
    *   Generate). On error, an inline message is shown and the modal stays open.
+   * @param {() => void|Promise<void>} [opts.onImport] — invoked when the user
+   *   clicks "Import AI result" from the export panel. The generate modal
+   *   closes first so the import modal can open without stacking.
    * @returns {Promise<GenerateOptions|null>}
    */
   static show(markdown, opts = {}) {
@@ -68,10 +71,23 @@ export class AiGenerateModal {
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
 
+      // Header row: title + close button (matches New Presentation modal).
+      const header = document.createElement("div");
+      header.className = `${P}header`;
+
       const h2 = document.createElement("h2");
       h2.className = `${P}title`;
       h2.textContent = title;
-      dialog.appendChild(h2);
+      header.appendChild(h2);
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = `${P}close`;
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.textContent = "\u00d7";
+      header.appendChild(closeBtn);
+
+      dialog.appendChild(header);
 
       const subtitleP = document.createElement("p");
       subtitleP.className = `${P}subtitle`;
@@ -265,37 +281,71 @@ export class AiGenerateModal {
       cancelBtn.textContent = "Cancel";
       actions.appendChild(cancelBtn);
 
-      // Export section: a single bordered box grouping the guidance note,
-      // size estimate, mode warning, and a split button (Copy / Download).
-      // Only shown when onExport is provided. Kept separate from the action
-      // bar so Generate and Cancel stay clean.
+      // Export: an "Export" button in the action bar that opens a full
+      // overlay panel covering the dialog. The panel has a back button,
+      // guidance note, size estimate, mode warning, and Copy/Download
+      // buttons. Only shown when onExport is provided.
       let copyBtn = null;
       let downloadBtn = null;
       let exportSize = null;
       let exportWarning = null;
+      let exportPanel = null;
+      let exportBtn = null;
       if (opts.onExport) {
-        const exportSection = document.createElement("div");
-        exportSection.className = `${P}export-section`;
+        exportBtn = document.createElement("button");
+        exportBtn.type = "button";
+        exportBtn.className = `${P}btn`;
+        exportBtn.dataset.action = "toggle-export";
+        exportBtn.textContent = "Export";
+        actions.appendChild(exportBtn);
+
+        // Full overlay panel — covers the dialog completely. Uses a
+        // .is-visible class for a slide-in transition.
+        exportPanel = document.createElement("div");
+        exportPanel.className = `${P}export-panel`;
+
+        // Header with back button and title.
+        const exportHeader = document.createElement("div");
+        exportHeader.className = `${P}export-header`;
+
+        const backBtn = document.createElement("button");
+        backBtn.type = "button";
+        backBtn.className = `${P}export-back`;
+        backBtn.dataset.action = "close-export";
+        backBtn.setAttribute("aria-label", "Back to refine options");
+        backBtn.appendChild(document.createTextNode("Back"));
+        exportHeader.appendChild(backBtn);
+
+        const exportTitle = document.createElement("span");
+        exportTitle.className = `${P}export-title`;
+        exportTitle.textContent = "Export prompt";
+        exportHeader.appendChild(exportTitle);
+
+        exportPanel.appendChild(exportHeader);
+
+        // Panel body.
+        const exportBody = document.createElement("div");
+        exportBody.className = `${P}export-body`;
 
         // Guidance note linking export to import.
         const exportNote = document.createElement("p");
         exportNote.className = `${P}export-note`;
         exportNote.textContent =
           "Copy or download the prompt, run it in an external AI tool, then use Import AI result to apply the output.";
-        exportSection.appendChild(exportNote);
+        exportBody.appendChild(exportNote);
 
         // Prompt size estimate.
         exportSize = document.createElement("p");
         exportSize.className = `${P}export-size`;
-        exportSection.appendChild(exportSize);
+        exportBody.appendChild(exportSize);
 
         // Mode-specific warning (remix/reimagine: simplified prompt).
         exportWarning = document.createElement("p");
         exportWarning.className = `${P}export-warning`;
         exportWarning.style.display = "none";
-        exportSection.appendChild(exportWarning);
+        exportBody.appendChild(exportWarning);
 
-        // Split button: Copy + Download side by side.
+        // Copy + Download buttons side by side.
         const exportBtns = document.createElement("div");
         exportBtns.className = `${P}export-btns`;
         copyBtn = document.createElement("button");
@@ -310,9 +360,41 @@ export class AiGenerateModal {
         downloadBtn.dataset.action = "download-prompt";
         downloadBtn.textContent = "Download prompt";
         exportBtns.appendChild(downloadBtn);
-        exportSection.appendChild(exportBtns);
+        exportBody.appendChild(exportBtns);
 
-        dialog.appendChild(exportSection);
+        // Import link — closes the generate modal and opens the import flow.
+        if (opts.onImport) {
+          const importRow = document.createElement("div");
+          importRow.className = `${P}export-import-row`;
+          const importLink = document.createElement("button");
+          importLink.type = "button";
+          importLink.className = `${P}export-import-link`;
+          importLink.dataset.action = "import-ai-result";
+          importLink.textContent = "Import AI result \u2192";
+          importRow.appendChild(importLink);
+          exportBody.appendChild(importRow);
+          importLink.addEventListener("click", () => {
+            close(null, () => opts.onImport());
+          });
+        }
+
+        exportPanel.appendChild(exportBody);
+        dialog.appendChild(exportPanel);
+
+        // Toggle the panel open/closed.
+        const toggleExportPanel = (open) => {
+          exportPanel.classList.toggle(`${P}export-panel--visible`, open);
+          if (open) {
+            updateExportInfo();
+          }
+        };
+        exportBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleExportPanel(true);
+        });
+        backBtn.addEventListener("click", () => {
+          toggleExportPanel(false);
+        });
       }
 
       const primaryBtn = document.createElement("button");
@@ -329,16 +411,25 @@ export class AiGenerateModal {
 
       let settingsOpen = false;
 
-      const close = (result) => {
+      const close = (result, afterClose) => {
         backdrop.remove();
         modalClosed();
         document.removeEventListener("keydown", onKeydown);
         resolve(result);
+        if (typeof afterClose === "function") afterClose();
       };
 
       const onKeydown = (e) => {
-        if (e.key === "Escape" && !settingsOpen) {
-          close(null);
+        if (e.key === "Escape") {
+          // If the export panel is open, close it instead of the modal.
+          if (exportPanel && exportPanel.classList.contains(`${P}export-panel--visible`)) {
+            e.stopPropagation();
+            exportPanel.classList.remove(`${P}export-panel--visible`);
+            return;
+          }
+          if (!settingsOpen) {
+            close(null);
+          }
         }
       };
 
@@ -354,6 +445,7 @@ export class AiGenerateModal {
       backdrop.addEventListener("wheel", onWheel, { passive: true });
 
       cancelBtn.addEventListener("click", () => close(null));
+      closeBtn.addEventListener("click", () => close(null));
 
       const MODE_DESCRIPTIONS = {
         polish:
@@ -399,7 +491,7 @@ export class AiGenerateModal {
       };
 
       // Update the export warning (remix/reimagine) and prompt size estimate.
-      // Called on mode change and initial render.
+      // Called on mode change and when the export section is expanded.
       const updateExportInfo = () => {
         if (!opts.onExport) return;
         const mode = modeSelect.value;
@@ -414,7 +506,9 @@ export class AiGenerateModal {
             exportWarning.style.display = "none";
           }
         }
-        if (exportSize) {
+        // Skip the expensive prompt-size computation when the panel
+        // is closed — the user isn't looking at it.
+        if (exportSize && exportPanel && exportPanel.classList.contains(`${P}export-panel--visible`)) {
           try {
             const options = readOptions();
             const op = createOperation("generate", null, markdown, {
@@ -478,9 +572,9 @@ export class AiGenerateModal {
           const msg = document.createElement("p");
           msg.className = `${P}export-error`;
           msg.textContent = `Could not ${kind === "copy" ? "copy" : "download"} prompt: ${err?.message || err}`;
-          const exportSection = dialog.querySelector(`.${P}export-section`);
-          if (exportSection) {
-            exportSection.appendChild(msg);
+          const exportBody = dialog.querySelector(`.${P}export-body`);
+          if (exportBody) {
+            exportBody.appendChild(msg);
           } else {
             actions.before(msg);
           }

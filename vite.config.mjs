@@ -10,7 +10,7 @@ export default defineConfig({
     },
     server: {
         host: '127.0.0.1',
-        port: Number(process.env.WEBDECK_VITE_PORT) || 8000,
+        port: 8000,
         open: noOpen ? false : '/index.html',
         fs: {
             // Allow serving from symlinked node_modules outside the worktree

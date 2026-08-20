@@ -230,10 +230,12 @@ describe("AiGenerateModal", () => {
     await promise;
   });
 
-  it("shows prompt size estimate when onExport is provided", async () => {
+  it("shows prompt size estimate when export panel is opened", async () => {
     const onExport = () => {};
     const promise = AiGenerateModal.show(BASIC_MD, { onExport });
     const dialog = document.querySelector(".ai-generate-modal__dialog");
+    // Open the export panel by clicking the Export button.
+    dialog.querySelector('[data-action="toggle-export"]').click();
     const size = dialog.querySelector(".ai-generate-modal__export-size");
     expect(size).not.toBeNull();
     expect(size.textContent).toMatch(/characters/);
@@ -241,10 +243,12 @@ describe("AiGenerateModal", () => {
     await promise;
   });
 
-  it("shows remix export warning when mode is remix", async () => {
+  it("shows remix export warning when mode is remix and panel open", async () => {
     const onExport = () => {};
     const promise = AiGenerateModal.show(BASIC_MD, { onExport });
     const dialog = document.querySelector(".ai-generate-modal__dialog");
+    // Open the export panel.
+    dialog.querySelector('[data-action="toggle-export"]').click();
     const modeSelect = dialog.querySelector("#ai-generate-modal__mode");
     modeSelect.value = "remix";
     modeSelect.dispatchEvent(new Event("change"));
@@ -259,6 +263,8 @@ describe("AiGenerateModal", () => {
     const onExport = () => {};
     const promise = AiGenerateModal.show(BASIC_MD, { onExport });
     const dialog = document.querySelector(".ai-generate-modal__dialog");
+    // Open the export panel.
+    dialog.querySelector('[data-action="toggle-export"]').click();
     const warning = dialog.querySelector(".ai-generate-modal__export-warning");
     expect(warning.style.display).toBe("none");
     dialog.querySelector('[data-action="cancel"]').click();

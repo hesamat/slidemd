@@ -348,6 +348,7 @@ export class AiEditController {
         await SettingsModal.show();
       },
       onExport,
+      onImport: () => this.importWholeDeckResult(),
     });
     if (!generateOpts) return; // user cancelled or exported — no API call made
 
