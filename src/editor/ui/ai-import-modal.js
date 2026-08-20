@@ -65,7 +65,6 @@ export class AiImportModal {
 
       const textarea = document.createElement("textarea");
       textarea.className = `${P}textarea`;
-      textarea.rows = 14;
       textarea.placeholder = "Paste the AI-generated slide markdown here…";
       dialog.appendChild(textarea);
 
