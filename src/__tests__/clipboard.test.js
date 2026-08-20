@@ -44,7 +44,8 @@ describe("clipboard", () => {
   });
 
   describe("downloadText", () => {
-    it("creates an anchor with download attribute, clicks it, and revokes the URL", () => {
+    it("creates an anchor with download attribute, clicks it, and revokes the URL after a delay", () => {
+      vi.useFakeTimers();
       const urlSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:fake");
       const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockReturnValue(undefined);
       let captured = null;
@@ -62,8 +63,13 @@ describe("clipboard", () => {
       expect(captured.download).toBe("file.txt");
       expect(captured.href).toBe("blob:fake");
       expect(urlSpy).toHaveBeenCalledOnce();
-      expect(revokeSpy).toHaveBeenCalledOnce();
+      expect(revokeSpy).not.toHaveBeenCalled();
       expect(clickSpy).toHaveBeenCalledOnce();
+
+      vi.advanceTimersByTime(150);
+      expect(revokeSpy).toHaveBeenCalledOnce();
+
+      vi.useRealTimers();
       appendSpy.mockRestore();
       removeSpy.mockRestore();
     });

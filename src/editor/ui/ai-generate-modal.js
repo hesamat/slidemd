@@ -500,8 +500,8 @@ export class AiGenerateModal {
             exportWarning.style.display = "";
             exportWarning.textContent =
               mode === "remix"
-                ? "Note: the exported prompt is a simplified single-call version. The in-app Remix flow uses a two-phase plan→execute process that can't be replicated externally."
-                : "Note: the exported prompt is a simplified single-call version. The in-app Reimagine flow uses a two-phase plan→execute process that can't be replicated externally.";
+                ? "The exported Remix prompt is a single-call version. The in-app flow shows a restructuring plan before executing it; that preview step cannot be replicated in an external AI, so the result may differ from in-app Remix."
+                : "The exported Reimagine prompt is a single-call version. The in-app flow shows a brief and chapter outline before generating; that preview step cannot be replicated in an external AI, so the result may differ from in-app Reimagine.";
           } else {
             exportWarning.style.display = "none";
           }

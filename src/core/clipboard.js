@@ -58,5 +58,8 @@ export function downloadText(text, filename) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Defer revocation so the browser has a chance to start the download before
+  // the blob URL is invalidated. Using a short timeout balances cleanup with
+  // ensuring the download is initiated.
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }

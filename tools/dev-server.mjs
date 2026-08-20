@@ -406,7 +406,11 @@ function isSameOrigin(req) {
   const origin = req.headers.origin;
   const referer = req.headers.referer;
   if (!host) return false;
-  const expected = `http://${host}`;
+  // Honor the actual request scheme so HTTPS dev servers (or reverse proxies)
+  // are not treated as cross-origin. The dev server itself knows whether it
+  // is serving over TLS via req.connection.encrypted.
+  const scheme = req.socket?.encrypted ? "https" : "http";
+  const expected = `${scheme}://${host}`;
   if (origin) return origin === expected;
   if (referer) {
     try {
@@ -459,6 +463,11 @@ function createHandler(format) {
 
     // ── POST /api/deck/reset ──
     if (pathname === "/api/deck/reset" && req.method === "POST") {
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       format = null;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
@@ -514,6 +523,11 @@ function createHandler(format) {
     // ── POST /api/deck/load ──
     // Dynamically load a deck by directory path (e.g., when opening example deck)
     if (pathname === "/api/deck/load" && req.method === "POST") {
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       loadMutex = loadMutex
         .then(async () => {
           try {
@@ -616,6 +630,11 @@ function createHandler(format) {
 
     // ── POST /api/images/clear ──
     if (pathname === "/api/images/clear" && req.method === "POST") {
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       try {
         // Clear both temp upload directories — never touch deck image folders
         const dirsToClear = [
@@ -776,6 +795,11 @@ function createHandler(format) {
 
     // ── POST /api/upload-image ──
     if (pathname === "/api/upload-image" && req.method === "POST") {
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       if (!format) {
         // Auto-initialize a temp images directory so PPTX imports
         // (which upload images before POST /api/deck/load sets format)
@@ -830,6 +854,11 @@ function createHandler(format) {
 
     // ── POST /api/upload-images ──
     if (pathname === "/api/upload-images" && req.method === "POST") {
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       const isPptx = url.searchParams.get("pptx") === "true";
       // PPTX import images go to a dedicated temp directory so they don't
       // pollute the currently-loaded deck's images/ folder.  The client

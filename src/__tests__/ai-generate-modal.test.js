@@ -254,7 +254,7 @@ describe("AiGenerateModal", () => {
     modeSelect.dispatchEvent(new Event("change"));
     const warning = dialog.querySelector(".ai-generate-modal__export-warning");
     expect(warning.style.display).toBe("");
-    expect(warning.textContent).toContain("simplified single-call version");
+    expect(warning.textContent).toContain("single-call version");
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
