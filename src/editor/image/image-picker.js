@@ -482,11 +482,12 @@ export class ImagePicker {
    * Clear the upload zone and show an icon plus a plain-text message.
    * @private
    */
-  static _setUploadMessage(icon, message) {
+  static _setUploadMessage(iconName, message) {
     this.uploadZone.textContent = "";
     const iconDiv = document.createElement("div");
     iconDiv.className = "image-picker-upload-icon";
-    iconDiv.textContent = icon;
+    const svg = icon(iconName, { size: "2xl" });
+    if (svg) iconDiv.appendChild(svg);
     this.uploadZone.appendChild(iconDiv);
     const msg = document.createElement("div");
     msg.textContent = message;
@@ -500,11 +501,11 @@ export class ImagePicker {
   static async _handleUploadFile(file) {
     const allowed = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
     if (!allowed.test(file.name)) {
-      this._setUploadMessage("✗", `Unsupported image type: ${file.name}`);
+      this._setUploadMessage("triangle-alert", `Unsupported image type: ${file.name}`);
       return;
     }
 
-    this._setUploadMessage("⏳", "Uploading…");
+    this._setUploadMessage("refresh-cw", "Uploading…");
 
     try {
       const formData = new FormData();
@@ -530,7 +531,7 @@ export class ImagePicker {
       this._syncInsertButton();
       return;
     } catch (err) {
-      this._setUploadMessage("✗", `Upload failed: ${err.message}`);
+      this._setUploadMessage("triangle-alert", `Upload failed: ${err.message}`);
       const hint = document.createElement("div");
       hint.style.cssText = "opacity: 0.7; margin-top: 4px; font-size: 11px;";
       hint.textContent = "Click to try again.";
