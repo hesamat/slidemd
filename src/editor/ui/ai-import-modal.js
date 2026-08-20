@@ -151,71 +151,77 @@ export class AiImportModal {
         // Show the repair button whenever there are issues to fix.
         repairBtn.style.display = hasErrors || hasWarnings ? "" : "none";
 
-        if (result.ok) {
-          const ok = document.createElement("p");
-          ok.className = `${P}status-ok`;
-          ok.textContent = "Validation passed. Ready to apply.";
-          statusArea.appendChild(ok);
-          if (hasWarnings) {
-            const note = document.createElement("p");
-            note.className = `${P}status-warn`;
-            note.textContent =
-              "Warnings are non-blocking. Apply as-is, or copy the repair prompt to fix them externally.";
-            statusArea.appendChild(note);
-            // Render the warning list so the user can see what the
-            // warnings are before acknowledging them.
-            const heading = document.createElement("p");
-            heading.className = `${P}status-warn`;
-            heading.textContent = `${result.warnings.length} warning(s):`;
-            statusArea.appendChild(heading);
-            const ul = document.createElement("ul");
-            ul.className = `${P}status-list`;
-            for (const w of result.warnings) {
-              const li = document.createElement("li");
-              li.textContent = w.slide != null ? `[slide ${w.slide + 1}] ${w.message}` : w.message;
-              ul.appendChild(li);
+        // Helper to render a list of issues in a card, with slide chips.
+        const renderIssueList = (issues, kind) => {
+          const box = document.createElement("div");
+          box.className = `${P}issue-box ${P}issue-box--${kind}`;
+
+          const title = document.createElement("div");
+          title.className = `${P}issue-box__title`;
+          const label = kind === "error" ? "error" : "warning";
+          const plural = issues.length === 1 ? label : `${label}s`;
+          title.textContent = `${issues.length} ${plural}`;
+          box.appendChild(title);
+
+          const ul = document.createElement("ul");
+          ul.className = `${P}issue-list`;
+          for (const item of issues) {
+            const li = document.createElement("li");
+            li.className = `${P}issue-list__item`;
+
+            if (item.slide != null) {
+              const chip = document.createElement("span");
+              chip.className = `${P}issue-list__chip`;
+              chip.textContent = `Slide ${item.slide + 1}`;
+              li.appendChild(chip);
             }
-            statusArea.appendChild(ul);
+
+            const msg = document.createElement("span");
+            msg.className = `${P}issue-list__message`;
+            msg.textContent = item.message;
+            li.appendChild(msg);
+
+            ul.appendChild(li);
+          }
+          box.appendChild(ul);
+          return box;
+        };
+
+        if (result.ok) {
+          const ok = document.createElement("div");
+          ok.className = `${P}status-banner ${P}status-banner--ok`;
+          ok.textContent = "Validation passed — ready to apply.";
+          statusArea.appendChild(ok);
+
+          if (hasWarnings) {
+            const note = document.createElement("div");
+            note.className = `${P}status-banner ${P}status-banner--warn`;
+            note.textContent =
+              "These warnings are non-blocking. You can still apply, or copy the repair prompt to fix them in your external AI tool.";
+            statusArea.appendChild(note);
+            statusArea.appendChild(renderIssueList(result.warnings, "warning"));
           }
           return;
         }
 
         if (hasErrors) {
-          const heading = document.createElement("p");
-          heading.className = `${P}status-error`;
-          heading.textContent = `${result.errors.length} error(s):`;
-          statusArea.appendChild(heading);
-          const ul = document.createElement("ul");
-          ul.className = `${P}status-list`;
-          for (const e of result.errors) {
-            const li = document.createElement("li");
-            li.textContent = e.slide != null ? `[slide ${e.slide + 1}] ${e.message}` : e.message;
-            ul.appendChild(li);
-          }
-          statusArea.appendChild(ul);
-        }
-
-        if (hasWarnings) {
-          const heading = document.createElement("p");
-          heading.className = `${P}status-warn`;
-          heading.textContent = `${result.warnings.length} warning(s):`;
-          statusArea.appendChild(heading);
-          const ul = document.createElement("ul");
-          ul.className = `${P}status-list`;
-          for (const w of result.warnings) {
-            const li = document.createElement("li");
-            li.textContent = w.slide != null ? `[slide ${w.slide + 1}] ${w.message}` : w.message;
-            ul.appendChild(li);
-          }
-          statusArea.appendChild(ul);
-        }
-
-        if (hasErrors) {
-          const note = document.createElement("p");
-          note.className = `${P}status-warn`;
+          statusArea.appendChild(renderIssueList(result.errors, "error"));
+          const note = document.createElement("div");
+          note.className = `${P}status-banner ${P}status-banner--warn`;
           note.textContent =
             "Fix these errors and paste again, or copy the repair prompt to fix them in your external AI tool.";
           statusArea.appendChild(note);
+        }
+
+        if (hasWarnings) {
+          statusArea.appendChild(renderIssueList(result.warnings, "warning"));
+          if (!hasErrors) {
+            const note = document.createElement("div");
+            note.className = `${P}status-banner ${P}status-banner--warn`;
+            note.textContent =
+              "These warnings are non-blocking. You can still apply, or copy the repair prompt to fix them in your external AI tool.";
+            statusArea.appendChild(note);
+          }
         }
       };
 

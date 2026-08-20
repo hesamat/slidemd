@@ -70,32 +70,89 @@
   padding-right: 8px;
 }
 
-.ai-import-modal__status-ok {
-  margin: 0 0 6px;
+.ai-import-modal__status-banner {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.ai-import-modal__status-banner--ok {
+  background: rgba(22, 163, 74, 0.1);
   color: var(--success, #16a34a);
-  font-weight: 500;
 }
 
-.ai-import-modal__status-error {
-  margin: 0 0 6px;
-  color: var(--danger, #dc2626);
-  font-weight: 500;
-}
-
-.ai-import-modal__status-warn {
-  margin: 0 0 6px;
+.ai-import-modal__status-banner--warn {
+  background: rgba(217, 119, 6, 0.1);
   color: var(--warning, #d97706);
+}
+
+.ai-import-modal__issue-box {
+  border-radius: 8px;
+  border: 1px solid var(--border-medium, #ccc);
+  margin: 0 0 12px;
+  overflow: hidden;
+}
+
+.ai-import-modal__issue-box--error {
+  border-color: var(--danger, #dc2626);
+  background: rgba(220, 38, 38, 0.05);
+}
+
+.ai-import-modal__issue-box--warning {
+  border-color: var(--warning, #d97706);
+  background: rgba(217, 119, 6, 0.05);
+}
+
+.ai-import-modal__issue-box__title {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface-elevated, rgba(248, 250, 252, 0.98));
+  color: var(--text-high, #111);
+  border-bottom: 1px solid var(--border-medium, #ccc);
+}
+
+.ai-import-modal__issue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.ai-import-modal__issue-list__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-high, #111);
+}
+
+.ai-import-modal__issue-list__item:last-child {
+  border-bottom: none;
+}
+
+.ai-import-modal__issue-list__chip {
+  flex: 0 0 auto;
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
   font-weight: 500;
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+  color: var(--text-medium, #666);
+  white-space: nowrap;
 }
 
-.ai-import-modal__status-list {
-  margin: 0 0 6px;
-  padding-left: 20px;
-  color: var(--text-low, #666);
-}
-
-.ai-import-modal__status-list li {
-  margin: 2px 0;
+.ai-import-modal__issue-list__message {
+  flex: 1 1 auto;
+  color: var(--text-high, #111);
 }
 
 .ai-import-modal__actions {
