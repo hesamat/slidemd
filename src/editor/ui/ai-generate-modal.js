@@ -290,7 +290,7 @@ export class AiGenerateModal {
       let exportSize = null;
       let exportWarning = null;
       let exportPanel = null;
-      let exportBtn = null;
+      let exportBtn;
       if (opts.onExport) {
         exportBtn = document.createElement("button");
         exportBtn.type = "button";
