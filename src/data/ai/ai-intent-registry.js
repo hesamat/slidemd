@@ -74,6 +74,7 @@ function composeForIntent(intent, ctx) {
     substitutions.visualStylingNote = buildVisualStylingNote(
       ctx.hasVisualSystem,
       ctx.preserveVisualIdentity,
+      ctx.mode,
     );
     substitutions.densityBudgets = buildDensityBudgets("full");
   }
@@ -120,7 +121,7 @@ export function getBuilder(intent) {
 /**
  * Build messages for an intent.
  * @param {string} intent
- * @param {{ markdown: string }} ctx
+ * @param {{ markdown: string, hasVisualSystem?: boolean, preserveVisualIdentity?: boolean, mode?: string }} ctx
  * @returns {{ system: string, user: string }}
  */
 export function buildMessagesForIntent(intent, ctx) {

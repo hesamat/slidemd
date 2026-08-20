@@ -151,6 +151,7 @@ export class WholeDeckOrchestrator {
             markdown: context,
             hasVisualSystem,
             preserveVisualIdentity: operation.opts?.preserveVisualIdentity,
+            mode: operation.opts?.mode,
           });
     const userText = user + optionsSuffix;
     // When vision images are provided, build multi-modal content so the AI

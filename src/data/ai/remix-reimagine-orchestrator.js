@@ -14,7 +14,7 @@ import {
   buildGenerateOptionsSuffix,
   BATCH_SIZE,
   splitSlidesForAi,
-  stripThemeAndBackground,
+  stripAllVisualIdentity,
   stripVisualIdentity,
   applyVisualSystemIdentity,
 } from "./ai-prompt-builder.js";
@@ -154,7 +154,11 @@ export class RemixReimagineOrchestrator {
     // Default matches #runRemixPlan's `?? true` so the plan prompt and the
     // execute phase can never resolve the option differently.
     const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? true;
-    const planContext = preserveVisualIdentity ? context : stripThemeAndBackground(context);
+    // In discard mode, strip ALL visual identity (theme, background, color,
+    // backgroundColor, area-bg-*) from the source so the execute-phase AI
+    // gets a true blank slate and is free to choose a new professional color
+    // scheme without copying stale identity.
+    const planContext = preserveVisualIdentity ? context : stripAllVisualIdentity(context);
 
     onLog?.(`Planning ${mode} restructure\u2026`);
     const { plan, imagesWereSent } = await this.#runRemixPlan(
@@ -217,7 +221,11 @@ export class RemixReimagineOrchestrator {
       context: virtualDeck,
       opts: {
         ...operation.opts,
-        mode: undefined,
+        // Keep the original mode ("remix") so the prompt builder and options
+        // suffix can choose the right visual-styling/identity guidance. The
+        // WholeDeckOrchestrator only uses `mode` to pick between "polish" and
+        // "generate" fragments, and "remix" falls through to the generate path.
+        mode,
         preserveVisualIdentity,
         enforcePreserveIdentity: false,
         restrictImageSources: true,
@@ -271,16 +279,30 @@ export class RemixReimagineOrchestrator {
     } else if (generatedSlides.length < plan.length) {
       onLog?.(
         `Warning: expected ${plan.length} slide(s), got ${generatedSlides.length} — ` +
-          "falling back to original source slides for missing entries.",
+          "falling back to planned source slides or briefs for missing entries.",
         "warn",
       );
       while (generatedSlides.length < plan.length) {
-        const sources = virtualSourceSlidesByEntry[generatedSlides.length] || [""];
-        // Use only the first source slide for the fallback. A merge entry's
-        // sources contain a `<!-- merge source -->` marker; injecting that
-        // (or a `---` separator) would create an embedded slide boundary and
-        // desynchronize the final deck's slide count.
-        generatedSlides.push(sources[0] || "");
+        const missingIdx = generatedSlides.length;
+        const sources = virtualSourceSlidesByEntry[missingIdx] || [];
+        if (sources.length > 0) {
+          // Use only the first source slide for the fallback. A merge entry's
+          // sources contain a `<!-- merge source -->` marker; injecting that
+          // (or a `---` separator) would create an embedded slide boundary and
+          // desynchronize the final deck's slide count.
+          generatedSlides.push(sources[0]);
+        } else {
+          // `add` entry with no source: build a minimal placeholder from the
+          // brief/title so the final deck has the right number of slides.
+          // Sanitize newlines so a rogue title/brief can't inject a `---`
+          // separator and desynchronize the slide count.
+          const entry = plan[missingIdx];
+          const title = String(entry?.title || "New slide").replace(/\n/g, " ");
+          const brief = String(entry?.brief || title).replace(/\n/g, " ");
+          generatedSlides.push(
+            `layout: header-content\n\n@header\n# ${title}\n\n@main\n- ${brief}`,
+          );
+        }
       }
     }
 
@@ -291,12 +313,12 @@ export class RemixReimagineOrchestrator {
     //   vision payload) and (b) images that belong to their own source
     //   slides. Anything else — e.g. a background image from another slide —
     //   is mechanically removed, matching what validation flags.
-    // In discard mode the identity strip runs first, per slide, so stale
-    // theme/color never survives while image backgrounds (content) do.
+    // In discard mode the source identity was already stripped from the
+    // virtual deck before execution, so the model sees a blank slate. The
+    // returned theme/background/color directives are the model's new visual
+    // direction and must be kept.
     let restoreIdx = 0;
-    const identityStripped = preserveVisualIdentity
-      ? generatedSlides
-      : generatedSlides.map((slide) => stripVisualIdentity(slide));
+    const identityStripped = generatedSlides;
     const cleaned = identityStripped.map((slide) => {
       const sources = virtualSourceSlidesByEntry[restoreIdx] || [];
       restoreIdx++;
@@ -1177,11 +1199,15 @@ export class RemixReimagineOrchestrator {
 
     // Log each plan entry
     for (const entry of plan) {
-      const sourceLabel = entry.source.map((s) => s + 1).join("+");
+      const sourceLabel = entry.source.map((s) => s + 1).join("+") || "new";
       if (entry.action === "polish") {
         onLog?.(`[Plan] Polish slide ${sourceLabel}: ${entry.title}`);
       } else if (entry.action === "merge") {
         onLog?.(`[Plan] Merge slides ${sourceLabel} \u2192 ${entry.title}: ${entry.brief}`);
+      } else if (entry.action === "split") {
+        onLog?.(`[Plan] Split slide ${sourceLabel} \u2192 ${entry.title}: ${entry.brief}`);
+      } else if (entry.action === "add") {
+        onLog?.(`[Plan] Add new slide ${entry.title}: ${entry.brief}`);
       } else {
         onLog?.(`[Plan] Rewrite slide ${sourceLabel}: ${entry.title} \u2014 ${entry.brief}`);
       }
@@ -1220,7 +1246,7 @@ export class RemixReimagineOrchestrator {
    */
   #validatePlan(plan, sourceCount) {
     const errors = [];
-    const validActions = new Set(["polish", "rewrite", "merge"]);
+    const validActions = new Set(["polish", "rewrite", "merge", "split", "add"]);
     const coveredSources = new Set();
 
     if (plan.length === 0) {
@@ -1242,7 +1268,9 @@ export class RemixReimagineOrchestrator {
         continue;
       }
 
-      if (entry.source.length === 0) {
+      if (entry.action === "add") {
+        // `add` creates a new output slide that is not based on a source slide.
+      } else if (entry.source.length === 0) {
         errors.push(`${prefix}: source must not be empty for action "${entry.action}"`);
       }
 
@@ -1286,6 +1314,14 @@ export class RemixReimagineOrchestrator {
 
       if (entry.action === "merge" && entry.source.length !== 2) {
         errors.push(`${prefix}: merge must have exactly 2 sources, got ${entry.source.length}`);
+      }
+
+      if (entry.action === "split" && entry.source.length !== 1) {
+        errors.push(`${prefix}: split must have exactly 1 source, got ${entry.source.length}`);
+      }
+
+      if (entry.action === "add" && entry.source.length !== 0) {
+        errors.push(`${prefix}: add must have an empty source array, got ${entry.source.length}`);
       }
 
       if (!entry.brief || entry.brief.trim().length === 0) {
