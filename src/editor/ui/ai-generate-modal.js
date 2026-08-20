@@ -265,44 +265,54 @@ export class AiGenerateModal {
       cancelBtn.textContent = "Cancel";
       actions.appendChild(cancelBtn);
 
-      // Export section: guidance note, size estimate, mode warning, and
-      // Copy/Download buttons. Only shown when onExport is provided.
+      // Export section: a single bordered box grouping the guidance note,
+      // size estimate, mode warning, and a split button (Copy / Download).
+      // Only shown when onExport is provided. Kept separate from the action
+      // bar so Generate and Cancel stay clean.
       let copyBtn = null;
       let downloadBtn = null;
       let exportSize = null;
       let exportWarning = null;
       if (opts.onExport) {
+        const exportSection = document.createElement("div");
+        exportSection.className = `${P}export-section`;
+
         // Guidance note linking export to import.
         const exportNote = document.createElement("p");
         exportNote.className = `${P}export-note`;
         exportNote.textContent =
           "Copy or download the prompt, run it in an external AI tool, then use Import AI result to apply the output.";
-        dialog.appendChild(exportNote);
+        exportSection.appendChild(exportNote);
 
         // Prompt size estimate.
         exportSize = document.createElement("p");
         exportSize.className = `${P}export-size`;
-        dialog.appendChild(exportSize);
+        exportSection.appendChild(exportSize);
 
         // Mode-specific warning (remix/reimagine: simplified prompt).
         exportWarning = document.createElement("p");
         exportWarning.className = `${P}export-warning`;
         exportWarning.style.display = "none";
-        dialog.appendChild(exportWarning);
+        exportSection.appendChild(exportWarning);
 
+        // Split button: Copy + Download side by side.
+        const exportBtns = document.createElement("div");
+        exportBtns.className = `${P}export-btns`;
         copyBtn = document.createElement("button");
         copyBtn.type = "button";
         copyBtn.className = `${P}btn`;
         copyBtn.dataset.action = "copy-prompt";
         copyBtn.textContent = "Copy prompt";
-        actions.appendChild(copyBtn);
-
+        exportBtns.appendChild(copyBtn);
         downloadBtn = document.createElement("button");
         downloadBtn.type = "button";
         downloadBtn.className = `${P}btn`;
         downloadBtn.dataset.action = "download-prompt";
         downloadBtn.textContent = "Download prompt";
-        actions.appendChild(downloadBtn);
+        exportBtns.appendChild(downloadBtn);
+        exportSection.appendChild(exportBtns);
+
+        dialog.appendChild(exportSection);
       }
 
       const primaryBtn = document.createElement("button");
@@ -468,7 +478,12 @@ export class AiGenerateModal {
           const msg = document.createElement("p");
           msg.className = `${P}export-error`;
           msg.textContent = `Could not ${kind === "copy" ? "copy" : "download"} prompt: ${err?.message || err}`;
-          actions.before(msg);
+          const exportSection = dialog.querySelector(`.${P}export-section`);
+          if (exportSection) {
+            exportSection.appendChild(msg);
+          } else {
+            actions.before(msg);
+          }
           return;
         }
         // Show a transient success indicator on the clicked button, then

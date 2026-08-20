@@ -13,10 +13,8 @@ const rawArgs = process.argv.slice(2);
 const noOpen = rawArgs.includes("--no-open");
 const args = rawArgs.filter((arg) => arg !== "--no-open");
 
-// CLI server port: configurable via WEBDECK_CLI_PORT (default 8001).
-// Vite's proxy target reads the same env var so they stay in sync.
-const cliPort = process.env.WEBDECK_CLI_PORT || "8001";
-const cliArgs = ["tools/dev-server.mjs", ...args, "--port", cliPort];
+// CLI server on port 8001
+const cliArgs = ["tools/dev-server.mjs", ...args, "--port", "8001"];
 const cli = spawn(process.execPath, cliArgs, {
   cwd: root,
   stdio: "inherit",

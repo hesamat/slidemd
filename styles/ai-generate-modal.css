@@ -227,9 +227,18 @@
   border: 1px solid var(--danger-border, rgba(220, 38, 38, 0.2));
 }
 
+/* ── Export section (grouped container) ── */
+.ai-generate-modal__export-section {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
+  background: var(--surface-2-bg, rgba(0, 0, 0, 0.02));
+}
+
 /* ── Export guidance note ── */
 .ai-generate-modal__export-note {
-  margin: 12px 0 6px;
+  margin: 0 0 8px;
   font-size: 12px;
   color: var(--text-medium, #666);
   line-height: 1.4;
@@ -237,7 +246,7 @@
 
 /* ── Export size estimate ── */
 .ai-generate-modal__export-size {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   font-size: 12px;
   color: var(--text-medium, #666);
 }
@@ -249,7 +258,7 @@
 
 /* ── Export mode warning (remix/reimagine) ── */
 .ai-generate-modal__export-warning {
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -257,6 +266,12 @@
   color: var(--warning, #d97706);
   background: rgba(217, 119, 6, 0.08);
   border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+/* ── Export buttons row ── */
+.ai-generate-modal__export-btns {
+  display: flex;
+  gap: 8px;
 }
 
 /* ── Export success button state ── */
