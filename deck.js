@@ -285,7 +285,11 @@ import { hydrateIcons } from "./src/core/icon.js";
 
     // Hydrate <i data-icon="..."> placeholders into SVG icons.
     // Runs early so icons are present before modals/dropdowns open.
-    hydrateIcons(document);
+    // Skipped in exported HTML — the export bundle doesn't include the
+    // Lucide dependency, and exported HTML has no toolbar placeholders.
+    if (!window.__WEBDECK_EXPORTED__ && typeof hydrateIcons === "function") {
+      hydrateIcons(document);
+    }
 
     window.__WEBDECK_RELOAD_CHANNEL__ = ReloadManager.initReloadChannel();
 

@@ -174,7 +174,13 @@ export class Notification {
     iconNameMap.info = "info";
 
     const name = iconNameMap[type] ?? iconNameMap.info;
-    const svg = icon(name, { size: "md" });
+    // Guard for exported HTML where the icon module isn't bundled
+    let svg = null;
+    try {
+      if (typeof icon === "function") svg = icon(name, { size: "md" });
+    } catch {
+      /* icon module not available in exported HTML */
+    }
     if (!svg) {
       // Fallback: empty span so layout doesn't break
       const span = document.createElement("span");
@@ -613,8 +619,14 @@ export class Notification {
     closeBtn.className = "notification-toast__close";
     closeBtn.setAttribute("aria-label", "Close notification");
     closeBtn.type = "button";
-    const closeIcon = icon("close", { size: "sm" });
-    if (closeIcon) closeBtn.appendChild(closeIcon);
+    try {
+      if (typeof icon === "function") {
+        const closeIcon = icon("close", { size: "sm" });
+        if (closeIcon) closeBtn.appendChild(closeIcon);
+      }
+    } catch {
+      /* icon module not available in exported HTML */
+    }
     closeBtn.onclick = onClick;
     return closeBtn;
   }
