@@ -22,16 +22,25 @@ import {
  *   • Size      — Replace / Delete at the top (the two most-used
  *                 actions), then W×H, aspect-ratio lock, presets
  *                 (Small/Medium/Large/Fit/Center)
- *   • Style     — opacity, border-radius, shadow
+ *   • Style     — opacity, corner radius, shadow
  *   • Transform — rotation, alt-text
  */
 
-const SHADOW_PRESETS = [
-  { key: "none", label: "None", value: "none" },
-  { key: "subtle", label: "Subtle", value: "0 2px 6px rgba(120,120,120,0.3)" },
-  { key: "medium", label: "Medium", value: "0 6px 20px rgba(120,120,120,0.4)" },
-  { key: "strong", label: "Strong", value: "0 12px 32px rgba(120,120,120,0.5)" },
-];
+const SHADOW_COLOR_DEFAULT = "#787878";
+
+// Fields that map directly to applySettings keys.  Shadow component
+// inputs (shadowOffset/shadowBlur/shadowColor) are NOT in this list —
+// they are composed into a single boxShadow string before applying.
+const DIRECT_FIELDS = new Set([
+  "width",
+  "height",
+  "left",
+  "top",
+  "borderRadius",
+  "opacity",
+  "rotation",
+  "alt",
+]);
 
 export class ImagePropertiesPanel {
   static el = null;
@@ -65,6 +74,7 @@ export class ImagePropertiesPanel {
     this._currentImg = img;
     this._computeAreaWidth(img);
     this._syncUI(settings);
+    this._syncShadowUI(settings.boxShadow);
     this._updatePresetLabels();
     this._syncFreeflowBtn();
     this._activateTab("size");
@@ -186,43 +196,49 @@ export class ImagePropertiesPanel {
 
                 <!-- Style tab -->
                 <div class="image-properties-panel__panel" data-panel="style">
-                    <div class="image-properties-panel__row">
-                        <label class="image-properties-panel__field image-properties-panel__field--grow">
-                            <span class="image-properties-panel__field-label">Opacity <span data-display="opacity">100%</span></span>
-                            <input type="range" class="image-properties-panel__range" data-field="opacity" min="0" max="100" step="1" />
-                        </label>
+                    <div class="image-properties-panel__section-label">Appearance</div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Opacity</span>
+                        <input type="range" class="image-properties-panel__slider" data-field="opacity" min="0" max="100" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="opacity">100%</span>
                     </div>
-                    <div class="image-properties-panel__row">
-                        <label class="image-properties-panel__field">
-                            <span class="image-properties-panel__field-label">Radius (px)</span>
-                            <input type="number" class="image-properties-panel__input" data-field="borderRadius" min="0" max="540" placeholder="0" />
-                        </label>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Radius</span>
+                        <input type="range" class="image-properties-panel__slider" data-field="borderRadius" min="0" max="540" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="radius">0px</span>
                         <button type="button" class="image-properties-panel__chip" data-action="pill" title="Pill / circle">Pill</button>
                     </div>
-                    <div class="image-properties-panel__row">
-                        <span class="image-properties-panel__field-label">Shadow</span>
-                        <div class="image-properties-panel__seg" role="group" aria-label="Shadow">
-                            ${SHADOW_PRESETS.map((p) => `<button type="button" class="image-properties-panel__seg-btn" data-shadow="${p.key}" title="${p.label}">${p.label}</button>`).join("")}
-                        </div>
+
+                    <div class="image-properties-panel__section-label">Shadow</div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Offset</span>
+                        <input type="range" class="image-properties-panel__slider" data-field="shadowOffset" min="0" max="40" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="shadow-offset">0px</span>
+                    </div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Blur</span>
+                        <input type="range" class="image-properties-panel__slider" data-field="shadowBlur" min="0" max="60" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="shadow-blur">0px</span>
+                    </div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Color</span>
+                        <input type="color" class="image-properties-panel__color-swatch" data-field="shadowColor" value="${SHADOW_COLOR_DEFAULT}" />
+                        <button type="button" class="image-properties-panel__chip" data-action="shadow-none" title="Remove shadow">None</button>
                     </div>
                 </div>
 
                 <!-- Transform tab -->
                 <div class="image-properties-panel__panel" data-panel="transform">
-                    <div class="image-properties-panel__row">
-                        <span class="image-properties-panel__field-label">Rotate</span>
-                    </div>
-                    <div class="image-properties-panel__row image-properties-panel__row--compact">
+                    <div class="image-properties-panel__section-label">Rotation</div>
+                    <div class="image-properties-panel__control-row">
                         <button type="button" class="image-properties-panel__icon-btn" data-action="rot-left" title="Rotate 90° left">↺</button>
-                        <input type="range" class="image-properties-panel__range image-properties-panel__range--grow" data-field="rotation" min="0" max="360" step="1" />
+                        <input type="range" class="image-properties-panel__slider" data-field="rotation" min="0" max="360" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="rotation">0°</span>
                         <button type="button" class="image-properties-panel__icon-btn" data-action="rot-right" title="Rotate 90° right">↻</button>
-                        <span class="image-properties-panel__field-label" data-display="rotation">0°</span>
                     </div>
+                    <div class="image-properties-panel__section-label">Alt text</div>
                     <div class="image-properties-panel__row">
-                        <label class="image-properties-panel__field image-properties-panel__field--grow">
-                            <span class="image-properties-panel__field-label">Alt text</span>
-                            <input type="text" class="image-properties-panel__text" data-field="alt" placeholder="Describe the image" />
-                        </label>
+                        <input type="text" class="image-properties-panel__text" data-field="alt" placeholder="Describe the image" />
                     </div>
                 </div>
             </div>
@@ -271,11 +287,13 @@ export class ImagePropertiesPanel {
       tab.addEventListener("click", () => this._activateTab(tab.dataset.tab));
     });
 
-    // Number/text/range inputs that map directly to settings fields
+    // Number/text/range/color inputs that map to settings fields.
+    // Shadow component inputs (shadowOffset/shadowBlur/shadowColor) are
+    // handled here too — they are composed into a single box-shadow.
     this.el.querySelectorAll("[data-field]").forEach((input) => {
       const handler = () => this._applyFromInput(input);
       input.addEventListener("change", handler);
-      if (input.type === "range") {
+      if (input.type === "range" || input.type === "color") {
         input.addEventListener("input", handler);
       } else if (input.tagName === "INPUT") {
         input.addEventListener("keydown", (e) => {
@@ -290,21 +308,6 @@ export class ImagePropertiesPanel {
     // Action buttons
     this.el.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => this._handleAction(btn.dataset.action, btn));
-    });
-
-    // Shadow preset buttons
-    this.el.querySelectorAll("[data-shadow]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const key = btn.dataset.shadow;
-        const preset = SHADOW_PRESETS.find((p) => p.key === key);
-        if (!preset) return;
-        this.el
-          .querySelectorAll("[data-shadow]")
-          .forEach((b) => b.classList.toggle("active", b === btn));
-        import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
-          ImageInteractionHandler.applySettings({ boxShadow: preset.value });
-        });
-      });
     });
   }
 
@@ -365,6 +368,10 @@ export class ImagePropertiesPanel {
       case "set-background":
         this._setAsBackground();
         break;
+      case "shadow-none":
+        ImageInteractionHandler.applySettings({ boxShadow: "none" });
+        this._syncShadowUI("none");
+        break;
     }
   }
 
@@ -399,25 +406,135 @@ export class ImagePropertiesPanel {
       value = parseFloat(input.value);
       if (!Number.isFinite(value)) value = undefined;
     }
-    const settings = { [field]: value };
+    const settings = {};
 
-    // Aspect-ratio lock for width/height edits
-    if ((field === "width" || field === "height") && this._aspectLocked) {
-      const ratio = this._lastRatio || null;
-      if (ratio) {
-        if (field === "width") settings.height = Math.round(value / ratio);
-        else settings.width = Math.round(value * ratio);
-      }
-    }
-
-    // Opacity is 0–100 in UI; convert to 0–1
-    if (field === "opacity") {
+    // Shadow component inputs — compose into a single box-shadow string
+    if (field === "shadowOffset" || field === "shadowBlur" || field === "shadowColor") {
+      settings.boxShadow = this._composeShadowFromUI();
+      this._updateShadowDisplays();
+    } else if (field === "opacity") {
       settings.opacity = value / 100;
+      this._updateDisplay("opacity", `${Math.round(value)}%`);
+    } else if (field === "borderRadius") {
+      settings.borderRadius = value;
+      this._updateDisplay("radius", `${Math.round(value)}px`);
+    } else if (field === "rotation") {
+      settings.rotation = value;
+      this._updateDisplay("rotation", `${Math.round(value)}°`);
+    } else if (field === "width" || field === "height") {
+      settings[field] = value;
+      if (this._aspectLocked) {
+        const ratio = this._lastRatio || null;
+        if (ratio) {
+          if (field === "width") settings.height = Math.round(value / ratio);
+          else settings.width = Math.round(value * ratio);
+        }
+      }
+    } else {
+      settings[field] = value;
     }
 
     import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
       ImageInteractionHandler.applySettings(settings);
     });
+  }
+
+  /**
+   * Read the shadow component inputs (offset, blur, color) and compose
+   * a CSS box-shadow string.  Returns "none" when offset and blur are
+   * both 0.
+   * @returns {string}
+   */
+  static _composeShadowFromUI() {
+    const offset = parseFloat(this.el.querySelector('[data-field="shadowOffset"]')?.value) || 0;
+    const blur = parseFloat(this.el.querySelector('[data-field="shadowBlur"]')?.value) || 0;
+    const colorInput = this.el.querySelector('[data-field="shadowColor"]');
+    const color = colorInput?.value || SHADOW_COLOR_DEFAULT;
+    if (offset === 0 && blur === 0) return "none";
+    return `${offset}px ${offset}px ${blur}px ${color}`;
+  }
+
+  /**
+   * Parse a CSS box-shadow string into { offset, blur, color } components
+   * for populating the UI inputs.  Handles "none", our own format, and
+   * best-effort parsing of arbitrary shadows (including old preset values).
+   * @param {string} value
+   * @returns {{offset: number, blur: number, color: string}}
+   */
+  static _parseShadow(value) {
+    if (!value || value === "none") {
+      return { offset: 0, blur: 0, color: SHADOW_COLOR_DEFAULT };
+    }
+    // Match: offsetX offsetY blur [spread] color
+    // Handle both px-suffixed and bare-0 values, and rgba()/hex/named colors.
+    const m = value.match(
+      /^(-?[\d.]+)px?\s+(-?[\d.]+)px?\s+(-?[\d.]+)px?(?:\s+(-?[\d.]+)px?)?\s+(.+)$/,
+    );
+    if (m) {
+      const ox = Math.abs(parseFloat(m[1]));
+      const oy = Math.abs(parseFloat(m[2]));
+      const blur = Math.max(0, parseFloat(m[3]));
+      const color = this._colorToHex(m[5].trim());
+      return { offset: Math.max(ox, oy), blur, color };
+    }
+    return { offset: 0, blur: 0, color: SHADOW_COLOR_DEFAULT };
+  }
+
+  /**
+   * Convert a CSS color string (hex, rgb, rgba) to a hex string suitable
+   * for `<input type="color">`.  Falls back to the default gray.
+   * @param {string} color
+   * @returns {string}
+   */
+  static _colorToHex(color) {
+    if (color.startsWith("#")) return color.slice(0, 7);
+    const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) {
+      return (
+        "#" + [m[1], m[2], m[3]].map((n) => parseInt(n, 10).toString(16).padStart(2, "0")).join("")
+      );
+    }
+    return SHADOW_COLOR_DEFAULT;
+  }
+
+  /**
+   * Sync the shadow component inputs and displays from a box-shadow value.
+   * Called when the panel opens or when "None" is clicked — NOT on every
+   * applySettings call, to avoid resetting sliders mid-drag.
+   * @param {string} boxShadow
+   */
+  static _syncShadowUI(boxShadow) {
+    if (!this.el) return;
+    const { offset, blur, color } = this._parseShadow(boxShadow);
+    const offsetInput = this.el.querySelector('[data-field="shadowOffset"]');
+    const blurInput = this.el.querySelector('[data-field="shadowBlur"]');
+    const colorInput = this.el.querySelector('[data-field="shadowColor"]');
+    if (offsetInput) offsetInput.value = offset;
+    if (blurInput) blurInput.value = blur;
+    if (colorInput) colorInput.value = color;
+    this._updateShadowDisplays();
+  }
+
+  /**
+   * Update the shadow display labels from the current input values.
+   * Called live during drag so the user sees the numbers change.
+   */
+  static _updateShadowDisplays() {
+    if (!this.el) return;
+    const offset = parseFloat(this.el.querySelector('[data-field="shadowOffset"]')?.value) || 0;
+    const blur = parseFloat(this.el.querySelector('[data-field="shadowBlur"]')?.value) || 0;
+    this._updateDisplay("shadow-offset", `${offset}px`);
+    this._updateDisplay("shadow-blur", `${blur}px`);
+  }
+
+  /**
+   * Update a display element's text content by data-display key.
+   * @param {string} key
+   * @param {string} text
+   */
+  static _updateDisplay(key, text) {
+    const el = this.el?.querySelector(`[data-display="${key}"]`);
+    if (el) el.textContent = text;
   }
 
   static _openReplacePicker() {
@@ -468,10 +585,17 @@ export class ImagePropertiesPanel {
     this._setMarkdown?.(updatedMd);
   }
 
+  /**
+   * Collect current settings from the panel inputs.  Only collects
+   * fields that map directly to applySettings keys — shadow component
+   * inputs are excluded (they are composed separately).
+   * @returns {object}
+   */
   static _collectSettings() {
     const settings = {};
     this.el.querySelectorAll("[data-field]").forEach((input) => {
       const field = input.dataset.field;
+      if (!DIRECT_FIELDS.has(field)) return;
       if (input.type === "range" || input.type === "number") {
         const v = parseFloat(input.value);
         if (Number.isFinite(v)) settings[field] = field === "opacity" ? v / 100 : v;
@@ -496,13 +620,15 @@ export class ImagePropertiesPanel {
   static _syncUI(s) {
     if (!this.el) return;
     const setVal = (field, val) => {
-      const input = this.el.querySelector(`[data-field="${field}"]`);
-      if (!input) return;
-      if (input.type === "range" || input.type === "number") {
-        input.value = Number.isFinite(val) ? val : "";
-      } else {
-        input.value = val ?? "";
-      }
+      // A field may have multiple inputs (e.g. radius has a range + number
+      // pair); keep them all in sync.
+      this.el.querySelectorAll(`[data-field="${field}"]`).forEach((input) => {
+        if (input.type === "range" || input.type === "number") {
+          input.value = Number.isFinite(val) ? val : "";
+        } else {
+          input.value = val ?? "";
+        }
+      });
     };
     setVal("width", s.width);
     setVal("height", s.height);
@@ -518,22 +644,11 @@ export class ImagePropertiesPanel {
     if (opDisplay) opDisplay.textContent = `${Math.round((s.opacity ?? 1) * 100)}%`;
     const rotDisplay = this.el.querySelector('[data-display="rotation"]');
     if (rotDisplay) rotDisplay.textContent = `${Math.round(s.rotation ?? 0)}°`;
-
-    // Shadow preset active state
-    this.el
-      .querySelectorAll("[data-shadow]")
-      .forEach((b) =>
-        b.classList.toggle("active", b.dataset.shadow === this._shadowKeyFromValue(s.boxShadow)),
-      );
+    const radiusDisplay = this.el.querySelector('[data-display="radius"]');
+    if (radiusDisplay) radiusDisplay.textContent = `${Math.round(s.borderRadius ?? 0)}px`;
 
     // Track last aspect ratio for lock behaviour
     if (s.width && s.height) this._lastRatio = s.width / s.height;
-  }
-
-  static _shadowKeyFromValue(value) {
-    if (!value || value === "none") return "none";
-    const preset = SHADOW_PRESETS.find((p) => p.value === value);
-    return preset ? preset.key : "";
   }
 
   static _syncFreeflowBtn() {
