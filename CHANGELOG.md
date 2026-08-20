@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.12.0 (2026-08-19)
+
+### AI
+
+- Add an export prompt for external AI tools with import, validation, and security hardening (#246)
+- Surface image alt text and diagram labels in the remix plan summary (#245)
+- Prevent multi-column overflow bypass and keep tables and code out of column text blocks (#248)
+- Soften reimagine slide-count and content-depth guardrails (#254)
+- Let remix split or add slides and pick a new visual direction (#253)
+
+### PPTX Import
+
+- Improve full-bleed media, tables, text/code/color handling during import (#235)
+- Render PPTX user-drawn diagrams as PNG images (#231)
+- Preserve diagram labels and ignore empty shape clusters (#250)
+- Distinguish code from headings via placeholder type and run-length grouping (#247)
+- Preserve diagram provenance through the import pipeline (#242)
+
+### Editor & UI
+
+- Phase 15 editor diagnostics: image, empty-slide, style-lint, and consolidation (#241)
+- Counteract layout shift on first image drag move (#244)
+
+### Styling
+
+- Keep multi-column text-block list items whole across columns (#249)
+
+### Developer Experience
+
+- Add port auto-fallback, e2e isolation, and watch mode improvements (#257)
+
+### Security
+
+- Enforce layering, offline-first, and sanitization invariants (#255)
+
 ## 0.11.0 (2026-08-15)
 
 ### Editor & UI
