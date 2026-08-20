@@ -133,12 +133,14 @@ export class AiImportModal {
         const issues = [...(lastResult.errors || []), ...(lastResult.warnings || [])];
         if (issues.length === 0) return;
         const msg = buildRepairMessage(issues);
+        const label = el.querySelector(`.${P}issue-box__copy-label`);
+        if (!label) return;
+        const prev = label.textContent;
         try {
           await copyText(msg);
-          const prev = el.textContent;
-          el.textContent = "Copied";
+          label.textContent = " Copied!";
           setTimeout(() => {
-            el.textContent = prev;
+            label.textContent = prev;
           }, 1500);
         } catch {
           // If clipboard fails, show a transient note in the status area.
@@ -173,7 +175,14 @@ export class AiImportModal {
           const copyBtn = document.createElement("button");
           copyBtn.type = "button";
           copyBtn.className = `${P}issue-box__copy`;
-          copyBtn.textContent = "⧉";
+          const icon = document.createElement("span");
+          icon.className = `${P}issue-box__copy-icon`;
+          icon.textContent = "⧉";
+          const copyLabel = document.createElement("span");
+          copyLabel.className = `${P}issue-box__copy-label`;
+          copyLabel.textContent = "Copy repair prompt";
+          copyBtn.appendChild(icon);
+          copyBtn.appendChild(copyLabel);
           copyBtn.title = "Copy repair prompt";
           copyBtn.setAttribute("aria-label", "Copy repair prompt");
           copyBtn.addEventListener("click", () => doCopyRepair(copyBtn));

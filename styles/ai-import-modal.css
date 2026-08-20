@@ -122,12 +122,16 @@
 }
 
 .ai-import-modal__issue-box__copy {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 6px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--text-medium, #666);
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1;
   cursor: pointer;
   transition:
@@ -138,6 +142,10 @@
 .ai-import-modal__issue-box__copy:hover {
   background: var(--surface-hover, rgba(0, 0, 0, 0.06));
   color: var(--text-high, #111);
+}
+
+.ai-import-modal__issue-box__copy-icon {
+  font-size: 13px;
 }
 
 .ai-import-modal__issue-list {
