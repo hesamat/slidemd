@@ -5,7 +5,7 @@ import {
   parseAllImages,
   getImageOrdinalIndexInArea,
   getImageOrdinalIndex,
-  readImageSettings as readImageSettingsSync,
+  readImageSettings,
 } from "./image-markdown-utils.js";
 import { iconString, icon } from "../../core/icon.js";
 
@@ -15,7 +15,8 @@ import { iconString, icon } from "../../core/icon.js";
  * Tabbed popover for repositioning, resizing, and styling images in the
  * slide preview.  Works with ImageInteractionHandler for drag/resize and
  * provides precise numeric inputs plus style controls (opacity, radius,
- * shadow, rotation) and alt-text / replace-image actions.
+ * rotation, flip, brightness/contrast/saturate) and alt-text /
+ * replace-image actions.
  *
  * Design principle: the markdown source is the single source of truth.
  * We always parse styles from the markdown, apply changes, and write back.
@@ -24,16 +25,14 @@ import { iconString, icon } from "../../core/icon.js";
  *   • Size      — Replace / Delete at the top (the two most-used
  *                 actions), then W×H, aspect-ratio lock, presets
  *                 (Small/Medium/Large/Fit/Center)
- *   • Style     — opacity, corner radius, shadow
- *   • Transform — rotation, alt-text
+ *   • Style     — opacity, corner radius, brightness/contrast/saturate
+ *   • Transform — rotation, flip, alt-text
  */
 
 // Fields that map directly to applySettings keys.
 const DIRECT_FIELDS = new Set([
   "width",
   "height",
-  "left",
-  "top",
   "borderRadius",
   "opacity",
   "rotation",
@@ -296,7 +295,7 @@ export class ImagePropertiesPanel {
     this.el.querySelectorAll("[data-field]").forEach((input) => {
       const handler = () => this._applyFromInput(input);
       input.addEventListener("change", handler);
-      if (input.type === "range" || input.type === "color") {
+      if (input.type === "range") {
         input.addEventListener("input", handler);
       } else if (input.tagName === "INPUT") {
         input.addEventListener("keydown", (e) => {
@@ -360,13 +359,13 @@ export class ImagePropertiesPanel {
         break;
       case "flip-h": {
         const cur = ImageInteractionHandler._selectedImg;
-        const s = cur ? readImageSettingsSync(cur) : {};
+        const s = cur ? readImageSettings(cur) : {};
         ImageInteractionHandler.applySettings({ flipH: !s.flipH });
         break;
       }
       case "flip-v": {
         const cur = ImageInteractionHandler._selectedImg;
-        const s = cur ? readImageSettingsSync(cur) : {};
+        const s = cur ? readImageSettings(cur) : {};
         ImageInteractionHandler.applySettings({ flipV: !s.flipV });
         break;
       }
@@ -415,7 +414,10 @@ export class ImagePropertiesPanel {
     let value = input.value;
     if (input.type === "range" || input.type === "number") {
       value = parseFloat(input.value);
-      if (!Number.isFinite(value)) value = undefined;
+      // A cleared number input has no value to apply — bail out before
+      // propagating NaN into applySettings (which would produce invalid
+      // CSS like `brightness(NaN)`).
+      if (!Number.isFinite(value)) return;
     }
     const settings = {};
 
@@ -509,8 +511,7 @@ export class ImagePropertiesPanel {
 
   /**
    * Collect current settings from the panel inputs.  Only collects
-   * fields that map directly to applySettings keys — shadow component
-   * inputs are excluded (they are composed separately).
+   * fields that map directly to applySettings keys.
    * @returns {object}
    */
   static _collectSettings() {
