@@ -4,8 +4,6 @@
  * Handles the "New Presentation" workflow: modal selection,
  * markdown generation, deck replacement.
  */
-import { NewPresentationModal } from "../editor/new-presentation-modal.js";
-import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { Notification } from "../renderer/notification.js";
@@ -14,25 +12,29 @@ export class PresentationCreator {
   /**
    * @param {object} opts
    * @param {object} opts.reloadManager - Deck reload manager
+   * @param {object} opts.newPresentationModal - New-presentation modal (editor layer)
+   * @param {object} opts.imagePicker - Image picker (editor layer)
    * @param {() => void | Promise<void>} [opts.onClearDeckImages] - Drops a
    *   previous deck's on-disk image folder handle. Injected by the caller so
    *   this engine module does not import the editor layer.
    */
-  constructor({ reloadManager, onClearDeckImages = () => {} }) {
+  constructor({ reloadManager, newPresentationModal, imagePicker, onClearDeckImages = () => {} }) {
     this._reloadManager = reloadManager;
+    this._newPresentationModal = newPresentationModal;
+    this._imagePicker = imagePicker;
     this._onClearDeckImages = onClearDeckImages;
   }
 
   async create() {
-    NewPresentationModal.setOnPickImage((onSelect) => {
-      ImagePicker.show(
+    this._newPresentationModal?.setOnPickImage((onSelect) => {
+      this._imagePicker?.show(
         (path) => {
           onSelect(path, "");
         },
         { pathOnly: true },
       );
     });
-    const options = await NewPresentationModal.show();
+    const options = await this._newPresentationModal?.show();
     if (!options) return;
 
     const { background, theme, titleStyle, areaStyle, template } = options;

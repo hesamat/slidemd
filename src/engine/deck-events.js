@@ -32,6 +32,7 @@ export class DeckEvents {
    * @param {object} opts.breakManager - Break manager
    * @param {object} opts.freezeManager - Freeze manager
    * @param {object} opts.reloadManager - Reload manager
+   * @param {object} [opts.settingsModal] - Settings modal (editor layer, injected)
    */
   constructor({
     elements,
@@ -56,6 +57,7 @@ export class DeckEvents {
     breakManager,
     freezeManager,
     reloadManager,
+    settingsModal = null,
   }) {
     this._elements = elements;
     this._handleKeyboard = handleKeyboard;
@@ -79,6 +81,7 @@ export class DeckEvents {
     this._breakManager = breakManager;
     this._freezeManager = freezeManager;
     this._reloadManager = reloadManager;
+    this._settingsModal = settingsModal;
 
     // Store bound handlers for cleanup
     this._boundHandlers = [];
@@ -157,8 +160,7 @@ export class DeckEvents {
       this._closeMenu();
     });
     listen(this._elements.menuSettingsBtn, "click", async () => {
-      const { SettingsModal } = await import("../editor/settings-modal.js");
-      SettingsModal.show();
+      this._settingsModal?.show?.();
       this._closeMenu();
     });
 

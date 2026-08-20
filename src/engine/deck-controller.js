@@ -14,29 +14,51 @@ import { HtmlExportManager } from "../renderer/html-export-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { waitForImageUpload } from "../core/image-upload-promise.js";
 import { ReloadManager } from "./reload-manager.js";
-import { UiActions } from "../ui/ui-actions.js";
-import { Notification } from "../renderer/notification.js";
 import { applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
+import { Notification } from "../renderer/notification.js";
 import { createKeyboardHandler } from "./deck-keyboard.js";
 import { DeckEvents } from "./deck-events.js";
 import { CommandPalette } from "./command-palette.js";
 import { buildPaletteCommands } from "./command-registry.js";
 
 export class DeckController extends EventEmitter {
-  static updateDeckTitle(elements, title) {
-    UiActions.updateDeckTitle(elements, title);
+  static updateDeckTitle(elements, title, uiActions) {
+    if (!uiActions) {
+      Logger.warn("DeckController.updateDeckTitle called without uiActions");
+      return;
+    }
+    uiActions.updateDeckTitle(elements, title);
   }
 
-  static updateSlideCount(elements, count, deck = null) {
+  static updateSlideCount(elements, count, deck = null, uiActions) {
+    if (!uiActions) {
+      Logger.warn("DeckController.updateSlideCount called without uiActions");
+      return;
+    }
     // If deck is provided, count only visible slides
     if (deck) {
       const visibleSlideCount = deck.slides.filter((s) => !s.hidden).length;
       count = visibleSlideCount;
     }
-    UiActions.updateSlideCount(elements, count);
+    uiActions.updateSlideCount(elements, count);
   }
 
-  constructor(deck, elements, { deckStore = null } = {}) {
+  constructor(
+    deck,
+    elements,
+    {
+      deckStore = null,
+      uiActions = null,
+      deckImagesResolver = null,
+      imagePicker = null,
+      newPresentationModal = null,
+      conversionModal = null,
+      slideStylePanel = null,
+      textBlockHandler = null,
+      settingsModal = null,
+      imageInteractionHandler = null,
+    } = {},
+  ) {
     super();
 
     if (elements.reloadDeckBtn && navigator.userAgent.includes("Firefox")) {
@@ -46,6 +68,15 @@ export class DeckController extends EventEmitter {
     this.deck = deck;
     this.elements = elements;
     this.deckStore = deckStore;
+    this._uiActions = uiActions;
+    this._deckImagesResolver = deckImagesResolver;
+    this._imagePicker = imagePicker;
+    this._newPresentationModal = newPresentationModal;
+    this._conversionModal = conversionModal;
+    this._slideStylePanel = slideStylePanel;
+    this._textBlockHandler = textBlockHandler;
+    this._settingsModal = settingsModal;
+    this._imageInteractionHandler = imageInteractionHandler;
     this._enhanceIdleId = null;
 
     this.initIds();
@@ -96,6 +127,9 @@ export class DeckController extends EventEmitter {
       freezeManager: null, // Will be set after freezeManager is initialized
       getDeckId: getDeckId,
       deckStore: this.deckStore,
+      uiActions: this._uiActions,
+      deckImagesResolver: this._deckImagesResolver,
+      imagePicker: this._imagePicker,
     });
     // Listen for deck changes
     this.reloadManager.addEventListener("deckchange", (e) => {
@@ -134,6 +168,8 @@ export class DeckController extends EventEmitter {
       toggleEditMode: () => this.toggleEditMode(),
       toggleFullscreen: () => this.toggleFullscreen(),
       isEditMode: () => this.isEditMode(),
+      slideStylePanel: this._slideStylePanel,
+      textBlockHandler: this._textBlockHandler,
     });
   }
 
@@ -201,7 +237,7 @@ export class DeckController extends EventEmitter {
 
     const title = DeckLoader.getDisplayTitle(this.deck);
     document.title = title;
-    DeckController.updateDeckTitle(this.elements, title);
+    DeckController.updateDeckTitle(this.elements, title, this._uiActions);
 
     this.preloadEnhancers();
 
@@ -221,9 +257,10 @@ export class DeckController extends EventEmitter {
 
   async #rewriteImages() {
     try {
-      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-      await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
-      await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
+      const resolver = this._deckImagesResolver;
+      if (!resolver) return;
+      await resolver.rewriteImgSrcs(this.elements.slidesContainer);
+      await resolver.rewriteBackgroundUrls(this.elements.slidesContainer);
     } catch {
       // ignore
     }
@@ -268,6 +305,7 @@ export class DeckController extends EventEmitter {
       breakManager: this.breakManager,
       freezeManager: this.freezeManager,
       reloadManager: this.reloadManager,
+      settingsModal: this._settingsModal,
     });
     this._deckEvents.setup();
   }
@@ -283,16 +321,13 @@ export class DeckController extends EventEmitter {
     // the normal keyboard handler for slide navigation.
     if (e.key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey && !e.altKey) {
       const edit = window.__WEBDECK_EDIT_CONTROLLER__;
-      if (edit?.isEditMode) {
-        import("../editor/image/image-interaction-handler.js").then(
-          ({ ImageInteractionHandler }) => {
-            if (ImageInteractionHandler.isSelected()) {
-              ImageInteractionHandler.handleKeyDown(e);
-            } else {
-              this.keyboardHandler?.handleKeyboard(e);
-            }
-          },
-        );
+      if (edit?.isEditMode && this._imageInteractionHandler) {
+        const handler = this._imageInteractionHandler;
+        if (handler.isSelected()) {
+          handler.handleKeyDown(e);
+        } else {
+          this.keyboardHandler?.handleKeyboard(e);
+        }
         return;
       }
     }
@@ -384,8 +419,11 @@ export class DeckController extends EventEmitter {
       }
     }
 
-    // Fallback to plain text with line breaks
-    return `<div class="notes-content"><pre>${escapeHtml(notes)}</pre></div>`;
+    // Fallback to plain text with line breaks — still sanitize since it
+    // goes into .innerHTML.
+    return SlideRenderer.sanitizeAreaHtml(
+      `<div class="notes-content"><pre>${escapeHtml(notes)}</pre></div>`,
+    );
   }
 
   render() {
@@ -414,7 +452,7 @@ export class DeckController extends EventEmitter {
   }
 
   toggleFullscreen() {
-    UiActions.toggleFullscreen(this.elements.stageHost);
+    this._uiActions?.toggleFullscreen(this.elements.stageHost);
   }
 
   toggleEditMode() {
@@ -429,11 +467,11 @@ export class DeckController extends EventEmitter {
   }
 
   toggleMenu() {
-    UiActions.toggleMenu(this.elements.menuDropdown);
+    this._uiActions?.toggleMenu(this.elements.menuDropdown);
   }
 
   closeMenu() {
-    UiActions.toggleMenu(this.elements.menuDropdown, false);
+    this._uiActions?.toggleMenu(this.elements.menuDropdown, false);
   }
 
   async handlePrint({ triggerBrowserPrint = true } = {}) {
@@ -467,9 +505,10 @@ export class DeckController extends EventEmitter {
     const { PresentationCreator } = await import("./presentation-creator.js");
     const creator = new PresentationCreator({
       reloadManager: this.reloadManager,
+      newPresentationModal: this._newPresentationModal,
+      imagePicker: this._imagePicker,
       onClearDeckImages: async () => {
-        const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-        DeckImagesResolver.clearDirectoryHandle();
+        this._deckImagesResolver?.clearDirectoryHandle();
       },
     });
     await creator.create();
@@ -480,6 +519,9 @@ export class DeckController extends EventEmitter {
     const importer = new PptxImporter({
       reloadManager: this.reloadManager,
       toggleEditMode: () => this.toggleEditMode(),
+      conversionModal: this._conversionModal,
+      deckImagesResolver: this._deckImagesResolver,
+      imagePicker: this._imagePicker,
     });
     await importer.import();
   }

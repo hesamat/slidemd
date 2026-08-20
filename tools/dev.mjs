@@ -1,9 +1,19 @@
 #!/usr/bin/env node
 /**
  * Dev launcher: starts the CLI dev server and Vite in parallel.
- * Usage: node tools/dev.mjs [path] [--port 8000]
+ * Usage: node tools/dev.mjs [path] [--no-open]
+ *
+ * Ports are configurable via environment variables:
+ *   WEBDECK_VITE_PORT — Vite dev server port (default: auto-find free port from 8000)
+ *   WEBDECK_CLI_PORT  — CLI API server port (default: auto-find free port from 8001)
+ *
+ * When auto-finding, the launcher probes sequential ports starting from the
+ * default until it finds one that is free, then passes it to both processes.
+ * This avoids EADDRINUSE crashes when multiple dev sessions run in parallel.
  */
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -13,23 +23,84 @@ const rawArgs = process.argv.slice(2);
 const noOpen = rawArgs.includes("--no-open");
 const args = rawArgs.filter((arg) => arg !== "--no-open");
 
-// CLI server on port 8001
-const cliArgs = ["tools/dev-server.mjs", ...args, "--port", "8001"];
+/**
+ * Find a free TCP port, starting from `startPort` and incrementing up to
+ * `startPort + maxTries - 1`. Returns the first free port, or `startPort`
+ * if none are free (let the process fail with EADDRINUSE for a clear error).
+ * @param {number} startPort
+ * @param {number} [maxTries=20]
+ * @returns {Promise<number>}
+ */
+function findFreePort(startPort, maxTries = 20) {
+  return new Promise((resolve) => {
+    let port = startPort;
+    let tries = 0;
+
+    const probe = () => {
+      if (tries >= maxTries) {
+        resolve(startPort);
+        return;
+      }
+      const tester = createServer();
+      tester.unref();
+      tester.once("error", () => {
+        tries++;
+        port++;
+        probe();
+      });
+      tester.once("listening", () => {
+        tester.close(() => resolve(port));
+      });
+      tester.listen(port, "127.0.0.1");
+    };
+
+    probe();
+  });
+}
+
+// Resolve ports: use env vars if set, otherwise auto-find from defaults.
+const vitePort = process.env.WEBDECK_VITE_PORT
+  ? parseInt(process.env.WEBDECK_VITE_PORT, 10)
+  : await findFreePort(8000);
+const cliPort = process.env.WEBDECK_CLI_PORT
+  ? parseInt(process.env.WEBDECK_CLI_PORT, 10)
+  : await findFreePort(vitePort === 8001 ? 8002 : 8001);
+
+// Detect the current git branch for the startup banner. Falls back to the
+// directory name if not in a git repo (e.g. extracted archives).
+let branchLabel = path.basename(root);
+try {
+  branchLabel = execSync("git branch --show-current", { cwd: root, encoding: "utf-8" }).trim();
+} catch {
+  // Not a git repo or git unavailable — use directory name.
+}
+
+// CLI server
+const cliArgs = ["tools/dev-server.mjs", ...args, "--port", String(cliPort)];
 const cli = spawn(process.execPath, cliArgs, {
   cwd: root,
   stdio: "inherit",
 });
 
-// Vite on port 8000 (proxies /api and /images to CLI server)
+// Vite — pass both ports via env so vite.config.mjs can read them.
 const viteScript = path.join(root, "node_modules", "vite", "bin", "vite.js");
 const vite = spawn(process.execPath, [viteScript], {
   cwd: root,
   env: {
     ...process.env,
+    WEBDECK_VITE_PORT: String(vitePort),
+    WEBDECK_CLI_PORT: String(cliPort),
     ...(noOpen ? { WEBDECK_NO_OPEN: "1" } : {}),
   },
   stdio: "inherit",
 });
+
+// Print a summary so the user knows where to point their browser, especially
+// when auto-fallback picked a non-default port or multiple worktrees are
+// running in parallel.
+console.log(`\n  Dev server — branch: ${branchLabel}`);
+console.log(`  Ports: Vite=${vitePort}  CLI=${cliPort}`);
+console.log(`  URL:   http://127.0.0.1:${vitePort}/index.html\n`);
 
 let shutdownStarted = false;
 let closedChildren = 0;

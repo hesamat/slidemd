@@ -6,7 +6,7 @@
 
 import { DeckLoader } from "../data/deck-loader.js";
 import LAYOUTS_JSON from "../data/layouts.json" with { type: "json" };
-import { buildMermaidScriptTag } from "../core/mermaid-config.js";
+import { buildInlinedMermaidScriptTag } from "../core/mermaid-config.js";
 import { Notification } from "./notification.js";
 import { JS_BUNDLE_ORDER } from "../data/bundle-order.js";
 import { Logger } from "../core/logger.js";
@@ -163,16 +163,6 @@ export class HtmlExportManager {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${HtmlExportManager.escapeHtml(title)}</title>
     <meta name="theme-color" content="#3b82f6" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
     <style>
 ${presenterHideCss}
 ${allCss}
@@ -339,7 +329,7 @@ ${escapedInitScript}
 
   /**
    * Fetches vendor JS libraries (Prism and KaTeX) to inline in the export.
-   * Mermaid is loaded from a CDN script tag when needed.
+   * Mermaid is inlined from node_modules when needed (no CDN dependency).
    */
   static async fetchVendorJs(deck, signal = null) {
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
@@ -660,21 +650,37 @@ ${escapedInitScript}
   }
 
   /**
-   * Returns a Mermaid script tag if the deck contains Mermaid diagrams, empty string otherwise.
+   * Returns an inlined Mermaid script block if the deck contains Mermaid
+   * diagrams, empty string otherwise. The Mermaid IIFE bundle is fetched from
+   * node_modules and inlined directly (no CDN) so the exported HTML works
+   * offline.
    */
   static async buildMermaidScriptTagIfNeeded(deck, signal = null) {
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
     const needsMermaid =
       /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
     if (!needsMermaid) return "";
-    const version = await HtmlExportManager._getVendorVersion("mermaid", signal);
-    if (!version) {
+    const mermaidJs = await HtmlExportManager._fetchLocalText(
+      "node_modules/mermaid/dist/mermaid.min.js",
+      signal,
+    );
+    if (!mermaidJs) {
+      Logger.warn("HtmlExport: Could not load Mermaid from node_modules; skipping Mermaid script.");
+      return "";
+    }
+    // Verify the bundle is a classic (IIFE/UMD) script, not an ESM module.
+    // ESM files start with import/export and would cause a syntax error in
+    // a classic <script> tag. If the package ships ESM at this path in a
+    // future version, skip inlining rather than emitting broken HTML.
+    const firstChars = mermaidJs.slice(0, 200).trim();
+    if (/^(import|export)\s/m.test(firstChars)) {
       Logger.warn(
-        "HtmlExport: Could not determine installed Mermaid version; skipping Mermaid script.",
+        "HtmlExport: mermaid.min.js appears to be an ESM module, not a classic bundle; skipping Mermaid inlining.",
       );
       return "";
     }
-    return buildMermaidScriptTag(version, "    ");
+    const escapedMermaidJs = HtmlExportManager.escapeInlineScriptText(mermaidJs);
+    return buildInlinedMermaidScriptTag(escapedMermaidJs, "    ");
   }
 
   /**
@@ -702,6 +708,24 @@ ${escapedInitScript}
       if (!response.ok) return null;
       const data = await response.json();
       return data.version || null;
+    } catch (e) {
+      if (e.name === "AbortError") throw e;
+      return null;
+    }
+  }
+
+  /**
+   * Fetches a text file from a local path (typically node_modules).
+   * @param {string} localPath - Path relative to the project root.
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<string|null>} The file text, or null if the fetch fails.
+   */
+  static async _fetchLocalText(localPath, signal = null) {
+    if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+    try {
+      const response = await fetch(localPath, { signal });
+      if (!response.ok) return null;
+      return await response.text();
     } catch (e) {
       if (e.name === "AbortError") throw e;
       return null;

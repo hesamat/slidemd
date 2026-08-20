@@ -55,7 +55,7 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
  * @property {boolean} [isFlipV] - Whether the shape is flipped vertically.
  * @property {boolean} [isFlipH] - Whether the shape is flipped horizontally.
  * @property {{h: number, v: number, blur: number, color: string}} [shadow] - Shadow definition.
- * @property {import('pptxtojson').Fill} [fillRaw] - Full fill object (color/gradient/pattern/image) for rendering.
+ * @property {object} [fillRaw] - Full fill object (color/gradient/pattern/image) for rendering.
  * @property {ExtractedElement[]} [shapes] - Constituent shapes for a diagram element (used by the shape-renderer post-pass).
  */
 
@@ -298,7 +298,7 @@ export class PptxExtractor {
   /**
    * Check if an element tree contains any text content.
    * @static
-   * @param {import('pptxtojson').Element} el
+   * @param {object} el
    * @returns {boolean}
    */
   static #hasTextContent(el) {
@@ -324,7 +324,7 @@ export class PptxExtractor {
    * `el.headEnd`/`el.tailEnd` for connectors rather than the `type: "connector"`
    * that #processElement assigns.
    * @static
-   * @param {import('pptxtojson').Element} el
+   * @param {object} el
    * @returns {boolean}
    */
   static #hasDiagramPotential(el) {
@@ -342,7 +342,7 @@ export class PptxExtractor {
    * Check if an element tree contains any non-tiny images.
    * Tiny images (both dimensions < 15pt) are treated as decorative.
    * @static
-   * @param {import('pptxtojson').Element} el
+   * @param {object} el
    * @returns {boolean}
    */
   static #hasSignificantImages(el) {
@@ -368,7 +368,7 @@ export class PptxExtractor {
    * Groups that contain shapes (borders, frames, callouts) alongside images are
    * treated as content — e.g. a code screenshot inside a rounded-rect border.
    * @static
-   * @param {import('pptxtojson').Element} group
+   * @param {object} group
    * @returns {boolean}
    */
   static #isGroupDecorativeImages(group) {
@@ -435,7 +435,7 @@ export class PptxExtractor {
   /**
    * Process a single element.
    * @static
-   * @param {import('pptxtojson').Element} el
+   * @param {object} el
    * @param {number} slideIndex
    * @param {ExtractedImage[]} imagesAccum
    * @param {number[]} [olStartValues] - Ordered list start values for this slide.
@@ -751,7 +751,7 @@ export class PptxExtractor {
   /**
    * Extract background CSS from a slide fill.
    * @static
-   * @param {import('pptxtojson').Fill} fill
+   * @param {object} fill
    * @returns {string}
    */
   static #extractBackground(fill) {

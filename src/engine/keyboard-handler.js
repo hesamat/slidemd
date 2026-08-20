@@ -2,7 +2,7 @@
  * KeyboardHandler
  * Maps keyboard keys to actions and delegates to appropriate controllers.
  */
-import { SHORTCUTS, isMac } from "./keyboard-shortcuts.js";
+import { SHORTCUTS, isMac } from "../core/keyboard-shortcuts.js";
 import { Logger } from "../core/logger.js";
 import { isModalOpen } from "../core/modal-state.js";
 
