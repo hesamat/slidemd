@@ -13,6 +13,11 @@ import { Notification } from "../../renderer/notification.js";
 import { DeckLoader } from "../../data/deck-loader.js";
 import { AssetLoader } from "../../core/asset-loader.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { copyText, downloadText } from "../../core/clipboard.js";
+import { buildExportablePrompt } from "../../data/ai/ai-prompt-export.js";
+import { AiOutputValidator } from "../../data/ai/ai-output-validator.js";
+import { parseAiResponse, slidesToMarkdown } from "../../data/ai/ai-response-parser.js";
+import { extractDirectives, injectDirectives } from "../../data/ai/ai-directive-utils.js";
 
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
@@ -262,6 +267,10 @@ export class AiEditController {
    * Run a whole-deck AI generate operation (Refine all slides).
    * Builds an AiOperation, runs it through the orchestrator, and delegates to
    * AiSidebar.show() for the progress/retry UI — same pattern as runSingleSlideAi.
+   *
+   * Also supports the export-prompt flow (issue #240): when the user clicks
+   * "Copy prompt" or "Download prompt" in the modal, the prompt is built and
+   * copied/downloaded without an API key or provider call.
    */
   async runWholeDeckAi() {
     const { SettingsModal } = await import("../settings-modal.js");
@@ -270,12 +279,6 @@ export class AiEditController {
     const { createOperation } = await import("../../data/ai/ai-operation.js");
     const { AiSidebar } = await import("../ai-sidebar.js");
     const { AiGenerateModal } = await import("../ui/ai-generate-modal.js");
-
-    const providerLabel = SettingsModal.getProvider();
-    if (SettingsModal.requiresApiKey(providerLabel) && !SettingsModal.getApiKey()) {
-      Notification.error("No API key — open Settings to configure AI.");
-      return;
-    }
 
     const deckStore = this._getDeckStore();
     const saveManager = this._getSaveManager();
@@ -287,7 +290,55 @@ export class AiEditController {
       ? deckStore.toMarkdown()
       : saveManager.getFullSlides().join("\n\n---\n\n");
 
-    // Show pre-flight modal so the user can set options and see cost estimate
+    // Export handler: builds the exact prompt the orchestrator would send and
+    // copies/downloads it. No API key or provider is needed for export.
+    // Also snapshots the current deck's images to a persistent server-side
+    // directory so they remain available if the user imports the result into
+    // a different deck later.
+    const onExport = async (generateOpts, kind) => {
+      const op = createOperation("generate", null, fullMarkdown, {
+        flow: generateOpts.flow,
+        mode: generateOpts.mode,
+        addSpeakerNotes: generateOpts.addSpeakerNotes || false,
+        includeImages: generateOpts.includeImages || false,
+        preserveVisualIdentity: generateOpts.preserveVisualIdentity ?? true,
+      });
+      const { formattedText } = buildExportablePrompt(op);
+      // Snapshot images so they survive a deck switch before import.
+      try {
+        await fetch("/api/images/snapshot", { method: "POST" });
+      } catch {
+        // Non-fatal: images may already be available if same deck is open.
+      }
+      // Snapshot the source deck's per-slide directives (theme, background,
+      // mediaFullBleed, areaBg) so the import flow can gap-fill any the
+      // external AI dropped — mirroring the live orchestrator's
+      // extractDirectives + injectDirectives step. Use the fence-aware
+      // splitSlides directly (not splitSlidesForAi, which strips layout:
+      // directives in generate mode) so layouts are preserved in the snapshot.
+      try {
+        const directives = extractDirectives(fullMarkdown);
+        await fetch("/api/directives/snapshot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(directives),
+        });
+      } catch {
+        // Non-fatal: same-deck imports can fall back to the current deck.
+      }
+      if (kind === "copy") {
+        await copyText(formattedText);
+        Notification.success("AI prompt copied to clipboard.");
+      } else {
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        downloadText(formattedText, `ai-prompt-${generateOpts.mode}-${stamp}.txt`);
+        Notification.success("AI prompt downloaded.");
+      }
+    };
+
+    // Show pre-flight modal so the user can set options and see cost estimate.
+    // The API-key check is deferred to after the modal resolves so that the
+    // export path works without a configured key.
     const generateOpts = await AiGenerateModal.show(fullMarkdown, {
       modelName: SettingsModal.getModel(),
       useReasoning: SettingsModal.getReasoning(),
@@ -296,8 +347,17 @@ export class AiEditController {
       onOpenSettings: async () => {
         await SettingsModal.show();
       },
+      onExport,
+      onImport: () => this.importWholeDeckResult(),
     });
-    if (!generateOpts) return; // user cancelled — no API call made
+    if (!generateOpts) return; // user cancelled or exported — no API call made
+
+    // From here on we need a provider, so the key check applies.
+    const providerLabel = SettingsModal.getProvider();
+    if (SettingsModal.requiresApiKey(providerLabel) && !SettingsModal.getApiKey()) {
+      Notification.error("No API key — open Settings to configure AI.");
+      return;
+    }
 
     const provider = createAiProviderClient(
       providerLabel,
@@ -329,53 +389,195 @@ export class AiEditController {
 
     try {
       const enhanced = await AiSidebar.show(op, orchestrator);
-      const controller = this._getController();
-      if (enhanced && controller.reloadManager?.replaceDeck) {
-        await AssetLoader.ensureMarkdownItLoaded();
-
-        const deck = await DeckLoader.parseMarkdown(enhanced);
-
-        // Update the deck store BEFORE firing deckchange via reloadManager so
-        // the _onDeckChange handler reads the correct (post-refine) store
-        // state. The structural-revision listener will clear the per-slide
-        // editor-state cache when deckStore.replaceDeck bumps the revision.
-        this._getUnsavedMarkdown().clear();
-        const parser = new MarkdownParser();
-        const newSlides = parser.splitSlides(enhanced);
-        // Route through replaceDeck so the refine is undoable (Ctrl+Z)
-        // instead of loadFromMarkdown which clears history. Suppress the
-        // queued store-change restore so the explicit reload below is the
-        // single view refresh.
-        this._withSuppressedStoreChange(() =>
-          deckStore.replaceDeck(newSlides, 0, {
-            index: 0,
-            before: null,
-            after: enhanced,
-            source: "ai",
-            timestamp: Date.now(),
-          }),
-        );
-        // Keep the store-sync module's structural revision in sync because
-        // we are not using restoreStoreSnapshot() for this whole-deck
-        // mutation. Any future store mutation that suppresses the queued
-        // restore and does its own reload MUST also sync the revision here
-        // — otherwise the next restoreStoreSnapshot will incorrectly
-        // believe the revision is unchanged and saveSlideState the current
-        // editor state for a stale slide index, silently corrupting the
-        // per-slide undo cache.
-        this._syncStructuralRevision();
-        await controller.reloadManager.replaceDeck(deck, {
-          startAtFirstSlide: true,
-          syncStore: false,
-        });
-        this._setCurrentSlideIndex(0);
-        this._loadSlideIntoEditor();
-        await this._getPreviewUpdater()?.update();
-        saveManager?.updateButton();
-        Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
+      if (enhanced) {
+        const applied = await this._applyWholeDeckResult(enhanced);
+        if (applied) {
+          Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
+        } else {
+          Notification.error(
+            "Could not apply AI result — no deck loaded. Open or create a deck first.",
+          );
+        }
       }
     } catch (err) {
       Notification.error(`AI generate failed: ${err.message || err}`);
     }
+  }
+
+  /**
+   * Import an AI-generated deck markdown produced by an external tool
+   * (issue #240). Goes straight to a paste modal that validates the pasted
+   * output structurally (valid layouts, areas, non-empty content) and applies
+   * it through the same replaceDeck path. The output is not compared against
+   * the current deck — the user may have exported the prompt from a different
+   * deck and is replacing the current one entirely. Supports both JSON
+   * responses (the format the exported prompt asks for) and slide markdown.
+   */
+  async importWholeDeckResult() {
+    const { AiImportModal } = await import("../ui/ai-import-modal.js");
+
+    const deckStore = this._getDeckStore();
+    if (!deckStore) {
+      Notification.error(
+        "Importing an AI result requires a loaded deck. Open or create a deck first.",
+      );
+      return;
+    }
+
+    // The import flow validates the pasted output structurally (valid layouts,
+    // valid area names, non-empty content, parseable) but does NOT compare it
+    // against the current deck. The user may have exported the prompt from a
+    // different deck and is replacing the current one entirely — enforcing
+    // slide count or image-source parity against the current deck would reject
+    // legitimate cross-deck imports.
+    //
+    // The external AI may return either JSON (the format the exported prompt
+    // asks for) or slide markdown (some models ignore format instructions).
+    // We parse the response with parseAiResponse (which handles both) and
+    // convert to slide markdown for validation and application.
+    //
+    // Gap-fill theme/background directives the external AI dropped, using the
+    // snapshot captured at export time (mirrors the live orchestrator's
+    // extractDirectives + injectDirectives step). If no snapshot is available
+    // (e.g. first run, or imported without exporting), the gap-fill is a no-op.
+    let snapshotDirectives = [];
+    try {
+      const resp = await fetch("/api/directives/snapshot");
+      if (resp.ok) snapshotDirectives = await resp.json();
+    } catch {
+      // Non-fatal: same-deck imports may still have directives in the AI output.
+    }
+    const validator = new AiOutputValidator({ inputMarkdown: "" });
+    const validate = (text) => {
+      // Try parsing as an AI JSON response first; fall back to raw text if
+      // it's already slide markdown.
+      const parsed = parseAiResponse(text);
+      let markdown;
+      if (parsed && parsed.slides && parsed.slides.length > 0) {
+        markdown = slidesToMarkdown(parsed.slides);
+      } else {
+        markdown = text;
+      }
+      // Gap-fill missing theme/background/mediaFullBleed/areaBg directives
+      // from the export-time snapshot. Generate mode: only fill directives
+      // the AI dropped, never overwrite AI-chosen values. Only apply when
+      // the imported deck's slide count matches the snapshot's — a
+      // cross-deck restructure or a different presentation would otherwise
+      // pick up another deck's colors positionally (injectDirectives maps
+      // sections[i] to origDirectives[i]). This mirrors the live
+      // orchestrator's resultSlides.length === totalSlides guard.
+      if (
+        Array.isArray(snapshotDirectives) &&
+        snapshotDirectives.length > 0 &&
+        new MarkdownParser().splitSlides(markdown).length === snapshotDirectives.length
+      ) {
+        markdown = injectDirectives(markdown, snapshotDirectives, "generate");
+      }
+      // Structural validation only: no expected slide count, no image-source
+      // restrictions, no identity enforcement. The validator still checks
+      // layouts, areas, non-empty content, and basic schema rules.
+      const result = validator.validate(markdown, "generate", {
+        expectedSlideCount: undefined,
+        skipOverflow: true,
+        enforcePreserveIdentity: false,
+        restrictImageSources: false,
+        allowedImageSrcs: undefined,
+        onlyExplicitImageSources: false,
+        visualSystem: undefined,
+      });
+      // Attach the converted markdown so the modal resolves with the exact
+      // text that was validated, not the raw textarea value.
+      result.converted = markdown;
+      return result;
+    };
+
+    let pasted;
+    try {
+      pasted = await AiImportModal.show({ validate });
+    } catch (err) {
+      Notification.error(`Import failed: ${err.message || err}`);
+      return;
+    }
+    if (!pasted) return; // cancelled
+
+    // The modal resolves with the validator's `converted` text (the
+    // JSON→markdown conversion + directive gap-fill), or the raw pasted
+    // text when no conversion was needed. This is the exact text that was
+    // validated, so the data flow is explicit rather than relying on a
+    // closure side-effect.
+    const markdownToApply = pasted;
+
+    try {
+      const applied = await this._applyWholeDeckResult(markdownToApply);
+      if (applied) {
+        Notification.success("AI result imported. Press Ctrl+Z to undo.");
+      } else {
+        Notification.error(
+          "Could not import AI result — no deck loaded. Open or create a deck first.",
+        );
+      }
+    } catch (err) {
+      Notification.error(`Import failed: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Apply a whole-deck AI result (enhanced markdown) to the deck.
+   * Shared by the live AI generate flow and the import-AI-result flow so both
+   * go through the same replaceDeck path (undoable, broadcasts, re-renders).
+   * @param {string} enhancedMarkdown
+   * @returns {Promise<boolean>} true if the deck was replaced, false if the
+   *   apply was skipped (e.g. no deck store or reload manager). Callers
+   *   should gate success notifications on the return value so the user is
+   *   not told the deck was updated when it was not.
+   * @private
+   */
+  async _applyWholeDeckResult(enhancedMarkdown) {
+    const deckStore = this._getDeckStore();
+    const saveManager = this._getSaveManager();
+    const controller = this._getController();
+    if (!deckStore || !controller.reloadManager?.replaceDeck) return false;
+
+    await AssetLoader.ensureMarkdownItLoaded();
+    const deck = await DeckLoader.parseMarkdown(enhancedMarkdown);
+
+    // Update the deck store BEFORE firing deckchange via reloadManager so
+    // the _onDeckChange handler reads the correct (post-refine) store
+    // state. The structural-revision listener will clear the per-slide
+    // editor-state cache when deckStore.replaceDeck bumps the revision.
+    this._getUnsavedMarkdown().clear();
+    const parser = new MarkdownParser();
+    const newSlides = parser.splitSlides(enhancedMarkdown);
+    // Route through replaceDeck so the refine is undoable (Ctrl+Z)
+    // instead of loadFromMarkdown which clears history. Suppress the
+    // queued store-change restore so the explicit reload below is the
+    // single view refresh.
+    this._withSuppressedStoreChange(() =>
+      deckStore.replaceDeck(newSlides, 0, {
+        index: 0,
+        before: null,
+        after: enhancedMarkdown,
+        source: "ai",
+        timestamp: Date.now(),
+      }),
+    );
+    // Keep the store-sync module's structural revision in sync because
+    // we are not using restoreStoreSnapshot() for this whole-deck
+    // mutation. Any future store mutation that suppresses the queued
+    // restore and does its own reload MUST also sync the revision here
+    // — otherwise the next restoreStoreSnapshot will incorrectly
+    // believe the revision is unchanged and saveSlideState the current
+    // editor state for a stale slide index, silently corrupting the
+    // per-slide undo cache.
+    this._syncStructuralRevision();
+    await controller.reloadManager.replaceDeck(deck, {
+      startAtFirstSlide: true,
+      syncStore: false,
+    });
+    this._setCurrentSlideIndex(0);
+    this._loadSlideIntoEditor();
+    await this._getPreviewUpdater()?.update();
+    saveManager?.updateButton();
+    return true;
   }
 }

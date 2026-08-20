@@ -10,7 +10,7 @@ What to do:
 - Remove duplicate blank lines and trailing whitespace.
 - Fix mismatched layouts: downgrade `media-span-left`, `media-span-right`, or `two-column` when there is no image or an empty second column.
 - Improve wording: make headlines concise and human-facing, tighten bullet points, replace vague text with specific statements, and remove textbook-style repetition. Tighten, do not inflate.
-- Pick the best layout for each slide's content; use `two-column`, `focus`, or `table` layouts when they clarify the material.
+- Pick the best layout for each slide's content; use `two-column`, `focus`, or `table` layouts when they clarify the material. Use `focus` when the slide delivers a single conceptual point — one idea, one rule, one demonstration — regardless of whether it is expressed as a sentence, a short code block, or a compact table. Use `header-content` or `two-column` when the slide layers multiple points, extended explanation, or content that would overflow `focus`'s 8-11 line budget.
 - Use tables for 2-3 item comparisons.
 - Preserve each slide's `theme:` and `background:` directives and the existing color scheme.
 - Drop images that are low quality, redundant, or add no value, and keep the rest.

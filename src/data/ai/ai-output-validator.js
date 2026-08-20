@@ -335,15 +335,21 @@ export class AiOutputValidator {
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
 
+      // These three checks are warnings, not errors: the renderer handles
+      // all three gracefully (auto-placing unknown areas full-width, falling
+      // back to a single main area for missing/unknown layouts). The live AI
+      // flow's repair loop does not retry on warnings, avoiding wasted API
+      // calls for issues the renderer already handles. The import flow
+      // surfaces them so the user can optionally fix them externally.
       if (schema.requireLayout && !slide.layout) {
-        errors.push({
+        warnings.push({
           slide: i,
           code: "MISSING_LAYOUT",
           message: `Slide ${i + 1} has no layout directive`,
         });
       }
       if (slide.layout && !this._isValidLayout(slide.layout)) {
-        errors.push({
+        warnings.push({
           slide: i,
           code: "UNKNOWN_LAYOUT",
           message: `Slide ${i + 1} uses unknown layout "${slide.layout}"`,
@@ -355,7 +361,7 @@ export class AiOutputValidator {
         const usedAreas = slide._markerNames || Object.keys(slide.areas || {});
         for (const area of usedAreas) {
           if (!allowedAreas.includes(area)) {
-            errors.push({
+            warnings.push({
               slide: i,
               code: "INVALID_AREA",
               message: `Slide ${i + 1} uses @${area} but layout "${slide.layout}" allows only: ${allowedAreas.join(", ")}`,

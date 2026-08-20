@@ -32,33 +32,33 @@ describe("AiOutputValidator", () => {
     expect(result.slides).toHaveLength(1);
   });
 
-  it("reports an unknown layout", () => {
+  it("reports an unknown layout as a warning", () => {
     const output = `layout: nonexistent
 
 @main
 - Item`;
     const result = validate("", output, "fix");
-    expect(result.ok).toBe(false);
-    expect(result.errors[0].code).toBe("UNKNOWN_LAYOUT");
+    expect(result.ok).toBe(true);
+    expect(result.warnings[0].code).toBe("UNKNOWN_LAYOUT");
   });
 
-  it("reports an invalid area", () => {
+  it("reports an invalid area as a warning", () => {
     const output = `layout: header-content
 
 @sidebar
 - Item`;
     const result = validate("", output, "fix");
-    expect(result.ok).toBe(false);
-    expect(result.errors[0].code).toBe("INVALID_AREA");
+    expect(result.ok).toBe(true);
+    expect(result.warnings[0].code).toBe("INVALID_AREA");
   });
 
-  it("reports a missing layout in generate mode", () => {
+  it("reports a missing layout in generate mode as a warning", () => {
     const output = `# Title
 
 - Item`;
     const result = validate("", output, "generate");
-    expect(result.ok).toBe(false);
-    expect(result.errors[0].code).toBe("MISSING_LAYOUT");
+    expect(result.ok).toBe(true);
+    expect(result.warnings[0].code).toBe("MISSING_LAYOUT");
   });
 
   it("reports too many slides for a single-slide intent", () => {

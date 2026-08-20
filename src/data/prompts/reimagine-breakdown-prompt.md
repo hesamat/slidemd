@@ -176,7 +176,7 @@ Use the direction above to assign a sensible `visualBeat` and image query to eac
 Background / layout guidance by beat:
 
 - `continuation` — default content beat. Use `header-content` or `two-column` for dense content; follow the visual direction's default background.
-- `punctuation` — a high-emphasis moment. Use `focus` only for a single short takeaway; otherwise use `header-content` with a bright, light, or image background.
+- `punctuation` — a high-emphasis moment. Use `focus` when the slide delivers a single conceptual point — one idea, one rule, one demonstration — regardless of whether it is a sentence, a short code block, or a compact table. If the slide layers multiple points or would overflow `focus`'s 8-11 line budget, use `header-content` with a bright, light, or image background.
 - `transition` — bridge between chapters. Use a deliberate background/theme shift; `header-content` or `focus`.
 - `emotional` — imagery or atmosphere. Use `full-image` or `media-span` with a kept image when available; otherwise use `header-content` with an atmospheric background.
 - `divider` — a section marker. Minimal content, a large heading, and a strong background/theme change. `title-slide` or `header-content`.
