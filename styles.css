@@ -16,6 +16,7 @@
 @import "./styles/notification.css";
 @import "./styles/editor-thumbnails.css";
 @import "./styles/editor-modal.css";
+@import "./styles/modal-base.css";
 @import "./styles/image-picker-modal.css";
 @import "./styles/editor-layouts.css";
 @import "./styles/editor.css";

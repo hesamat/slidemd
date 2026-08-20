@@ -16,6 +16,7 @@
 import { validateAiBaseUrl, KEY_REQUIRED_PROVIDERS } from "../data/ai/ai-provider-client.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
 import { ThemeManager, PALETTES, PALETTE_LABELS } from "../renderer/theme-manager.js";
+import { iconString } from "../core/icon.js";
 
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
 const STORAGE_KEY_BASE_OVERRIDE = "webdeck_ai_base_override";
@@ -27,8 +28,8 @@ const DEFAULT_PROVIDER = "OpenRouter";
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 const P = "settings-modal__";
 
-const SUN_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
-const MOON_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+const SUN_ICON = iconString("sun", { size: "md" });
+const MOON_ICON = iconString("moon", { size: "md" });
 
 // Legacy key — used for one-time migration to per-provider storage
 const LEGACY_KEY_API = "webdeck_openrouter_api_key";
@@ -262,6 +263,10 @@ export class SettingsModal {
   static close() {
     if (this._currentBackdrop) {
       document.body.style.overflow = "";
+      if (this._currentKeydownHandler) {
+        document.removeEventListener("keydown", this._currentKeydownHandler);
+        this._currentKeydownHandler = null;
+      }
       this._currentBackdrop.remove();
       this._currentBackdrop = null;
       modalClosed();
@@ -964,6 +969,18 @@ export class SettingsModal {
           resolve(null);
         }
       });
+
+      // Close on Escape key
+      const onKeydown = (e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          cleanup();
+          SettingsModal.close();
+          resolve(null);
+        }
+      };
+      document.addEventListener("keydown", onKeydown);
+      this._currentKeydownHandler = onKeydown;
     });
   }
 
@@ -1048,10 +1065,10 @@ export class SettingsModal {
 
   static #createDom() {
     const backdrop = document.createElement("div");
-    backdrop.className = `${P}backdrop`;
+    backdrop.className = `modal-base__backdrop ${P}backdrop`;
     backdrop.innerHTML = `
-      <div class="${P}dialog">
-        <h2 class="${P}title">Settings</h2>
+      <div class="modal-base__dialog ${P}dialog">
+        <h2 class="modal-base__title ${P}title">Settings</h2>
 
         <!-- Appearance card -->
         <div class="${P}card ${P}card--appearance">
@@ -1154,7 +1171,7 @@ export class SettingsModal {
                 placeholder="Type to search or enter model ID..."
                 autocomplete="off"
               />
-              <button type="button" data-action="fetch-models" class="${P}btn ${P}btn--secondary ${P}fetch-btn">Fetch</button>
+              <button type="button" data-action="fetch-models" class="modal-base__btn modal-base__btn--secondary ${P}btn ${P}btn--secondary ${P}fetch-btn">Fetch</button>
               <div class="${P}model-dropdown" hidden>
                 <div class="${P}model-list"></div>
               </div>
@@ -1175,12 +1192,14 @@ export class SettingsModal {
 
         <div class="${P}error" hidden></div>
 
-        <div class="${P}actions">
-          <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
-          <button type="button" data-action="save" class="${P}btn ${P}btn--accent">Save</button>
+        <div class="modal-base__footer ${P}actions">
+          <button type="button" data-action="cancel" class="modal-base__btn modal-base__btn--secondary ${P}btn ${P}btn--secondary">Cancel</button>
+          <button type="button" data-action="save" class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--accent">Save</button>
         </div>
       </div>
     `;
+    const dialog = backdrop.querySelector(`.${P}dialog`);
+    if (dialog) dialog.style.setProperty("--modal-width", "440px");
     return backdrop;
   }
 }

@@ -6,6 +6,7 @@ import {
   getImageOrdinalIndexInArea,
   getImageOrdinalIndex,
 } from "./image-markdown-utils.js";
+import { iconString, icon } from "../../core/icon.js";
 
 /**
  * ImagePropertiesPanel
@@ -165,7 +166,7 @@ export class ImagePropertiesPanel {
                             <span class="image-properties-panel__field-label">Height</span>
                             <input type="number" class="image-properties-panel__input" data-field="height" min="20" max="1080" placeholder="H" />
                         </label>
-                        <button type="button" class="image-properties-panel__icon-btn" data-action="toggle-lock" title="Lock aspect ratio" aria-pressed="true">🔒</button>
+                        <button type="button" class="image-properties-panel__icon-btn" data-action="toggle-lock" title="Lock aspect ratio" aria-pressed="true">${iconString("lock", { size: "sm" })}</button>
                     </div>
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__chip" data-action="small">Small</button>
@@ -175,12 +176,12 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="fill" title="Fill the container (cover)">Fill</button>
                     </div>
                     <div class="image-properties-panel__row">
-                        <button type="button" class="image-properties-panel__chip" data-action="align-left" title="Align left">⬅ Left</button>
-                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center horizontally">↔ Center</button>
-                        <button type="button" class="image-properties-panel__chip" data-action="align-right" title="Align right">Right ➡</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="align-left" title="Align left">${iconString("arrow-left", { size: "xs" })} Left</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center horizontally">${iconString("arrow-left-right", { size: "xs" })} Center</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="align-right" title="Align right">Right ${iconString("arrow-right", { size: "xs" })}</button>
                     </div>
                     <div class="image-properties-panel__row">
-                        <button type="button" class="image-properties-panel__chip" data-action="toggle-freeflow" title="Float: image detaches from normal flow, other elements ignore it">✈ Float</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="toggle-freeflow" title="Float: image detaches from normal flow, other elements ignore it">${iconString("plane", { size: "xs" })} Float</button>
                     </div>
                 </div>
 
@@ -213,9 +214,9 @@ export class ImagePropertiesPanel {
                         <span class="image-properties-panel__field-label">Rotate</span>
                     </div>
                     <div class="image-properties-panel__row image-properties-panel__row--compact">
-                        <button type="button" class="image-properties-panel__icon-btn" data-action="rot-left" title="Rotate 90° left">↺</button>
+                        <button type="button" class="image-properties-panel__icon-btn" data-action="rot-left" title="Rotate 90° left">${iconString("rotate-ccw", { size: "sm" })}</button>
                         <input type="range" class="image-properties-panel__range image-properties-panel__range--grow" data-field="rotation" min="0" max="360" step="1" />
-                        <button type="button" class="image-properties-panel__icon-btn" data-action="rot-right" title="Rotate 90° right">↻</button>
+                        <button type="button" class="image-properties-panel__icon-btn" data-action="rot-right" title="Rotate 90° right">${iconString("rotate-cw", { size: "sm" })}</button>
                         <span class="image-properties-panel__field-label" data-display="rotation">0°</span>
                     </div>
                     <div class="image-properties-panel__row">
@@ -315,7 +316,7 @@ export class ImagePropertiesPanel {
       case "toggle-lock":
         this._aspectLocked = !this._aspectLocked;
         btn.setAttribute("aria-pressed", String(this._aspectLocked));
-        btn.textContent = this._aspectLocked ? "🔒" : "🔓";
+        btn.replaceChildren(icon(this._aspectLocked ? "lock" : "lock-open", { size: "sm" }));
         ImageInteractionHandler.setAspectLock(this._aspectLocked);
         break;
       case "small":
