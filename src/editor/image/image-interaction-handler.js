@@ -16,6 +16,8 @@ import {
   getAreaContentRange,
   findMarkdownPositionOfElement,
   readImageSettings,
+  transformDecl,
+  filterDecl,
   buildInlineStyleString,
   buildMediaSpanStyleString,
   buildRepositionedImgTag,
@@ -441,6 +443,11 @@ export class ImageInteractionHandler {
   static handleKeyDown(e) {
     if (!this._selectedImg || !this._selectedImg.isConnected) return false;
 
+    // Don't intercept arrow keys when the user is typing in an input
+    // (e.g. number fields in the properties panel) — let the browser
+    // handle native increment/decrement.
+    if (e.target && e.target.tagName === "INPUT") return false;
+
     const step = e.shiftKey ? 1 : ARROW_KEY_STEP;
     let dx = 0;
     let dy = 0;
@@ -636,7 +643,8 @@ export class ImageInteractionHandler {
       s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
       s.borderRadius ? `border-radius: ${s.borderRadius}px` : "",
       s.boxShadow && s.boxShadow !== "none" ? `box-shadow: ${s.boxShadow}` : "",
-      s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
+      transformDecl(s),
+      filterDecl(s),
       s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
       "border: none",
       `object-fit: ${s.objectFit || "contain"}`,
@@ -697,7 +705,8 @@ export class ImageInteractionHandler {
         current.opacity !== 1 ? `opacity: ${current.opacity}` : "",
         current.borderRadius ? `border-radius: ${current.borderRadius}px` : "",
         current.boxShadow && current.boxShadow !== "none" ? `box-shadow: ${current.boxShadow}` : "",
-        current.rotation ? `transform: rotate(${Math.round(current.rotation)}deg)` : "",
+        transformDecl(current),
+        filterDecl(current),
         current.zIndex ? `z-index: ${Math.round(current.zIndex)}` : "",
         "border: none",
         "object-fit: contain",
@@ -739,8 +748,27 @@ export class ImageInteractionHandler {
     if (s.objectFit != null) img.style.objectFit = s.objectFit;
     if (s.borderRadius != null) img.style.borderRadius = `${Math.round(s.borderRadius)}px`;
     if (s.boxShadow != null) img.style.boxShadow = s.boxShadow;
-    if (s.rotation != null) {
-      img.style.transform = s.rotation ? `rotate(${Math.round(s.rotation)}deg)` : "";
+    // Transform (rotation + flip) — rebuild from current + incoming settings
+    if (s.rotation != null || s.flipH != null || s.flipV != null) {
+      const cur = readImageSettings(img);
+      const merged = {
+        rotation: s.rotation != null ? s.rotation : cur.rotation,
+        flipH: s.flipH != null ? s.flipH : cur.flipH,
+        flipV: s.flipV != null ? s.flipV : cur.flipV,
+      };
+      const decl = transformDecl(merged);
+      img.style.transform = decl ? decl.replace("transform: ", "") : "";
+    }
+    // Filter (brightness + contrast + saturate) — rebuild from current + incoming
+    if (s.brightness != null || s.contrast != null || s.saturate != null) {
+      const cur = readImageSettings(img);
+      const merged = {
+        brightness: s.brightness != null ? s.brightness : cur.brightness,
+        contrast: s.contrast != null ? s.contrast : cur.contrast,
+        saturate: s.saturate != null ? s.saturate : cur.saturate,
+      };
+      const decl = filterDecl(merged);
+      img.style.filter = decl ? decl.replace("filter: ", "") : "";
     }
     if (s.zIndex != null) img.style.zIndex = String(Math.round(s.zIndex));
     if (s.alt != null) img.setAttribute("alt", s.alt);

@@ -5,6 +5,7 @@ import {
   parseAllImages,
   getImageOrdinalIndexInArea,
   getImageOrdinalIndex,
+  readImageSettings as readImageSettingsSync,
 } from "./image-markdown-utils.js";
 
 /**
@@ -39,6 +40,9 @@ const DIRECT_FIELDS = new Set([
   "borderRadius",
   "opacity",
   "rotation",
+  "brightness",
+  "contrast",
+  "saturate",
   "alt",
 ]);
 
@@ -236,6 +240,27 @@ export class ImagePropertiesPanel {
                         <span class="image-properties-panel__control-value" data-display="rotation">0°</span>
                         <button type="button" class="image-properties-panel__icon-btn" data-action="rot-right" title="Rotate 90° right">↻</button>
                     </div>
+                    <div class="image-properties-panel__section-label">Flip</div>
+                    <div class="image-properties-panel__control-row">
+                        <button type="button" class="image-properties-panel__chip" data-action="flip-h" title="Flip horizontal">↔ Flip H</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="flip-v" title="Flip vertical">↕ Flip V</button>
+                    </div>
+                    <div class="image-properties-panel__section-label">Adjust</div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Bright</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="brightness" min="0" max="200" step="5" value="100" title="Brightness %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
+                    </div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Contrast</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="contrast" min="0" max="200" step="5" value="100" title="Contrast %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
+                    </div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Saturate</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="saturate" min="0" max="200" step="5" value="100" title="Saturation %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
+                    </div>
                     <div class="image-properties-panel__section-label">Alt text</div>
                     <div class="image-properties-panel__row">
                         <input type="text" class="image-properties-panel__text" data-field="alt" placeholder="Describe the image" />
@@ -355,6 +380,18 @@ export class ImagePropertiesPanel {
       case "rot-right":
         ImageInteractionHandler.rotateBy(90);
         break;
+      case "flip-h": {
+        const cur = ImageInteractionHandler._selectedImg;
+        const s = cur ? readImageSettingsSync(cur) : {};
+        ImageInteractionHandler.applySettings({ flipH: !s.flipH });
+        break;
+      }
+      case "flip-v": {
+        const cur = ImageInteractionHandler._selectedImg;
+        const s = cur ? readImageSettingsSync(cur) : {};
+        ImageInteractionHandler.applySettings({ flipV: !s.flipV });
+        break;
+      }
       case "pill":
         ImageInteractionHandler.applySettings({ borderRadius: 999 });
         break;
@@ -421,6 +458,9 @@ export class ImagePropertiesPanel {
     } else if (field === "rotation") {
       settings.rotation = value;
       this._updateDisplay("rotation", `${Math.round(value)}°`);
+    } else if (field === "brightness" || field === "contrast" || field === "saturate") {
+      // Number inputs are 0–200 (percent); CSS values are 0–2 (1 = normal)
+      settings[field] = value / 100;
     } else if (field === "width" || field === "height") {
       settings[field] = value;
       if (this._aspectLocked) {
@@ -593,12 +633,13 @@ export class ImagePropertiesPanel {
    */
   static _collectSettings() {
     const settings = {};
+    const PERCENT_FIELDS = new Set(["opacity", "brightness", "contrast", "saturate"]);
     this.el.querySelectorAll("[data-field]").forEach((input) => {
       const field = input.dataset.field;
       if (!DIRECT_FIELDS.has(field)) return;
       if (input.type === "range" || input.type === "number") {
         const v = parseFloat(input.value);
-        if (Number.isFinite(v)) settings[field] = field === "opacity" ? v / 100 : v;
+        if (Number.isFinite(v)) settings[field] = PERCENT_FIELDS.has(field) ? v / 100 : v;
       } else if (input.value) {
         settings[field] = input.value;
       }
@@ -638,14 +679,20 @@ export class ImagePropertiesPanel {
     setVal("alt", s.alt);
     setVal("opacity", Number.isFinite(s.opacity) ? Math.round(s.opacity * 100) : 100);
     setVal("rotation", Number.isFinite(s.rotation) ? s.rotation : 0);
+    setVal("brightness", Number.isFinite(s.brightness) ? Math.round(s.brightness * 100) : 100);
+    setVal("contrast", Number.isFinite(s.contrast) ? Math.round(s.contrast * 100) : 100);
+    setVal("saturate", Number.isFinite(s.saturate) ? Math.round(s.saturate * 100) : 100);
 
     // Display labels
-    const opDisplay = this.el.querySelector('[data-display="opacity"]');
-    if (opDisplay) opDisplay.textContent = `${Math.round((s.opacity ?? 1) * 100)}%`;
-    const rotDisplay = this.el.querySelector('[data-display="rotation"]');
-    if (rotDisplay) rotDisplay.textContent = `${Math.round(s.rotation ?? 0)}°`;
-    const radiusDisplay = this.el.querySelector('[data-display="radius"]');
-    if (radiusDisplay) radiusDisplay.textContent = `${Math.round(s.borderRadius ?? 0)}px`;
+    this._updateDisplay("opacity", `${Math.round((s.opacity ?? 1) * 100)}%`);
+    this._updateDisplay("rotation", `${Math.round(s.rotation ?? 0)}°`);
+    this._updateDisplay("radius", `${Math.round(s.borderRadius ?? 0)}px`);
+
+    // Flip button active state
+    const flipHBtn = this.el.querySelector('[data-action="flip-h"]');
+    if (flipHBtn) flipHBtn.classList.toggle("active", !!s.flipH);
+    const flipVBtn = this.el.querySelector('[data-action="flip-v"]');
+    if (flipVBtn) flipVBtn.classList.toggle("active", !!s.flipV);
 
     // Track last aspect ratio for lock behaviour
     if (s.width && s.height) this._lastRatio = s.width / s.height;

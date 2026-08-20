@@ -944,6 +944,21 @@
   text-align: center;
 }
 
+/* Adjust number input (brightness/contrast/saturate) */
+.image-properties-panel__input--adjust {
+  flex: 0 0 52px;
+  text-align: right;
+  padding: 4px 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+
+.image-properties-panel__control-suffix {
+  font-size: 11px;
+  color: var(--text-low);
+  flex-shrink: 0;
+}
+
 /* Section label inside a panel (groups related rows) */
 .image-properties-panel__section-label {
   margin: 6px 0 8px;
