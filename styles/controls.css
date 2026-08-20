@@ -348,7 +348,7 @@ html[data-webdeck-role="editor"] #editorOnlyControls {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px 0 6px;
+  padding: 0 10px 0 6px;
   height: 32px;
   font-size: 13px;
   font-weight: 500;

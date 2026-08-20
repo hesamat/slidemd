@@ -23,6 +23,7 @@ import { SettingsModal } from "./src/editor/settings-modal.js";
 import { ImageInteractionHandler } from "./src/editor/image/image-interaction-handler.js";
 import { DeckStore } from "./src/data/store/deck-store.js";
 import { Logger } from "./src/core/logger.js";
+import { hydrateIcons } from "./src/core/icon.js";
 (() => {
   "use strict";
 
@@ -281,6 +282,11 @@ import { Logger } from "./src/core/logger.js";
 
     RoleManager.initRole();
     ThemeManager.initTheme();
+
+    // Hydrate <i data-icon="..."> placeholders into SVG icons.
+    // Runs early so icons are present before modals/dropdowns open.
+    hydrateIcons(document);
+
     window.__WEBDECK_RELOAD_CHANNEL__ = ReloadManager.initReloadChannel();
 
     if (SlideRenderer.showLoadingState) {

@@ -314,7 +314,7 @@
 .ai-generate-modal__export-back {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   background: none;
   border: none;
   color: var(--accent);
@@ -324,12 +324,6 @@
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   transition: all 0.12s ease;
-}
-
-.ai-generate-modal__export-back::before {
-  content: "\2190";
-  font-size: 15px;
-  line-height: 1;
 }
 
 .ai-generate-modal__export-back:hover {

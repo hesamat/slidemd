@@ -62,6 +62,7 @@
     "interactjs": "^1.10.27",
     "jszip": "^3.10.1",
     "localforage": "^1.10.0",
+    "lucide": "^1.31.0",
     "mermaid": "^11.16.1",
     "pptxtojson": "^2.0.6",
     "utif2": "^4.1.0"
