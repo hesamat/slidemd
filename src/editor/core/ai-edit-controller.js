@@ -390,8 +390,14 @@ export class AiEditController {
     try {
       const enhanced = await AiSidebar.show(op, orchestrator);
       if (enhanced) {
-        await this._applyWholeDeckResult(enhanced);
-        Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
+        const applied = await this._applyWholeDeckResult(enhanced);
+        if (applied) {
+          Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
+        } else {
+          Notification.error(
+            "Could not apply AI result — no deck loaded. Open or create a deck first.",
+          );
+        }
       }
     } catch (err) {
       Notification.error(`AI generate failed: ${err.message || err}`);
@@ -442,7 +448,6 @@ export class AiEditController {
       // Non-fatal: same-deck imports may still have directives in the AI output.
     }
     const validator = new AiOutputValidator({ inputMarkdown: "" });
-    let lastConvertedMarkdown = null;
     const validate = (text) => {
       // Try parsing as an AI JSON response first; fall back to raw text if
       // it's already slide markdown.
@@ -455,16 +460,23 @@ export class AiEditController {
       }
       // Gap-fill missing theme/background/mediaFullBleed/areaBg directives
       // from the export-time snapshot. Generate mode: only fill directives
-      // the AI dropped, never overwrite AI-chosen values. No-op when the
-      // slide count differs from the snapshot (cross-deck restructure).
-      if (Array.isArray(snapshotDirectives) && snapshotDirectives.length > 0) {
+      // the AI dropped, never overwrite AI-chosen values. Only apply when
+      // the imported deck's slide count matches the snapshot's — a
+      // cross-deck restructure or a different presentation would otherwise
+      // pick up another deck's colors positionally (injectDirectives maps
+      // sections[i] to origDirectives[i]). This mirrors the live
+      // orchestrator's resultSlides.length === totalSlides guard.
+      if (
+        Array.isArray(snapshotDirectives) &&
+        snapshotDirectives.length > 0 &&
+        new MarkdownParser().splitSlides(markdown).length === snapshotDirectives.length
+      ) {
         markdown = injectDirectives(markdown, snapshotDirectives, "generate");
       }
-      lastConvertedMarkdown = markdown;
       // Structural validation only: no expected slide count, no image-source
       // restrictions, no identity enforcement. The validator still checks
       // layouts, areas, non-empty content, and basic schema rules.
-      return validator.validate(markdown, "generate", {
+      const result = validator.validate(markdown, "generate", {
         expectedSlideCount: undefined,
         skipOverflow: true,
         enforcePreserveIdentity: false,
@@ -473,6 +485,10 @@ export class AiEditController {
         onlyExplicitImageSources: false,
         visualSystem: undefined,
       });
+      // Attach the converted markdown so the modal resolves with the exact
+      // text that was validated, not the raw textarea value.
+      result.converted = markdown;
+      return result;
     };
 
     let pasted;
@@ -484,13 +500,22 @@ export class AiEditController {
     }
     if (!pasted) return; // cancelled
 
-    // Use the converted markdown (JSON→markdown) from the last validation
-    // call. This ensures we apply the same text that was validated.
-    const markdownToApply = lastConvertedMarkdown || pasted;
+    // The modal resolves with the validator's `converted` text (the
+    // JSON→markdown conversion + directive gap-fill), or the raw pasted
+    // text when no conversion was needed. This is the exact text that was
+    // validated, so the data flow is explicit rather than relying on a
+    // closure side-effect.
+    const markdownToApply = pasted;
 
     try {
-      await this._applyWholeDeckResult(markdownToApply);
-      Notification.success("AI result imported. Press Ctrl+Z to undo.");
+      const applied = await this._applyWholeDeckResult(markdownToApply);
+      if (applied) {
+        Notification.success("AI result imported. Press Ctrl+Z to undo.");
+      } else {
+        Notification.error(
+          "Could not import AI result — no deck loaded. Open or create a deck first.",
+        );
+      }
     } catch (err) {
       Notification.error(`Import failed: ${err.message || err}`);
     }
@@ -501,14 +526,17 @@ export class AiEditController {
    * Shared by the live AI generate flow and the import-AI-result flow so both
    * go through the same replaceDeck path (undoable, broadcasts, re-renders).
    * @param {string} enhancedMarkdown
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} true if the deck was replaced, false if the
+   *   apply was skipped (e.g. no deck store or reload manager). Callers
+   *   should gate success notifications on the return value so the user is
+   *   not told the deck was updated when it was not.
    * @private
    */
   async _applyWholeDeckResult(enhancedMarkdown) {
     const deckStore = this._getDeckStore();
     const saveManager = this._getSaveManager();
     const controller = this._getController();
-    if (!deckStore || !controller.reloadManager?.replaceDeck) return;
+    if (!deckStore || !controller.reloadManager?.replaceDeck) return false;
 
     await AssetLoader.ensureMarkdownItLoaded();
     const deck = await DeckLoader.parseMarkdown(enhancedMarkdown);
@@ -550,5 +578,6 @@ export class AiEditController {
     this._loadSlideIntoEditor();
     await this._getPreviewUpdater()?.update();
     saveManager?.updateButton();
+    return true;
   }
 }

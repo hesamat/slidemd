@@ -566,6 +566,10 @@ export class AiGenerateModal {
       // transient success indicator is shown on the clicked button.
       const handleExport = async (kind) => {
         const btn = kind === "copy" ? copyBtn : downloadBtn;
+        // Clear any stale error from a previous failed export so a
+        // successful copy/download does not leave the old error visible.
+        const existingError = dialog.querySelector(`.${P}export-error`);
+        if (existingError) existingError.remove();
         try {
           await opts.onExport(readOptions(), kind);
         } catch (err) {

@@ -31,7 +31,7 @@
 .ai-import-modal__subtitle {
   margin: 0 0 16px;
   font-size: 13px;
-  color: var(--text-medium, #666);
+  color: var(--text-low, #666);
   line-height: 1.5;
 }
 
@@ -83,7 +83,7 @@
 .ai-import-modal__status-list {
   margin: 0 0 6px;
   padding-left: 20px;
-  color: var(--text-medium, #666);
+  color: var(--text-low, #666);
 }
 
 .ai-import-modal__status-list li {
@@ -111,7 +111,7 @@
 }
 
 .ai-import-modal__btn:hover {
-  background: var(--surface-2-bg, rgba(0, 0, 0, 0.04));
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
 }
 
 .ai-import-modal__btn--primary {

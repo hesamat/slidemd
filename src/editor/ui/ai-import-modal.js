@@ -24,6 +24,9 @@ const P = "ai-import-modal__";
  * @property {boolean} ok
  * @property {Array<{slide?: number, code?: string, message: string}>} errors
  * @property {Array<{slide?: number, code?: string, message: string}>} warnings
+ * @property {string} [converted] — optional converted text to resolve
+ *   instead of the raw textarea value (e.g. JSON→markdown). When absent,
+ *   the raw text is resolved.
  */
 
 export class AiImportModal {
@@ -32,8 +35,11 @@ export class AiImportModal {
    * @param {object} opts
    * @param {(text: string) => ValidationResult|Promise<ValidationResult>} opts.validate
    *   Validates pasted text. Called on "Validate" click and again before apply.
-   * @returns {Promise<string|null>} The pasted markdown if the user applies,
-   *   or null if cancelled.
+   *   The result may include an optional `converted` string — when present, it
+   *   is resolved instead of the raw textarea text so the caller receives the
+   *   exact text that was validated (e.g. JSON→markdown conversion).
+   * @returns {Promise<string|null>} The converted markdown if the validator
+   *   provided one, otherwise the pasted text; or null if cancelled.
    */
   static show({ validate }) {
     if (typeof validate !== "function") {
@@ -311,12 +317,20 @@ export class AiImportModal {
         // again — same UX as the error path).
         const text = textarea.value;
         if (!text.trim()) return;
+        // Resolve with the validator's `converted` text when present so the
+        // caller receives the exact text that was validated (e.g. after a
+        // JSON→markdown conversion), not the raw textarea value.
+        const resolveText = (result) =>
+          result && typeof result.converted === "string" ? result.converted : text;
         try {
           const fresh = validate(text);
           if (fresh && typeof fresh.then === "function") {
             // Async validator: trust lastResult only if text is unchanged.
+            // Attach a no-op catch so a rejection from the discarded
+            // re-validation does not surface as an unhandled rejection.
+            fresh.catch(() => {});
             if (!lastResult) return;
-            close(text);
+            close(resolveText(lastResult));
             return;
           }
           if (!fresh.ok && fresh.errors && fresh.errors.length > 0) {
@@ -326,10 +340,11 @@ export class AiImportModal {
             updateApplyEnabled();
             return;
           }
-          close(text);
+          lastResult = fresh;
+          close(resolveText(fresh));
         } catch {
           // If re-validation throws, trust the last successful validation.
-          if (lastResult) close(text);
+          if (lastResult) close(resolveText(lastResult));
         }
       });
 

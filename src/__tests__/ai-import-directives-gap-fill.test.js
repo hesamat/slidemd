@@ -81,8 +81,13 @@ describe("import directives gap-fill round-trip", () => {
     expect(result).not.toContain("background: #1e293b");
   });
 
-  it("is a no-op when the slide count differs from the snapshot", () => {
-    // Cross-deck restructure: AI returned 3 slides, snapshot has 2.
+  it("index-matches directives positionally when the slide count differs from the snapshot", () => {
+    // injectDirectives maps sections[i] to origDirectives[i] positionally.
+    // When the AI returns more slides than the snapshot has directives, the
+    // extra slides are left unchanged (no matching directive entry). The
+    // import controller guards against this case by only calling
+    // injectDirectives when the slide counts match, so cross-deck
+    // restructures do not pick up another deck's colors.
     const aiSlides = [
       { layout: "title-slide", content: "@title\n# A" },
       { layout: "header-content", content: "@header\n# B" },

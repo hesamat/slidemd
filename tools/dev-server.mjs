@@ -646,6 +646,11 @@ function createHandler(format) {
     // directory so they remain available after the user loads a different
     // deck and imports an AI result that references them.
     if (pathname === "/api/images/snapshot" && req.method === "POST") {
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       try {
         if (!format?.imagesDir || !fs.existsSync(format.imagesDir)) {
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -653,6 +658,22 @@ function createHandler(format) {
           return;
         }
         fs.mkdirSync(EXPORTED_IMAGES_DIR, { recursive: true });
+        // Prune files from the exported-images dir that are not in the
+        // current deck before copying. This bounds growth to the most
+        // recently exported deck's images so the picker does not
+        // accumulate leftovers from previously exported decks, while
+        // preserving the snapshot through the deck switch that precedes
+        // an import (the clear endpoint intentionally does not touch
+        // this directory for the same reason).
+        const currentNames = new Set(
+          fs.readdirSync(format.imagesDir).filter((f) => IMAGE_RE.test(path.extname(f))),
+        );
+        for (const file of fs.readdirSync(EXPORTED_IMAGES_DIR)) {
+          if (!IMAGE_RE.test(path.extname(file))) continue;
+          if (!currentNames.has(file)) {
+            fs.unlinkSync(path.join(EXPORTED_IMAGES_DIR, file));
+          }
+        }
         let copied = 0;
         for (const file of fs.readdirSync(format.imagesDir)) {
           const src = path.join(format.imagesDir, file);
@@ -676,6 +697,11 @@ function createHandler(format) {
     // via extractDirectives) so the import flow can gap-fill theme/background
     // the external AI dropped. The body is the directives array as JSON.
     if (pathname === "/api/directives/snapshot" && req.method === "POST") {
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       try {
         const body = await readBody(req);
         const parsed = JSON.parse(body.toString("utf8"));
@@ -684,10 +710,42 @@ function createHandler(format) {
           res.end(JSON.stringify({ error: "Expected a directives array" }));
           return;
         }
+        // Validate each entry matches the extractDirectives output shape:
+        // { layout, background, theme, mediaFullBleed, areaBg }. Bound the
+        // array length and string values so a crafted cross-origin payload
+        // cannot write arbitrary content into the snapshot file.
+        if (parsed.length > 1000) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Directives array too large" }));
+          return;
+        }
+        const sanitized = parsed.map((entry) => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+            throw new TypeError("Invalid directive entry");
+          }
+          const str = (v, max) =>
+            typeof v === "string" && v.length <= max ? v : undefined;
+          const areaBg = {};
+          if (entry.areaBg && typeof entry.areaBg === "object") {
+            for (const [k, v] of Object.entries(entry.areaBg)) {
+              if (typeof k === "string" && k.length <= 64) {
+                const val = str(v, 256);
+                if (val !== undefined) areaBg[k] = val;
+              }
+            }
+          }
+          return {
+            layout: str(entry.layout, 256),
+            background: str(entry.background, 256),
+            theme: str(entry.theme, 256),
+            mediaFullBleed: typeof entry.mediaFullBleed === "boolean" ? entry.mediaFullBleed : false,
+            areaBg,
+          };
+        });
         fs.mkdirSync(path.dirname(EXPORTED_DIRECTIVES_FILE), { recursive: true });
-        fs.writeFileSync(EXPORTED_DIRECTIVES_FILE, JSON.stringify(parsed));
+        fs.writeFileSync(EXPORTED_DIRECTIVES_FILE, JSON.stringify(sanitized));
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true, count: parsed.length }));
+        res.end(JSON.stringify({ ok: true, count: sanitized.length }));
       } catch (e) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
