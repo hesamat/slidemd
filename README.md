@@ -8,6 +8,7 @@ SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on
 
 - **Markdown-first authoring** — layouts, themes, and backgrounds via simple directives
 - **Live editing** — split-screen editor with instant preview, autocomplete, and slash commands
+- **Image styling** — opacity, corner radius, drop shadow, flip, rotation, and brightness/contrast/saturation filters via the image properties panel
 - **Dual-window presenter view** — speaker notes, next-slide preview, and break timer
 - **Code highlighting** via Prism, **math** via KaTeX, **diagrams** via Mermaid
 - **PPTX import** — convert PowerPoint decks to Markdown with layout inference
