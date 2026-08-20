@@ -14,7 +14,7 @@ import {
   buildGenerateOptionsSuffix,
   BATCH_SIZE,
   splitSlidesForAi,
-  stripThemeAndBackground,
+  stripAllVisualIdentity,
   stripVisualIdentity,
   applyVisualSystemIdentity,
 } from "./ai-prompt-builder.js";
@@ -154,7 +154,11 @@ export class RemixReimagineOrchestrator {
     // Default matches #runRemixPlan's `?? true` so the plan prompt and the
     // execute phase can never resolve the option differently.
     const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? true;
-    const planContext = preserveVisualIdentity ? context : stripThemeAndBackground(context);
+    // In discard mode, strip ALL visual identity (theme, background, color,
+    // backgroundColor, area-bg-*) from the source so the execute-phase AI
+    // gets a true blank slate and is free to choose a new professional color
+    // scheme without copying stale identity.
+    const planContext = preserveVisualIdentity ? context : stripAllVisualIdentity(context);
 
     onLog?.(`Planning ${mode} restructure\u2026`);
     const { plan, imagesWereSent } = await this.#runRemixPlan(
@@ -290,8 +294,10 @@ export class RemixReimagineOrchestrator {
         } else {
           // `add` entry with no source: build a minimal placeholder from the
           // brief/title so the final deck has the right number of slides.
+          // Sanitize newlines so a rogue title/brief can't inject a `---`
+          // separator and desynchronize the slide count.
           const entry = plan[missingIdx];
-          const title = entry?.title || "New slide";
+          const title = String(entry?.title || "New slide").replace(/\n/g, " ");
           const brief = String(entry?.brief || title).replace(/\n/g, " ");
           generatedSlides.push(
             `layout: header-content\n\n@header\n# ${title}\n\n@main\n- ${brief}`,

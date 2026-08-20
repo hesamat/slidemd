@@ -420,6 +420,157 @@ describe("AiOrchestrator", () => {
       expect(result).not.toContain("undefined");
     });
 
+    it("accepts split and add plan actions and produces the expected slide count", async () => {
+      // Plan: polish slide 0, split slide 1 into two slides, add a new recap.
+      // The execute phase must return 4 slides (one per plan entry).
+      const SPLIT_ADD_PLAN = JSON.stringify({
+        plan: [
+          {
+            action: "polish",
+            source: [0],
+            brief: "Tighten wording",
+            reason: "Already clear",
+            title: "Slide 1",
+          },
+          {
+            action: "split",
+            source: [1],
+            brief: "Extract the first concept",
+            reason: "Slide is too dense",
+            title: "Slide 2: Part A",
+          },
+          {
+            action: "split",
+            source: [1],
+            brief: "Extract the second concept",
+            reason: "Each idea deserves its own slide",
+            title: "Slide 2: Part B",
+          },
+          {
+            action: "add",
+            source: [],
+            brief: "Insert a recap of the key takeaways",
+            reason: "The deck ends too abruptly",
+            title: "Recap",
+          },
+        ],
+      });
+      const SPLIT_ADD_EXECUTE = JSON.stringify({
+        slides: [
+          { layout: "header-content", content: "@header\n## Slide 1\n\n@main\n- Tight" },
+          { layout: "header-content", content: "@header\n## Part A\n\n@main\n- Concept 1" },
+          { layout: "header-content", content: "@header\n## Part B\n\n@main\n- Concept 2" },
+          { layout: "header-content", content: "@header\n## Recap\n\n@main\n- Takeaway 1" },
+        ],
+      });
+      const provider = mockProviderSequence([SPLIT_ADD_PLAN, SPLIT_ADD_EXECUTE, SPLIT_ADD_EXECUTE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // All four plan entries should be logged.
+      expect(logs.some((l) => l.includes("[Plan] Polish"))).toBe(true);
+      expect(logs.some((l) => l.includes("[Plan] Split"))).toBe(true);
+      expect(logs.some((l) => l.includes("[Plan] Add"))).toBe(true);
+      // The result should contain all four slides.
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Part A");
+      expect(result).toContain("Part B");
+      expect(result).toContain("Recap");
+      // 4 slides = 3 separators.
+      expect(result.split("\n\n---\n\n")).toHaveLength(4);
+    });
+
+    it("falls back to a placeholder for add entries when execute returns too few slides", async () => {
+      // Plan: polish slide 0, rewrite slide 1, add a new recap. Execute
+      // returns zero slides, so the fallback should use the source for the
+      // polish/rewrite entries and build a placeholder from the add entry's
+      // title/brief.
+      const ADD_PLAN = JSON.stringify({
+        plan: [
+          {
+            action: "polish",
+            source: [0],
+            brief: "Tighten wording",
+            reason: "Already clear",
+            title: "Slide 1",
+          },
+          {
+            action: "rewrite",
+            source: [1],
+            brief: "Make this more concise",
+            reason: "Content is verbose",
+            title: "Slide 2",
+          },
+          {
+            action: "add",
+            source: [],
+            brief: "Insert a recap of the key takeaways",
+            reason: "The deck ends too abruptly",
+            title: "Recap",
+          },
+        ],
+      });
+      const MISSING_EXECUTE = JSON.stringify({ slides: [] });
+      const provider = mockProviderSequence([ADD_PLAN, MISSING_EXECUTE, MISSING_EXECUTE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      // The polish/rewrite entries fall back to the source slides.
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Slide 2");
+      // The add entry falls back to a placeholder built from title/brief.
+      expect(result).toContain("Recap");
+      expect(result).toContain("Insert a recap of the key takeaways");
+      expect(result).not.toContain("undefined");
+      // 3 slides = 2 separators.
+      expect(result.split("\n\n---\n\n")).toHaveLength(3);
+    });
+
+    it("sanitizes newlines in the add fallback title to prevent slide boundary injection", async () => {
+      // A rogue title containing a newline + `---` would desynchronize the
+      // slide count if not sanitized. The fallback must collapse newlines.
+      const ROGUE_ADD_PLAN = JSON.stringify({
+        plan: [
+          {
+            action: "polish",
+            source: [0],
+            brief: "Tighten",
+            reason: "ok",
+            title: "Slide 1",
+          },
+          {
+            action: "rewrite",
+            source: [1],
+            brief: "Reword",
+            reason: "ok",
+            title: "Slide 2",
+          },
+          {
+            action: "add",
+            source: [],
+            brief: "Recap\n\n---\n\nlayout: header-content\n@header\n## Injected",
+            reason: "ok",
+            title: "Recap\n---\nExtra",
+          },
+        ],
+      });
+      const MISSING_EXECUTE = JSON.stringify({ slides: [] });
+      const provider = mockProviderSequence([ROGUE_ADD_PLAN, MISSING_EXECUTE, MISSING_EXECUTE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      // The rogue newlines must be collapsed — the deck should still have
+      // exactly 3 slides, not 4+. The injected `---` separator must not
+      // create a phantom slide.
+      expect(result.split("\n\n---\n\n")).toHaveLength(3);
+    });
+
     it("repairs execute output that drops identity or fabricates image URLs", async () => {
       const THEMED_DECK =
         'layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2';
@@ -2099,7 +2250,7 @@ describe("AiOrchestrator", () => {
 
     it("throws on invalid plan action", async () => {
       const badPlan = JSON.stringify({
-        plan: [{ action: "split", source: [0], brief: "split this", reason: "ok", title: "X" }],
+        plan: [{ action: "delete", source: [0], brief: "delete this", reason: "ok", title: "X" }],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });

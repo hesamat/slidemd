@@ -7,4 +7,4 @@ Do not preserve the original color theme, colored text, backgrounds, or visual l
 
 <!-- variant: remix -->
 
-Do not preserve the original color theme, colored text, backgrounds, or visual language. Strip all `theme:`, `background:`, and `color`/`backgroundColor` directives from the source slide content. You are free to choose a new professional color scheme, `theme:`, `background:`, and colored text as appropriate for the content. For every slide, include both `theme:` and `background:` as the first lines of the `content` string, before the first `@area` marker. Vary backgrounds across the deck.
+Do not preserve the original color theme, colored text, backgrounds, or visual language. The source slide's `theme:`, `background:`, `color:`, `backgroundColor:`, and `area-bg-*:` directives have already been stripped. You are free to choose a new professional color scheme, `theme:`, `background:`, and colored text as appropriate for the content. For every slide, include both `theme:` and `background:` as the first lines of the `content` string, before the first `@area` marker. Vary backgrounds across the deck.
