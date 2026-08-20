@@ -90,19 +90,6 @@ export class AiImportModal {
       validateBtn.dataset.action = "validate";
       actions.appendChild(validateBtn);
 
-      // "Copy repair prompt" — appears when validation has errors or
-      // warnings. Copies a repair message (built from both) so the user
-      // can paste it back into their external AI tool for a fix, then
-      // paste the corrected output back here. This is the import flow's
-      // manual equivalent of the live AI flow's repair loop.
-      const repairBtn = document.createElement("button");
-      repairBtn.type = "button";
-      repairBtn.className = `${P}btn`;
-      repairBtn.textContent = "Copy repair prompt";
-      repairBtn.dataset.action = "repair";
-      repairBtn.style.display = "none";
-      actions.appendChild(repairBtn);
-
       const applyBtn = document.createElement("button");
       applyBtn.type = "button";
       applyBtn.className = `${P}btn ${P}btn--primary`;
@@ -139,29 +126,60 @@ export class AiImportModal {
       cancelBtn.addEventListener("click", () => close(null));
       document.addEventListener("keydown", onKeydown);
 
+      // Helper to copy the repair prompt to the clipboard and briefly
+      // show a copied indicator on the provided element.
+      const doCopyRepair = async (el) => {
+        if (!lastResult) return;
+        const issues = [...(lastResult.errors || []), ...(lastResult.warnings || [])];
+        if (issues.length === 0) return;
+        const msg = buildRepairMessage(issues);
+        try {
+          await copyText(msg);
+          const prev = el.textContent;
+          el.textContent = "Copied";
+          setTimeout(() => {
+            el.textContent = prev;
+          }, 1500);
+        } catch {
+          // If clipboard fails, show a transient note in the status area.
+          const note = document.createElement("p");
+          note.className = `${P}status-banner ${P}status-banner--warn`;
+          note.textContent = "Could not copy to clipboard. Check browser permissions.";
+          statusArea.appendChild(note);
+        }
+      };
+
       const renderStatus = (result) => {
         statusArea.replaceChildren();
-        if (!result) {
-          repairBtn.style.display = "none";
-          return;
-        }
+        if (!result) return;
         const hasErrors = result.errors && result.errors.length > 0;
         const hasWarnings = result.warnings && result.warnings.length > 0;
-
-        // Show the repair button whenever there are issues to fix.
-        repairBtn.style.display = hasErrors || hasWarnings ? "" : "none";
 
         // Helper to render a list of issues in a card, with slide chips.
         const renderIssueList = (issues, kind) => {
           const box = document.createElement("div");
           box.className = `${P}issue-box ${P}issue-box--${kind}`;
 
-          const title = document.createElement("div");
+          const header = document.createElement("div");
+          header.className = `${P}issue-box__header`;
+
+          const title = document.createElement("span");
           title.className = `${P}issue-box__title`;
           const label = kind === "error" ? "error" : "warning";
           const plural = issues.length === 1 ? label : `${label}s`;
           title.textContent = `${issues.length} ${plural}`;
-          box.appendChild(title);
+          header.appendChild(title);
+
+          const copyBtn = document.createElement("button");
+          copyBtn.type = "button";
+          copyBtn.className = `${P}issue-box__copy`;
+          copyBtn.textContent = "⧉";
+          copyBtn.title = "Copy repair prompt";
+          copyBtn.setAttribute("aria-label", "Copy repair prompt");
+          copyBtn.addEventListener("click", () => doCopyRepair(copyBtn));
+          header.appendChild(copyBtn);
+
+          box.appendChild(header);
 
           const ul = document.createElement("ul");
           ul.className = `${P}issue-list`;
@@ -197,7 +215,7 @@ export class AiImportModal {
             const note = document.createElement("div");
             note.className = `${P}status-banner ${P}status-banner--warn`;
             note.textContent =
-              "These warnings are non-blocking. You can still apply, or copy the repair prompt to fix them in your external AI tool.";
+              "These warnings are non-blocking. You can still apply, or copy the repair prompt from a warning card to fix them in your external AI tool.";
             statusArea.appendChild(note);
             statusArea.appendChild(renderIssueList(result.warnings, "warning"));
           }
@@ -209,7 +227,7 @@ export class AiImportModal {
           const note = document.createElement("div");
           note.className = `${P}status-banner ${P}status-banner--warn`;
           note.textContent =
-            "Fix these errors and paste again, or copy the repair prompt to fix them in your external AI tool.";
+            "Fix these errors and paste again, or copy the repair prompt from the error card to fix them in your external AI tool.";
           statusArea.appendChild(note);
         }
 
@@ -219,7 +237,7 @@ export class AiImportModal {
             const note = document.createElement("div");
             note.className = `${P}status-banner ${P}status-banner--warn`;
             note.textContent =
-              "These warnings are non-blocking. You can still apply, or copy the repair prompt to fix them in your external AI tool.";
+              "These warnings are non-blocking. You can still apply, or copy the repair prompt from a warning card to fix them in your external AI tool.";
             statusArea.appendChild(note);
           }
         }
@@ -276,32 +294,6 @@ export class AiImportModal {
 
       validateBtn.addEventListener("click", runValidation);
 
-      // "Copy repair prompt" — builds a repair message from the current
-      // validation errors and warnings and copies it to the clipboard.
-      // The user pastes this into their external AI tool, gets a corrected
-      // response, and pastes it back into the textarea.
-      repairBtn.addEventListener("click", async () => {
-        if (!lastResult) return;
-        const issues = [...(lastResult.errors || []), ...(lastResult.warnings || [])];
-        if (issues.length === 0) return;
-        const msg = buildRepairMessage(issues);
-        try {
-          await copyText(msg);
-          const prev = repairBtn.textContent;
-          repairBtn.textContent = "Copied!";
-          setTimeout(() => {
-            repairBtn.textContent = prev;
-          }, 2000);
-        } catch {
-          // If clipboard fails, select the textarea so the user can
-          // manually copy — but that's unlikely to help. Just show a note.
-          const note = document.createElement("p");
-          note.className = `${P}status-warn`;
-          note.textContent = "Could not copy to clipboard. Check browser permissions.";
-          statusArea.appendChild(note);
-        }
-      });
-
       applyBtn.addEventListener("click", () => {
         if (applyBtn.disabled) return;
         // Re-validate synchronously against the current text to guard against
@@ -344,7 +336,6 @@ export class AiImportModal {
       textarea.addEventListener("input", () => {
         lastResult = null;
         statusArea.replaceChildren();
-        repairBtn.style.display = "none";
         updateApplyEnabled();
       });
 

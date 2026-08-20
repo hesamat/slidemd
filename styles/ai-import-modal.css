@@ -106,13 +106,38 @@
   background: rgba(217, 119, 6, 0.05);
 }
 
-.ai-import-modal__issue-box__title {
+.ai-import-modal__issue-box__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 12px;
+  background: var(--surface-elevated, rgba(248, 250, 252, 0.98));
+  border-bottom: 1px solid var(--border-medium, #ccc);
+}
+
+.ai-import-modal__issue-box__title {
   font-size: 13px;
   font-weight: 600;
-  background: var(--surface-elevated, rgba(248, 250, 252, 0.98));
   color: var(--text-high, #111);
-  border-bottom: 1px solid var(--border-medium, #ccc);
+}
+
+.ai-import-modal__issue-box__copy {
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-medium, #666);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.ai-import-modal__issue-box__copy:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+  color: var(--text-high, #111);
 }
 
 .ai-import-modal__issue-list {
