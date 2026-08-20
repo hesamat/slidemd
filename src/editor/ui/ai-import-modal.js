@@ -117,11 +117,10 @@ export class AiImportModal {
       document.body.appendChild(backdrop);
       modalOpened();
 
-      // Last validation result. Apply is only allowed when this is non-null and
-      // either ok:true, or ok:false with only warnings and the user has
-      // acknowledged them by clicking "Apply anyway".
+      // Last validation result. Apply is allowed when this is non-null and
+      // there are no errors. Warnings are non-blocking — the user can apply
+      // as-is or copy the repair prompt to fix them externally.
       let lastResult = null;
-      let warningsAcknowledged = false;
       let validating = false;
 
       const close = (result) => {
@@ -178,12 +177,6 @@ export class AiImportModal {
               ul.appendChild(li);
             }
             statusArea.appendChild(ul);
-            if (!warningsAcknowledged) {
-              const hint = document.createElement("p");
-              hint.className = `${P}status-warn`;
-              hint.textContent = "Click Validate again to acknowledge warnings and enable Apply.";
-              statusArea.appendChild(hint);
-            }
           }
           return;
         }
@@ -224,11 +217,6 @@ export class AiImportModal {
           note.textContent =
             "Fix these errors and paste again, or copy the repair prompt to fix them in your external AI tool.";
           statusArea.appendChild(note);
-        } else if (hasWarnings && !warningsAcknowledged) {
-          const note = document.createElement("p");
-          note.className = `${P}status-warn`;
-          note.textContent = "Click Validate again to acknowledge warnings and enable Apply.";
-          statusArea.appendChild(note);
         }
       };
 
@@ -238,13 +226,8 @@ export class AiImportModal {
           return;
         }
         const hasErrors = lastResult.errors && lastResult.errors.length > 0;
-        const hasWarnings = lastResult.warnings && lastResult.warnings.length > 0;
-        applyBtn.disabled = hasErrors || (hasWarnings && !warningsAcknowledged);
-        if (warningsAcknowledged && !hasErrors) {
-          applyBtn.textContent = "Apply anyway";
-        } else {
-          applyBtn.textContent = "Apply";
-        }
+        applyBtn.disabled = hasErrors;
+        applyBtn.textContent = "Apply";
       };
 
       const runValidation = async () => {
@@ -252,7 +235,6 @@ export class AiImportModal {
         const text = textarea.value;
         if (!text.trim()) {
           lastResult = null;
-          warningsAcknowledged = false;
           statusArea.replaceChildren();
           const empty = document.createElement("p");
           empty.className = `${P}status-warn`;
@@ -268,19 +250,6 @@ export class AiImportModal {
           const result = await validate(text);
           // If the text changed while validating, discard the stale result.
           if (textarea.value !== text) return;
-          // First click with warnings: don't acknowledge yet. Second click
-          // (with unchanged text and only warnings): acknowledge.
-          if (
-            lastResult &&
-            !lastResult.ok &&
-            lastResult.errors.length === 0 &&
-            lastResult.warnings.length > 0 &&
-            sameResultShape(lastResult, result)
-          ) {
-            warningsAcknowledged = true;
-          } else {
-            warningsAcknowledged = false;
-          }
           lastResult = result;
           renderStatus(result);
           updateApplyEnabled();
@@ -291,7 +260,6 @@ export class AiImportModal {
             errors: [{ message: `Validation failed: ${err?.message || err}` }],
             warnings: [],
           };
-          warningsAcknowledged = false;
           renderStatus(lastResult);
           updateApplyEnabled();
         } finally {
@@ -355,7 +323,6 @@ export class AiImportModal {
           }
           if (!fresh.ok && fresh.errors && fresh.errors.length > 0) {
             lastResult = fresh;
-            warningsAcknowledged = false;
             renderStatus(fresh);
             updateApplyEnabled();
             return;
@@ -371,7 +338,6 @@ export class AiImportModal {
       // Editing the textarea invalidates the previous validation.
       textarea.addEventListener("input", () => {
         lastResult = null;
-        warningsAcknowledged = false;
         statusArea.replaceChildren();
         repairBtn.style.display = "none";
         updateApplyEnabled();
@@ -380,22 +346,4 @@ export class AiImportModal {
       textarea.focus();
     });
   }
-}
-
-/**
- * Compare two validation results by error/warning codes+messages (ignoring
- * slide indices which may shift). Used to detect a second Validate click on
- * unchanged warnings so we can flip to "acknowledged".
- * @param {ValidationResult} a
- * @param {ValidationResult} b
- * @returns {boolean}
- */
-function sameResultShape(a, b) {
-  if (!a || !b) return false;
-  const sig = (r) =>
-    [...(r.errors || []), ...(r.warnings || [])]
-      .map((e) => `${e.code || ""}:${e.message || ""}`)
-      .sort()
-      .join("|");
-  return sig(a) === sig(b);
 }

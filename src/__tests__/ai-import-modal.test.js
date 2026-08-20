@@ -70,7 +70,7 @@ describe("AiImportModal", () => {
     await promise;
   });
 
-  it("requires two Validate clicks to acknowledge warnings and enable Apply", async () => {
+  it("enables Apply immediately when there are only warnings (no errors)", async () => {
     const validate = () => ({
       ok: false,
       errors: [],
@@ -81,14 +81,10 @@ describe("AiImportModal", () => {
     textarea.value = "some text";
     dialog.querySelector('[data-action="validate"]').click();
     await new Promise((r) => setTimeout(r, 0));
-    // First click: warnings shown, Apply still disabled.
-    expect(dialog.querySelector('[data-action="apply"]').disabled).toBe(true);
-    // Second click: acknowledged, Apply enabled with "Apply anyway".
-    dialog.querySelector('[data-action="validate"]').click();
-    await new Promise((r) => setTimeout(r, 0));
+    // Warnings are non-blocking: Apply is enabled on the first click.
     const applyBtn = dialog.querySelector('[data-action="apply"]');
     expect(applyBtn.disabled).toBe(false);
-    expect(applyBtn.textContent).toBe("Apply anyway");
+    expect(applyBtn.textContent).toBe("Apply");
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
