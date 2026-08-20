@@ -100,12 +100,16 @@ describe("AiOrchestrator", () => {
     });
 
     it("retries on validation failure and accepts after max attempts", async () => {
-      // Return a slide with an invalid area to trigger validation failure
+      // Return 2 slides when 1 is expected to trigger SLIDE_COUNT_MISMATCH
       const badResponse = JSON.stringify({
         slides: [
           {
             layout: "header-content",
-            content: "@nonexistent\n## Bad area",
+            content: "@header\n## Slide 1\n\n@main\n- Item",
+          },
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 2\n\n@main\n- Item",
           },
         ],
       });

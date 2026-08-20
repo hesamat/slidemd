@@ -25,11 +25,14 @@ export default defineConfig({
             // compares the browser's Origin header against the Host it
             // receives. Rewriting Host to localhost:8001 would make every
             // write (POST /api/deck) fail the check with a 403.
+            //
+            // The CLI server port is configurable via WEBDECK_CLI_PORT
+            // (default 8001) to match tools/dev.mjs.
             '/api': {
-                target: 'http://localhost:8001',
+                target: `http://localhost:${process.env.WEBDECK_CLI_PORT || '8001'}`,
             },
             '/images': {
-                target: 'http://localhost:8001',
+                target: `http://localhost:${process.env.WEBDECK_CLI_PORT || '8001'}`,
             },
         },
     },
