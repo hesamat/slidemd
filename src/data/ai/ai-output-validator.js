@@ -5,6 +5,7 @@ import {
   parseTextBlockDirectives,
   CANONICAL_TEXT_BLOCK_ATTRIBUTES,
 } from "../../core/text-block-directive.js";
+import { parseTableDirectives, CANONICAL_TABLE_ATTRIBUTES } from "../../core/table-directive.js";
 import {
   parseAllImages,
   parseAllImagesOutsideFences,
@@ -375,6 +376,7 @@ export class AiOutputValidator {
       const rawSlide = rawSlideTexts[i] || "";
       const inputRawSlide = inputRawSlideTexts[i] || "";
       this._checkTextBlockAttributes(rawSlide, inputRawSlide, i, errors, intent);
+      this._checkTableAttributes(rawSlide, inputRawSlide, i, errors, intent);
 
       if (schema.checkContentRules) {
         const rawSlide = rawSlideTexts[i] || "";
@@ -679,6 +681,42 @@ export class AiOutputValidator {
         code: "MALFORMED_TEXT_BLOCK",
         message: `Slide ${index + 1} has a text-block directive without braces. Use ::: text-block { ... } with attributes inside { }.`,
       });
+    }
+  }
+
+  /**
+   * Check `::: table { ... }` container directives for unknown attributes.
+   * Mirrors `_checkTextBlockAttributes`: the table directive parser silently
+   * drops attributes it doesn't recognise, so the AI can produce a directive
+   * that looks correct but renders with none of the intended styling. For
+   * generate intents this is a hard error; for preserve-oriented intents only
+   * unknown attributes that were not already present in the input are flagged.
+   * @param {string} rawSlide - raw slide markdown (before table directive conversion)
+   * @param {string} inputRawSlide - raw input slide markdown for comparison
+   * @param {number} index - 0-based slide index
+   * @param {ValidationError[]} errors
+   * @param {string} intent
+   */
+  _checkTableAttributes(rawSlide, inputRawSlide, index, errors, intent) {
+    const blocks = parseTableDirectives(rawSlide);
+    const inputBlocks = parseTableDirectives(inputRawSlide);
+    const inputUnknownSet = new Set(inputBlocks.flatMap((b) => b.unknownAttrs || []));
+    const isPreserve = intent !== "generate";
+
+    for (const block of blocks) {
+      const unknownAttrs = block.unknownAttrs || [];
+      if (unknownAttrs.length === 0) continue;
+
+      const newUnknowns = isPreserve
+        ? unknownAttrs.filter((a) => !inputUnknownSet.has(a))
+        : unknownAttrs;
+      if (newUnknowns.length > 0) {
+        errors.push({
+          slide: index,
+          code: "UNKNOWN_TABLE_ATTR",
+          message: `Slide ${index + 1} table directive uses unsupported attributes: ${newUnknowns.join(", ")}. Supported: ${CANONICAL_TABLE_ATTRIBUTES.join(", ")}. Use key=value or key="value" syntax (not key: value). Freeform CSS is not supported.`,
+        });
+      }
     }
   }
 

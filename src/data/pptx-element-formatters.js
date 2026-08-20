@@ -8,6 +8,7 @@ import { buildChartDataRows } from "./pptx-chart-data.js";
 import { stripHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
 import { sanitizeCssColor } from "./pptx-color-utils.js";
 import { CONVERSION, DEFAULTS, REGEX, MARKDOWN_TAGS } from "./pptx-slide-config.js";
+import { buildTableDirective } from "../core/table-directive.js";
 
 /**
  * Format raw text content into clean markdown.
@@ -221,12 +222,14 @@ export function formatImage(
  * slide converter, keeping the slide free of embedded HTML.
  *
  * Sizing is a markdown directive too: when the source table is narrower than
- * the slide, a `table {width: X%}` line precedes the table, which the app's
- * markdown renderer applies to the rendered <table> (no HTML in the source).
+ * the slide, a `::: table { width=X% }` container wraps the table, which the
+ * app's markdown renderer applies to the rendered <table> (no HTML in the
+ * source). The container uses `key=value` syntax matching the `text-block`
+ * directive grammar.
  *
  * @param {object} table - Table element with rows
  * @param {number} [slideWidth] - Slide width in points (for the width ratio).
- * @returns {string} Markdown table (with optional `table {width: X%}` prefix)
+ * @returns {string} Markdown table (with optional `::: table { ... }` wrapper)
  */
 export function formatTable(table, slideWidth, { noHeader = false } = {}) {
   if (!table.rows?.length) return "";
@@ -242,6 +245,7 @@ export function formatTable(table, slideWidth, { noHeader = false } = {}) {
   // Detect whether the first row is a header. PowerPoint styles header
   // rows with a distinct fill color from the body rows. When fills are
   // absent or uniform, fall back to a text heuristic.
+  let headerColor = null;
   if (!noHeader && table.rows.length > 1) {
     const firstFill = table.rows[0].map((c) => c.fillColor || null).join(",");
     const bodyFills = new Set(
@@ -249,6 +253,22 @@ export function formatTable(table, slideWidth, { noHeader = false } = {}) {
     );
     const hasAnyFill = table.rows.some((r) => r.some((c) => c.fillColor));
     const hasDistinctHeaderFill = hasAnyFill && !bodyFills.has(firstFill);
+    if (hasDistinctHeaderFill) {
+      // Capture the dominant non-null fill color from the header row.
+      // Most PPTX headers use a single color across all cells; pick the
+      // most frequent one to handle occasional merged-cell outliers.
+      const headerFills = table.rows[0].map((c) => c.fillColor).filter(Boolean);
+      if (headerFills.length > 0) {
+        const counts = new Map();
+        for (const c of headerFills) counts.set(c, (counts.get(c) || 0) + 1);
+        const dominant = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+        // Skip white — it's the default "no fill" in PPTX and would be noise.
+        const normalized = (dominant || "").toLowerCase().trim();
+        if (normalized !== "#ffffff" && normalized !== "#fff") {
+          headerColor = dominant;
+        }
+      }
+    }
     if (!hasDistinctHeaderFill) {
       // No distinct header fill — use text heuristic: a header row has
       // short label cells, while body rows have longer content. If the
@@ -301,18 +321,22 @@ export function formatTable(table, slideWidth, { noHeader = false } = {}) {
   }
   const tableMd = parts.join("\n");
 
-  // Build the table directive line: width sizing and/or no-header flag.
+  // Build the table directive container: width sizing and/or no-header flag.
   // Width sizes the table to the source box when it is meaningfully narrower
   // than the slide (near-full-width tables keep the default styling).
   const widthPct =
     slideWidth > 0 && table.width > 0
       ? Math.min(100, Math.round((table.width / slideWidth) * 100))
       : 100;
-  const directives = [];
-  if (widthPct <= 85) directives.push(`width: ${widthPct}%`);
-  if (noHeader) directives.push("no-header");
-  if (directives.length > 0) {
-    return `table {${directives.join("; ")}}\n\n${tableMd}`;
+  const settings = {};
+  if (widthPct <= 85) settings.width = widthPct;
+  if (noHeader) settings.noHeader = true;
+  if (headerColor) {
+    const safe = sanitizeCssColor(headerColor);
+    if (safe && safe !== "transparent") settings.headerColor = safe.toLowerCase();
+  }
+  if (Object.keys(settings).length > 0) {
+    return buildTableDirective(settings, tableMd);
   }
   return tableMd;
 }

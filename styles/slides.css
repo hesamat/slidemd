@@ -27,6 +27,10 @@
   --border-subtle: rgba(148, 163, 184, 0.12);
   --bg-subtle: rgba(243, 242, 243, 0.95);
 
+  /* Table-specific border — more visible than --border-color so tables read as
+     distinct containers, while remaining overridable by themes. */
+  --table-border-color: rgba(100, 116, 139, 0.4);
+
   /* --- CODE STYLING --- */
   --code-border: rgba(148, 163, 184, 0.24);
   --code-shadow: 0 4px 12px rgba(2, 6, 23, 0.12);
@@ -1085,7 +1089,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   font-size: 0.95em;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--table-border-color);
   border-radius: var(--radius-lg);
   margin: var(--spacing-sm) auto;
 }
@@ -1104,7 +1108,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   text-align: left;
   padding: 14px 16px;
   border-bottom: 2px solid var(--border-color);
-  background: var(--accent-light);
+  background: var(--table-header-color, var(--accent-light));
   color: var(--slide-ink);
   font-weight: 700;
   text-transform: uppercase;
@@ -1123,6 +1127,21 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 .slide__area table.table-no-header tbody tr:first-child td {
   border-top: none;
+}
+
+/* Borderless tables — the `borders=false` table directive removes the outer
+   border and radius. Cell borders remain subtle so rows still read as rows. */
+.slide__area table.table-borderless {
+  border: none;
+  border-radius: 0;
+}
+
+/* Unstriped tables — the `striped=false` table directive disables zebra
+   striping. The `.slide` prefix boosts specificity above the theme-specific
+   nth-child rules so the override actually wins. */
+.slide .slide__area table.table-no-stripes tbody tr:nth-child(odd) td,
+.slide .slide__area table.table-no-stripes tbody tr:nth-child(even) td {
+  background: transparent;
 }
 
 /* Table body cells */
@@ -1162,7 +1181,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* Dark theme table header */
 .slide[data-theme="dark"] .slide__area thead th {
-  background: var(--palette-accent-light, rgba(26, 149, 184, 0.45));
+  background: var(--table-header-color, var(--palette-accent-light, rgba(26, 149, 184, 0.45)));
   color: rgba(240, 242, 245, 0.95);
   border-bottom-color: var(--palette-accent, rgba(255, 255, 255, 0.15));
 }

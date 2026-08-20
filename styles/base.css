@@ -87,6 +87,15 @@
   box-sizing: border-box;
 }
 
+/* Ensure the HTML `hidden` attribute always hides elements, even when a
+   class-based `display` rule (e.g. `display: inline-flex`) would otherwise
+   override the user-agent stylesheet's `display: none`. Without this, buttons
+   like the conversion modal's Import button are visible before their data is
+   ready, causing races where a click handler accesses a null result. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;

@@ -26,7 +26,7 @@ const plainTable = {
 describe("formatTable", () => {
   it("renders a table with meaningful fills as a markdown table (no HTML)", () => {
     const out = formatTable(coloredTable(), 960);
-    expect(out).toContain("table {width: 27%}");
+    expect(out).toContain("::: table { width=27 }");
     expect(out).toContain("| 00 | 01 | 02 |");
     expect(out).not.toContain("fullpage-grid");
     expect(out).not.toContain("<div");
@@ -34,7 +34,7 @@ describe("formatTable", () => {
 
   it("renders a plain table as a markdown table", () => {
     const out = formatTable(plainTable, 960);
-    expect(out).toContain("table {width: 31%}");
+    expect(out).toContain("::: table { width=31 }");
     expect(out).toContain("| a | b |");
     expect(out).not.toContain("fullpage-grid");
   });
@@ -44,7 +44,7 @@ describe("formatTable", () => {
     // and still becomes a markdown table.
     const out = formatTable(coloredTable({ width: 900, height: 520 }), 960);
     expect(out.startsWith("|")).toBe(true);
-    expect(out).not.toContain("table {width:");
+    expect(out).not.toContain("::: table");
     expect(out).not.toContain("fullpage-grid");
   });
 
@@ -60,7 +60,7 @@ describe("formatTable", () => {
       ],
     };
     const out = formatTable(dataOnlyTable, 960);
-    expect(out).toContain("table {width: 31%; no-header}");
+    expect(out).toContain("::: table { width=31 no-header }");
     expect(out).toContain("|  |  |");
   });
 
@@ -80,6 +80,55 @@ describe("formatTable", () => {
 
   it("returns empty string for an empty table", () => {
     expect(formatTable({ rows: [] }, 960)).toBe("");
+  });
+
+  it("emits headerColor when the header row has a distinct fill", () => {
+    const table = {
+      width: 300,
+      height: 200,
+      rows: [
+        [
+          { text: "Name", fillColor: "#003C68" },
+          { text: "Value", fillColor: "#003C68" },
+        ],
+        [{ text: "alpha" }, { text: "beta" }],
+      ],
+    };
+    const out = formatTable(table, 960);
+    expect(out).toContain('headerColor="#003c68"');
+    expect(out).toContain("| Name | Value |");
+  });
+
+  it("does not emit headerColor when header and body share the same fill", () => {
+    const table = {
+      width: 300,
+      height: 200,
+      rows: [
+        [
+          { text: "Name", fillColor: "#003C68" },
+          { text: "Value", fillColor: "#003C68" },
+        ],
+        [
+          { text: "alpha", fillColor: "#003C68" },
+          { text: "beta", fillColor: "#003C68" },
+        ],
+      ],
+    };
+    const out = formatTable(table, 960);
+    expect(out).not.toContain("headerColor");
+  });
+
+  it("does not emit headerColor when no fills are present", () => {
+    const table = {
+      width: 300,
+      height: 200,
+      rows: [
+        [{ text: "Name" }, { text: "Value" }],
+        [{ text: "alpha" }, { text: "beta" }],
+      ],
+    };
+    const out = formatTable(table, 960);
+    expect(out).not.toContain("headerColor");
   });
 });
 
