@@ -24,6 +24,7 @@ import { countContentImages } from "../../data/ai/slide-image-extractor.js";
 import { buildExportablePrompt } from "../../data/ai/ai-prompt-export.js";
 import { createOperation } from "../../data/ai/ai-operation.js";
 import { modalOpened, modalClosed } from "../../core/modal-state.js";
+import { icon } from "../../core/icon.js";
 
 const P = "ai-generate-modal__";
 
@@ -54,7 +55,7 @@ export class AiGenerateModal {
   static show(markdown, opts = {}) {
     return new Promise((resolve) => {
       const backdrop = document.createElement("div");
-      backdrop.className = `${P}backdrop`;
+      backdrop.className = `modal-base__backdrop ${P}backdrop`;
 
       const slideCount = splitSlidesForAi(markdown, "generate").length;
       const batchCount = Math.max(1, Math.ceil(slideCount / BATCH_SIZE));
@@ -69,22 +70,24 @@ export class AiGenerateModal {
 
       // --- Build dialog via safe DOM construction (no innerHTML) ---
       const dialog = document.createElement("div");
-      dialog.className = `${P}dialog`;
+      dialog.className = `modal-base__dialog ${P}dialog`;
+      dialog.style.setProperty("--modal-width", "520px");
 
       // Header row: title + close button (matches New Presentation modal).
       const header = document.createElement("div");
-      header.className = `${P}header`;
+      header.className = `modal-base__header ${P}header`;
 
       const h2 = document.createElement("h2");
-      h2.className = `${P}title`;
+      h2.className = `modal-base__title ${P}title`;
       h2.textContent = title;
       header.appendChild(h2);
 
       const closeBtn = document.createElement("button");
       closeBtn.type = "button";
-      closeBtn.className = `${P}close`;
+      closeBtn.className = `modal-base__close ${P}close`;
       closeBtn.setAttribute("aria-label", "Close");
-      closeBtn.textContent = "\u00d7";
+      const closeIcon = icon("close", { size: "md" });
+      if (closeIcon) closeBtn.appendChild(closeIcon);
       header.appendChild(closeBtn);
 
       dialog.appendChild(header);
@@ -273,10 +276,10 @@ export class AiGenerateModal {
 
       // Actions
       const actions = document.createElement("div");
-      actions.className = `${P}actions`;
+      actions.className = `modal-base__footer ${P}actions`;
       const cancelBtn = document.createElement("button");
       cancelBtn.type = "button";
-      cancelBtn.className = `${P}btn`;
+      cancelBtn.className = `modal-base__btn modal-base__btn--secondary ${P}btn`;
       cancelBtn.dataset.action = "cancel";
       cancelBtn.textContent = "Cancel";
       actions.appendChild(cancelBtn);
@@ -294,7 +297,7 @@ export class AiGenerateModal {
       if (opts.onExport) {
         exportBtn = document.createElement("button");
         exportBtn.type = "button";
-        exportBtn.className = `${P}btn`;
+        exportBtn.className = `modal-base__btn modal-base__btn--secondary ${P}btn`;
         exportBtn.dataset.action = "toggle-export";
         exportBtn.textContent = "Export";
         actions.appendChild(exportBtn);
@@ -313,6 +316,8 @@ export class AiGenerateModal {
         backBtn.className = `${P}export-back`;
         backBtn.dataset.action = "close-export";
         backBtn.setAttribute("aria-label", "Back to refine options");
+        const backIcon = icon("arrow-left", { size: "sm" });
+        if (backIcon) backBtn.appendChild(backIcon);
         backBtn.appendChild(document.createTextNode("Back"));
         exportHeader.appendChild(backBtn);
 
@@ -350,13 +355,13 @@ export class AiGenerateModal {
         exportBtns.className = `${P}export-btns`;
         copyBtn = document.createElement("button");
         copyBtn.type = "button";
-        copyBtn.className = `${P}btn`;
+        copyBtn.className = `modal-base__btn modal-base__btn--secondary ${P}btn`;
         copyBtn.dataset.action = "copy-prompt";
         copyBtn.textContent = "Copy prompt";
         exportBtns.appendChild(copyBtn);
         downloadBtn = document.createElement("button");
         downloadBtn.type = "button";
-        downloadBtn.className = `${P}btn`;
+        downloadBtn.className = `modal-base__btn modal-base__btn--secondary ${P}btn`;
         downloadBtn.dataset.action = "download-prompt";
         downloadBtn.textContent = "Download prompt";
         exportBtns.appendChild(downloadBtn);
@@ -399,7 +404,7 @@ export class AiGenerateModal {
 
       const primaryBtn = document.createElement("button");
       primaryBtn.type = "button";
-      primaryBtn.className = `${P}btn ${P}btn--primary`;
+      primaryBtn.className = `modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--primary`;
       primaryBtn.dataset.action = primaryAction;
       primaryBtn.textContent = primaryLabel;
       actions.appendChild(primaryBtn);

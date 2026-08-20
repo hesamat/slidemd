@@ -47,13 +47,14 @@ export class AiImportModal {
     }
     return new Promise((resolve) => {
       const backdrop = document.createElement("div");
-      backdrop.className = `${P}backdrop`;
+      backdrop.className = `modal-base__backdrop ${P}backdrop`;
 
       const dialog = document.createElement("div");
-      dialog.className = `${P}dialog`;
+      dialog.className = `modal-base__dialog ${P}dialog`;
+      dialog.style.setProperty("--modal-width", "640px");
 
       const title = document.createElement("h2");
-      title.className = `${P}title`;
+      title.className = `modal-base__title ${P}title`;
       title.textContent = "Import AI result";
       dialog.appendChild(title);
 
@@ -74,25 +75,25 @@ export class AiImportModal {
       dialog.appendChild(statusArea);
 
       const actions = document.createElement("div");
-      actions.className = `${P}actions`;
+      actions.className = `modal-base__footer ${P}actions`;
 
       const cancelBtn = document.createElement("button");
       cancelBtn.type = "button";
-      cancelBtn.className = `${P}btn`;
+      cancelBtn.className = `modal-base__btn modal-base__btn--secondary ${P}btn`;
       cancelBtn.textContent = "Cancel";
       cancelBtn.dataset.action = "cancel";
       actions.appendChild(cancelBtn);
 
       const validateBtn = document.createElement("button");
       validateBtn.type = "button";
-      validateBtn.className = `${P}btn`;
+      validateBtn.className = `modal-base__btn modal-base__btn--secondary ${P}btn`;
       validateBtn.textContent = "Validate";
       validateBtn.dataset.action = "validate";
       actions.appendChild(validateBtn);
 
       const applyBtn = document.createElement("button");
       applyBtn.type = "button";
-      applyBtn.className = `${P}btn ${P}btn--primary`;
+      applyBtn.className = `modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--primary`;
       applyBtn.textContent = "Apply";
       applyBtn.dataset.action = "apply";
       applyBtn.disabled = true;

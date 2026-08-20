@@ -8,6 +8,7 @@
 
 import { isVisionError } from "../data/ai/ai-orchestrator.js";
 import { Logger } from "../core/logger.js";
+import { icon } from "../core/icon.js";
 
 const P = "ai-sidebar__";
 
@@ -194,9 +195,7 @@ export class AiSidebar {
       header.type = "button";
       header.className = `${P}plan-header`;
       header.setAttribute("aria-expanded", "true");
-      const headerIcon = document.createElement("span");
-      headerIcon.className = `${P}plan-chevron`;
-      headerIcon.textContent = "\u25BC";
+      let headerIcon = icon("chevron-down", { size: "sm", class: `${P}plan-chevron` });
       const headerText = document.createElement("span");
       headerText.className = `${P}plan-header-text`;
       headerText.textContent = `${planLabel} \u2014 ${summary}`;
@@ -242,7 +241,14 @@ export class AiSidebar {
         const expanded = header.getAttribute("aria-expanded") === "true";
         header.setAttribute("aria-expanded", String(!expanded));
         body.hidden = expanded;
-        headerIcon.textContent = expanded ? "\u25B6" : "\u25BC";
+        const newIcon = icon(expanded ? "chevron-right" : "chevron-down", {
+          size: "sm",
+          class: `${P}plan-chevron`,
+        });
+        if (headerIcon && newIcon) {
+          headerIcon.replaceWith(newIcon);
+          headerIcon = newIcon;
+        }
       });
 
       planEl.appendChild(header);

@@ -39,19 +39,20 @@ export class ConflictModal {
   static show(patch, intent = "enhanceSlide") {
     return new Promise((resolve) => {
       const backdrop = document.createElement("div");
-      backdrop.className = `${P}backdrop`;
+      backdrop.className = `modal-base__backdrop ${P}backdrop`;
 
       const dialog = document.createElement("div");
-      dialog.className = `${P}dialog`;
+      dialog.className = `modal-base__dialog ${P}dialog`;
+      dialog.style.setProperty("--modal-width", "480px");
       dialog.innerHTML = `
-        <h2 class="${P}title">This slide changed while AI was working</h2>
+        <h2 class="modal-base__title ${P}title">This slide changed while AI was working</h2>
         <p class="${P}subtitle" id="${P}subtitle"></p>
         <p class="${P}explanation">You edited this slide after the AI request started. Pick the version you want to keep.</p>
 
-        <div class="${P}actions">
-          <button type="button" class="${P}btn" data-action="reject">Keep my editor changes</button>
-          <button type="button" class="${P}btn ${P}btn--primary" data-action="apply">Use AI on the current version</button>
-          <button type="button" class="${P}btn" data-action="rebase" data-rebase="apply-to-original">Use AI on the original version</button>
+        <div class="modal-base__footer ${P}actions">
+          <button type="button" class="modal-base__btn modal-base__btn--secondary ${P}btn" data-action="reject">Keep my editor changes</button>
+          <button type="button" class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--primary" data-action="apply">Use AI on the current version</button>
+          <button type="button" class="modal-base__btn modal-base__btn--secondary ${P}btn" data-action="rebase" data-rebase="apply-to-original">Use AI on the original version</button>
         </div>
       `;
 

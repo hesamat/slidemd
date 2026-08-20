@@ -14,6 +14,7 @@
  */
 
 import { modalOpened, modalClosed } from "../../core/modal-state.js";
+import { iconString, icon } from "../../core/icon.js";
 
 const P = "ai-reimagine-outline-modal__";
 
@@ -73,21 +74,22 @@ export class AiReimagineOutlineModal {
     return new Promise((resolve) => {
       const previousFocus = document.activeElement;
       const backdrop = document.createElement("div");
-      backdrop.className = `${P}backdrop`;
+      backdrop.className = `modal-base__backdrop ${P}backdrop`;
 
       const sourceCount = opts.sourceCount || 0;
       const minTarget = Math.max(1, Math.round(sourceCount * 0.7));
       const maxTarget = Math.round(sourceCount * 1.2);
 
       const dialog = document.createElement("div");
-      dialog.className = `${P}dialog`;
+      dialog.className = `modal-base__dialog ${P}dialog`;
+      dialog.style.setProperty("--modal-width", "860px");
       dialog.setAttribute("role", "dialog");
       dialog.setAttribute("aria-modal", "true");
       dialog.setAttribute("aria-labelledby", `${P}title`);
       // Static structure only — no interpolated content (Hard Rule 6).
       dialog.innerHTML = `
-        <div class="${P}header">
-          <h2 id="${P}title" class="${P}title">Reimagine: Review plan</h2>
+        <div class="modal-base__header ${P}header">
+          <h2 id="${P}title" class="modal-base__title ${P}title">Reimagine: Review plan</h2>
           <p class="${P}subtitle">Review the AI's proposed direction and edit chapters before generating the full deck.</p>
         </div>
 
@@ -115,9 +117,9 @@ export class AiReimagineOutlineModal {
 
         <p class="${P}error" role="alert" aria-live="polite"></p>
 
-        <div class="${P}actions">
-          <button type="button" class="${P}btn" data-action="cancel">Cancel</button>
-          <button type="button" class="${P}btn ${P}btn--primary" data-action="generate">Generate</button>
+        <div class="modal-base__footer ${P}actions">
+          <button type="button" class="modal-base__btn modal-base__btn--secondary ${P}btn" data-action="cancel">Cancel</button>
+          <button type="button" class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--primary" data-action="generate">Generate</button>
         </div>
       `;
 
@@ -255,9 +257,9 @@ export class AiReimagineOutlineModal {
               <div class="${P}flow-tag-slot"></div>
               <input type="text" class="${P}chapter-title-input" placeholder="Chapter title" />
               <div class="${P}chapter-actions">
-                <button type="button" class="${P}icon-btn" data-action="chapter-up" ${ci === 0 ? "disabled" : ""} aria-label="Move chapter up">\u2191</button>
-                <button type="button" class="${P}icon-btn" data-action="chapter-down" ${ci === chapters.length - 1 ? "disabled" : ""} aria-label="Move chapter down">\u2193</button>
-                <button type="button" class="${P}icon-btn" data-action="chapter-remove" aria-label="Remove chapter">\u00D7</button>
+                <button type="button" class="${P}icon-btn" data-action="chapter-up" ${ci === 0 ? "disabled" : ""} aria-label="Move chapter up">${iconString("arrow-up", { size: "sm" })}</button>
+                <button type="button" class="${P}icon-btn" data-action="chapter-down" ${ci === chapters.length - 1 ? "disabled" : ""} aria-label="Move chapter down">${iconString("arrow-down", { size: "sm" })}</button>
+                <button type="button" class="${P}icon-btn" data-action="chapter-remove" aria-label="Remove chapter">${iconString("close", { size: "sm" })}</button>
               </div>
             </div>
             <textarea class="${P}chapter-summary-input" placeholder="Chapter objective \u2014 describe what this chapter covers and how it connects to the narrative arc." rows="3"></textarea>
@@ -312,7 +314,9 @@ export class AiReimagineOutlineModal {
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = `${P}link-btn ${P}add-chapter-btn`;
-        addBtn.textContent = "+ Add new chapter";
+        addBtn.textContent = "Add new chapter";
+        const addIcon = icon("plus", { size: "sm" });
+        if (addIcon) addBtn.prepend(addIcon, " ");
         addBtn.addEventListener("click", () => {
           chapters.push({
             title: "",

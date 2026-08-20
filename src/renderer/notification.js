@@ -4,6 +4,7 @@
  */
 
 import { modalOpened, modalClosed } from "../core/modal-state.js";
+import { icon } from "../core/icon.js";
 
 export class Notification {
   static container = null;
@@ -166,18 +167,29 @@ export class Notification {
    * @returns {HTMLElement} The icon element
    */
   static getIcon(type) {
-    const icon = document.createElement("span");
-    icon.className = "notification-toast__icon";
-    icon.setAttribute("aria-hidden", "true");
+    const iconNameMap = Object.create(null);
+    iconNameMap.success = "check";
+    iconNameMap.error = "close";
+    iconNameMap.warning = "triangle-alert";
+    iconNameMap.info = "info";
 
-    const iconMap = Object.create(null);
-    iconMap.success = "✓";
-    iconMap.error = "✕";
-    iconMap.warning = "⚠";
-    iconMap.info = "ℹ";
-
-    icon.textContent = iconMap[type] ?? iconMap.info;
-    return icon;
+    const name = iconNameMap[type] ?? iconNameMap.info;
+    // Guard for exported HTML where the icon module isn't bundled
+    let svg = null;
+    try {
+      if (typeof icon === "function") svg = icon(name, { size: "md" });
+    } catch {
+      /* icon module not available in exported HTML */
+    }
+    if (!svg) {
+      // Fallback: empty span so layout doesn't break
+      const span = document.createElement("span");
+      span.className = "notification-toast__icon";
+      span.setAttribute("aria-hidden", "true");
+      return span;
+    }
+    svg.classList.add("notification-toast__icon");
+    return svg;
   }
 
   /**
@@ -606,7 +618,15 @@ export class Notification {
     const closeBtn = document.createElement("button");
     closeBtn.className = "notification-toast__close";
     closeBtn.setAttribute("aria-label", "Close notification");
-    closeBtn.innerHTML = "×";
+    closeBtn.type = "button";
+    try {
+      if (typeof icon === "function") {
+        const closeIcon = icon("close", { size: "sm" });
+        if (closeIcon) closeBtn.appendChild(closeIcon);
+      }
+    } catch {
+      /* icon module not available in exported HTML */
+    }
     closeBtn.onclick = onClick;
     return closeBtn;
   }

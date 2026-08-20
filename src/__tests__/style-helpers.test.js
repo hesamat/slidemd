@@ -28,8 +28,9 @@ describe("COLOR_SWATCHES", () => {
 });
 
 describe("ICON_NONE", () => {
-  it("is a cross mark", () => {
-    expect(ICON_NONE).toBe("\u2715");
+  it("is an SVG icon string (ban icon)", () => {
+    expect(ICON_NONE).toContain("<svg");
+    expect(ICON_NONE).toContain("</svg>");
   });
 });
 
