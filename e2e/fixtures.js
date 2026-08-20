@@ -10,8 +10,9 @@ export const test = base.extend({
         messages.push({ type: message.type(), text: message.text() });
       };
       const onPageError = (error) => {
-        messages.push({ type: "pageerror", text: String(error?.message || error) });
-        console.error(`[pageerror] ${error?.message || error}`);
+        const stack = error?.stack || "";
+        messages.push({ type: "pageerror", text: String(error?.message || error), stack });
+        console.error(`[pageerror] ${error?.message || error}\n${stack}`);
       };
       page.on("console", onConsole);
       page.on("pageerror", onPageError);
@@ -30,7 +31,10 @@ export const test = base.extend({
         const errors = messages.filter((m) => m.type === "error" || m.type === "pageerror");
         if (errors.length > 0) {
           console.log(`\n=== Browser errors for ${testInfo.title} ===`);
-          for (const e of errors) console.log(`  [${e.type}] ${e.text}`);
+          for (const e of errors) {
+            console.log(`  [${e.type}] ${e.text}`);
+            if (e.stack) console.log(`  Stack: ${e.stack}`);
+          }
           console.log(`=== End browser errors ===\n`);
         }
       }
