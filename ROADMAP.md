@@ -755,55 +755,55 @@ Goal: Add a `::: table { ... }` container directive mirroring the `text-block` g
 
 ### Directive & Parsing
 
-| Task                                  | Details                                                                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [x] New `table-directive.js` module   | Parse `::: table { ... }` container, build markers for `markdown-it`, shared renderer. Shared between runtime and build.   |
-| [x] `markdown-parser.js` integration  | Use `convertTableDirectivesToMarkers` + `applyTableDirectiveRenderer` for the new directive syntax.                        |
-| [x] `md-to-deck.mjs` integration      | Build tool uses the shared `convertTableDirectivesToMarkers` + `applyTableDirectiveRenderer` functions.                    |
-| [x] Legacy colon-style compat         | `table {width: X%}` and `table {no-header}` still accepted for backwards compatibility.                                   |
+| Task                                 | Details                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| [x] New `table-directive.js` module  | Parse `::: table { ... }` container, build markers for `markdown-it`, shared renderer. Shared between runtime and build. |
+| [x] `markdown-parser.js` integration | Use `convertTableDirectivesToMarkers` + `applyTableDirectiveRenderer` for the new directive syntax.                      |
+| [x] `md-to-deck.mjs` integration     | Build tool uses the shared `convertTableDirectivesToMarkers` + `applyTableDirectiveRenderer` functions.                  |
+| [x] Legacy colon-style compat        | `table {width: X%}` and `table {no-header}` still accepted for backwards compatibility.                                  |
 
 ### Attributes
 
-| Task             | Details                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| [x] `width`      | Table width as a percentage of the area (1–100).                                                 |
-| [x] `align`      | `left`, `center`, or `right` via margin control.                                                 |
-| [x] `fontSize`   | Table font size in px.                                                                           |
-| [x] `columns`    | Relative column weights, comma-separated (e.g. `2,1,3`).                                         |
-| [x] `borders`    | `false` removes the table border via `table-borderless` class.                                   |
-| [x] `striped`    | `false` disables zebra striping via `table-no-stripes` class with boosted CSS specificity.       |
-| [x] `headerColor`| Hex color for the header row via `--table-header-color` CSS custom property. Sanitised.          |
-| [x] `no-header`  | Bare flag; hides the header row.                                                                 |
+| Task              | Details                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| [x] `width`       | Table width as a percentage of the area (1–100).                                           |
+| [x] `align`       | `left`, `center`, or `right` via margin control.                                           |
+| [x] `fontSize`    | Table font size in px.                                                                     |
+| [x] `columns`     | Relative column weights, comma-separated (e.g. `2,1,3`).                                   |
+| [x] `borders`     | `false` removes the table border via `table-borderless` class.                             |
+| [x] `striped`     | `false` disables zebra striping via `table-no-stripes` class with boosted CSS specificity. |
+| [x] `headerColor` | Hex color for the header row via `--table-header-color` CSS custom property. Sanitised.    |
+| [x] `no-header`   | Bare flag; hides the header row.                                                           |
 
 ### PPTX Import
 
-| Task                                  | Details                                                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [x] Auto-detect header fill color     | `formatTable` in `pptx-element-formatters.js` detects non-white header fills and emits `headerColor`. |
-| [x] Auto-add width for narrow tables  | PPTX-imported tables narrower than the slide get an explicit `width` attribute.            |
+| Task                                 | Details                                                                                               |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [x] Auto-detect header fill color    | `formatTable` in `pptx-element-formatters.js` detects non-white header fills and emits `headerColor`. |
+| [x] Auto-add width for narrow tables | PPTX-imported tables narrower than the slide get an explicit `width` attribute.                       |
 
 ### AI & Validation
 
-| Task                                  | Details                                                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [x] AI validator checks attributes    | `_checkTableAttributes` validates against `CANONICAL_TABLE_ATTRIBUTES`; unknown attrs flagged. |
-| [x] AI system prompt updated          | `system-prompt.md` documents the `::: table { ... }` directive and all supported attributes. |
+| Task                               | Details                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [x] AI validator checks attributes | `_checkTableAttributes` validates against `CANONICAL_TABLE_ATTRIBUTES`; unknown attrs flagged. |
+| [x] AI system prompt updated       | `system-prompt.md` documents the `::: table { ... }` directive and all supported attributes.   |
 
 ### Documentation & Examples
 
-| Task                                  | Details                                                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [x] `docs/authoring.md` updated       | Full attribute reference and examples for the new directive.                               |
-| [x] Example deck updated              | New "Table Styling" slide; cleaned up duplicate tables and fixed Text Blocks attributes.   |
-| [x] README feature list updated       | Added table styling to the features list.                                                  |
+| Task                            | Details                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------- |
+| [x] `docs/authoring.md` updated | Full attribute reference and examples for the new directive.                             |
+| [x] Example deck updated        | New "Table Styling" slide; cleaned up duplicate tables and fixed Text Blocks attributes. |
+| [x] README feature list updated | Added table styling to the features list.                                                |
 
 ### Bug Fixes
 
-| Task                          | Details                                                                                      |
-| ----------------------------- | -------------------------------------------------------------------------------------------- |
-| [x] `striped=false` CSS fix   | Theme stripe rules had higher specificity than `table-no-stripes`; added `.slide` prefix.    |
-| [x] `align=left` margin fix   | `margin-right:auto` alone didn't clear the CSS default `margin-left:auto`; now sets `margin-left:0`. |
-| [x] Default table border       | Border color was too faint (0.2 opacity); gave tables their own visible border.              |
+| Task                        | Details                                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [x] `striped=false` CSS fix | Theme stripe rules had higher specificity than `table-no-stripes`; added `.slide` prefix.            |
+| [x] `align=left` margin fix | `margin-right:auto` alone didn't clear the CSS default `margin-left:auto`; now sets `margin-left:0`. |
+| [x] Default table border    | Border color was too faint (0.2 opacity); gave tables their own visible border.                      |
 
 ### Acceptance Criteria
 
@@ -905,13 +905,13 @@ Goal: Rename the app, refresh all documentation and positioning, complete manual
 
 ### Documentation Refresh
 
-| Task                               | Details                                                                                                                                                                                                                                               |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task                               | Details                                                                                                                                                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ ] Update README feature list     | Add missing features from Phases 9-14.10: text blocks, command palette, full-text search, auto-save + Ctrl+S, vision-augmented AI, editable Reimagine outline, conflict resolution, global undo/redo, grid resizer, area background, media full-bleed, table styling directive. |
-| [ ] Add competitive comparison     | New section or doc comparing vs. PowerPoint (proprietary, no diffability), Reveal.js (requires HTML/JS), Marp (CLI-only, no live editor), Slidev (Vue-based, more complex). Focus on what makes this tool different.                                  |
-| [ ] Add privacy/security statement | Document where data goes: markdown stays local, AI calls go directly to user-configured OpenRouter/Ollama endpoint, API key stored in localStorage, no telemetry. Essential for public trust.                                                         |
-| [ ] Write v1.0 CHANGELOG entry     | Comprehensive `## 1.0.0` summary at the top of CHANGELOG.md covering all major feature categories (authoring, editing, AI, PPTX import, export, presenter). Keep existing version history below.                                                      |
-| [ ] Update docs/RELEASING.md       | Add v1.0-specific checklist (positioning, testing, migration guide if applicable).                                                                                                                                                                    |
+| [ ] Add competitive comparison     | New section or doc comparing vs. PowerPoint (proprietary, no diffability), Reveal.js (requires HTML/JS), Marp (CLI-only, no live editor), Slidev (Vue-based, more complex). Focus on what makes this tool different.                                                            |
+| [ ] Add privacy/security statement | Document where data goes: markdown stays local, AI calls go directly to user-configured OpenRouter/Ollama endpoint, API key stored in localStorage, no telemetry. Essential for public trust.                                                                                   |
+| [ ] Write v1.0 CHANGELOG entry     | Comprehensive `## 1.0.0` summary at the top of CHANGELOG.md covering all major feature categories (authoring, editing, AI, PPTX import, export, presenter). Keep existing version history below.                                                                                |
+| [ ] Update docs/RELEASING.md       | Add v1.0-specific checklist (positioning, testing, migration guide if applicable).                                                                                                                                                                                              |
 
 ### Testing & Quality
 

@@ -225,11 +225,11 @@ Slide content...
 
 ### Presenter Dashboard
 
-| Panel              | Purpose                     |
-| ------------------ | --------------------------- |
-| **Current Slide**  | What the audience sees      |
-| **Speaker Notes**  | Your private notes          |
-| **Break Controls** | Timer for breaks            |
+| Panel              | Purpose                |
+| ------------------ | ---------------------- |
+| **Current Slide**  | What the audience sees |
+| **Speaker Notes**  | Your private notes     |
+| **Break Controls** | Timer for breaks       |
 
 ---
 
@@ -609,10 +609,10 @@ Use `::: table { ... }` to wrap a markdown table with sizing, alignment, and sty
 
 ::: table { borders=false align=left columns=2,4,8 }
 
-| A | B | C |
+| A   | B   | C   |
 | --- | --- | --- |
-| 1 | 2 | 3 |
-| 4 | 5 | 6 |
+| 1   | 2   | 3   |
+| 4   | 5   | 6   |
 
 :::
 
