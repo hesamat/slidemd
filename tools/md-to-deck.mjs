@@ -1,6 +1,10 @@
 import MarkdownIt from "markdown-it";
 import { safeString, slugifyTitle, escapeBareHtmlTags } from "../src/core/utils.js";
 import { convertTextBlockDirectivesToHtml } from "../src/core/text-block-directive.js";
+import {
+  convertTableDirectivesToMarkers,
+  applyTableDirectiveRenderer,
+} from "../src/core/table-directive.js";
 import { extractVisualSystemFromMarkdown } from "../src/data/ai/visual-system-schema.js";
 
 function splitSlides(markdownText) {
@@ -562,6 +566,9 @@ function makeMarkdownRenderer() {
             return html;
         };
     }
+    // Per-table styling: `table { ... }` directive lines. Mirrors the same
+    // rule in MarkdownParser.ensureMarkdownIt() via the shared helper.
+    applyTableDirectiveRenderer(md);
     return md;
 }
 
@@ -675,7 +682,8 @@ export function parseDeckMarkdown(markdownText) {
             const areasHtml = {};
             for (const [area, src] of Object.entries(areasMd)) {
                 const withTextBlocks = convertTextBlockDirectivesToHtml(src);
-                areasHtml[area] = md.render(escapeBareHtmlTags(withTextBlocks));
+                const withTableMarkers = convertTableDirectivesToMarkers(withTextBlocks);
+                areasHtml[area] = md.render(escapeBareHtmlTags(withTableMarkers));
             }
 
             // Derive title: prefer explicit '# Title', then @header heading, then @main heading, then default

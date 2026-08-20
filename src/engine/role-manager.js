@@ -104,7 +104,7 @@ export class RoleManager extends EventEmitter {
     }
     const url = new URL(window.location.href);
     url.searchParams.set("role", this.isEditorWindow ? "viewer" : "editor");
-    this.viewerWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
+    this.viewerWindowRef = window.open(url.toString(), "webdeck_viewer", "width=1100,height=700");
     this._startWindowCheck();
     this._updatePresentButton(true);
   }

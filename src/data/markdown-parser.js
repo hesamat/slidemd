@@ -16,6 +16,10 @@ import {
   unescapeHtml,
 } from "../core/utils.js";
 import { convertTextBlockDirectivesToHtml } from "../core/text-block-directive.js";
+import {
+  convertTableDirectivesToMarkers,
+  applyTableDirectiveRenderer,
+} from "../core/table-directive.js";
 import { LayoutParser } from "./layout-parser.js";
 import { extractVisualSystemFromMarkdown } from "../data/ai/visual-system-schema.js";
 
@@ -295,66 +299,29 @@ export class MarkdownParser {
       };
     }
 
-    // Per-table styling without raw HTML: a `table {width: 40%}` or
-    // `table {no-header}` line directly before a markdown table applies the
-    // declared style to the rendered <table> tag (mirroring the `text-block`
-    // directive syntax). Only safe numeric width declarations and the
-    // `no-header` keyword are honoured; anything else in the braces is
-    // ignored and the line stays plain text.
+    // Per-table styling without raw HTML: a `table { ... }` line directly
+    // before a markdown table applies the declared style to the rendered
+    // <table> tag. Two syntaxes are accepted:
+    //
+    //   1. Container form (preferred, emitted by the PPTX converter and AI):
+    //      `::: table { width=60 align=center ... }` ... `:::` — converted to
+    //      a single-line marker by `convertTableDirectivesToMarkers` before
+    //      rendering, so by the time markdown-it sees it, it is a
+    //      `table {key=value ...}` line.
+    //
+    //   2. Legacy colon-style (backwards compat): `table {width: 40%}` and
+    //      `table {no-header}` — only width and no-header are honoured.
+    //
+    // The `key=value` form supports: width, align, fontSize, columns,
+    // borders, striped, no-header. Unknown keys are ignored here (the AI
+    // validator flags them upstream).
     //
     // The directive is attached directly to the following table_open token
     // (not a flat queue) so it cannot drift onto a different table when a
     // slide area holds more than one table and only some carry directives.
-    this.md.core.ruler.push("table_style_directive", (state) => {
-      const tokens = state.tokens;
-      for (let i = 0; i < tokens.length; i++) {
-        if (tokens[i].type !== "inline") continue;
-        const match = /^\s*table\s*\{([^}]*)\}\s*$/.exec(tokens[i].content || "");
-        if (!match) continue;
-        const widthMatch = /(?:^|;)\s*width\s*:\s*(\d+(?:\.\d+)?)\s*%\s*(?:;|$)/i.exec(match[1]);
-        const noHeaderMatch = /(?:^|;)\s*no-header\s*(?:;|$)/i.test(match[1]);
-        if (!widthMatch && !noHeaderMatch) continue;
-        const prev = tokens[i - 1];
-        const next = tokens[i + 1];
-        if (prev?.type !== "paragraph_open" || next?.type !== "paragraph_close") continue;
-        // The directive must be immediately followed by a table. Attach the
-        // settings to that table_open token so they cannot drift onto a
-        // different table (the old flat-queue approach desynced when a table
-        // without a directive consumed the next entry, or when width and
-        // no-header were tracked in separate arrays).
-        const tableOpen = tokens[i + 2];
-        if (tableOpen?.type !== "table_open") continue;
-        tokens.splice(i - 1, 3);
-        i -= 2;
-        if (!tableOpen.meta) tableOpen.meta = {};
-        if (widthMatch) {
-          tableOpen.meta.tableWidth = Math.max(1, Math.min(100, Number(widthMatch[1])));
-        }
-        if (noHeaderMatch) {
-          tableOpen.meta.tableNoHeader = true;
-        }
-      }
-    });
-
-    const originalTableOpen = this.md.renderer.rules.table_open;
-    this.md.renderer.rules.table_open = function (tokens, idx, options, env, slf) {
-      const html = originalTableOpen
-        ? originalTableOpen(tokens, idx, options, env, slf)
-        : slf.renderToken(tokens, idx, options);
-      const meta = tokens[idx]?.meta;
-      const pct = meta?.tableWidth;
-      const noHeader = meta?.tableNoHeader;
-      if (pct != null || noHeader) {
-        const styleParts = [];
-        if (pct != null) styleParts.push(`width:${pct}%`);
-        const classAttr = noHeader ? ' class="table-no-header"' : "";
-        return html.replace(
-          /^<table/,
-          `<table${classAttr}${styleParts.length ? ` style="${styleParts.join(";")}"` : ""}`,
-        );
-      }
-      return html;
-    };
+    // The rule and renderer are shared with `tools/md-to-deck.mjs` via
+    // `applyTableDirectiveRenderer` so both rendering paths stay in sync.
+    applyTableDirectiveRenderer(this.md);
   }
 
   /**
@@ -1035,7 +1002,8 @@ export class MarkdownParser {
       const areas = {};
       for (const [name, src] of Object.entries(areasMd)) {
         const withTextBlocks = convertTextBlockDirectivesToHtml(src);
-        const escaped = escapeBareHtmlTags(withTextBlocks);
+        const withTableMarkers = convertTableDirectivesToMarkers(withTextBlocks);
+        const escaped = escapeBareHtmlTags(withTableMarkers);
         let html = this.md.render(escaped);
         // Convert Mermaid code blocks to divs for client-side rendering
         html = this.convertMermaidCodeBlocksToDiv(html);

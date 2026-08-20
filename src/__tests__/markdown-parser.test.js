@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import markdownit from "markdown-it";
 import { MarkdownParser } from "../data/markdown-parser.js";
+import { convertTableDirectivesToMarkers } from "../core/table-directive.js";
 
 const parser = new MarkdownParser();
 
@@ -639,5 +640,125 @@ describe("MarkdownParser table style directive", () => {
     expect(tables[0]).not.toContain("table-no-header");
     expect(tables[1]).toContain("table-no-header");
     expect(tables[1]).not.toContain('style="width:');
+  });
+});
+
+describe("MarkdownParser table container directive (::: table { ... })", () => {
+  it("applies width from the container form (key=value)", () => {
+    parser.ensureMarkdownIt();
+    const md = ["::: table { width=60 }", "| A | B |", "| --- | --- |", "| 1 | 2 |", ":::"].join(
+      "\n",
+    );
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain('<table style="width:60%"');
+    expect(html).not.toContain("::: table");
+  });
+
+  it("applies align=center via margin auto", () => {
+    parser.ensureMarkdownIt();
+    const md = ["::: table { width=50 align=center }", "| A |", "| --- |", "| 1 |", ":::"].join(
+      "\n",
+    );
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("margin-left:auto");
+    expect(html).toContain("margin-right:auto");
+  });
+
+  it("applies align=left via margin-left:0", () => {
+    parser.ensureMarkdownIt();
+    const md = ["::: table { width=50 align=left }", "| A |", "| --- |", "| 1 |", ":::"].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("margin-left:0");
+    expect(html).toContain("margin-right:auto");
+  });
+
+  it("applies fontSize as inline style", () => {
+    parser.ensureMarkdownIt();
+    const md = ["::: table { fontSize=24 }", "| A |", "| --- |", "| 1 |", ":::"].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("font-size:24px");
+  });
+
+  it("applies borders=false as table-borderless class", () => {
+    parser.ensureMarkdownIt();
+    const md = ["::: table { borders=false }", "| A |", "| --- |", "| 1 |", ":::"].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("table-borderless");
+  });
+
+  it("applies striped=false as table-no-stripes class", () => {
+    parser.ensureMarkdownIt();
+    const md = ["::: table { striped=false }", "| A |", "| --- |", "| 1 |", ":::"].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("table-no-stripes");
+  });
+
+  it("applies no-header flag from container form", () => {
+    parser.ensureMarkdownIt();
+    const md = ["::: table { no-header }", "| A | B |", "| --- | --- |", "| 1 | 2 |", ":::"].join(
+      "\n",
+    );
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("table-no-header");
+    expect(html).not.toContain("::: table");
+  });
+
+  it("injects colgroup with proportional column widths", () => {
+    parser.ensureMarkdownIt();
+    const md = [
+      "::: table { columns=2,1,3 }",
+      "| A | B | C |",
+      "| --- | --- | --- |",
+      "| 1 | 2 | 3 |",
+      ":::",
+    ].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("<colgroup>");
+    expect(html).toContain("<col ");
+    // 2/(2+1+3) = 33.33%
+    expect(html).toContain("width:33.33%");
+    // 1/6 = 16.67%
+    expect(html).toContain("width:16.67%");
+    // 3/6 = 50.00%
+    expect(html).toContain("width:50.00%");
+  });
+
+  it("combines multiple attributes in one directive", () => {
+    parser.ensureMarkdownIt();
+    const md = [
+      "::: table { width=70 align=center fontSize=20 borders=false no-header }",
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      ":::",
+    ].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("width:70%");
+    expect(html).toContain("margin-left:auto");
+    expect(html).toContain("font-size:20px");
+    expect(html).toContain("table-borderless");
+    expect(html).toContain("table-no-header");
+  });
+
+  it("applies headerColor as a CSS custom property on the table", () => {
+    parser.ensureMarkdownIt();
+    const md = [
+      '::: table { headerColor="#003C68" }',
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      ":::",
+    ].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("--table-header-color:#003c68");
+  });
+
+  it("leaves tables without a directive unmodified", () => {
+    parser.ensureMarkdownIt();
+    const html = parser.md.render("| A |\n| --- |\n| 1 |");
+    expect(html).toContain("<table");
+    expect(html).not.toContain('style="width:');
+    expect(html).not.toContain("table-no-header");
+    expect(html).not.toContain("table-borderless");
   });
 });
