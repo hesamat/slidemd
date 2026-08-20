@@ -508,7 +508,11 @@ export class AiGenerateModal {
         }
         // Skip the expensive prompt-size computation when the panel
         // is closed — the user isn't looking at it.
-        if (exportSize && exportPanel && exportPanel.classList.contains(`${P}export-panel--visible`)) {
+        if (
+          exportSize &&
+          exportPanel &&
+          exportPanel.classList.contains(`${P}export-panel--visible`)
+        ) {
           try {
             const options = readOptions();
             const op = createOperation("generate", null, markdown, {
