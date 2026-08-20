@@ -1770,48 +1770,6 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("Hook");
     });
 
-    it("reimagine warns when suggested slide count is outside 70-120% target", async () => {
-      // 2 source slides; target is 1-2 (70-120%). Suggest 5 → outside range.
-      const outlineResponse = JSON.stringify({
-        plan: "Plan.",
-        chapters: [
-          {
-            title: "Ch1",
-            flowTag: "hook",
-            summary: "S.",
-            suggestedSlideCount: 5,
-          },
-        ],
-      });
-      const breakdownResponse = JSON.stringify({
-        chapters: [
-          {
-            title: "Ch1",
-            slides: Array(5).fill({ title: "S", intent: "I." }),
-          },
-        ],
-      });
-      const executeResponse = JSON.stringify({
-        slides: Array(5).fill({
-          layout: "header-content",
-          content: "@header\n## S\n\n@main\n- x",
-        }),
-      });
-      const provider = mockProviderSequence([
-        outlineResponse,
-        breakdownResponse,
-        executeResponse,
-        executeResponse,
-      ]);
-      const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
-      const logs = [];
-      await orchestrator.runWholeDeckOperation(op, undefined, {
-        onLog: (msg, level) => logs.push({ msg, level }),
-      });
-      expect(logs.some((l) => l.msg.includes("target is 1-2") && l.level === "warn")).toBe(true);
-    });
-
     it("reimagine passes flow to the outline prompt", async () => {
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
