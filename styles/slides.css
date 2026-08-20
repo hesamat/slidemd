@@ -27,6 +27,10 @@
   --border-subtle: rgba(148, 163, 184, 0.12);
   --bg-subtle: rgba(243, 242, 243, 0.95);
 
+  /* Table-specific border — more visible than --border-color so tables read as
+     distinct containers, while remaining overridable by themes. */
+  --table-border-color: rgba(100, 116, 139, 0.4);
+
   /* --- CODE STYLING --- */
   --code-border: rgba(148, 163, 184, 0.24);
   --code-shadow: 0 4px 12px rgba(2, 6, 23, 0.12);
@@ -1085,7 +1089,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   font-size: 0.95em;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  border: 1px solid rgba(100, 116, 139, 0.4);
+  border: 1px solid var(--table-border-color);
   border-radius: var(--radius-lg);
   margin: var(--spacing-sm) auto;
 }

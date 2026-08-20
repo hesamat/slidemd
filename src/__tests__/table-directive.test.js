@@ -3,6 +3,7 @@ import {
   parseTableDirectives,
   buildTableDirective,
   convertTableDirectivesToMarkers,
+  parseTableDirectiveAttrs,
   CANONICAL_TABLE_ATTRIBUTES,
   KNOWN_TABLE_ATTRIBUTES,
 } from "../core/table-directive.js";
@@ -106,8 +107,32 @@ describe("table-directive parsing", () => {
     expect(CANONICAL_TABLE_ATTRIBUTES).toContain("width");
     expect(CANONICAL_TABLE_ATTRIBUTES).toContain("no-header");
     for (const attr of CANONICAL_TABLE_ATTRIBUTES) {
-      expect(KNOWN_TABLE_ATTRIBUTES.has(attr)).toBe(true);
+      expect(KNOWN_TABLE_ATTRIBUTES.has(attr.toLowerCase())).toBe(true);
     }
+  });
+
+  it("parses attribute keys case-insensitively", () => {
+    const md =
+      "::: table { Width=60 ALIGN=left FontSize=24 HeaderColor=#003C68 }\n| A |\n| --- |\n| 1 |\n:::";
+    const [parsed] = parseTableDirectives(md);
+    expect(parsed.settings.width).toBe(60);
+    expect(parsed.settings.align).toBe("left");
+    expect(parsed.settings.fontSize).toBe(24);
+    expect(parsed.settings.headerColor).toBe("#003c68");
+    expect(parsed.unknownAttrs).toEqual([]);
+  });
+
+  it("parses quoted headerColor with rgb() containing spaces", () => {
+    const md = '::: table { headerColor="rgb(0, 60, 100)" }\n| A |\n| --- |\n| 1 |\n:::';
+    const [parsed] = parseTableDirectives(md);
+    expect(parsed.settings.headerColor).toBe("rgb(0, 60, 100)");
+  });
+
+  it("parses quoted columns with spaces after commas", () => {
+    const md =
+      '::: table { columns="2, 1, 3" }\n| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n:::';
+    const [parsed] = parseTableDirectives(md);
+    expect(parsed.settings.columns).toEqual([2, 1, 3]);
   });
 });
 
@@ -190,5 +215,50 @@ describe("convertTableDirectivesToMarkers", () => {
     expect(result).toContain("table {width=40}");
     expect(result).toContain("table {width=75 no-header}");
     expect(result).not.toContain(":::");
+  });
+
+  it("quotes headerColor values containing spaces in the marker", () => {
+    const md = '::: table { headerColor="rgb(0, 60, 100)" }\n| A |\n| --- |\n| 1 |\n:::';
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).toContain('headerColor="rgb(0, 60, 100)"');
+  });
+
+  it("does not quote hex headerColor values in the marker", () => {
+    const md = "::: table { headerColor=#003C68 }\n| A |\n| --- |\n| 1 |\n:::";
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).toContain("headerColor=#003c68");
+    expect(result).not.toContain('headerColor="');
+  });
+});
+
+describe("parseTableDirectiveAttrs (marker tokenizer)", () => {
+  it("parses quoted values with spaces (rgb color)", () => {
+    const meta = parseTableDirectiveAttrs('width=60 headerColor="rgb(0, 60, 100)"');
+    expect(meta.tableWidth).toBe(60);
+    expect(meta.tableHeaderColor).toBe("rgb(0, 60, 100)");
+  });
+
+  it("parses quoted columns with spaces", () => {
+    const meta = parseTableDirectiveAttrs('columns="2, 1, 3"');
+    expect(meta.tableColumns).toEqual([2, 1, 3]);
+  });
+
+  it("parses unquoted values without spaces normally", () => {
+    const meta = parseTableDirectiveAttrs("width=60 align=center fontSize=24 columns=2,1,3");
+    expect(meta.tableWidth).toBe(60);
+    expect(meta.tableAlign).toBe("center");
+    expect(meta.tableFontSize).toBe(24);
+    expect(meta.tableColumns).toEqual([2, 1, 3]);
+  });
+
+  it("parses case-insensitive keys", () => {
+    const meta = parseTableDirectiveAttrs("Width=60 FONTSIZE=24");
+    expect(meta.tableWidth).toBe(60);
+    expect(meta.tableFontSize).toBe(24);
+  });
+
+  it("returns null for empty input", () => {
+    expect(parseTableDirectiveAttrs("")).toBeNull();
+    expect(parseTableDirectiveAttrs(null)).toBeNull();
   });
 });

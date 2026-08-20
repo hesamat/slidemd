@@ -753,6 +753,49 @@ describe("MarkdownParser table container directive (::: table { ... })", () => {
     expect(html).toContain("--table-header-color:#003c68");
   });
 
+  it("applies rgb headerColor with spaces through the full pipeline", () => {
+    parser.ensureMarkdownIt();
+    const md = [
+      '::: table { headerColor="rgb(0, 60, 100)" }',
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      ":::",
+    ].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("--table-header-color:rgb(0, 60, 100)");
+  });
+
+  it("applies quoted columns with spaces through the full pipeline", () => {
+    parser.ensureMarkdownIt();
+    const md = [
+      '::: table { columns="2, 1, 3" }',
+      "| A | B | C |",
+      "| --- | --- | --- |",
+      "| 1 | 2 | 3 |",
+      ":::",
+    ].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("<colgroup>");
+    expect(html).toContain("width:33.33%");
+    expect(html).toContain("width:16.67%");
+    expect(html).toContain("width:50.00%");
+  });
+
+  it("parses case-insensitive attribute keys through the full pipeline", () => {
+    parser.ensureMarkdownIt();
+    const md = [
+      "::: table { Width=60 FontSize=24 }",
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      ":::",
+    ].join("\n");
+    const html = parser.md.render(convertTableDirectivesToMarkers(md));
+    expect(html).toContain("width:60%");
+    expect(html).toContain("font-size:24px");
+  });
+
   it("leaves tables without a directive unmodified", () => {
     parser.ensureMarkdownIt();
     const html = parser.md.render("| A |\n| --- |\n| 1 |");

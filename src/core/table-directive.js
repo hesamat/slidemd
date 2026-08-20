@@ -50,12 +50,14 @@ export const CANONICAL_TABLE_ATTRIBUTES = [
 const TABLE_ATTRIBUTE_ALIASES = [];
 
 /**
- * Set of recognised table attribute names, including aliases. Used to detect
- * unknown attributes so the AI validator can flag them.
+ * Set of recognised table attribute names (lowercase), including aliases. Used
+ * for case-insensitive lookup so the AI validator can flag unknown attributes.
+ * `CANONICAL_TABLE_ATTRIBUTES` keeps the display names (camelCase); this set
+ * holds their lowercase forms for parser lookups.
  */
 export const KNOWN_TABLE_ATTRIBUTES = new Set([
-  ...CANONICAL_TABLE_ATTRIBUTES,
-  ...TABLE_ATTRIBUTE_ALIASES,
+  ...CANONICAL_TABLE_ATTRIBUTES.map((a) => a.toLowerCase()),
+  ...TABLE_ATTRIBUTE_ALIASES.map((a) => a.toLowerCase()),
 ]);
 
 /**
@@ -109,12 +111,15 @@ function parseAttributes(attrString) {
   };
 
   while (true) {
-    const key = readKey();
-    if (key === null) {
+    const rawKey = readKey();
+    if (rawKey === null) {
       if (i >= s.length) break;
       i++;
       continue;
     }
+    // Lowercase keys for case-insensitive matching, consistent with the
+    // marker-form tokenizer in `parseTableDirectiveAttrs`.
+    const key = rawKey.toLowerCase();
     skipSpaces();
     if (i < s.length && s[i] === "=") {
       i++;
@@ -187,7 +192,7 @@ function toBool(v, defaultForBare = true) {
  */
 function attrsToSettings(attrs) {
   const width = finiteNumber(attrs.width);
-  const fontSize = finiteNumber(attrs.fontSize);
+  const fontSize = finiteNumber(attrs.fontsize);
   const columnsRaw = String(attrs.columns || "").trim();
   const columns =
     columnsRaw && /^[\d,.\s]+$/.test(columnsRaw)
@@ -199,7 +204,7 @@ function attrsToSettings(attrs) {
   const align = String(attrs.align || "")
     .trim()
     .toLowerCase();
-  const headerColor = sanitizeCssColor(attrs.headerColor);
+  const headerColor = sanitizeCssColor(attrs.headercolor);
   return {
     width: width != null ? Math.max(1, Math.min(100, width)) : null,
     align: ["left", "center", "right"].includes(align) ? align : null,
@@ -288,7 +293,8 @@ export function convertTableDirectivesToMarkers(markdown) {
     }
     if (settings.borders === false) markerParts.push("borders=false");
     if (settings.striped === false) markerParts.push("striped=false");
-    if (settings.headerColor) markerParts.push(`headerColor=${settings.headerColor}`);
+    if (settings.headerColor)
+      markerParts.push(`headerColor=${quoteIfSpaced(settings.headerColor)}`);
     if (settings.noHeader) markerParts.push("no-header");
 
     const marker = markerParts.length > 0 ? `table {${markerParts.join(" ")}}\n\n` : "";
@@ -299,11 +305,53 @@ export function convertTableDirectivesToMarkers(markdown) {
 }
 
 /**
+ * Tokenize a `table { ... }` attribute string into top-level tokens, respecting
+ * double-quoted values that may contain spaces (e.g. `headerColor="rgb(0, 0, 0)"`
+ * or `columns="2, 1, 3"`). Whitespace outside quotes separates tokens.
+ * @param {string} s
+ * @returns {string[]}
+ */
+function tokenizeAttrString(s) {
+  const tokens = [];
+  let i = 0;
+  while (i < s.length) {
+    while (i < s.length && /\s/.test(s[i])) i++;
+    if (i >= s.length) break;
+    let tok = "";
+    while (i < s.length && !/\s/.test(s[i])) {
+      if (s[i] === '"') {
+        tok += s[i++];
+        while (i < s.length && s[i] !== '"') tok += s[i++];
+        if (i < s.length) tok += s[i++]; // closing quote
+      } else {
+        tok += s[i++];
+      }
+    }
+    if (tok) tokens.push(tok);
+  }
+  return tokens;
+}
+
+/**
+ * Quote a marker attribute value if it contains whitespace, so values like
+ * `rgb(0, 0, 0)` or `2, 1, 3` survive the whitespace-separated marker
+ * tokenizer.
+ * @param {string} value
+ * @returns {string}
+ */
+function quoteIfSpaced(value) {
+  return /\s/.test(value) ? `"${value}"` : value;
+}
+
+/**
  * Parse a `table { ... }` directive attribute string into the meta fields
  * consumed by a markdown-it `table_open` renderer. Accepts both `key=value`
  * syntax (preferred, from the container form) and legacy `key: value` syntax
  * (for `width: X%` and `no-header` backwards compat). Returns null when no
  * recognised attributes are present (so the line stays plain text).
+ *
+ * Values containing spaces (e.g. `headerColor="rgb(0, 0, 0)"`) must be
+ * double-quoted; the tokenizer is quote-aware and will not split inside quotes.
  *
  * Shared between `MarkdownParser.ensureMarkdownIt()` (runtime) and
  * `tools/md-to-deck.mjs` (build-time) so both rendering paths apply the same
@@ -332,7 +380,9 @@ export function parseTableDirectiveAttrs(attrString) {
 
   // New key=value / bare-flag tokenizer: handles `width=60 align=center
   // fontSize=24 columns=2,1,3 borders=false striped=false no-header`.
-  const tokens = s.split(/\s+/).filter(Boolean);
+  // Quote-aware: double-quoted values may contain spaces (e.g.
+  // headerColor="rgb(0, 0, 0)" or columns="2, 1, 3").
+  const tokens = tokenizeAttrString(s);
   for (const tok of tokens) {
     const eqIdx = tok.indexOf("=");
     if (eqIdx > 0) {
