@@ -9,6 +9,7 @@ import {
   BATCH_SIZE,
   stripFrontmatter,
   stripThemeAndBackground,
+  stripAllVisualIdentity,
   stripVisualIdentity,
   applyVisualSystemIdentity,
 } from "../data/ai/ai-prompt-builder.js";
@@ -568,6 +569,47 @@ def b():
     const result = stripThemeAndBackground(md);
     expect(result).toContain("background: the war began in 1939");
     expect(result).toContain("theme: the main theme is hope");
+  });
+});
+
+describe("stripAllVisualIdentity", () => {
+  it("strips theme, background, color, backgroundColor, and area-bg-* directives", () => {
+    const md =
+      "layout: header-content\ntheme: dark\nbackground: #1a1a2e\ncolor: #fff\nbackgroundColor: #000\narea-bg-main: #f0f0e8\n@main\n- Item";
+    const result = stripAllVisualIdentity(md);
+    expect(result).toContain("layout: header-content");
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("background:");
+    expect(result).not.toContain("color:");
+    expect(result).not.toContain("backgroundColor:");
+    expect(result).not.toContain("area-bg-main:");
+    expect(result).toContain("@main");
+  });
+
+  it("strips image backgrounds too (unlike stripVisualIdentity)", () => {
+    const md =
+      'layout: full-image\ntheme: dark\nbackground: url(images/hero.png)\n@main\n<img src="images/hero.png">';
+    const result = stripAllVisualIdentity(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("background:");
+    expect(result).toContain("layout: full-image");
+    expect(result).toContain('<img src="images/hero.png">');
+  });
+
+  it("leaves code fences untouched", () => {
+    const md = "```yaml\ntheme: dark\nbackground: #fff\ncolor: red\n```\n@main\n- Item";
+    const result = stripAllVisualIdentity(md);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: #fff");
+    expect(result).toContain("color: red");
+  });
+
+  it("does not strip body text that starts with color: or backgroundColor:", () => {
+    const md =
+      "layout: header-content\n@main\n- Item 1\n\ncolor: the leaves are green\n\nbackgroundColor: used in the chart";
+    const result = stripAllVisualIdentity(md);
+    expect(result).toContain("color: the leaves are green");
+    expect(result).toContain("backgroundColor: used in the chart");
   });
 });
 

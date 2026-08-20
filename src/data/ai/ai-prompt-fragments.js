@@ -320,16 +320,26 @@ export function buildRemixFlowGuidance(flow) {
  *   color directives instead of emitting neutral styling.
  * - "absent" — default: the app provides its own neutral color scheme and no
  *   custom `background:`/`theme:`/color directives may be emitted.
+ * - "remix-discard" — used when remix discards the original visual identity:
+ *   the AI may choose a new professional color scheme, `theme:`, `background:`,
+ *   and colored text. Vary backgrounds across the deck.
  * @param {boolean} hasVisualSystem
  * @param {boolean} [preserveVisualIdentity]
+ * @param {string} [mode] — "remix", "reimagine", "polish", "generate", etc.
  * @returns {string}
  */
-export function buildVisualStylingNote(hasVisualSystem, preserveVisualIdentity = false) {
+export function buildVisualStylingNote(
+  hasVisualSystem,
+  preserveVisualIdentity = false,
+  mode = null,
+) {
   const variant = hasVisualSystem
     ? "present"
-    : preserveVisualIdentity
-      ? "absent-preserve"
-      : "absent";
+    : mode === "remix" && !preserveVisualIdentity
+      ? "remix-discard"
+      : preserveVisualIdentity
+        ? "absent-preserve"
+        : "absent";
   return extractVariant(getFragment("visual-styling-note.md"), variant);
 }
 
@@ -480,6 +490,27 @@ export function stripThemeAndBackground(markdown) {
 }
 
 /**
+ * Strip ALL visual-identity directives from slide markdown: `theme:`,
+ * `background:`, `color:`, `backgroundColor:`, and `area-bg-<name>:`.
+ * Unlike `stripVisualIdentity`, this strips every `background:` value
+ * (including image backgrounds) since the source visual identity is being
+ * fully discarded — the model gets a true blank slate and is free to choose
+ * a new professional color scheme.
+ *
+ * Used for the remix discard input so the execute-phase AI never sees stale
+ * identity it might copy.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function stripAllVisualIdentity(markdown) {
+  return stripDirectives(
+    markdown,
+    /^\s*(theme|background|color|backgroundColor|area-bg-[\w-]+)\s*:\s*.*$/i,
+  );
+}
+
+/**
  * Strip visual-identity directives from AI output while keeping image
  * backgrounds. `theme:` lines and color/gradient `background:` directives are
  * removed, but `background: url(...)` values are kept — the execute-phase
@@ -494,7 +525,9 @@ export function stripThemeAndBackground(markdown) {
  * riding alongside a legitimate image would survive this strip and
  * contradict discard mode's "no stale visual directives" guarantee.
  *
- * Used for the final deck in reimagine (always) and remix discard mode.
+ * Used for the final deck in reimagine (always). Remix discard mode uses
+ * `stripAllVisualIdentity` on the input instead, and no longer strips the
+ * output so the model's new visual direction survives.
  *
  * @param {string} markdown
  * @returns {string}

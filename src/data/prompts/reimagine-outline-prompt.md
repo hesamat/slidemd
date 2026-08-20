@@ -60,20 +60,20 @@ Rules:
   - `title` — short chapter title.
   - `flowTag` — one of: `hook`, `context`, `problem`, `tension`, `solution`, `evidence`, `comparison`, `example`, `transition`, `climax`, `cta`, `objectives`, `steps`, `practice`, `recap`, `assertion`, `implication`.
   - `summary` — 2-4 sentences describing what the chapter covers, the key points it should make, and how it connects to the chapters before and after it. This is the primary input to slide generation, so be specific about the content and direction.
-  - `suggestedSlideCount` — integer: how many slides this chapter should contain. Aim for the total across all chapters to be within {{minSlides}}-{{maxSlides}} (70-120% of the original {{sourceCount}} slides). Do not collapse the deck drastically — if the original is large, keep enough slides to cover the material.
+  - `suggestedSlideCount` — integer: how many slides this chapter should contain. The total across all chapters should usually fall near {{minSlides}}-{{maxSlides}} (roughly 70–120% of the original {{sourceCount}} slides), but it may stray a little outside that range when the new structure genuinely needs more or fewer slides. Do not collapse the deck drastically — if the original is large, keep enough slides to cover the material.
 - The first chapter should open with a title slide. The first chapter's first slide should be a proper title slide — not a content slide. It should display the deck's topic title and the `firstSlideIdentity` text (course code, term, etc.) in the footer. The second slide should be an agenda/outline slide that lists the chapter titles as a roadmap for the audience. Only after these two slides should the content begin.
 - Take a bold editorial approach. You may rethink the topic, examples, notes, and visuals. Preserve the user's core intent and factual accuracy, but do not preserve the original structure, topics, examples, or speaker notes merely for the sake of the original.
 - Do not preserve the original theme, colors, backgrounds, or visual language. You may propose a new visual direction.
 - Preserve the identity of the first slide. Extract the identifying information (course code, week number, author, event name) from the original first slide into the `firstSlideIdentity` field. The first chapter's first slide should display this concise identity text verbatim in its footer, even as the surrounding design and narrative change.
 - Be creative with the narrative angle. Don't just reorganize the same content — find a fresh hook, a surprising metaphor, a compelling character arc, or a concrete analogy that makes the material feel new. Include historical remarks, real-world examples, and accessible comparisons where they help learners understand abstract concepts. The deck should feel like it was crafted by an editor, not auto-generated.
-- Do not level up the material. The reimagined deck must be accessible to the same audience as the source deck. Do not introduce new concepts, jargon, prerequisites, or examples that assume more prior knowledge than the original. The fresh angle should reframe the same material, not advance its difficulty.
+- Do not advance the conceptual level. The reimagined deck must be accessible to the same audience as the source deck. You may use richer examples, real-world analogies, historical remarks, and memorable stories to make the same concepts clearer, but do not introduce new concepts, jargon, or prerequisites that assume more prior knowledge than the original. The fresh angle should reframe the same material, not increase its difficulty.
 
 Success criteria:
 
 - The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
 - The visual system is a coherent visual direction (visualDirection). It is not a linear progression.
 - The chapters form a clear narrative arc from opening to close.
-- The total suggested slide count is within {{minSlides}}-{{maxSlides}} ({{sourceCount}} source slides).
+- The total suggested slide count is reasonable for the new structure ({{minSlides}}-{{maxSlides}} is a default target, not a strict limit).
 - Each chapter summary is specific enough to guide slide generation without the user needing to see individual slides.
 - The JSON is valid and parseable.
 
