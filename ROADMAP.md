@@ -749,6 +749,73 @@ Goal: Improve the PPTX import pipeline itself — layout inference accuracy, sha
 
 ---
 
+## Phase 14.10: Table Styling Directive ✅
+
+Goal: Add a `::: table { ... }` container directive mirroring the `text-block` grammar, giving authors control over table width, alignment, font size, column weights, borders, striping, header color, and header visibility. Replaces the legacy `table {width: X%}` colon-style syntax with a consistent `key=value` attribute form. PPTX import auto-detects header fill colors and emits `headerColor`.
+
+### Directive & Parsing
+
+| Task                                  | Details                                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [x] New `table-directive.js` module   | Parse `::: table { ... }` container, build markers for `markdown-it`, shared renderer. Shared between runtime and build.   |
+| [x] `markdown-parser.js` integration  | Use `convertTableDirectivesToMarkers` + `applyTableDirectiveRenderer` for the new directive syntax.                        |
+| [x] `md-to-deck.mjs` integration      | Build tool uses the shared `convertTableDirectivesToMarkers` + `applyTableDirectiveRenderer` functions.                    |
+| [x] Legacy colon-style compat         | `table {width: X%}` and `table {no-header}` still accepted for backwards compatibility.                                   |
+
+### Attributes
+
+| Task             | Details                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| [x] `width`      | Table width as a percentage of the area (1–100).                                                 |
+| [x] `align`      | `left`, `center`, or `right` via margin control.                                                 |
+| [x] `fontSize`   | Table font size in px.                                                                           |
+| [x] `columns`    | Relative column weights, comma-separated (e.g. `2,1,3`).                                         |
+| [x] `borders`    | `false` removes the table border via `table-borderless` class.                                   |
+| [x] `striped`    | `false` disables zebra striping via `table-no-stripes` class with boosted CSS specificity.       |
+| [x] `headerColor`| Hex color for the header row via `--table-header-color` CSS custom property. Sanitised.          |
+| [x] `no-header`  | Bare flag; hides the header row.                                                                 |
+
+### PPTX Import
+
+| Task                                  | Details                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [x] Auto-detect header fill color     | `formatTable` in `pptx-element-formatters.js` detects non-white header fills and emits `headerColor`. |
+| [x] Auto-add width for narrow tables  | PPTX-imported tables narrower than the slide get an explicit `width` attribute.            |
+
+### AI & Validation
+
+| Task                                  | Details                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [x] AI validator checks attributes    | `_checkTableAttributes` validates against `CANONICAL_TABLE_ATTRIBUTES`; unknown attrs flagged. |
+| [x] AI system prompt updated          | `system-prompt.md` documents the `::: table { ... }` directive and all supported attributes. |
+
+### Documentation & Examples
+
+| Task                                  | Details                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [x] `docs/authoring.md` updated       | Full attribute reference and examples for the new directive.                               |
+| [x] Example deck updated              | New "Table Styling" slide; cleaned up duplicate tables and fixed Text Blocks attributes.   |
+| [x] README feature list updated       | Added table styling to the features list.                                                  |
+
+### Bug Fixes
+
+| Task                          | Details                                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| [x] `striped=false` CSS fix   | Theme stripe rules had higher specificity than `table-no-stripes`; added `.slide` prefix.    |
+| [x] `align=left` margin fix   | `margin-right:auto` alone didn't clear the CSS default `margin-left:auto`; now sets `margin-left:0`. |
+| [x] Default table border       | Border color was too faint (0.2 opacity); gave tables their own visible border.              |
+
+### Acceptance Criteria
+
+- `::: table { ... }` directive parses and renders with all supported attributes.
+- Legacy `table {width: X%}` and `table {no-header}` syntax still works.
+- PPTX import emits `headerColor` for tables with distinct header fills.
+- AI validator flags unknown table attributes.
+- `borders=false`, `striped=false`, and `align=left` all render correctly.
+- Full quality gate passes (lint, format, unit tests, E2E tests, build).
+
+---
+
 ## Phase 15: Editor Diagnostics & Polish
 
 Goal: Surface real deck-quality problems in the editor and polish existing editor features that are too simplistic in their current form — area backgrounds, background image sizing, text block styling, and mermaid drag. Drops the planned `DesignSystem` / `ThemeRegistry` / custom-theme / `@import` work — no demonstrated user need, and the existing light/dark + accent + layout presets cover the actual distribution of what users want. CSS custom properties in `styles/slides.css` already serve as the token system where they belong.
@@ -840,7 +907,7 @@ Goal: Rename the app, refresh all documentation and positioning, complete manual
 
 | Task                               | Details                                                                                                                                                                                                                                               |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Update README feature list     | Add missing features from Phases 9-14.5: text blocks, command palette, full-text search, auto-save + Ctrl+S, vision-augmented AI, editable Reimagine outline, conflict resolution, global undo/redo, grid resizer, area background, media full-bleed. |
+| [ ] Update README feature list     | Add missing features from Phases 9-14.10: text blocks, command palette, full-text search, auto-save + Ctrl+S, vision-augmented AI, editable Reimagine outline, conflict resolution, global undo/redo, grid resizer, area background, media full-bleed, table styling directive. |
 | [ ] Add competitive comparison     | New section or doc comparing vs. PowerPoint (proprietary, no diffability), Reveal.js (requires HTML/JS), Marp (CLI-only, no live editor), Slidev (Vue-based, more complex). Focus on what makes this tool different.                                  |
 | [ ] Add privacy/security statement | Document where data goes: markdown stays local, AI calls go directly to user-configured OpenRouter/Ollama endpoint, API key stored in localStorage, no telemetry. Essential for public trust.                                                         |
 | [ ] Write v1.0 CHANGELOG entry     | Comprehensive `## 1.0.0` summary at the top of CHANGELOG.md covering all major feature categories (authoring, editing, AI, PPTX import, export, presenter). Keep existing version history below.                                                      |
@@ -988,6 +1055,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 14.7: Remix Quality & Visual Identity  | ✅ Complete |
 | Phase 14.8: Reimagine Creative Direction     | ✅ Complete |
 | Phase 14.9: PPTX Import Quality              | ✅ Complete |
+| Phase 14.10: Table Styling Directive         | ✅ Complete |
 | Phase 15: Editor Diagnostics & Polish        | Planned     |
 | Phase 15.1: Interactive Classroom Features   | Planned     |
 | Phase 15.5: v1.0 Release Preparation         | Planned     |
@@ -997,7 +1065,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 ✅ → Phase 14.6 ✅ → Phase 14.7 ✅ → Phase 14.8 ✅ → Phase 14.9 ✅ → Phase 15 → Phase 15.1 (interactive classroom) → Phase 15.5 (v1.0 release) → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 ✅ → Phase 14.6 ✅ → Phase 14.7 ✅ → Phase 14.8 ✅ → Phase 14.9 ✅ → Phase 14.10 ✅ → Phase 15 → Phase 15.1 (interactive classroom) → Phase 15.5 (v1.0 release) → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.

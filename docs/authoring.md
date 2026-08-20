@@ -132,7 +132,7 @@ layout: "header" auto "main" 1fr / 800px
 
 ## Text Blocks
 
-Use `::: text-block { ... }` to wrap content with custom styling. Attributes are comma- or space-separated.
+Use `::: text-block { ... }` to wrap content with custom styling. Attributes are space-separated.
 
 | Attribute      | Effect             |
 | -------------- | ------------------ |
@@ -141,6 +141,7 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 | `color`        | Text color         |
 | `background`   | Background color   |
 | `padding`      | Inner padding      |
+| `markdown`     | Render markdown    |
 
 ### Example
 
