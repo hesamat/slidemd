@@ -31,6 +31,14 @@ Opens at http://localhost:8000/index.html. To open a specific deck:
 npm run dev -- path/to/slides.md
 ```
 
+If the default ports (8000 for Vite, 8001 for the CLI server) are in use,
+`npm run dev` automatically finds the next free ports and prints them. To
+pin specific ports, set `WEBDECK_VITE_PORT` and `WEBDECK_CLI_PORT`:
+
+```bash
+WEBDECK_VITE_PORT=9000 WEBDECK_CLI_PORT=9001 npm run dev
+```
+
 Create your first slide:
 
 ```markdown
