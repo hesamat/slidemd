@@ -164,6 +164,26 @@ export class AiImportModal {
             note.textContent =
               "Warnings are non-blocking. Apply as-is, or copy the repair prompt to fix them externally.";
             statusArea.appendChild(note);
+            // Render the warning list so the user can see what the
+            // warnings are before acknowledging them.
+            const heading = document.createElement("p");
+            heading.className = `${P}status-warn`;
+            heading.textContent = `${result.warnings.length} warning(s):`;
+            statusArea.appendChild(heading);
+            const ul = document.createElement("ul");
+            ul.className = `${P}status-list`;
+            for (const w of result.warnings) {
+              const li = document.createElement("li");
+              li.textContent = w.slide != null ? `[slide ${w.slide + 1}] ${w.message}` : w.message;
+              ul.appendChild(li);
+            }
+            statusArea.appendChild(ul);
+            if (!warningsAcknowledged) {
+              const hint = document.createElement("p");
+              hint.className = `${P}status-warn`;
+              hint.textContent = "Click Validate again to acknowledge warnings and enable Apply.";
+              statusArea.appendChild(hint);
+            }
           }
           return;
         }
