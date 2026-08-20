@@ -836,28 +836,54 @@ async function main() {
   const handler = createHandler(format);
   const server = http.createServer(handler);
 
-  server.listen(PORT, () => {
-    console.log("");
-    console.log(`  SlideMD Dev Server`);
-    console.log(`  ─────────────────────────────────`);
-    if (format) {
-      const relMd = path.relative(process.cwd(), format.mdFile);
-      const relImg = format.imagesDir
-        ? path.relative(process.cwd(), format.imagesDir)
-        : "(none)";
-      console.log(`  Deck:    ${relMd}`);
-      console.log(`  Images:  ${relImg}`);
-    } else {
-      console.log(`  Mode:    API-only (no deck loaded)`);
-    }
-    console.log(`  Server:  http://localhost:${PORT}`);
-    console.log(`  ─────────────────────────────────`);
-    console.log("");
+  // Auto-fallback: if the requested port is in use, try the next one up to
+  // a limit. This makes standalone `npm run dev:cli` more robust without
+  // requiring the user to pass --port manually. When launched via dev.mjs,
+  // the port is already free so this never triggers.
+  const MAX_PORT_TRIES = 20;
+  let actualPort = PORT;
+  let portTries = 0;
 
-    if (format) {
-      startWatching(format);
-    }
-  });
+  const tryListen = () => {
+    server.listen(actualPort, () => {
+      if (actualPort !== PORT) {
+        console.log(`  (Port ${PORT} was in use, using ${actualPort} instead)`);
+      }
+      console.log("");
+      console.log(`  SlideMD Dev Server`);
+      console.log(`  ─────────────────────────────────`);
+      if (format) {
+        const relMd = path.relative(process.cwd(), format.mdFile);
+        const relImg = format.imagesDir
+          ? path.relative(process.cwd(), format.imagesDir)
+          : "(none)";
+        console.log(`  Deck:    ${relMd}`);
+        console.log(`  Images:  ${relImg}`);
+      } else {
+        console.log(`  Mode:    API-only (no deck loaded)`);
+      }
+      console.log(`  Server:  http://localhost:${actualPort}`);
+      console.log(`  ─────────────────────────────────`);
+      console.log("");
+
+      if (format) {
+        startWatching(format);
+      }
+    });
+    server.once("error", (err) => {
+      if (err.code === "EADDRINUSE" && portTries < MAX_PORT_TRIES) {
+        portTries++;
+        actualPort++;
+        server.removeAllListeners("listening");
+        tryListen();
+      } else {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+  };
+
+  tryListen();
 }
 
 main().catch((err) => {
