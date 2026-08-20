@@ -167,6 +167,79 @@ layout: header-content
     expect(err.message).toContain("braces");
   });
 
+  it("errors when a table directive uses unknown attributes", () => {
+    const output = `layout: header-content
+
+@main
+
+::: table { width=50 style=bold padding=10 }
+| A | B |
+| --- | --- |
+| 1 | 2 |
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "UNKNOWN_TABLE_ATTR");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("style");
+    expect(err.message).toContain("padding");
+  });
+
+  it("passes when a table directive uses only known attributes", () => {
+    const output = `layout: header-content
+
+@main
+
+::: table { width=60 align=center fontSize=24 columns=2,1 borders=false striped=false headerColor="#003C68" no-header }
+| A | B |
+| --- | --- |
+| 1 | 2 |
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.errors.filter((e) => e.code === "UNKNOWN_TABLE_ATTR")).toHaveLength(0);
+  });
+
+  it("does not flag pre-existing unknown table attributes in preserve intents", () => {
+    const input = `layout: header-content
+
+@main
+
+::: table { width=50 style=bold }
+| A |
+| --- |
+| 1 |
+:::`;
+    const output = input;
+    const result = validate(input, output, "fix");
+    // style was already in the input — preserve intents should not flag it
+    expect(result.errors.filter((e) => e.code === "UNKNOWN_TABLE_ATTR")).toHaveLength(0);
+  });
+
+  it("flags new unknown table attributes even in preserve intents", () => {
+    const input = `layout: header-content
+
+@main
+
+::: table { width=50 }
+| A |
+| --- |
+| 1 |
+:::`;
+    const output = `layout: header-content
+
+@main
+
+::: table { width=50 style=bold }
+| A |
+| --- |
+| 1 |
+:::`;
+    const result = validate(input, output, "fix");
+    const err = result.errors.find((e) => e.code === "UNKNOWN_TABLE_ATTR");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("style");
+  });
+
   it("errors when a focus slide has too much content", () => {
     const bullets = Array.from({ length: 13 }, (_, i) => `- Supporting point ${i + 1}`).join("\n");
     const output = `layout: focus

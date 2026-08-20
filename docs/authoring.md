@@ -132,7 +132,7 @@ layout: "header" auto "main" 1fr / 800px
 
 ## Text Blocks
 
-Use `::: text-block { ... }` to wrap content with custom styling. Attributes are comma- or space-separated.
+Use `::: text-block { ... }` to wrap content with custom styling. Attributes are space-separated.
 
 | Attribute      | Effect             |
 | -------------- | ------------------ |
@@ -141,6 +141,7 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 | `color`        | Text color         |
 | `background`   | Background color   |
 | `padding`      | Inner padding      |
+| `markdown`     | Render markdown    |
 
 ### Example
 
@@ -203,25 +204,41 @@ console.log("centered");
 
 This is useful for short snippets in `header-content` or `two-column` layouts where the default left alignment looks off. The `focus` layout already centers all code blocks by default.
 
-### Sizing tables
+### Styling tables
 
-Tables are content-sized and centred by default. To size a table to a
-percentage of its area, place a `table {width: X%}` line directly before it —
-the width is applied to the rendered `<table>` without any HTML in the source
-(the PPTX converter emits this automatically for source tables narrower than
-the slide):
+Tables are content-sized and centred by default. To apply styling, wrap the
+markdown table in a `::: table { ... }` container directive (the PPTX converter
+emits this automatically for source tables narrower than the slide):
 
 ```markdown
-table {width: 60%}
+::: table { width=60 align=center }
 
 | Specifier | Usage      |
 | --------- | ---------- |
 | %d        | An integer |
 | %s        | A string   |
+
+:::
 ```
 
-Only the `width` declaration is honoured; any other content in the braces is
-ignored and the line renders as plain text.
+Supported attributes (use `key=value` or bare-flag syntax, not `key: value`):
+
+| Attribute     | Default | Description                                              |
+| ------------- | ------- | -------------------------------------------------------- |
+| `width`       | auto    | Table width as a percentage of the area (1–100).         |
+| `align`       | center  | `left`, `center`, or `right`.                            |
+| `fontSize`    | inherit | Table font size in px.                                   |
+| `columns`     | auto    | Relative column weights, comma-separated (e.g. `2,1,3`). |
+| `borders`     | true    | `false` removes the table border.                        |
+| `striped`     | true    | `false` disables zebra striping.                         |
+| `headerColor` | auto    | Hex color for the header row (e.g. `"#003C68"`).         |
+| `no-header`   | off     | Bare flag; hides the header row (for headerless tables). |
+
+Unknown attributes are flagged by the AI validator, not silently dropped.
+
+The legacy single-line `table {width: X%}` and `table {no-header}` forms
+(colon-style) are still accepted for backwards compatibility but are
+deprecated; use the container form for new content.
 
 ### Math with KaTeX
 

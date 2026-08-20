@@ -225,12 +225,11 @@ Slide content...
 
 ### Presenter Dashboard
 
-| Panel              | Purpose                     |
-| ------------------ | --------------------------- |
-| **Current Slide**  | What the audience sees      |
-| **Next Slide**     | Preview of upcoming content |
-| **Speaker Notes**  | Your private notes          |
-| **Break Controls** | Timer for breaks            |
+| Panel              | Purpose                |
+| ------------------ | ---------------------- |
+| **Current Slide**  | What the audience sees |
+| **Speaker Notes**  | Your private notes     |
+| **Break Controls** | Timer for breaks       |
 
 ---
 
@@ -422,20 +421,15 @@ layout: two-column
 
 @media
 
-### Tables
-
-| Feature           | Support   |
-| ----------------- | --------- |
-| Code highlighting | Prism.js  |
-| Math rendering    | KaTeX     |
-| Diagrams          | Mermaid   |
-| Export            | PDF, HTML |
-
 ### Blockquotes
 
 Use for key takeaways and callouts:
 
 > **Pro tip:** Combine markdown with inline HTML for custom styling when needed.
+
+### Code Spans
+
+Use `` `backticks` `` for `inline code` within sentences.
 
 ---
 
@@ -447,19 +441,6 @@ layout: two-column
 
 @main
 
-### The Presenter Dashboard
-
-When you open SlideMD, you see the presenter dashboard with:
-
-| Panel              | Purpose                     |
-| ------------------ | --------------------------- |
-| **Current Slide**  | What the audience sees      |
-| **Next Slide**     | Preview of upcoming content |
-| **Speaker Notes**  | Your private notes          |
-| **Break Controls** | Timer for breaks            |
-
-@media
-
 ### Typical Workflow
 
 1. **Open your deck** – Load your `.md` file
@@ -468,7 +449,19 @@ When you open SlideMD, you see the presenter dashboard with:
 4. **Press `F`** – Go fullscreen on viewer
 5. **Present** – Navigate with arrow keys or space
 
+> _On Mac, Chromium browsers (Chrome, Brave, Edge) may open the viewer as a tab instead of a window when the browser is maximized. Un-maximize the browser window before pressing `P`, or drag the tab out to detach it._
+
 > _The break timer shows your audience when you'll return based on the selected duration (5-15 minutes)._
+
+@media
+
+### Presenter Dashboard
+
+When you open SlideMD, you see the presenter dashboard with:
+
+- **Current Slide** – What the audience sees
+- **Speaker Notes** – Your private notes
+- **Break Controls** – Timer for breaks
 
 ---
 
@@ -540,7 +533,7 @@ layout: two-column
 
 @main
 
-Use `::: text-block { ... }` to wrap content with custom styling. Attributes are comma- or space-separated.
+Use `::: text-block { ... }` to wrap content with custom styling. Attributes are space-separated.
 
 ### Available Attributes
 
@@ -551,10 +544,11 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 | `color`        | Text color         |
 | `background`   | Background color   |
 | `padding`      | Inner padding      |
+| `markdown`     | Render markdown    |
 
 @media
 
-### Example usage
+### Multi-column
 
 ::: text-block { column-count=2 }
 
@@ -562,6 +556,63 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 2. Second item
 3. Third item
 4. Fourth item
+
+:::
+
+### Styled block
+
+::: text-block { color="#1a95b8" markdown=true }
+
+**Bold text** and _italic_ inside a styled block.
+
+:::
+
+---
+
+layout: left-heavy
+
+@header
+
+# Table Styling
+
+@main
+
+Use `::: table { ... }` to wrap a markdown table with sizing, alignment, and styling. Attributes use `key=value` syntax (not `key: value`).
+
+| Attribute     | Default | Description                                 |
+| ------------- | ------- | ------------------------------------------- |
+| `width`       | auto    | Percentage of area (1–100)                  |
+| `align`       | center  | `left`, `center`, or `right`                |
+| `fontSize`    | inherit | Font size in px                             |
+| `columns`     | auto    | Relative column weights (e.g. `2,1,3`)      |
+| `borders`     | true    | `false` removes the table border            |
+| `striped`     | true    | `false` disables zebra striping             |
+| `headerColor` | auto    | Hex color for header row (e.g. `"#003C68"`) |
+| `no-header`   | off     | Bare flag; hides the header row             |
+
+@media
+
+### Styled Example
+
+::: table { fontSize=20 headerColor="#1a95b8" striped=false }
+
+| Feature           | Support   |
+| ----------------- | --------- |
+| Code highlighting | Prism.js  |
+| Math rendering    | KaTeX     |
+| Diagrams          | Mermaid   |
+| Export            | PDF, HTML |
+
+:::
+
+### Left-aligned + Borderless + Custom column width
+
+::: table { borders=false align=left columns=2,4,8 }
+
+| A   | B   | C   |
+| --- | --- | --- |
+| 1   | 2   | 3   |
+| 4   | 5   | 6   |
 
 :::
 
