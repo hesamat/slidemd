@@ -34,6 +34,17 @@ npm run dev
 - **Vite** — serves the frontend with module transforms and proxies API calls
   to the CLI server.
 
+If the default ports (8000/8001) are in use, the launcher automatically finds
+the next free ports and prints them. To pin specific ports, set
+`WEBDECK_VITE_PORT` and `WEBDECK_CLI_PORT`:
+
+```bash
+WEBDECK_VITE_PORT=9000 WEBDECK_CLI_PORT=9001 npm run dev
+```
+
+The startup banner shows the current git branch and resolved ports, which is
+useful when running multiple worktrees in parallel.
+
 To open a specific deck:
 
 ```bash
@@ -53,7 +64,11 @@ npm run build
 ```
 
 The Playwright E2E suite runs in CI and is required for pull requests. It starts
-its own dual-process dev server and installs Chromium in the CI workflow.
+its own dual-process dev server on a dedicated port range (8080/8081, separate
+from the dev server's 8000/8001) and installs Chromium in the CI workflow. If a
+server is already running on the e2e port, Playwright reuses it instead of
+spawning a new one. Override the e2e ports with `WEBDECK_E2E_PORT` and
+`WEBDECK_E2E_CLI_PORT`.
 
 If `npm run format:check` fails, run `npm run format` (or
 `npx prettier --write .`) and rerun the check.
@@ -83,11 +98,14 @@ Prettier enforces formatting. Do not hand-format code; let Prettier do it.
 
 ```bash
 npm test
+npm run test:watch
 npm run test:e2e
 ```
 
-`npm test` runs the Vitest unit suite. `npm run test:e2e` runs the Playwright
-Chromium suite and starts the dual-process dev server automatically. Unit tests
+`npm test` runs the Vitest unit suite. `npm run test:watch` runs Vitest in
+watch mode for iterative TDD — it re-runs only the tests affected by changed
+files. `npm run test:e2e` runs the Playwright Chromium suite and starts the
+dual-process dev server automatically. Unit tests
 run on Vitest with the default environment set to `node`; specs that need a DOM
 add a `// @vitest-environment jsdom` pragma at the top of the file. Specs live
 under `src/__tests__/**/*.test.js` (the config's `include` glob is
