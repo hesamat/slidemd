@@ -688,49 +688,4 @@ describe("ImageInteractionHandler", () => {
       expect(img.style.top).toBe("20px");
     });
   });
-
-  describe("shadow parsing", () => {
-    it("parses 'none' into zero components with default color", () => {
-      const result = ImagePropertiesPanel._parseShadow("none");
-      expect(result.offset).toBe(0);
-      expect(result.blur).toBe(0);
-      expect(result.color).toBe("#787878");
-    });
-
-    it("parses a simple offset/blur/color shadow", () => {
-      const result = ImagePropertiesPanel._parseShadow("4px 4px 12px #333333");
-      expect(result.offset).toBe(4);
-      expect(result.blur).toBe(12);
-      expect(result.color).toBe("#333333");
-    });
-
-    it("parses an rgba color and converts to hex", () => {
-      const result = ImagePropertiesPanel._parseShadow("0px 2px 6px rgba(120, 120, 120, 0.3)");
-      expect(result.offset).toBe(2);
-      expect(result.blur).toBe(6);
-      expect(result.color).toBe("#787878");
-    });
-
-    it("handles asymmetric offsets by taking the larger", () => {
-      const result = ImagePropertiesPanel._parseShadow("0px 8px 10px #000000");
-      expect(result.offset).toBe(8);
-      expect(result.blur).toBe(10);
-    });
-  });
-
-  describe("color conversion", () => {
-    it("converts rgba to hex", () => {
-      expect(ImagePropertiesPanel._colorToHex("rgba(255, 0, 0, 0.5)")).toBe("#ff0000");
-      expect(ImagePropertiesPanel._colorToHex("rgb(0, 128, 255)")).toBe("#0080ff");
-    });
-
-    it("passes through hex values", () => {
-      expect(ImagePropertiesPanel._colorToHex("#abc")).toBe("#abc");
-      expect(ImagePropertiesPanel._colorToHex("#aabbcc")).toBe("#aabbcc");
-    });
-
-    it("falls back to default for unparseable colors", () => {
-      expect(ImagePropertiesPanel._colorToHex("red")).toBe("#787878");
-    });
-  });
 });

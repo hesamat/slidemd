@@ -921,23 +921,6 @@
   cursor: grab;
 }
 
-/* Small color swatch (shadow color) */
-.image-properties-panel__color-swatch {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border-medium);
-  border-radius: 5px;
-  cursor: pointer;
-  flex-shrink: 0;
-  background: var(--surface-bg);
-}
-
-.image-properties-panel__color-swatch:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-bg);
-}
-
 /* Narrow number input paired with a range slider (e.g. corner radius) */
 .image-properties-panel__input--narrow {
   flex: 0 0 56px;

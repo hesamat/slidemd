@@ -27,11 +27,7 @@ import {
  *   • Transform — rotation, alt-text
  */
 
-const SHADOW_COLOR_DEFAULT = "#787878";
-
-// Fields that map directly to applySettings keys.  Shadow component
-// inputs (shadowOffset/shadowBlur/shadowColor) are NOT in this list —
-// they are composed into a single boxShadow string before applying.
+// Fields that map directly to applySettings keys.
 const DIRECT_FIELDS = new Set([
   "width",
   "height",
@@ -78,7 +74,6 @@ export class ImagePropertiesPanel {
     this._currentImg = img;
     this._computeAreaWidth(img);
     this._syncUI(settings);
-    this._syncShadowUI(settings.boxShadow);
     this._updatePresetLabels();
     this._syncFreeflowBtn();
     this._activateTab("size");
@@ -213,21 +208,21 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="pill" title="Pill / circle">Pill</button>
                     </div>
 
-                    <div class="image-properties-panel__section-label">Shadow</div>
+                    <div class="image-properties-panel__section-label">Adjust</div>
                     <div class="image-properties-panel__control-row">
-                        <span class="image-properties-panel__control-label">Offset</span>
-                        <input type="range" class="image-properties-panel__slider" data-field="shadowOffset" min="0" max="40" step="1" />
-                        <span class="image-properties-panel__control-value" data-display="shadow-offset">0px</span>
+                        <span class="image-properties-panel__control-label">Bright</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="brightness" min="0" max="200" step="5" value="100" title="Brightness %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
                     </div>
                     <div class="image-properties-panel__control-row">
-                        <span class="image-properties-panel__control-label">Blur</span>
-                        <input type="range" class="image-properties-panel__slider" data-field="shadowBlur" min="0" max="60" step="1" />
-                        <span class="image-properties-panel__control-value" data-display="shadow-blur">0px</span>
+                        <span class="image-properties-panel__control-label">Contrast</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="contrast" min="0" max="200" step="5" value="100" title="Contrast %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
                     </div>
                     <div class="image-properties-panel__control-row">
-                        <span class="image-properties-panel__control-label">Color</span>
-                        <input type="color" class="image-properties-panel__color-swatch" data-field="shadowColor" value="${SHADOW_COLOR_DEFAULT}" />
-                        <button type="button" class="image-properties-panel__chip" data-action="shadow-none" title="Remove shadow">None</button>
+                        <span class="image-properties-panel__control-label">Saturate</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="saturate" min="0" max="200" step="5" value="100" title="Saturation %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
                     </div>
                 </div>
 
@@ -244,22 +239,6 @@ export class ImagePropertiesPanel {
                     <div class="image-properties-panel__control-row">
                         <button type="button" class="image-properties-panel__chip" data-action="flip-h" title="Flip horizontal">↔ Flip H</button>
                         <button type="button" class="image-properties-panel__chip" data-action="flip-v" title="Flip vertical">↕ Flip V</button>
-                    </div>
-                    <div class="image-properties-panel__section-label">Adjust</div>
-                    <div class="image-properties-panel__control-row">
-                        <span class="image-properties-panel__control-label">Bright</span>
-                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="brightness" min="0" max="200" step="5" value="100" title="Brightness %" />
-                        <span class="image-properties-panel__control-suffix">%</span>
-                    </div>
-                    <div class="image-properties-panel__control-row">
-                        <span class="image-properties-panel__control-label">Contrast</span>
-                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="contrast" min="0" max="200" step="5" value="100" title="Contrast %" />
-                        <span class="image-properties-panel__control-suffix">%</span>
-                    </div>
-                    <div class="image-properties-panel__control-row">
-                        <span class="image-properties-panel__control-label">Saturate</span>
-                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="saturate" min="0" max="200" step="5" value="100" title="Saturation %" />
-                        <span class="image-properties-panel__control-suffix">%</span>
                     </div>
                     <div class="image-properties-panel__section-label">Alt text</div>
                     <div class="image-properties-panel__row">
@@ -312,9 +291,7 @@ export class ImagePropertiesPanel {
       tab.addEventListener("click", () => this._activateTab(tab.dataset.tab));
     });
 
-    // Number/text/range/color inputs that map to settings fields.
-    // Shadow component inputs (shadowOffset/shadowBlur/shadowColor) are
-    // handled here too — they are composed into a single box-shadow.
+    // Number/text/range inputs that map to settings fields.
     this.el.querySelectorAll("[data-field]").forEach((input) => {
       const handler = () => this._applyFromInput(input);
       input.addEventListener("change", handler);
@@ -405,10 +382,6 @@ export class ImagePropertiesPanel {
       case "set-background":
         this._setAsBackground();
         break;
-      case "shadow-none":
-        ImageInteractionHandler.applySettings({ boxShadow: "none" });
-        this._syncShadowUI("none");
-        break;
     }
   }
 
@@ -445,11 +418,7 @@ export class ImagePropertiesPanel {
     }
     const settings = {};
 
-    // Shadow component inputs — compose into a single box-shadow string
-    if (field === "shadowOffset" || field === "shadowBlur" || field === "shadowColor") {
-      settings.boxShadow = this._composeShadowFromUI();
-      this._updateShadowDisplays();
-    } else if (field === "opacity") {
+    if (field === "opacity") {
       settings.opacity = value / 100;
       this._updateDisplay("opacity", `${Math.round(value)}%`);
     } else if (field === "borderRadius") {
@@ -477,94 +446,6 @@ export class ImagePropertiesPanel {
     import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
       ImageInteractionHandler.applySettings(settings);
     });
-  }
-
-  /**
-   * Read the shadow component inputs (offset, blur, color) and compose
-   * a CSS box-shadow string.  Returns "none" when offset and blur are
-   * both 0.
-   * @returns {string}
-   */
-  static _composeShadowFromUI() {
-    const offset = parseFloat(this.el.querySelector('[data-field="shadowOffset"]')?.value) || 0;
-    const blur = parseFloat(this.el.querySelector('[data-field="shadowBlur"]')?.value) || 0;
-    const colorInput = this.el.querySelector('[data-field="shadowColor"]');
-    const color = colorInput?.value || SHADOW_COLOR_DEFAULT;
-    if (offset === 0 && blur === 0) return "none";
-    return `${offset}px ${offset}px ${blur}px ${color}`;
-  }
-
-  /**
-   * Parse a CSS box-shadow string into { offset, blur, color } components
-   * for populating the UI inputs.  Handles "none", our own format, and
-   * best-effort parsing of arbitrary shadows (including old preset values).
-   * @param {string} value
-   * @returns {{offset: number, blur: number, color: string}}
-   */
-  static _parseShadow(value) {
-    if (!value || value === "none") {
-      return { offset: 0, blur: 0, color: SHADOW_COLOR_DEFAULT };
-    }
-    // Match: offsetX offsetY blur [spread] color
-    // Handle both px-suffixed and bare-0 values, and rgba()/hex/named colors.
-    const m = value.match(
-      /^(-?[\d.]+)px?\s+(-?[\d.]+)px?\s+(-?[\d.]+)px?(?:\s+(-?[\d.]+)px?)?\s+(.+)$/,
-    );
-    if (m) {
-      const ox = Math.abs(parseFloat(m[1]));
-      const oy = Math.abs(parseFloat(m[2]));
-      const blur = Math.max(0, parseFloat(m[3]));
-      const color = this._colorToHex(m[5].trim());
-      return { offset: Math.max(ox, oy), blur, color };
-    }
-    return { offset: 0, blur: 0, color: SHADOW_COLOR_DEFAULT };
-  }
-
-  /**
-   * Convert a CSS color string (hex, rgb, rgba) to a hex string suitable
-   * for `<input type="color">`.  Falls back to the default gray.
-   * @param {string} color
-   * @returns {string}
-   */
-  static _colorToHex(color) {
-    if (color.startsWith("#")) return color.slice(0, 7);
-    const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-    if (m) {
-      return (
-        "#" + [m[1], m[2], m[3]].map((n) => parseInt(n, 10).toString(16).padStart(2, "0")).join("")
-      );
-    }
-    return SHADOW_COLOR_DEFAULT;
-  }
-
-  /**
-   * Sync the shadow component inputs and displays from a box-shadow value.
-   * Called when the panel opens or when "None" is clicked — NOT on every
-   * applySettings call, to avoid resetting sliders mid-drag.
-   * @param {string} boxShadow
-   */
-  static _syncShadowUI(boxShadow) {
-    if (!this.el) return;
-    const { offset, blur, color } = this._parseShadow(boxShadow);
-    const offsetInput = this.el.querySelector('[data-field="shadowOffset"]');
-    const blurInput = this.el.querySelector('[data-field="shadowBlur"]');
-    const colorInput = this.el.querySelector('[data-field="shadowColor"]');
-    if (offsetInput) offsetInput.value = offset;
-    if (blurInput) blurInput.value = blur;
-    if (colorInput) colorInput.value = color;
-    this._updateShadowDisplays();
-  }
-
-  /**
-   * Update the shadow display labels from the current input values.
-   * Called live during drag so the user sees the numbers change.
-   */
-  static _updateShadowDisplays() {
-    if (!this.el) return;
-    const offset = parseFloat(this.el.querySelector('[data-field="shadowOffset"]')?.value) || 0;
-    const blur = parseFloat(this.el.querySelector('[data-field="shadowBlur"]')?.value) || 0;
-    this._updateDisplay("shadow-offset", `${offset}px`);
-    this._updateDisplay("shadow-blur", `${blur}px`);
   }
 
   /**

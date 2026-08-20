@@ -774,7 +774,8 @@ export class ImageInteractionHandler {
     if (s.alt != null) img.setAttribute("alt", s.alt);
 
     this._updateOverlay();
-    ImagePropertiesPanel._syncUI(readImageSettings(img));
+    const cur = readImageSettings(img);
+    ImagePropertiesPanel._syncUI(cur);
     this._syncToMarkdown();
   }
 
