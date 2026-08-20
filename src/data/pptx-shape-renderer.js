@@ -217,7 +217,7 @@ function shapeToSvg(shape, originX = 0, originY = 0) {
 
 /**
  * Build the SVG `fill` attribute from a pptxtojson Fill object.
- * @param {import('pptxtojson').Fill | null} fill
+ * @param {object | null} fill
  * @returns {string}
  */
 function buildFillAttr(fill) {

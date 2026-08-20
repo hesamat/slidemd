@@ -1,4 +1,4 @@
-import { formatShortcut } from "../engine/keyboard-shortcuts.js";
+import { formatShortcut } from "../core/keyboard-shortcuts.js";
 
 /**
  * UiActions

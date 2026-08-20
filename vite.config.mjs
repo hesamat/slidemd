@@ -3,6 +3,11 @@ import { imageUploadPlugin } from './tools/vite-plugin-upload.mjs';
 
 const noOpen = process.env.WEBDECK_NO_OPEN === '1' || process.env.WEBDECK_NO_OPEN === 'true';
 
+// Ports are set by tools/dev.mjs (which auto-finds free ports). Defaults
+// here cover standalone `vite` invocations (npm run dev:vite).
+const vitePort = Number(process.env.WEBDECK_VITE_PORT) || 8000;
+const cliPort = Number(process.env.WEBDECK_CLI_PORT) || 8001;
+
 export default defineConfig({
     plugins: [imageUploadPlugin()],
     optimizeDeps: {
@@ -10,7 +15,7 @@ export default defineConfig({
     },
     server: {
         host: '127.0.0.1',
-        port: 8000,
+        port: vitePort,
         open: noOpen ? false : '/index.html',
         fs: {
             // Allow serving from symlinked node_modules outside the worktree
@@ -23,13 +28,13 @@ export default defineConfig({
         proxy: {
             // changeOrigin must stay OFF: the CLI server's isSameOrigin()
             // compares the browser's Origin header against the Host it
-            // receives. Rewriting Host to localhost:8001 would make every
+            // receives. Rewriting Host to the CLI port would make every
             // write (POST /api/deck) fail the check with a 403.
             '/api': {
-                target: 'http://localhost:8001',
+                target: `http://localhost:${cliPort}`,
             },
             '/images': {
-                target: 'http://localhost:8001',
+                target: `http://localhost:${cliPort}`,
             },
         },
     },

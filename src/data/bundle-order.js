@@ -24,6 +24,7 @@ export const JS_BUNDLE_ORDER = [
   "src/core/mermaid-config.js",
   "src/core/modal-state.js",
   "src/core/asset-loader.js",
+  "src/core/keyboard-shortcuts.js",
   // Data loading and parsing
   "src/data/layout-data.js",
   "src/data/markdown-parser.js",
@@ -37,7 +38,6 @@ export const JS_BUNDLE_ORDER = [
   "src/renderer/theme-manager.js",
   "src/renderer/print-manager.js",
   // Engine components
-  "src/engine/keyboard-shortcuts.js",
   "src/engine/keyboard-handler.js",
   "src/engine/command-registry.js",
   "src/engine/deck-keyboard.js",

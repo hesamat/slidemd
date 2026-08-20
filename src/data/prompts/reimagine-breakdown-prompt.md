@@ -61,6 +61,7 @@ The generate AI chooses layouts, but you can guide it through the intent. Vary t
 - Full-image or media-span layouts for emotional/visual slides
 - Focus layouts for key takeaways and predictions
 - Two-column for code + explanation or before/after comparisons
+- Multi-column text blocks (`::: text-block { column-count=N markdown=true } ... :::`) for long lists or tables that exceed a single column. The line budget for that content is multiplied by N, so dense material can stay on one slide.
 - Use `media-span-left`/`media-span-right` ONLY when the slide's `@media` area will contain an image. Do not choose these layouts for tables, text, or code.
 
 Only ask for a Mermaid diagram when the concept has branches, decisions, loops, or parallel paths that cannot be shown clearly in text, a table, or code. A straight line of boxes is a list, not a diagram. Do not request a flowchart to explain or define a concept; use a numbered list, table, or code example instead.

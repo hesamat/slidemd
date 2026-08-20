@@ -40,15 +40,17 @@ export const MERMAID_INIT_OPTIONS = {
 };
 
 /**
- * Builds a self-contained <script> tag that loads Mermaid from CDN and initializes it.
- * @param {string} version - Installed Mermaid version to request from the CDN.
+ * Builds a self-contained <script> tag that inlines the Mermaid IIFE bundle and
+ * initializes it. The Mermaid JS is inlined directly (not loaded from a CDN) so
+ * the exported HTML works offline.
+ * @param {string} mermaidJs - The Mermaid IIFE bundle source (mermaid.min.js).
  * @param {string} [indent=''] - Optional whitespace prefix for formatting.
- * @returns {string} The complete <script> tag.
+ * @returns {string} The complete <script> tags.
  */
-export function buildMermaidScriptTag(version, indent = "") {
-  const cdnUrl = `https://cdn.jsdelivr.net/npm/mermaid@${version}/dist/mermaid.esm.min.mjs`;
+export function buildInlinedMermaidScriptTag(mermaidJs, indent = "") {
   const opts = JSON.stringify(MERMAID_INIT_OPTIONS);
   const flagScript = `${indent}<script>window.__WEBDECK_HAS_MERMAID__ = true;</script>`;
-  const moduleScript = `${indent}<script type="module">import mermaid from "${cdnUrl}";window.mermaid=mermaid;window.__WEBDECK_MERMAID__={mermaid};mermaid.initialize(${opts});</script>`;
-  return `${flagScript}\n${moduleScript}`;
+  const bundleScript = `${indent}<script>\n${mermaidJs}\n    </script>`;
+  const initScript = `${indent}<script>window.__WEBDECK_MERMAID__={mermaid:window.mermaid};if(window.mermaid)window.mermaid.initialize(${opts});</script>`;
+  return `${flagScript}\n${bundleScript}\n${initScript}`;
 }

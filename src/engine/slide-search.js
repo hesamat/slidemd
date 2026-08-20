@@ -8,6 +8,7 @@
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { escapeHtml, safeString } from "../core/utils.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
+import { SlideRenderer } from "../renderer/slide-renderer.js";
 
 const SEARCH_DELAY_MS = 100;
 const MAX_SNIPPET_LENGTH = 120;
@@ -540,7 +541,7 @@ export class SlideSearch {
 
     const title = document.createElement("div");
     title.className = "slide-search__title";
-    title.innerHTML = this._highlightTerms(result.title, terms);
+    title.innerHTML = SlideRenderer.sanitizeAreaHtml(this._highlightTerms(result.title, terms));
 
     const meta = document.createElement("div");
     meta.className = "slide-search__meta";
@@ -548,7 +549,7 @@ export class SlideSearch {
 
     const snippet = document.createElement("div");
     snippet.className = "slide-search__snippet";
-    snippet.innerHTML = this._highlightTerms(result.snippet, terms);
+    snippet.innerHTML = SlideRenderer.sanitizeAreaHtml(this._highlightTerms(result.snippet, terms));
 
     content.appendChild(title);
     if (result.matchedFields.length) content.appendChild(meta);

@@ -6,6 +6,7 @@
 import { escapeHtml } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
+import { SlideRenderer } from "../renderer/slide-renderer.js";
 
 const PALETTE_PREFIX = "command-palette";
 const MAX_RESULTS = 50;
@@ -232,7 +233,9 @@ export class CommandPalette {
         left.className = `${PALETTE_PREFIX}__left`;
         const name = document.createElement("div");
         name.className = `${PALETTE_PREFIX}__name`;
-        name.innerHTML = this._highlight(cmd.name, this._queryTokens());
+        name.innerHTML = SlideRenderer.sanitizeAreaHtml(
+          this._highlight(cmd.name, this._queryTokens()),
+        );
         left.appendChild(name);
         item.appendChild(left);
 
