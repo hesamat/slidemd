@@ -18,6 +18,7 @@ import { splitCssDeclarations } from "../../core/utils.js";
 import { Logger } from "../../core/logger.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
+import { FencedBlockInteractionHandler } from "../codeblock/fenced-block-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { Notification } from "../../renderer/notification.js";
 import { lintSlideStyles } from "./style-lint.js";
@@ -388,6 +389,7 @@ export class SlidePreviewUpdater {
             if (grid) {
               TextBlockHandler.activate(grid);
               ImageInteractionHandler.activate(grid);
+              FencedBlockInteractionHandler.activate(grid);
             }
             this._drainReadyCallbacks(newSlideEl);
           });

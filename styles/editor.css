@@ -1122,6 +1122,32 @@
   opacity: 0.85;
 }
 
+/* ── Fenced-block (Mermaid + code block) drag/select ──────────────────── */
+
+/* The overlay tracks the selected fenced block's position/size */
+.fenced-block-overlay {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  border: 2px solid rgba(2, 132, 199, 0.6);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* Selected fenced block gets move cursor + subtle outline */
+[data-edit-mode="true"] .slide__area .mermaid.fenced-block-selected,
+[data-edit-mode="true"] .slide__area > pre.fenced-block-selected {
+  outline: 2px solid rgba(2, 132, 199, 0.6);
+  outline-offset: 2px;
+  cursor: move;
+}
+
+/* Mermaid diagrams and code blocks are draggable in edit mode */
+[data-edit-mode="true"] .slide__area .mermaid[data-mermaid-processed],
+[data-edit-mode="true"] .slide__area > pre {
+  cursor: move;
+}
+
 /* Media-span fill images — a size edit or drag takes them out of fill mode */
 [data-edit-mode="true"]
   .slide[data-media-full-bleed]

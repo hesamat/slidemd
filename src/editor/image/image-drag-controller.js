@@ -13,18 +13,15 @@ import { ImagePropertiesPanel } from "./image-properties-panel.js";
 import { ImageInteractionHandler } from "./image-interaction-handler.js";
 import { getStageScale } from "./image-position-presets.js";
 import { readImageSettings, isMediaSpanFillImage } from "./image-markdown-utils.js";
+import { DragDropHelpers } from "../core/drag-common.js";
 
 const MIN_RESIZE_DIM = 50;
 const CROSS_AREA_RESELECT_MS = 400;
 const CORNER_EDGE_LEN_THRESHOLD = 4;
-const DROP_GAP_HEIGHT = 40;
-const DROP_GAP_MARGIN = 4;
-const DROP_GAP_RADIUS = 8;
 
 export class ImageDragController {
-  static _dropIndicator = null;
+  static _drop = null;
   static _dragSourceArea = null;
-  static _dragTargetArea = null;
   static _dragStartX = 0;
   static _dragStartY = 0;
   static _dragSnapped = false;
@@ -34,7 +31,6 @@ export class ImageDragController {
   static _dragStartInsertBefore = null;
   static _dragStartImgRect = null;
   static _dropInsertBeforeEl = null;
-  static _dropTargetAreaEl = null;
   static _resizeState = null;
 
   /**
@@ -58,6 +54,7 @@ export class ImageDragController {
   static activate(container, ctx) {
     this._ctx = ctx;
     this._container = container;
+    this._drop = new DragDropHelpers(container, { indicatorClassName: "image-drop-indicator" });
 
     interact(".slide__area img", { context: container }).draggable({
       listeners: {
@@ -76,6 +73,7 @@ export class ImageDragController {
     }
     this._ctx = null;
     this._container = null;
+    this._drop = null;
     this._clearDragState();
     this._resizeState = null;
   }
@@ -102,7 +100,6 @@ export class ImageDragController {
     ImagePropertiesPanel.hide();
     const sourceArea = img.closest(".slide__area");
     this._dragSourceArea = sourceArea?.dataset.areaName || null;
-    this._dragTargetArea = null;
     this._dragStartX = e.clientX;
     this._dragStartY = e.clientY;
     this._dragSnapped = false;
@@ -158,9 +155,14 @@ export class ImageDragController {
     this._dragMoved = true;
 
     const isFreeflow = ImageInteractionHandler.isFreeflow(img);
-    this._updateDragTarget(e.clientX, e.clientY);
+    this._drop?.updateDragTarget(
+      () => this._ctx?.getSelectedImg(),
+      e.clientX,
+      e.clientY,
+      this._dragSourceArea,
+    );
 
-    const targetArea = this._dragTargetArea;
+    const targetArea = this._drop?.targetArea;
     const sourceArea = this._dragSourceArea;
     const isCrossArea = targetArea && sourceArea && targetArea !== sourceArea;
 
@@ -170,12 +172,12 @@ export class ImageDragController {
         `.slide__area[data-area-name="${targetArea}"]`,
       );
       if (targetAreaEl) {
-        this._highlightDropTarget(targetAreaEl);
-        this._dropTargetAreaEl = targetAreaEl;
+        this._drop?.highlightDropTarget(targetAreaEl);
+        this._drop.dropTargetAreaEl = targetAreaEl;
       }
-    } else if (!isCrossArea && this._dropTargetAreaEl) {
-      this._clearDropTargetHighlight();
-      this._dropTargetAreaEl = null;
+    } else if (!isCrossArea && this._drop?.dropTargetAreaEl) {
+      this._drop?.clearDropTargetHighlight();
+      this._drop.dropTargetAreaEl = null;
     }
 
     const scale = getStageScale();
@@ -212,7 +214,7 @@ export class ImageDragController {
           }
 
           if (insertBefore !== this._dropInsertBeforeEl) {
-            this._showDropGap(areaEl, insertBefore);
+            this._drop?.showDropGap(areaEl, insertBefore);
           }
           this._dropInsertBeforeEl = insertBefore;
         }
@@ -225,8 +227,8 @@ export class ImageDragController {
     const img = ctx?.getSelectedImg();
     if (!img || !ctx) return;
 
-    this._clearDropTargetHighlight();
-    this._hideDropGap();
+    this._drop?.clearDropTargetHighlight();
+    this._drop?.hideDropGap();
 
     // An ignored gesture (flex-row or media-span fill image) never selected
     // or moved anything — skip markdown sync entirely.
@@ -243,8 +245,8 @@ export class ImageDragController {
     }
 
     const fromArea = this._dragSourceArea;
-    const toArea = this._dragTargetArea;
-    const targetAreaEl = this._dropTargetAreaEl;
+    const toArea = this._drop?.targetArea;
+    const targetAreaEl = this._drop?.dropTargetAreaEl;
 
     const currentAreaEl = img?.closest?.(".slide__area");
     const isCrossArea = fromArea && toArea && fromArea !== toArea;
@@ -325,15 +327,14 @@ export class ImageDragController {
 
   static _clearDragState() {
     this._dragSourceArea = null;
-    this._dragTargetArea = null;
     this._dragSnapped = false;
     this._dragStartInsertBefore = null;
     this._dropInsertBeforeEl = null;
-    this._dropTargetAreaEl = null;
     this._dragMoved = false;
     this._dragPrepared = false;
     this._dragIgnored = false;
     this._dragStartImgRect = null;
+    this._drop?.clearDragState();
   }
 
   /**
@@ -467,72 +468,5 @@ export class ImageDragController {
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     });
-  }
-
-  // ── Drop gap management ─────────────────────────────────────────────────
-
-  static _highlightDropTarget(areaEl) {
-    if (this._dropTargetAreaEl && this._dropTargetAreaEl !== areaEl) {
-      this._dropTargetAreaEl.classList.remove("slide__area--drop-target");
-    }
-    areaEl.classList.add("slide__area--drop-target");
-  }
-
-  static _showDropGap(areaEl, insertBeforeEl) {
-    let gap = this._dropIndicator;
-    if (!gap) {
-      gap = document.createElement("div");
-      gap.className = "image-drop-indicator";
-      gap.style.height = `${DROP_GAP_HEIGHT}px`;
-      gap.style.minHeight = `${DROP_GAP_HEIGHT}px`;
-      gap.style.margin = `${DROP_GAP_MARGIN}px 0`;
-      gap.style.borderRadius = `${DROP_GAP_RADIUS}px`;
-      gap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
-      gap.style.background = "rgba(2, 132, 199, 0.06)";
-      gap.style.pointerEvents = "none";
-      gap.style.flexShrink = "0";
-      this._dropIndicator = gap;
-    }
-
-    if (insertBeforeEl && insertBeforeEl.parentNode === areaEl) {
-      areaEl.insertBefore(gap, insertBeforeEl);
-    } else {
-      areaEl.appendChild(gap);
-    }
-  }
-
-  static _hideDropGap() {
-    if (this._dropIndicator) {
-      this._dropIndicator.remove();
-      this._dropIndicator = null;
-    }
-  }
-
-  // ── Drag target tracking ────────────────────────────────────────────────
-
-  static _updateDragTarget(clientX, clientY) {
-    const img = this._ctx?.getSelectedImg();
-    if (img) img.style.pointerEvents = "none";
-    const el = document.elementFromPoint(clientX, clientY);
-    if (img) img.style.pointerEvents = "";
-    const area = el?.closest?.(".slide__area");
-    const rawName = area?.dataset.areaName || null;
-    const REJECTED_AREAS = ["header", "footer"];
-    const targetName = rawName && !REJECTED_AREAS.includes(rawName) ? rawName : null;
-
-    if (targetName !== this._dragTargetArea) {
-      this._clearDropTargetHighlight();
-      this._dragTargetArea = targetName;
-      if (area && targetName !== this._dragSourceArea) {
-        area.classList.add("slide__area--drop-target");
-      }
-    }
-  }
-
-  static _clearDropTargetHighlight() {
-    if (!this._container) return;
-    this._container
-      .querySelectorAll(".slide__area--drop-target")
-      .forEach((el) => el.classList.remove("slide__area--drop-target"));
   }
 }

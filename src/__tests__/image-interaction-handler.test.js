@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 import { ImageDragController } from "../editor/image/image-drag-controller.js";
 import { ImagePropertiesPanel } from "../editor/image/image-properties-panel.js";
+import { DragDropHelpers } from "../editor/core/drag-common.js";
 
 /**
  * Create a mock img element with a mock slide parent.
@@ -354,20 +355,22 @@ describe("ImageInteractionHandler", () => {
     });
   });
 
-  describe("_hideDropGap", () => {
+  describe("_hideDropGap (via DragDropHelpers)", () => {
     it("removes the gap element from DOM", () => {
+      const helpers = new DragDropHelpers(null, { indicatorClassName: "image-drop-indicator" });
       const gap = { remove: vi.fn() };
-      ImageDragController._dropIndicator = gap;
+      helpers._dropIndicator = gap;
 
-      ImageDragController._hideDropGap();
+      helpers.hideDropGap();
 
       expect(gap.remove).toHaveBeenCalledTimes(1);
-      expect(ImageDragController._dropIndicator).toBeNull();
+      expect(helpers._dropIndicator).toBeNull();
     });
 
     it("does nothing when no gap element exists", () => {
-      ImageDragController._dropIndicator = null;
-      expect(() => ImageDragController._hideDropGap()).not.toThrow();
+      const helpers = new DragDropHelpers(null, { indicatorClassName: "image-drop-indicator" });
+      helpers._dropIndicator = null;
+      expect(() => helpers.hideDropGap()).not.toThrow();
     });
   });
 
