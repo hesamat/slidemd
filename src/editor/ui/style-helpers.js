@@ -4,6 +4,8 @@
  * and title-decoration logic in one place.
  */
 
+import { iconString } from "../../core/icon.js";
+
 const DARK_BORDER_COLOR = "#94a3b8";
 const LIGHT_BORDER_COLOR = "#64748b";
 
@@ -23,10 +25,9 @@ export const COLOR_SWATCHES = [
   { name: "Soft teal", value: "#ccfbf1" },
 ];
 
-export const ICON_COLOR =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 9-8.414 8.414A2 2 0 0 0 3 18.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 3.828 21h1.344a2 2 0 0 0 1.414-.586L15 12"/><path d="m18 9 .4.4a1 1 0 1 1-3 3l-3.8-3.8a1 1 0 1 1 3-3l.4.4 3.4-3.4a1 1 0 1 1 3 3z"/></svg>';
+export const ICON_COLOR = iconString("pipette", { size: "sm" });
 
-export const ICON_NONE = "✕";
+export const ICON_NONE = iconString("ban", { size: "sm" });
 
 export function isColorDark(hex) {
   if (!hex || !hex.startsWith("#")) return false;

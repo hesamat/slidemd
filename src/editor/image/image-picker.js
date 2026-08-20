@@ -11,6 +11,7 @@
 import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { Logger } from "../../core/logger.js";
 import { modalOpened, modalClosed } from "../../core/modal-state.js";
+import { iconString, icon } from "../../core/icon.js";
 
 export class ImagePicker {
   static modal = null;
@@ -85,7 +86,7 @@ export class ImagePicker {
 
                 <div class="image-picker-tab-panel" data-panel="upload" role="tabpanel">
                     <div id="imagePickerUploadZone" class="image-picker-upload-zone" tabindex="0">
-                        <div class="image-picker-upload-icon">⬆</div>
+                        <div class="image-picker-upload-icon">${iconString("upload", { size: "2xl" })}</div>
                         <div>Click or drop an image to upload</div>
                         <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">.png .jpg .gif .webp .svg .avif</div>
                     </div>
@@ -121,14 +122,14 @@ export class ImagePicker {
                         <div class="image-picker-option-group">
                             <span class="image-picker-option-label">Align</span>
                             <div class="image-picker-align-group" role="group" aria-label="Alignment">
-                                <button type="button" class="image-picker-align-btn" data-align="left" aria-label="Align left" title="Align left">⬅</button>
-                                <button type="button" class="image-picker-align-btn active" data-align="center" aria-label="Align center" title="Align center">⏺</button>
-                                <button type="button" class="image-picker-align-btn" data-align="right" aria-label="Align right" title="Align right">➡</button>
-                                <button type="button" class="image-picker-align-btn" data-align="full" aria-label="Full width" title="Full width">↔</button>
+                                <button type="button" class="image-picker-align-btn" data-align="left" aria-label="Align left" title="Align left">${iconString("arrow-left", { size: "sm" })}</button>
+                                <button type="button" class="image-picker-align-btn active" data-align="center" aria-label="Align center" title="Align center">${iconString("arrow-left-right", { size: "sm" })}</button>
+                                <button type="button" class="image-picker-align-btn" data-align="right" aria-label="Align right" title="Align right">${iconString("arrow-right", { size: "sm" })}</button>
+                                <button type="button" class="image-picker-align-btn" data-align="full" aria-label="Full width" title="Full width">${iconString("arrow-up-down", { size: "sm" })}</button>
                             </div>
                         </div>
                         <div class="image-picker-option-group">
-                            <button type="button" class="image-picker-chip-btn" id="imagePickerFreeflowBtn" data-action="freeflow" aria-pressed="false" title="Float: image detaches from normal flow, other elements ignore it">✈ Float</button>
+                            <button type="button" class="image-picker-chip-btn" id="imagePickerFreeflowBtn" data-action="freeflow" aria-pressed="false" title="Float: image detaches from normal flow, other elements ignore it">${iconString("plane", { size: "xs" })} Float</button>
                         </div>
                     </div>
                     <button id="imagePickerInsertBtn" class="image-picker-insert-btn" type="button" disabled>Insert</button>
@@ -346,14 +347,15 @@ export class ImagePicker {
    * Show a static message in the image grid.
    * @private
    */
-  static _setGridMessage(icon, primary, detail = "") {
+  static _setGridMessage(iconName, primary, detail = "") {
     this.grid.textContent = "";
     const wrap = document.createElement("div");
     wrap.className = "image-picker-empty";
 
     const iconDiv = document.createElement("div");
     iconDiv.className = "image-picker-empty-icon";
-    iconDiv.textContent = icon;
+    const svg = icon(iconName, { size: "2xl" });
+    if (svg) iconDiv.appendChild(svg);
     wrap.appendChild(iconDiv);
 
     const primaryDiv = document.createElement("div");
@@ -375,7 +377,7 @@ export class ImagePicker {
    */
   static async _refreshGrid() {
     if (!this.grid) return;
-    this._setGridMessage("⏳", "Loading…");
+    this._setGridMessage("refresh-cw", "Loading…");
 
     try {
       const res = await fetch("/api/images");
@@ -401,13 +403,13 @@ export class ImagePicker {
       this._renderGrid();
     } catch (err) {
       Logger.warn("Failed to load images:", err);
-      this._setGridMessage("⚠", "Could not load images.", err.message);
+      this._setGridMessage("triangle-alert", "Could not load images.", err.message);
     }
   }
 
   static _renderGrid() {
     if (!this._availableImages.length) {
-      this._setGridMessage("📁", "No images yet.", "Upload or add files to images/.");
+      this._setGridMessage("folder", "No images yet.", "Upload or add files to images/.");
       return;
     }
 
@@ -480,11 +482,12 @@ export class ImagePicker {
    * Clear the upload zone and show an icon plus a plain-text message.
    * @private
    */
-  static _setUploadMessage(icon, message) {
+  static _setUploadMessage(iconName, message) {
     this.uploadZone.textContent = "";
     const iconDiv = document.createElement("div");
     iconDiv.className = "image-picker-upload-icon";
-    iconDiv.textContent = icon;
+    const svg = icon(iconName, { size: "2xl" });
+    if (svg) iconDiv.appendChild(svg);
     this.uploadZone.appendChild(iconDiv);
     const msg = document.createElement("div");
     msg.textContent = message;
@@ -498,11 +501,11 @@ export class ImagePicker {
   static async _handleUploadFile(file) {
     const allowed = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
     if (!allowed.test(file.name)) {
-      this._setUploadMessage("✗", `Unsupported image type: ${file.name}`);
+      this._setUploadMessage("triangle-alert", `Unsupported image type: ${file.name}`);
       return;
     }
 
-    this._setUploadMessage("⏳", "Uploading…");
+    this._setUploadMessage("refresh-cw", "Uploading…");
 
     try {
       const formData = new FormData();
@@ -528,7 +531,7 @@ export class ImagePicker {
       this._syncInsertButton();
       return;
     } catch (err) {
-      this._setUploadMessage("✗", `Upload failed: ${err.message}`);
+      this._setUploadMessage("triangle-alert", `Upload failed: ${err.message}`);
       const hint = document.createElement("div");
       hint.style.cssText = "opacity: 0.7; margin-top: 4px; font-size: 11px;";
       hint.textContent = "Click to try again.";

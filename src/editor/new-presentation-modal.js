@@ -18,6 +18,7 @@ import {
   hexToRgba,
 } from "../editor/ui/style-helpers.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
+import { icon, iconString } from "../core/icon.js";
 
 const TEMPLATES = [
   {
@@ -462,10 +463,10 @@ export class NewPresentationModal {
 
     el.innerHTML = `
       <div class="modal__overlay"></div>
-      <div class="${P}dialog">
-        <div class="${P}header">
-          <h2 class="${P}title">New Presentation</h2>
-          <button class="${P}close" aria-label="Close">&times;</button>
+      <div class="modal-base__dialog ${P}dialog">
+        <div class="modal-base__header ${P}header">
+          <h2 class="modal-base__title ${P}title">New Presentation</h2>
+          <button class="modal-base__close ${P}close" aria-label="Close"></button>
         </div>
         <div class="${P}progress">
           ${STEPS.map(
@@ -491,17 +492,26 @@ export class NewPresentationModal {
             ${buildAreaStylePanelHtml({ showHint: true })}
           </div>
         </div>
-        <div class="${P}footer">
-          <button class="${P}btn ${P}btn--secondary" data-action="cancel" type="button">Cancel</button>
+        <div class="modal-base__footer ${P}footer">
+          <button class="modal-base__btn modal-base__btn--secondary ${P}btn ${P}btn--secondary" data-action="cancel" type="button">Cancel</button>
           <div class="${P}footer-right">
-            <button class="${P}btn ${P}btn--secondary" data-action="prev" type="button" style="display:none">Back</button>
-            <button class="${P}btn ${P}btn--primary" data-action="create-defaults" type="button">Create</button>
-            <button class="${P}btn ${P}btn--primary" data-action="next" type="button">Next</button>
-            <button class="${P}btn ${P}btn--primary" data-action="create" type="button" style="display:none">Create</button>
+            <button class="modal-base__btn modal-base__btn--secondary ${P}btn ${P}btn--secondary" data-action="prev" type="button" style="display:none">${iconString("arrow-left", { size: "sm" })} Back</button>
+            <button class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--primary" data-action="create-defaults" type="button">Create</button>
+            <button class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--primary" data-action="next" type="button">Next</button>
+            <button class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--primary" data-action="create" type="button" style="display:none">Create</button>
           </div>
         </div>
       </div>
     `;
+
+    const dialog = el.querySelector(`.${P}dialog`);
+    if (dialog) dialog.style.setProperty("--modal-width", "560px");
+
+    const closeBtn = el.querySelector(`.${P}close`);
+    if (closeBtn) {
+      const closeIcon = icon("close", { size: "md" });
+      if (closeIcon) closeBtn.appendChild(closeIcon);
+    }
 
     return el;
   }

@@ -418,7 +418,7 @@ When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleAppl
 
 ### Source Structure (`src`)
 
-- **core/** — Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config, keyboard-shortcuts)
+- **core/** — Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config, keyboard-shortcuts, icon, modal-state)
 - **data/** — Data parsing (layout-data, layout-parser, markdown-parser, image-markdown-parser, deck-loader, layouts.json)
 - **editor/** — Live editing features
 

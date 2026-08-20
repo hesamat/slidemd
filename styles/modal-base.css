@@ -1,0 +1,293 @@
+/* ==========================================================================
+   Modal Base — shared structure for bespoke modals.
+
+   The legacy `.modal__*` classes in editor-modal.css serve the modals defined
+   directly in index.html (layout picker, open deck, go-to-slide). This file
+   provides the same shared building blocks for the JS-created bespoke modals
+   (ai-generate, ai-import, ai-reimagine-outline, conflict, conversion,
+   settings, new-presentation) so they don't each redefine the same backdrop,
+   dialog, header, close button, footer, and button rules with ad-hoc
+   variables and hardcoded fallbacks.
+
+   Each bespoke modal keeps its own `--modal-width` and content-specific
+   styles; it inherits the shared structure by using these classes.
+   ========================================================================== */
+
+/* ── Backdrop / overlay ──────────────────────────────────────────── */
+.modal-base__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: modal-base-fade-in 0.2s ease-out;
+}
+
+@keyframes modal-base-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-base__backdrop.hide {
+  animation: modal-base-fade-out 0.2s ease-out forwards;
+}
+
+@keyframes modal-base-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── Dialog container ────────────────────────────────────────────── */
+.modal-base__dialog {
+  position: relative;
+  z-index: 1;
+  background: var(--surface-bg);
+  color: var(--text-high);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 25px 50px -12px rgba(0, 0, 0, 0.4),
+    0 12px 24px -8px rgba(0, 0, 0, 0.3);
+  width: var(--modal-width, 520px);
+  max-width: 92vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modal-base-slide-in 0.25s ease-out;
+}
+
+@keyframes modal-base-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-base__backdrop.hide .modal-base__dialog {
+  animation: modal-base-slide-out 0.2s ease-out forwards;
+}
+
+@keyframes modal-base-slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+.modal-base__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(to bottom, var(--surface-elevated), transparent);
+  flex-shrink: 0;
+}
+
+.modal-base__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-high);
+  letter-spacing: -0.2px;
+}
+
+.modal-base__subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-low);
+  line-height: 1.5;
+}
+
+/* ── Close button ────────────────────────────────────────────────── */
+.modal-base__close {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.modal-base__close:hover {
+  color: var(--text-high);
+  background: var(--surface-hover);
+  border-color: var(--border-subtle);
+}
+
+.modal-base__close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.4);
+}
+
+.modal-base__close svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+/* ── Body ────────────────────────────────────────────────────────── */
+.modal-base__body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-medium) transparent;
+}
+
+.modal-base__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-base__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-base__body::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 4px;
+}
+
+.modal-base__body::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+.modal-base__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  flex-shrink: 0;
+}
+
+.modal-base__footer--between {
+  justify-content: space-between;
+}
+
+.modal-base__footer--column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.modal-base__btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-base__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.4);
+}
+
+.modal-base__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-base__btn--secondary {
+  background: var(--surface-bg);
+  color: var(--text-high);
+  border: 1px solid var(--border-medium);
+}
+
+.modal-base__btn--secondary:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.modal-base__btn--primary {
+  background: rgba(var(--color-primary), 1);
+  color: #fff;
+}
+
+.modal-base__btn--primary:hover:not(:disabled) {
+  background: rgba(var(--color-primary), 0.85);
+}
+
+.modal-base__btn--ai {
+  background: linear-gradient(135deg, #8b5cf6, rgba(var(--color-primary), 1));
+  color: #fff;
+  font-weight: 600;
+}
+
+.modal-base__btn--ai:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3aed, rgba(var(--color-primary), 0.85));
+}
+
+.modal-base__btn--danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.modal-base__btn--danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.modal-base__btn svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+/* ── Select dropdowns ───────────────────────────────────────────── */
+/* Shared styling for native <select> elements inside modals. Removes
+   the browser-default arrow and adds a consistent SVG chevron with
+   proper right padding so it isn't flush against the edge. */
+.modal-base__dialog select[class$="__select"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}

@@ -9,6 +9,7 @@ import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 import { Logger } from "../core/logger.js";
 import { modalOpened, modalClosed } from "../core/modal-state.js";
+import { iconString } from "../core/icon.js";
 
 const P = "conversion-modal__";
 const STORAGE_KEY = "webdeck_import_defaults";
@@ -30,6 +31,10 @@ export class ConversionModal {
   static close() {
     if (this._currentBackdrop) {
       document.body.style.overflow = "";
+      if (this._currentKeydownHandler) {
+        document.removeEventListener("keydown", this._currentKeydownHandler);
+        this._currentKeydownHandler = null;
+      }
       this._currentBackdrop.remove();
       this._currentBackdrop = null;
       modalClosed();
@@ -113,13 +118,7 @@ export class ConversionModal {
 
         // Show selected filename in the drop zone
         dropZone.innerHTML = `
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-            <polyline points="10 9 9 9 8 9"/>
-          </svg>
+          ${iconString("file", { size: "2xl", strokeWidth: 1.5 })}
           <span class="${P}filename">${this.#escHtml(file.name)}</span>
           <span class="${P}drop-hint">Click to change file</span>
         `;
@@ -354,6 +353,17 @@ export class ConversionModal {
         }
         backdropMouseDown = false;
       });
+
+      // Close on Escape key
+      const onKeydown = (e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          ConversionModal.close();
+          resolve(null);
+        }
+      };
+      document.addEventListener("keydown", onKeydown);
+      this._currentKeydownHandler = onKeydown;
     });
   }
 
@@ -378,17 +388,13 @@ export class ConversionModal {
    */
   static #createDom() {
     const backdrop = document.createElement("div");
-    backdrop.className = `${P}backdrop`;
+    backdrop.className = `modal-base__backdrop ${P}backdrop`;
     backdrop.innerHTML = `
-      <div class="${P}dialog">
-        <h2 class="${P}title">Import PowerPoint</h2>
+      <div class="modal-base__dialog ${P}dialog">
+        <h2 class="modal-base__title ${P}title">Import PowerPoint</h2>
 
         <div class="${P}drop-zone" tabindex="0" role="button" aria-label="Upload PPTX file">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
+          ${iconString("upload", { size: "2xl", strokeWidth: 1.5 })}
           <span>Drop .pptx file here or click to browse</span>
         </div>
         <input type="file" data-field="file" accept=".pptx" style="display:none" />
@@ -396,12 +402,14 @@ export class ConversionModal {
         <div class="${P}spinner-container" hidden></div>
         <div class="${P}error" hidden></div>
 
-        <div class="${P}actions">
-          <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
-          <button type="button" data-action="save" class="${P}btn ${P}btn--accent" hidden>Import</button>
+        <div class="modal-base__footer ${P}actions">
+          <button type="button" data-action="cancel" class="modal-base__btn modal-base__btn--secondary ${P}btn ${P}btn--secondary">Cancel</button>
+          <button type="button" data-action="save" class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--accent" hidden>Import</button>
         </div>
       </div>
     `;
+    const dialog = backdrop.querySelector(`.${P}dialog`);
+    if (dialog) dialog.style.setProperty("--modal-width", "480px");
     return backdrop;
   }
 }

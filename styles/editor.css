@@ -104,12 +104,12 @@
 }
 
 .segmented__btn--dropdown {
-  padding-right: 7px;
+  padding-right: 10px;
 }
 
 .insert-dropdown__chevron {
   flex-shrink: 0;
-  margin-left: 1px;
+  margin-left: 2px;
   opacity: 0.65;
   transition:
     transform 0.18s ease,

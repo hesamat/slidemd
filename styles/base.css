@@ -59,6 +59,17 @@
   --radius-md: 10px;
   --radius-lg: 14px;
 
+  /* --- ICON SIZING --- */
+  /* Mirror of ICON_SIZES in src/core/icon.js. Use these in CSS rules that
+     need to size icon containers (e.g. .icon-btn svg { width: var(--icon-md) })
+     so the JS helper and CSS stay in sync. */
+  --icon-xs: 12px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 18px;
+  --icon-xl: 20px;
+  --icon-2xl: 24px;
+
   /* --- STAGE DIMENSIONS --- */
   --slide-bg: #ffffff;
   --stage-w: 1920px;
@@ -279,7 +290,7 @@ html[data-embedded="true"] body {
 [data-theme="dark"] .text-properties-panel__textarea,
 [data-theme="dark"] .conflict-modal__select,
 [data-theme="dark"] .conversion-modal__select {
-  background: var(--input-bg);
+  background-color: var(--input-bg);
 }
 
 /* Readonly inputs keep their muted surface (not the lighter input-bg). */
