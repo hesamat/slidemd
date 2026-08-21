@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseAllImages,
+  parseImagesInArea,
   extractAltText,
   getAreaContentRange,
   buildInlineStyleString,
@@ -92,6 +93,28 @@ footer text`;
     const range = getAreaContentRange(md, "main");
     expect(range.from).toBeGreaterThan(0);
     expect(md.slice(range.from, range.to)).toContain("main content");
+  });
+});
+
+describe("parseImagesInArea", () => {
+  it("returns all images when the requested area is not defined", () => {
+    const md = "![main](a.png)\n\n@media\n![media](b.png)";
+    const result = parseImagesInArea(md, "sidebar");
+    expect(result).toHaveLength(2);
+  });
+
+  it("filters images to the @main area", () => {
+    const md = "![main](a.png)\n\n@media\n![media](b.png)";
+    const result = parseImagesInArea(md, "main");
+    expect(result).toHaveLength(1);
+    expect(result[0].src).toBe("a.png");
+  });
+
+  it("treats pre-marker content as @main when there is no explicit @main marker", () => {
+    const md = "![preamble](p.png)\n\n@media\n![media](m.png)";
+    const result = parseImagesInArea(md, "main");
+    expect(result).toHaveLength(1);
+    expect(result[0].src).toBe("p.png");
   });
 });
 

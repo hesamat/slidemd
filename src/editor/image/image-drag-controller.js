@@ -21,9 +21,6 @@ const CORNER_EDGE_LEN_THRESHOLD = 4;
 
 export class ImageDragController extends BlockDragController {
   // Image-specific drag state
-  static _dragStartX = 0;
-  static _dragStartY = 0;
-  static _dragSnapped = false;
   static _dragPrepared = false;
   static _dragStartImgRect = null;
   static _resizeState = null;
@@ -63,9 +60,6 @@ export class ImageDragController extends BlockDragController {
 
   static _onAfterDragStart(img) {
     ImagePropertiesPanel.hide();
-    this._dragStartX = 0;
-    this._dragStartY = 0;
-    this._dragSnapped = false;
     this._dragPrepared = false;
     this._dragStartImgRect = img.getBoundingClientRect();
   }
@@ -99,10 +93,13 @@ export class ImageDragController extends BlockDragController {
     return !ImageInteractionHandler.isFreeflow(img);
   }
 
+  static _shouldShowReorderGap(img) {
+    // Freeflow images are positioned absolutely; they don't participate in
+    // the flow, so a reorder gap would be spurious.
+    return !ImageInteractionHandler.isFreeflow(img);
+  }
+
   static _onClearDragState() {
-    this._dragStartX = 0;
-    this._dragStartY = 0;
-    this._dragSnapped = false;
     this._dragPrepared = false;
     this._dragStartImgRect = null;
     this._resizeState = null;

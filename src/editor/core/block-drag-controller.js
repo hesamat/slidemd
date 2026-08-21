@@ -319,13 +319,15 @@ export class BlockDragController {
     const isCrossArea = fromArea && toArea && fromArea !== toArea;
 
     let handled = false;
+    let attemptedCrossArea = false;
 
-    if (isCrossArea) {
-      if (targetAreaEl) {
-        const insertBeforeEl = this._getCrossAreaInsertBefore(el, targetAreaEl, e);
-        handled = this._onCrossAreaDrop(el, fromArea, toArea, targetAreaEl, insertBeforeEl, e);
-      }
-    } else {
+    if (isCrossArea && targetAreaEl) {
+      const insertBeforeEl = this._getCrossAreaInsertBefore(el, targetAreaEl, e);
+      handled = this._onCrossAreaDrop(el, fromArea, toArea, targetAreaEl, insertBeforeEl, e);
+      attemptedCrossArea = true;
+    }
+
+    if (!handled && !attemptedCrossArea) {
       const areaEl = el.closest(".slide__area");
       const insertBeforeEl = areaEl
         ? this._drop?.findInsertBeforeSlot(areaEl, el, e.clientY)

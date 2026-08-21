@@ -131,18 +131,6 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
     overlay.style.height = `${h + OVERLAY_BORDER_DOUBLE}px`;
   }
 
-  static _onSelectExtra(img) {
-    ImagePropertiesPanel.show(img, readImageSettings(img));
-  }
-
-  static _onDeselectExtra() {
-    const img = this._selectedImg;
-    ImagePropertiesPanel.hide();
-    if (img?.isConnected) {
-      img.classList.remove("img-positioned");
-    }
-  }
-
   // ── Selection ───────────────────────────────────────────────────────────
 
   static select(img) {

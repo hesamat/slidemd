@@ -236,6 +236,12 @@ export class EditController {
     this._onSlidesContainerClick = (e) => {
       if (!this.isEditMode) return;
 
+      // Clicks inside an inline-editing text block should not be processed
+      // by the fenced/image handlers either (e.g. an <img> or <pre> inside
+      // the contenteditable would otherwise be selected).
+      const activeTextBlock = e.target.closest(".text-block");
+      if (activeTextBlock?.isContentEditable) return;
+
       const blockHandlers = [
         {
           name: "text",
