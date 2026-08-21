@@ -101,13 +101,14 @@ export class BlockInteractionHandler {
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
 
-  static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
+  static init(getMarkdown, setMarkdown, { onDelete, onMoveArea, onPreviewReady } = {}) {
     if (this._initialized) return;
     this._initialized = true;
     this._getMarkdown = getMarkdown;
     this._setMarkdown = setMarkdown;
     this._onDelete = onDelete || null;
     this._onMoveArea = onMoveArea || null;
+    this._onPreviewReady = onPreviewReady || null;
 
     document.addEventListener("mousedown", (e) => {
       if (!this._selected) return;
@@ -127,6 +128,9 @@ export class BlockInteractionHandler {
     this._createOverlay(slideContainer);
     this._DragController?.activate(slideContainer, this._dragControllerContext());
 
+    if (this._selected && !this._slideContainer.contains(this._selected)) {
+      this.deselect();
+    }
     if (this._selected) {
       this._updateOverlay();
     }
