@@ -86,6 +86,7 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
     return {
       getSelectedImg: () => this._selectedImg,
       select: (img) => this.select(img),
+      deselect: () => this.deselect(),
       updateOverlay: () => this._updateOverlay(),
       syncToMarkdown: () => this._syncToMarkdown(),
       prepareMdImgForDrag: (img) => this._prepareMdImgForDrag(img),

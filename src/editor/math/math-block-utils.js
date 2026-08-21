@@ -5,74 +5,14 @@
  * in slide markdown.  Display math is delimited by `$$...$$` or `\[...\]`.
  * Inline math (`$...$`, `\(...\)`) is not handled here.
  */
-import { getAreaContentRange, removeAndInsertBlock } from "../core/markdown-utils.js";
+import {
+  getAreaContentRange,
+  removeAndInsertBlock,
+  getFenceRanges,
+} from "../core/markdown-utils.js";
 
 // Matches `$$...$$` or `\[...\]` display math anywhere in the text.
 const DISPLAY_MATH_RE = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])/g;
-
-/**
- * Track fenced code blocks (``` / ~~~) so display-math regexes can skip
- * matches that live inside code.
- */
-class FenceTracker {
-  constructor() {
-    this.inFence = false;
-    this.fenceMarker = null;
-  }
-
-  toggle(line) {
-    const m = line.match(/^\s*(```+|~~~+)\s*/);
-    if (!m) return;
-    const marker = m[1][0];
-    if (!this.inFence) {
-      this.inFence = true;
-      this.fenceMarker = marker;
-    } else if (this.fenceMarker === marker) {
-      this.inFence = false;
-      this.fenceMarker = null;
-    }
-  }
-
-  get isInFence() {
-    return this.inFence;
-  }
-}
-
-/**
- * Return character ranges of fenced code blocks in `markdown`.
- *
- * @param {string} markdown
- * @returns {Array<{start: number, end: number}>}
- */
-function getFenceRanges(markdown) {
-  const text = String(markdown || "");
-  const lines = text.split("\n");
-  const ranges = [];
-  const fence = new FenceTracker();
-  let fenceStart = -1;
-  let charOffset = 0;
-
-  for (const line of lines) {
-    const wasInFence = fence.isInFence;
-    fence.toggle(line);
-    const isInFence = fence.isInFence;
-
-    if (!wasInFence && isInFence) {
-      fenceStart = charOffset;
-    } else if (wasInFence && !isInFence) {
-      ranges.push({ start: fenceStart, end: charOffset + line.length });
-      fenceStart = -1;
-    }
-
-    charOffset += line.length + 1;
-  }
-
-  if (fence.isInFence && fenceStart >= 0) {
-    ranges.push({ start: fenceStart, end: text.length });
-  }
-
-  return ranges;
-}
 
 /**
  * Find all display-math blocks in the full markdown string.

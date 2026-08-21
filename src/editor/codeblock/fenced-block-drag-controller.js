@@ -2,16 +2,10 @@
  * FencedBlockDragController
  *
  * interact.js drag setup for fenced blocks (Mermaid diagrams and code blocks).
- * Extends BlockDragController, which owns the shared cross-area drag target
- * detection, drop-target highlighting, and gap-indicator logic.
- *
- * Fenced blocks are block-level and stay in-flow — there is no absolute
- * positioning during drag.  The dragged element is dimmed and a drop-gap
- * indicator shows where it will land.
+ * Extends BlockDragController, which owns the shared drag lifecycle.
  */
 import { BlockDragController } from "../core/block-drag-controller.js";
 
-const CROSS_AREA_RESELECT_MS = 400;
 const DRAG_OPACITY = "0.4";
 
 export class FencedBlockDragController extends BlockDragController {
@@ -57,24 +51,24 @@ export class FencedBlockDragController extends BlockDragController {
     const newMd = ctx.buildMoveMarkdown(el, fromArea, toArea, insertBeforeEl);
     if (!newMd) return false;
 
-    ctx.onMoveArea?.(newMd);
-
-    // Reselect the moved block after the preview re-renders by matching
-    // its content (source lines change when the block moves areas).
     const movedIsMermaid = el.classList.contains("mermaid");
     const movedContent = movedIsMermaid ? el.dataset.mermaidSource : el.textContent;
-    setTimeout(() => {
-      if (movedContent == null) return;
-      const targetName = toArea;
-      const selector = movedIsMermaid
-        ? `.slide__area[data-area-name="${targetName}"] .mermaid`
-        : `.slide__area[data-area-name="${targetName}"] > pre`;
-      const candidates = this._container?.querySelectorAll(selector);
-      const match = Array.from(candidates || []).find((c) =>
-        movedIsMermaid ? c.dataset.mermaidSource === movedContent : c.textContent === movedContent,
-      );
-      if (match) ctx.select(match);
-    }, CROSS_AREA_RESELECT_MS);
+    const selector = movedIsMermaid ? ".mermaid" : "> pre";
+    const targetIndex = this._indexOfElementBefore(targetAreaEl, insertBeforeEl, selector);
+
+    ctx.onMoveArea?.(newMd);
+
+    this._reselectAfterMove(
+      this._container,
+      toArea,
+      targetIndex,
+      selector,
+      (match) => ctx.select(match),
+      {
+        getMatchValue: (c) => (movedIsMermaid ? c.dataset.mermaidSource : c.textContent),
+        expectedValue: movedContent,
+      },
+    );
 
     return true;
   }
