@@ -7,6 +7,9 @@ import {
   buildMediaSpanStyleString,
   buildRepositionedImgTag,
   isMediaSpanFillImage,
+  readImageSettings,
+  transformDecl,
+  filterDecl,
 } from "../editor/image/image-markdown-utils.js";
 
 describe("parseAllImages", () => {
@@ -271,5 +274,146 @@ describe("buildRepositionedImgTag", () => {
     expect(result).toContain("opacity: 0.5");
     expect(result).toContain("border-radius: 8px");
     expect(result).toContain("rotate(45deg)");
+  });
+});
+
+describe("transformDecl", () => {
+  it("returns empty string when nothing is set", () => {
+    expect(transformDecl({})).toBe("");
+    expect(transformDecl({ rotation: 0, flipH: false, flipV: false })).toBe("");
+  });
+
+  it("emits rotate only for rotation", () => {
+    expect(transformDecl({ rotation: 45 })).toBe("transform: rotate(45deg)");
+  });
+
+  it("rounds rotation to an integer", () => {
+    expect(transformDecl({ rotation: 45.7 })).toBe("transform: rotate(46deg)");
+  });
+
+  it("emits scaleX(-1) for flipH", () => {
+    expect(transformDecl({ flipH: true })).toBe("transform: scaleX(-1)");
+  });
+
+  it("emits scaleY(-1) for flipV", () => {
+    expect(transformDecl({ flipV: true })).toBe("transform: scaleY(-1)");
+  });
+
+  it("composes rotation + flipH + flipV in order", () => {
+    expect(transformDecl({ rotation: 90, flipH: true, flipV: true })).toBe(
+      "transform: rotate(90deg) scaleX(-1) scaleY(-1)",
+    );
+  });
+});
+
+describe("filterDecl", () => {
+  it("returns empty string when all values are at default (1)", () => {
+    expect(filterDecl({})).toBe("");
+    expect(filterDecl({ brightness: 1, contrast: 1, saturate: 1 })).toBe("");
+  });
+
+  it("emits brightness only when brightness differs from 1", () => {
+    expect(filterDecl({ brightness: 1.5 })).toBe("filter: brightness(1.5)");
+  });
+
+  it("emits contrast only when contrast differs from 1", () => {
+    expect(filterDecl({ contrast: 0.8 })).toBe("filter: contrast(0.8)");
+  });
+
+  it("emits saturate only when saturate differs from 1", () => {
+    expect(filterDecl({ saturate: 2 })).toBe("filter: saturate(2)");
+  });
+
+  it("composes all three filters in order", () => {
+    expect(filterDecl({ brightness: 1.2, contrast: 0.9, saturate: 1.5 })).toBe(
+      "filter: brightness(1.2) contrast(0.9) saturate(1.5)",
+    );
+  });
+
+  it("treats null/undefined as default (skips)", () => {
+    expect(filterDecl({ brightness: null, contrast: undefined, saturate: 1.3 })).toBe(
+      "filter: saturate(1.3)",
+    );
+  });
+});
+
+describe("readImageSettings (flip + filter parsing)", () => {
+  function createMockImg(style) {
+    return {
+      style: {
+        left: "",
+        top: "",
+        width: "100px",
+        height: "50px",
+        opacity: "",
+        borderRadius: "",
+        boxShadow: "",
+        transform: "",
+        zIndex: "",
+        filter: "",
+        objectFit: "",
+        ...style,
+      },
+      getAttribute: () => null,
+      offsetWidth: 100,
+      offsetHeight: 50,
+    };
+  }
+
+  it("parses flipH from scaleX(-1)", () => {
+    const s = readImageSettings(createMockImg({ transform: "scaleX(-1)" }));
+    expect(s.flipH).toBe(true);
+    expect(s.flipV).toBe(false);
+  });
+
+  it("parses flipV from scaleY(-1)", () => {
+    const s = readImageSettings(createMockImg({ transform: "scaleY(-1)" }));
+    expect(s.flipV).toBe(true);
+    expect(s.flipH).toBe(false);
+  });
+
+  it("parses both flips alongside rotation", () => {
+    const s = readImageSettings(
+      createMockImg({ transform: "rotate(45deg) scaleX(-1) scaleY(-1)" }),
+    );
+    expect(s.rotation).toBe(45);
+    expect(s.flipH).toBe(true);
+    expect(s.flipV).toBe(true);
+  });
+
+  it("defaults flip to false when transform is empty", () => {
+    const s = readImageSettings(createMockImg({}));
+    expect(s.flipH).toBe(false);
+    expect(s.flipV).toBe(false);
+  });
+
+  it("parses brightness from filter", () => {
+    const s = readImageSettings(createMockImg({ filter: "brightness(1.5)" }));
+    expect(s.brightness).toBe(1.5);
+    expect(s.contrast).toBe(1);
+    expect(s.saturate).toBe(1);
+  });
+
+  it("parses contrast and saturate from combined filter", () => {
+    const s = readImageSettings(createMockImg({ filter: "contrast(0.8) saturate(1.2)" }));
+    expect(s.contrast).toBe(0.8);
+    expect(s.saturate).toBe(1.2);
+    expect(s.brightness).toBe(1);
+  });
+
+  it("parses all three filters", () => {
+    const s = readImageSettings(
+      createMockImg({ filter: "brightness(1.1) contrast(0.9) saturate(1.3)" }),
+    );
+    expect(s.brightness).toBe(1.1);
+    expect(s.contrast).toBe(0.9);
+    expect(s.saturate).toBe(1.3);
+  });
+
+  it("defaults brightness/contrast/saturate to 1 when filter is empty", () => {
+    const s = readImageSettings(createMockImg({}));
+    expect(s.brightness).toBe(1);
+    expect(s.contrast).toBe(1);
+    expect(s.saturate).toBe(1);
   });
 });

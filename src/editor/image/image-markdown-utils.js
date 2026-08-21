@@ -18,6 +18,11 @@ const AREA_MARKER_RE = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
 const ALT_ATTR_RE = /alt=["']([^"']*)["']/i;
 const ALT_MD_RE = /!\[([^\]]*)\]/;
 const ROTATION_RE = /rotate\(([-\d.]+)deg\)/i;
+const SCALE_X_RE = /scaleX\((-?[\d.]+)\)/i;
+const SCALE_Y_RE = /scaleY\((-?[\d.]+)\)/i;
+const BRIGHTNESS_RE = /brightness\(([\d.]+)\)/i;
+const CONTRAST_RE = /contrast\(([\d.]+)\)/i;
+const SATURATE_RE = /saturate\(([\d.]+)\)/i;
 const SOURCE_LINE_ATTR = "sourceLine";
 const MAX_TEXT_MATCH_LEN = 50;
 const IMG_WIDTH_DEFAULT_PX = 320;
@@ -217,12 +222,15 @@ export function findMarkdownPositionOfElement(markdown, element) {
  * Read the current style settings of an img element into a structured object.
  *
  * @param {HTMLElement} imgElement
- * @returns {{left: number, top: number, width: number, height: number|null, opacity: number, borderRadius: number, boxShadow: string, rotation: number, zIndex: number, alt: string}}
+ * @returns {{left: number, top: number, width: number, height: number|null, opacity: number, borderRadius: number, boxShadow: string, rotation: number, flipH: boolean, flipV: boolean, brightness: number, contrast: number, saturate: number, zIndex: number, objectFit: string, alt: string}}
  */
 export function readImageSettings(imgElement) {
   const style = imgElement.style;
   const transform = style.transform || "";
   const rotMatch = transform.match(ROTATION_RE);
+  const scaleXMatch = transform.match(SCALE_X_RE);
+  const scaleYMatch = transform.match(SCALE_Y_RE);
+  const filter = style.filter || "";
 
   // Parse width: use explicit pixel value, fall back to HTML attribute
   // (PPTX imports set width/height attributes), then rendered dimensions
@@ -242,6 +250,18 @@ export function readImageSettings(imgElement) {
     height = attrHeight ? parseFloat(attrHeight) : imgElement.offsetHeight || null;
   }
 
+  // Parse flip from transform: scaleX(-1) / scaleY(-1)
+  const flipH = scaleXMatch ? parseFloat(scaleXMatch[1]) < 0 : false;
+  const flipV = scaleYMatch ? parseFloat(scaleYMatch[1]) < 0 : false;
+
+  // Parse CSS filter: brightness/contrast/saturate (default 1 = unchanged)
+  const brightnessMatch = filter.match(BRIGHTNESS_RE);
+  const contrastMatch = filter.match(CONTRAST_RE);
+  const saturateMatch = filter.match(SATURATE_RE);
+  const brightness = brightnessMatch ? parseFloat(brightnessMatch[1]) : 1;
+  const contrast = contrastMatch ? parseFloat(contrastMatch[1]) : 1;
+  const saturate = saturateMatch ? parseFloat(saturateMatch[1]) : 1;
+
   return {
     left: parseFloat(style.left) || 0,
     top: parseFloat(style.top) || 0,
@@ -251,10 +271,43 @@ export function readImageSettings(imgElement) {
     borderRadius: parseFloat(style.borderRadius) || 0,
     boxShadow: style.boxShadow || "none",
     rotation: rotMatch ? parseFloat(rotMatch[1]) : 0,
+    flipH,
+    flipV,
+    brightness,
+    contrast,
+    saturate,
     zIndex: parseInt(style.zIndex, 10) || 0,
     objectFit: style.objectFit || "contain",
     alt: imgElement.getAttribute("alt") || "",
   };
+}
+
+/**
+ * Build a `transform` CSS declaration from rotation and flip settings.
+ * Composes rotate + scaleX + scaleY into a single transform string.
+ * @param {{rotation: number, flipH: boolean, flipV: boolean}} s
+ * @returns {string}
+ */
+export function transformDecl(s) {
+  const parts = [];
+  if (s.rotation) parts.push(`rotate(${Math.round(s.rotation)}deg)`);
+  if (s.flipH) parts.push("scaleX(-1)");
+  if (s.flipV) parts.push("scaleY(-1)");
+  return parts.length ? `transform: ${parts.join(" ")}` : "";
+}
+
+/**
+ * Build a `filter` CSS declaration from brightness/contrast/saturate.
+ * Returns empty string when all values are at their defaults (1).
+ * @param {{brightness: number, contrast: number, saturate: number}} s
+ * @returns {string}
+ */
+export function filterDecl(s) {
+  const parts = [];
+  if (s.brightness != null && s.brightness !== 1) parts.push(`brightness(${s.brightness})`);
+  if (s.contrast != null && s.contrast !== 1) parts.push(`contrast(${s.contrast})`);
+  if (s.saturate != null && s.saturate !== 1) parts.push(`saturate(${s.saturate})`);
+  return parts.length ? `filter: ${parts.join(" ")}` : "";
 }
 
 /**
@@ -275,7 +328,8 @@ export function buildInlineStyleString(imgElement) {
     s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
     s.borderRadius ? `border-radius: ${s.borderRadius}px` : "",
     s.boxShadow && s.boxShadow !== "none" ? `box-shadow: ${s.boxShadow}` : "",
-    s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
+    transformDecl(s),
+    filterDecl(s),
     s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
     "border: none",
     `object-fit: ${s.objectFit || "contain"}`,
@@ -296,7 +350,8 @@ export function buildMediaSpanStyleString(imgElement) {
     s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
     s.borderRadius ? `border-radius: ${s.borderRadius}px` : "",
     s.boxShadow && s.boxShadow !== "none" ? `box-shadow: ${s.boxShadow}` : "",
-    s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
+    transformDecl(s),
+    filterDecl(s),
     s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
     "border: none",
     `object-fit: ${s.objectFit || "contain"}`,
@@ -332,7 +387,8 @@ export function buildRepositionedImgTag(imgElement, src, alt, width, height, lef
     s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
     s.borderRadius ? `border-radius: ${s.borderRadius}px` : "",
     s.boxShadow && s.boxShadow !== "none" ? `box-shadow: ${s.boxShadow}` : "",
-    s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
+    transformDecl(s),
+    filterDecl(s),
     s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
     "border: none",
     `object-fit: ${s.objectFit || "contain"}`,

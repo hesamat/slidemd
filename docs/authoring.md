@@ -307,4 +307,9 @@ Edit mode (toggled with `E`) uses a CodeMirror-based editor with helpers:
 - **Mermaid helper** inserts common diagram skeletons.
 - **Warnings** show on the slide when layout or area markers are mismatched.
 - **Image drag reorder** — drag images across columns to reposition them in the markdown.
+- **Image properties panel** — click an image in edit mode to open the panel:
+  - **Arrange tab**: size presets, alignment, free-float toggle, replace, delete, set-as-background
+  - **Style tab**: opacity, corner radius (with Pill shortcut), and brightness/contrast/saturation filters
+  - **Transform tab**: rotation slider with 90-degree buttons, horizontal/vertical flip, and alt text
+  - All styling persists to the image's inline `style` attribute in markdown
 - **Dashed area outlines** — toggle visibility with the Columns button.
