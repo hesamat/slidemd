@@ -11,8 +11,19 @@
  * `image-markdown-utils` does.
  */
 
-const AREA_MARKER_RE = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+import {
+  AREA_MARKER_RE,
+  getAreaContentRange,
+  findMarkdownPosition,
+} from "../core/markdown-utils.js";
+
 const FENCE_OPEN_RE = /^\s*(```+|~~~+)\s*([^\n]*)$/;
+
+// Re-export the shared helpers so existing consumers keep working.
+export { getAreaContentRange };
+export function findElementMarkdownPosition(markdown, element, opts) {
+  return findMarkdownPosition(markdown, element, opts);
+}
 
 /**
  * @typedef {Object} FencedBlock
@@ -91,68 +102,6 @@ export function parseFencedBlocks(markdown) {
     i = endLine + 1;
   }
   return blocks;
-}
-
-/**
- * Return the character range `{from, to}` for the content inside a named
- * `@area` block in the markdown source.  Mirrors the implementation in
- * `image-markdown-utils` so this module stays self-contained.
- *
- * @param {string} markdown
- * @param {string} areaName
- * @returns {{from: number, to: number}}
- */
-export function getAreaContentRange(markdown, areaName) {
-  const normalized = String(markdown || "").replace(/\r\n?/g, "\n");
-  const lines = normalized.split("\n");
-  const target = String(areaName || "main")
-    .trim()
-    .toLowerCase();
-
-  const lineToCharOffset = (lineIndex) => {
-    let pos = 0;
-    for (let i = 0; i < lineIndex; i++) pos += lines[i].length + 1;
-    if (lineIndex === lines.length && lines[lines.length - 1] !== "") pos -= 1;
-    return pos;
-  };
-
-  let areaMarkerIdx = -1;
-  let firstMarkerIdx = lines.length;
-
-  for (let i = 0; i < lines.length; i++) {
-    const markerMatch = lines[i].match(AREA_MARKER_RE);
-    if (!markerMatch) continue;
-    if (areaMarkerIdx < 0 && firstMarkerIdx === lines.length) {
-      firstMarkerIdx = i;
-    }
-    if (markerMatch[1].toLowerCase() === target) {
-      areaMarkerIdx = i;
-      break;
-    }
-  }
-
-  if (areaMarkerIdx < 0) {
-    if (target === "main") {
-      // Content before the first explicit @area marker belongs to @main by
-      // project convention (see MarkdownParser.parseAreas).
-      return { from: 0, to: lineToCharOffset(firstMarkerIdx) };
-    }
-    return { from: normalized.length, to: normalized.length };
-  }
-
-  let nextMarkerIdx = lines.length;
-  for (let i = areaMarkerIdx + 1; i < lines.length; i++) {
-    const markerMatch = lines[i].match(AREA_MARKER_RE);
-    if (markerMatch) {
-      nextMarkerIdx = i;
-      break;
-    }
-  }
-
-  return {
-    from: lineToCharOffset(areaMarkerIdx + 1),
-    to: lineToCharOffset(nextMarkerIdx),
-  };
 }
 
 /**
@@ -373,56 +322,6 @@ export function findAreaNameForOffset(markdown, offset) {
   // Offset at EOF: return the last area seen.
   if (offset >= normalized.length) return currentArea;
   return currentArea;
-}
-
-const MAX_TEXT_MATCH_LEN = 50;
-
-/**
- * Find the markdown character position of any rendered block-level element
- * inside an area.  Prefer the `data-source-line` attribute set by the
- * markdown parser; fall back to matching the element's text content against
- * the area's markdown lines.  Returns -1 if the element cannot be mapped.
- *
- * @param {string} markdown
- * @param {HTMLElement} element
- * @param {object} [opts]
- * @param {boolean} [opts.preferSourceLine=true] - Whether to use the
- *   `data-source-line` attribute before falling back to text matching.
- * @returns {number}
- */
-export function findElementMarkdownPosition(markdown, element, { preferSourceLine = true } = {}) {
-  const area = element?.closest?.(".slide__area");
-  if (!area) return -1;
-
-  const areaName = area.dataset.areaName || "main";
-  const range = getAreaContentRange(markdown, areaName);
-
-  if (preferSourceLine) {
-    const sourceLine = parseInt(element.dataset?.sourceLine, 10);
-    if (!isNaN(sourceLine)) {
-      const lines = markdown.slice(range.from, range.to).split("\n");
-      let charOffset = 0;
-      for (let i = 0; i < Math.min(sourceLine, lines.length); i++) {
-        charOffset += lines[i].length + 1;
-      }
-      return range.from + charOffset;
-    }
-  }
-
-  const text = element.textContent?.trim();
-  if (!text) return -1;
-
-  const areaContent = markdown.slice(range.from, range.to);
-  const lines = areaContent.split("\n");
-  let charOffset = 0;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed && text.startsWith(trimmed.slice(0, MAX_TEXT_MATCH_LEN))) {
-      return range.from + charOffset;
-    }
-    charOffset += line.length + 1;
-  }
-  return -1;
 }
 
 /**

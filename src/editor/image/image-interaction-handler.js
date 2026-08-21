@@ -37,6 +37,7 @@ import {
   getStageScale,
 } from "./image-position-presets.js";
 import { BlockInteractionHandler } from "../core/block-interaction-handler.js";
+import { removeAndInsertBlock } from "../core/markdown-utils.js";
 
 const OVERLAY_BORDER = 2;
 const OVERLAY_BORDER_DOUBLE = OVERLAY_BORDER * 2;
@@ -186,11 +187,10 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
   }
 
   /**
-   * Build the updated markdown for a cross-area image move.
-   * Finds the image by src within the source area's content range
-   * (not by DOM index, which can mismatch markdown order).
+   * Build updated markdown for a cross-area image move, inserting at a
+   * specific position within the target area.
    */
-  static _buildMoveMarkdown(img, fromAreaName, toAreaName) {
+  static _buildMoveMarkdownAtPosition(img, fromAreaName, toAreaName, insertBeforeEl) {
     const md = this._getMarkdown?.();
     if (!md) return null;
 
@@ -213,75 +213,32 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
     const alt = img.getAttribute("alt") || extractAltText(entry) || "";
     const newTag = buildRepositionedImgTag(img, src, alt, w, h);
 
-    let updated = withoutImage.replace(/\n{3,}/g, "\n\n");
-    const targetRange = getAreaContentRange(updated, toAreaName);
-    const insertAt = targetRange.to;
-    const before = updated.slice(0, insertAt);
-    const after = updated.slice(insertAt);
-    const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
-    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
-    return before + needsNewline + newTag + trailingNewlines + after;
-  }
-
-  /**
-   * Build updated markdown for a cross-area image move, inserting at a
-   * specific position within the target area.
-   */
-  static _buildMoveMarkdownAtPosition(img, fromAreaName, toAreaName, insertBeforeEl) {
-    const md = this._getMarkdown?.();
-    if (!md) return null;
-
-    const src = img.dataset.originalSrc || img.getAttribute("src") || "";
-
-    // Find the image entry within the source area
-    const entries = parseAllImages(md);
-    const sourceRange = getAreaContentRange(md, fromAreaName);
-    const entry = entries.find(
-      (e) => e.src === src && e.start >= sourceRange.from && e.start < sourceRange.to,
-    );
-    if (!entry) return null;
-
-    // Remove from source
-    let updated = md.slice(0, entry.start) + md.slice(entry.end);
-    updated = updated.replace(/\n{3,}/g, "\n\n");
-
-    // Build a fresh <img> tag preserving all style properties
-    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || IMG_FALLBACK_W);
-    const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
-    const alt = img.getAttribute("alt") || extractAltText(entry) || "";
-    const newTag = buildRepositionedImgTag(img, src, alt, w, h);
-
     // Find insert position in target area
-    const targetRange = getAreaContentRange(updated, toAreaName);
+    const targetRange = getAreaContentRange(withoutImage, toAreaName);
     let insertAt = targetRange.to; // default: end of area
 
     if (insertBeforeEl) {
       if (insertBeforeEl.tagName === "IMG") {
         // Target is another image — find its entry in the target area by DOM ordinal.
         const targetIdx = getImageOrdinalIndexInArea(insertBeforeEl);
-        const targetImages = parseImagesInArea(updated, toAreaName);
+        const targetImages = parseImagesInArea(withoutImage, toAreaName);
         if (targetIdx >= 0 && targetImages[targetIdx]) {
           insertAt = targetImages[targetIdx].start;
         }
       } else {
         // Find the markdown position of the target element (text, code, etc.).
-        const targetMdPos = findMarkdownPositionOfElement(updated, insertBeforeEl);
+        const targetMdPos = findMarkdownPositionOfElement(withoutImage, insertBeforeEl);
         if (targetMdPos >= targetRange.from && targetMdPos <= targetRange.to) {
           insertAt = targetMdPos;
         }
       }
     }
 
-    const before = updated.slice(0, insertAt);
-    const after = updated.slice(insertAt);
-    const needsNewline =
-      before.length > 0 && !before.endsWith("\n")
-        ? "\n\n"
-        : before.endsWith("\n") && !before.endsWith("\n\n")
-          ? "\n"
-          : "";
-    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
-    return before + needsNewline + newTag + trailingNewlines + after;
+    return removeAndInsertBlock(
+      withoutImage,
+      { start: insertAt, end: insertAt, fullTag: newTag },
+      insertAt,
+    );
   }
 
   // ── Cross-area drag helpers ────────────────────────────────────────────────
@@ -386,22 +343,12 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
           0,
         );
 
-    // Insert the new tag at the new position
-    const before = withoutImage.slice(0, insertAt);
-    const after = withoutImage.slice(insertAt);
-    const needsNewline =
-      before.length > 0 && !before.endsWith("\n")
-        ? "\n\n"
-        : before.endsWith("\n") && !before.endsWith("\n\n")
-          ? "\n"
-          : "";
-    // Ensure blank line after image for markdown-it block rendering.
-    // If `after` already starts with \n, we need an extra \n to form the blank line.
-    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
-    let updated = before + needsNewline + newTag + trailingNewlines + after;
-    // Collapse any accidental runs of 3+ newlines so repeated drags don't
-    // keep growing blank gaps in the markdown.
-    updated = updated.replace(/\n{3,}/g, "\n\n");
+    // Insert the new tag at the new position.
+    const updated = removeAndInsertBlock(
+      withoutImage,
+      { start: insertAt, end: insertAt, fullTag: newTag },
+      insertAt,
+    );
 
     // Move the image in the DOM immediately for visual snap, then update markdown.
     // The markdown update uses suppressOnChange so it won't trigger a re-render

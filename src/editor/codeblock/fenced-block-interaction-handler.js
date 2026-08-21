@@ -20,7 +20,7 @@ import {
 } from "./fenced-block-utils.js";
 import { removeAndInsertBlock } from "../core/markdown-utils.js";
 import { BlockInteractionHandler } from "../core/block-interaction-handler.js";
-import { getStageScale } from "../image/image-position-presets.js";
+import { getStageScale } from "../../core/utils.js";
 
 const OVERLAY_BORDER = 2;
 const OVERLAY_BORDER_DOUBLE = OVERLAY_BORDER * 2;

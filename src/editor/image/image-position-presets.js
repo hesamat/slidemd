@@ -9,22 +9,8 @@
  * to programmatically position images (toolbar buttons, keyboard
  * shortcuts, automation, etc.).
  */
+export { getStageScale } from "../../core/utils.js";
 import { readImageSettings } from "./image-markdown-utils.js";
-
-/**
- * Read the current stage scale factor from the DOM.
- * The stage uses a CSS transform matrix for letterboxing/pillarboxing;
- * this returns the scale (1.0 = no scaling).
- * @returns {number}
- */
-export function getStageScale() {
-  const stage = document.querySelector(".stage__inner");
-  if (!stage) return 1;
-  const transform = getComputedStyle(stage).transform;
-  if (!transform || transform === "none") return 1;
-  const match = transform.match(/matrix\(([^,]+),/);
-  return match ? parseFloat(match[1]) : 1;
-}
 
 /**
  * Center the image horizontally within its area. Top stays unchanged.
