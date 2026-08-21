@@ -15,6 +15,7 @@ import { ImageBackgroundHandler } from "../image/image-background-handler.js";
 import { ImageInserter } from "../image/image-inserter.js";
 import { fitToWidth, getStageScale } from "../image/image-position-presets.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
+import { FencedBlockInteractionHandler } from "../codeblock/fenced-block-interaction-handler.js";
 import { AreaNavigation } from "../navigation/area-navigation.js";
 import { MarkdownEditor } from "./markdown-editor.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
@@ -198,6 +199,7 @@ export class EditController {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       ImageInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
+      FencedBlockInteractionHandler.deactivate();
       SlideStylePanel.hide();
       // Skip loading when a deck restore is in progress — the explicit
       // loadSlideIntoEditor call at the end of storeSync.restoreStoreSnapshot
@@ -241,8 +243,21 @@ export class EditController {
         e.preventDefault();
         e.stopPropagation();
         ImageInteractionHandler.deselect();
+        FencedBlockInteractionHandler.deselect();
         TextBlockHandler.select(textBlock);
         TextBlockHandler._showPanel();
+        return;
+      }
+
+      // Fenced blocks (Mermaid diagrams and code blocks) — check before img
+      // so a click on a mermaid SVG (no <img>) selects the diagram.
+      const fencedEl = FencedBlockInteractionHandler.elementFromTarget(e.target);
+      if (fencedEl) {
+        e.preventDefault();
+        e.stopPropagation();
+        ImageInteractionHandler.deselect();
+        TextBlockHandler.deselect();
+        FencedBlockInteractionHandler.select(fencedEl);
         return;
       }
 
@@ -253,12 +268,18 @@ export class EditController {
       e.preventDefault();
       e.stopPropagation();
       TextBlockHandler.deselect();
+      FencedBlockInteractionHandler.deselect();
       ImageInteractionHandler.select(img);
     };
 
     this._onSlidesContainerContextMenu = (e) => {
       if (!this.isEditMode) return;
-      if (e.target.closest(".editor-area-label, .editor-slide-warning, img, .text-block")) return;
+      if (
+        e.target.closest(
+          ".editor-area-label, .editor-slide-warning, img, .text-block, .mermaid, pre",
+        )
+      )
+        return;
       const slidesContainer = this.elements.slidesContainer;
       if (slidesContainer) {
         const selection = window.getSelection();
@@ -585,6 +606,32 @@ export class EditController {
       onPreviewReady: (callback) => this.previewUpdater.onReadyOnce(callback),
     });
 
+    // Fenced-block (Mermaid + code block) interaction — drag/reorder/delete
+    FencedBlockInteractionHandler.init(
+      () => this.markdownEditor?.getValue() ?? "",
+      (updated) => {
+        this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+        this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+        this.updateUnsavedChangesFlag();
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (slideEl) this.areaGuides.updateAreaOverflow(slideEl);
+      },
+      {
+        onDelete: (updated) => {
+          this.markdownEditor?.setValue(updated, { suppressOnChange: false });
+          this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+          this.updateUnsavedChangesFlag();
+          this.previewUpdater.update();
+        },
+        onMoveArea: (updated) => {
+          this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+          this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+          this.updateUnsavedChangesFlag();
+          this.previewUpdater.update();
+        },
+      },
+    );
+
     this._initImagePropertiesPanel();
 
     // Slide style panel — for styling all areas uniformly
@@ -706,6 +753,7 @@ export class EditController {
       this.mermaidHelper.hide();
       ImageInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
+      FencedBlockInteractionHandler.deactivate();
       SlideStylePanel.hide();
       this.placeholderDialogEl?.remove();
       this.placeholderDialogEl = null;
