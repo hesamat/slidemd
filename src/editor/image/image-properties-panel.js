@@ -5,6 +5,7 @@ import {
   parseAllImages,
   getImageOrdinalIndexInArea,
   getImageOrdinalIndex,
+  readImageSettings,
 } from "./image-markdown-utils.js";
 import { iconString, icon } from "../../core/icon.js";
 
@@ -14,7 +15,8 @@ import { iconString, icon } from "../../core/icon.js";
  * Tabbed popover for repositioning, resizing, and styling images in the
  * slide preview.  Works with ImageInteractionHandler for drag/resize and
  * provides precise numeric inputs plus style controls (opacity, radius,
- * shadow, rotation) and alt-text / replace-image actions.
+ * rotation, flip, brightness/contrast/saturate) and alt-text /
+ * replace-image actions.
  *
  * Design principle: the markdown source is the single source of truth.
  * We always parse styles from the markdown, apply changes, and write back.
@@ -23,16 +25,22 @@ import { iconString, icon } from "../../core/icon.js";
  *   • Size      — Replace / Delete at the top (the two most-used
  *                 actions), then W×H, aspect-ratio lock, presets
  *                 (Small/Medium/Large/Fit/Center)
- *   • Style     — opacity, border-radius, shadow
- *   • Transform — rotation, alt-text
+ *   • Style     — opacity, corner radius, brightness/contrast/saturate
+ *   • Transform — rotation, flip, alt-text
  */
 
-const SHADOW_PRESETS = [
-  { key: "none", label: "None", value: "none" },
-  { key: "subtle", label: "Subtle", value: "0 2px 6px rgba(120,120,120,0.3)" },
-  { key: "medium", label: "Medium", value: "0 6px 20px rgba(120,120,120,0.4)" },
-  { key: "strong", label: "Strong", value: "0 12px 32px rgba(120,120,120,0.5)" },
-];
+// Fields that map directly to applySettings keys.
+const DIRECT_FIELDS = new Set([
+  "width",
+  "height",
+  "borderRadius",
+  "opacity",
+  "rotation",
+  "brightness",
+  "contrast",
+  "saturate",
+  "alt",
+]);
 
 export class ImagePropertiesPanel {
   static el = null;
@@ -187,43 +195,54 @@ export class ImagePropertiesPanel {
 
                 <!-- Style tab -->
                 <div class="image-properties-panel__panel" data-panel="style">
-                    <div class="image-properties-panel__row">
-                        <label class="image-properties-panel__field image-properties-panel__field--grow">
-                            <span class="image-properties-panel__field-label">Opacity <span data-display="opacity">100%</span></span>
-                            <input type="range" class="image-properties-panel__range" data-field="opacity" min="0" max="100" step="1" />
-                        </label>
+                    <div class="image-properties-panel__section-label">Appearance</div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Opacity</span>
+                        <input type="range" class="image-properties-panel__slider" data-field="opacity" min="0" max="100" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="opacity">100%</span>
                     </div>
-                    <div class="image-properties-panel__row">
-                        <label class="image-properties-panel__field">
-                            <span class="image-properties-panel__field-label">Radius (px)</span>
-                            <input type="number" class="image-properties-panel__input" data-field="borderRadius" min="0" max="540" placeholder="0" />
-                        </label>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Radius</span>
+                        <input type="range" class="image-properties-panel__slider" data-field="borderRadius" min="0" max="540" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="radius">0px</span>
                         <button type="button" class="image-properties-panel__chip" data-action="pill" title="Pill / circle">Pill</button>
                     </div>
-                    <div class="image-properties-panel__row">
-                        <span class="image-properties-panel__field-label">Shadow</span>
-                        <div class="image-properties-panel__seg" role="group" aria-label="Shadow">
-                            ${SHADOW_PRESETS.map((p) => `<button type="button" class="image-properties-panel__seg-btn" data-shadow="${p.key}" title="${p.label}">${p.label}</button>`).join("")}
-                        </div>
+
+                    <div class="image-properties-panel__section-label">Adjust</div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Bright</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="brightness" min="0" max="200" step="5" value="100" title="Brightness %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
+                    </div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Contrast</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="contrast" min="0" max="200" step="5" value="100" title="Contrast %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
+                    </div>
+                    <div class="image-properties-panel__control-row">
+                        <span class="image-properties-panel__control-label">Saturate</span>
+                        <input type="number" class="image-properties-panel__input image-properties-panel__input--adjust" data-field="saturate" min="0" max="200" step="5" value="100" title="Saturation %" />
+                        <span class="image-properties-panel__control-suffix">%</span>
                     </div>
                 </div>
 
                 <!-- Transform tab -->
                 <div class="image-properties-panel__panel" data-panel="transform">
-                    <div class="image-properties-panel__row">
-                        <span class="image-properties-panel__field-label">Rotate</span>
-                    </div>
-                    <div class="image-properties-panel__row image-properties-panel__row--compact">
+                    <div class="image-properties-panel__section-label">Rotation</div>
+                    <div class="image-properties-panel__control-row">
                         <button type="button" class="image-properties-panel__icon-btn" data-action="rot-left" title="Rotate 90° left">${iconString("rotate-ccw", { size: "sm" })}</button>
-                        <input type="range" class="image-properties-panel__range image-properties-panel__range--grow" data-field="rotation" min="0" max="360" step="1" />
+                        <input type="range" class="image-properties-panel__slider" data-field="rotation" min="0" max="360" step="1" />
+                        <span class="image-properties-panel__control-value" data-display="rotation">0°</span>
                         <button type="button" class="image-properties-panel__icon-btn" data-action="rot-right" title="Rotate 90° right">${iconString("rotate-cw", { size: "sm" })}</button>
-                        <span class="image-properties-panel__field-label" data-display="rotation">0°</span>
                     </div>
+                    <div class="image-properties-panel__section-label">Flip</div>
+                    <div class="image-properties-panel__control-row">
+                        <button type="button" class="image-properties-panel__chip" data-action="flip-h" title="Flip horizontal">${iconString("arrow-left-right", { size: "sm" })} Flip H</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="flip-v" title="Flip vertical">${iconString("arrow-up-down", { size: "sm" })} Flip V</button>
+                    </div>
+                    <div class="image-properties-panel__section-label">Alt text</div>
                     <div class="image-properties-panel__row">
-                        <label class="image-properties-panel__field image-properties-panel__field--grow">
-                            <span class="image-properties-panel__field-label">Alt text</span>
-                            <input type="text" class="image-properties-panel__text" data-field="alt" placeholder="Describe the image" />
-                        </label>
+                        <input type="text" class="image-properties-panel__text" data-field="alt" placeholder="Describe the image" />
                     </div>
                 </div>
             </div>
@@ -272,7 +291,7 @@ export class ImagePropertiesPanel {
       tab.addEventListener("click", () => this._activateTab(tab.dataset.tab));
     });
 
-    // Number/text/range inputs that map directly to settings fields
+    // Number/text/range inputs that map to settings fields.
     this.el.querySelectorAll("[data-field]").forEach((input) => {
       const handler = () => this._applyFromInput(input);
       input.addEventListener("change", handler);
@@ -291,21 +310,6 @@ export class ImagePropertiesPanel {
     // Action buttons
     this.el.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => this._handleAction(btn.dataset.action, btn));
-    });
-
-    // Shadow preset buttons
-    this.el.querySelectorAll("[data-shadow]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const key = btn.dataset.shadow;
-        const preset = SHADOW_PRESETS.find((p) => p.key === key);
-        if (!preset) return;
-        this.el
-          .querySelectorAll("[data-shadow]")
-          .forEach((b) => b.classList.toggle("active", b === btn));
-        import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
-          ImageInteractionHandler.applySettings({ boxShadow: preset.value });
-        });
-      });
     });
   }
 
@@ -353,6 +357,18 @@ export class ImagePropertiesPanel {
       case "rot-right":
         ImageInteractionHandler.rotateBy(90);
         break;
+      case "flip-h": {
+        const cur = ImageInteractionHandler._selectedImg;
+        const s = cur ? readImageSettings(cur) : {};
+        ImageInteractionHandler.applySettings({ flipH: !s.flipH });
+        break;
+      }
+      case "flip-v": {
+        const cur = ImageInteractionHandler._selectedImg;
+        const s = cur ? readImageSettings(cur) : {};
+        ImageInteractionHandler.applySettings({ flipV: !s.flipV });
+        break;
+      }
       case "pill":
         ImageInteractionHandler.applySettings({ borderRadius: 999 });
         break;
@@ -398,27 +414,51 @@ export class ImagePropertiesPanel {
     let value = input.value;
     if (input.type === "range" || input.type === "number") {
       value = parseFloat(input.value);
-      if (!Number.isFinite(value)) value = undefined;
+      // A cleared number input has no value to apply — bail out before
+      // propagating NaN into applySettings (which would produce invalid
+      // CSS like `brightness(NaN)`).
+      if (!Number.isFinite(value)) return;
     }
-    const settings = { [field]: value };
+    const settings = {};
 
-    // Aspect-ratio lock for width/height edits
-    if ((field === "width" || field === "height") && this._aspectLocked) {
-      const ratio = this._lastRatio || null;
-      if (ratio) {
-        if (field === "width") settings.height = Math.round(value / ratio);
-        else settings.width = Math.round(value * ratio);
-      }
-    }
-
-    // Opacity is 0–100 in UI; convert to 0–1
     if (field === "opacity") {
       settings.opacity = value / 100;
+      this._updateDisplay("opacity", `${Math.round(value)}%`);
+    } else if (field === "borderRadius") {
+      settings.borderRadius = value;
+      this._updateDisplay("radius", `${Math.round(value)}px`);
+    } else if (field === "rotation") {
+      settings.rotation = value;
+      this._updateDisplay("rotation", `${Math.round(value)}°`);
+    } else if (field === "brightness" || field === "contrast" || field === "saturate") {
+      // Number inputs are 0–200 (percent); CSS values are 0–2 (1 = normal)
+      settings[field] = value / 100;
+    } else if (field === "width" || field === "height") {
+      settings[field] = value;
+      if (this._aspectLocked) {
+        const ratio = this._lastRatio || null;
+        if (ratio) {
+          if (field === "width") settings.height = Math.round(value / ratio);
+          else settings.width = Math.round(value * ratio);
+        }
+      }
+    } else {
+      settings[field] = value;
     }
 
     import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
       ImageInteractionHandler.applySettings(settings);
     });
+  }
+
+  /**
+   * Update a display element's text content by data-display key.
+   * @param {string} key
+   * @param {string} text
+   */
+  static _updateDisplay(key, text) {
+    const el = this.el?.querySelector(`[data-display="${key}"]`);
+    if (el) el.textContent = text;
   }
 
   static _openReplacePicker() {
@@ -469,13 +509,20 @@ export class ImagePropertiesPanel {
     this._setMarkdown?.(updatedMd);
   }
 
+  /**
+   * Collect current settings from the panel inputs.  Only collects
+   * fields that map directly to applySettings keys.
+   * @returns {object}
+   */
   static _collectSettings() {
     const settings = {};
+    const PERCENT_FIELDS = new Set(["opacity", "brightness", "contrast", "saturate"]);
     this.el.querySelectorAll("[data-field]").forEach((input) => {
       const field = input.dataset.field;
+      if (!DIRECT_FIELDS.has(field)) return;
       if (input.type === "range" || input.type === "number") {
         const v = parseFloat(input.value);
-        if (Number.isFinite(v)) settings[field] = field === "opacity" ? v / 100 : v;
+        if (Number.isFinite(v)) settings[field] = PERCENT_FIELDS.has(field) ? v / 100 : v;
       } else if (input.value) {
         settings[field] = input.value;
       }
@@ -497,13 +544,15 @@ export class ImagePropertiesPanel {
   static _syncUI(s) {
     if (!this.el) return;
     const setVal = (field, val) => {
-      const input = this.el.querySelector(`[data-field="${field}"]`);
-      if (!input) return;
-      if (input.type === "range" || input.type === "number") {
-        input.value = Number.isFinite(val) ? val : "";
-      } else {
-        input.value = val ?? "";
-      }
+      // A field may have multiple inputs (e.g. radius has a range + number
+      // pair); keep them all in sync.
+      this.el.querySelectorAll(`[data-field="${field}"]`).forEach((input) => {
+        if (input.type === "range" || input.type === "number") {
+          input.value = Number.isFinite(val) ? val : "";
+        } else {
+          input.value = val ?? "";
+        }
+      });
     };
     setVal("width", s.width);
     setVal("height", s.height);
@@ -513,28 +562,23 @@ export class ImagePropertiesPanel {
     setVal("alt", s.alt);
     setVal("opacity", Number.isFinite(s.opacity) ? Math.round(s.opacity * 100) : 100);
     setVal("rotation", Number.isFinite(s.rotation) ? s.rotation : 0);
+    setVal("brightness", Number.isFinite(s.brightness) ? Math.round(s.brightness * 100) : 100);
+    setVal("contrast", Number.isFinite(s.contrast) ? Math.round(s.contrast * 100) : 100);
+    setVal("saturate", Number.isFinite(s.saturate) ? Math.round(s.saturate * 100) : 100);
 
     // Display labels
-    const opDisplay = this.el.querySelector('[data-display="opacity"]');
-    if (opDisplay) opDisplay.textContent = `${Math.round((s.opacity ?? 1) * 100)}%`;
-    const rotDisplay = this.el.querySelector('[data-display="rotation"]');
-    if (rotDisplay) rotDisplay.textContent = `${Math.round(s.rotation ?? 0)}°`;
+    this._updateDisplay("opacity", `${Math.round((s.opacity ?? 1) * 100)}%`);
+    this._updateDisplay("rotation", `${Math.round(s.rotation ?? 0)}°`);
+    this._updateDisplay("radius", `${Math.round(s.borderRadius ?? 0)}px`);
 
-    // Shadow preset active state
-    this.el
-      .querySelectorAll("[data-shadow]")
-      .forEach((b) =>
-        b.classList.toggle("active", b.dataset.shadow === this._shadowKeyFromValue(s.boxShadow)),
-      );
+    // Flip button active state
+    const flipHBtn = this.el.querySelector('[data-action="flip-h"]');
+    if (flipHBtn) flipHBtn.classList.toggle("active", !!s.flipH);
+    const flipVBtn = this.el.querySelector('[data-action="flip-v"]');
+    if (flipVBtn) flipVBtn.classList.toggle("active", !!s.flipV);
 
     // Track last aspect ratio for lock behaviour
     if (s.width && s.height) this._lastRatio = s.width / s.height;
-  }
-
-  static _shadowKeyFromValue(value) {
-    if (!value || value === "none") return "none";
-    const preset = SHADOW_PRESETS.find((p) => p.value === value);
-    return preset ? preset.key : "";
   }
 
   static _syncFreeflowBtn() {
