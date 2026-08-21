@@ -14,6 +14,8 @@ import {
   buildBackgroundPanelHtml,
   buildAreaStylePanelHtml,
   buildTitlePanelHtml,
+  buildThemePreviewHtml,
+  syncThemePreview,
   syncBgState,
   hexToRgba,
 } from "../editor/ui/style-helpers.js";
@@ -238,6 +240,16 @@ export class NewPresentationModal {
           position: bgPosition,
           repeat: bgRepeat,
         });
+        syncPreview();
+      };
+
+      const syncPreview = () => {
+        syncThemePreview(backdrop, {
+          theme: selectedTheme,
+          bgValue: getBackgroundValue(),
+          headerStyle: selectedTitleStyle,
+          areaStyle: buildAreaStyleFromUI(),
+        });
       };
 
       // ── Background swatches ──
@@ -277,6 +289,7 @@ export class NewPresentationModal {
 
       backdrop.querySelector('[data-field="bg-theme"]')?.addEventListener("change", (e) => {
         selectedTheme = e.target.checked ? "dark" : "light";
+        syncPreview();
       });
 
       backdrop.querySelector('[data-field="bg-overlay"]')?.addEventListener("input", () => {
@@ -348,6 +361,7 @@ export class NewPresentationModal {
           titleBtns.forEach((b) => b.classList.remove("selected"));
           btn.classList.add("selected");
           selectedTitleStyle = btn.dataset.headerStyle;
+          syncPreview();
         });
       });
 
@@ -369,8 +383,10 @@ export class NewPresentationModal {
           const selectedBtn = backdrop.querySelector(".style-btn-option.selected");
           selectedTitleStyle = selectedBtn?.dataset.headerStyle || "short";
         }
+        syncPreview();
       };
       [borderWidth, radius, padding].forEach((el) => el?.addEventListener("input", updateLabels));
+      borderColor?.addEventListener("input", syncPreview);
 
       const buildAreaStyleFromUI = () => {
         return buildAreaStyle(borderWidth.value, borderColor.value, radius.value, padding.value);
@@ -442,7 +458,7 @@ export class NewPresentationModal {
 
   static _createDom() {
     const el = document.createElement("div");
-    el.className = "modal new-stepper";
+    el.className = "modal-base__backdrop new-stepper";
     el.setAttribute("role", "dialog");
     el.setAttribute("aria-modal", "true");
 
@@ -462,7 +478,6 @@ export class NewPresentationModal {
     ).join("");
 
     el.innerHTML = `
-      <div class="modal__overlay"></div>
       <div class="modal-base__dialog ${P}dialog">
         <div class="modal-base__header ${P}header">
           <h2 class="modal-base__title ${P}title">New Presentation</h2>
@@ -487,6 +502,8 @@ export class NewPresentationModal {
             ${buildBackgroundPanelHtml()}
           </div>
           <div class="${P}panel" data-step="styling">
+            ${buildThemePreviewHtml()}
+            <div class="${P}divider"></div>
             ${buildTitlePanelHtml()}
             <div class="${P}divider"></div>
             ${buildAreaStylePanelHtml({ showHint: true })}
