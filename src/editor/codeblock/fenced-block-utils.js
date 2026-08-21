@@ -11,8 +11,19 @@
  * `image-markdown-utils` does.
  */
 
-const AREA_MARKER_RE = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+import {
+  AREA_MARKER_RE,
+  getAreaContentRange,
+  findMarkdownPosition,
+} from "../core/markdown-utils.js";
+
 const FENCE_OPEN_RE = /^\s*(```+|~~~+)\s*([^\n]*)$/;
+
+// Re-export the shared helpers so existing consumers keep working.
+export { getAreaContentRange };
+export function findElementMarkdownPosition(markdown, element, opts) {
+  return findMarkdownPosition(markdown, element, opts);
+}
 
 /**
  * @typedef {Object} FencedBlock
@@ -91,68 +102,6 @@ export function parseFencedBlocks(markdown) {
     i = endLine + 1;
   }
   return blocks;
-}
-
-/**
- * Return the character range `{from, to}` for the content inside a named
- * `@area` block in the markdown source.  Mirrors the implementation in
- * `image-markdown-utils` so this module stays self-contained.
- *
- * @param {string} markdown
- * @param {string} areaName
- * @returns {{from: number, to: number}}
- */
-export function getAreaContentRange(markdown, areaName) {
-  const normalized = String(markdown || "").replace(/\r\n?/g, "\n");
-  const lines = normalized.split("\n");
-  const target = String(areaName || "main")
-    .trim()
-    .toLowerCase();
-
-  const lineToCharOffset = (lineIndex) => {
-    let pos = 0;
-    for (let i = 0; i < lineIndex; i++) pos += lines[i].length + 1;
-    if (lineIndex === lines.length && lines[lines.length - 1] !== "") pos -= 1;
-    return pos;
-  };
-
-  let areaMarkerIdx = -1;
-  let firstMarkerIdx = lines.length;
-
-  for (let i = 0; i < lines.length; i++) {
-    const markerMatch = lines[i].match(AREA_MARKER_RE);
-    if (!markerMatch) continue;
-    if (areaMarkerIdx < 0 && firstMarkerIdx === lines.length) {
-      firstMarkerIdx = i;
-    }
-    if (markerMatch[1].toLowerCase() === target) {
-      areaMarkerIdx = i;
-      break;
-    }
-  }
-
-  if (areaMarkerIdx < 0) {
-    if (target === "main") {
-      // Content before the first explicit @area marker belongs to @main by
-      // project convention (see MarkdownParser.parseAreas).
-      return { from: 0, to: lineToCharOffset(firstMarkerIdx) };
-    }
-    return { from: normalized.length, to: normalized.length };
-  }
-
-  let nextMarkerIdx = lines.length;
-  for (let i = areaMarkerIdx + 1; i < lines.length; i++) {
-    const markerMatch = lines[i].match(AREA_MARKER_RE);
-    if (markerMatch) {
-      nextMarkerIdx = i;
-      break;
-    }
-  }
-
-  return {
-    from: lineToCharOffset(areaMarkerIdx + 1),
-    to: lineToCharOffset(nextMarkerIdx),
-  };
 }
 
 /**

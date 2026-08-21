@@ -36,56 +36,54 @@ import {
   rotateBy,
   getStageScale,
 } from "./image-position-presets.js";
+import { BlockInteractionHandler } from "../core/block-interaction-handler.js";
+import { removeAndInsertBlock } from "../core/markdown-utils.js";
 
 const OVERLAY_BORDER = 2;
 const OVERLAY_BORDER_DOUBLE = OVERLAY_BORDER * 2;
 const IMG_FALLBACK_W = 480;
 const ARROW_KEY_STEP = 10;
 
-export class ImageInteractionHandler {
-  static _initialized = false;
+export class ImageInteractionHandler extends BlockInteractionHandler {
   static _selectedImg = null;
-  static _slideContainer = null;
-  static _getMarkdown = null;
-  static _setMarkdown = null;
-  static _onDelete = null;
-  static _onMoveArea = null;
-  static _overlay = null;
   static _pendingSelectSrc = null;
   static _aspectLocked = true;
 
-  static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
-    if (this._initialized) return;
-    this._initialized = true;
-    this._getMarkdown = getMarkdown;
-    this._setMarkdown = setMarkdown;
-    this._onDelete = onDelete || null;
-    this._onMoveArea = onMoveArea || null;
-
-    document.addEventListener("mousedown", (e) => {
-      if (
-        this._selectedImg &&
-        !e.target.closest(".image-overlay") &&
-        !e.target.closest("img") &&
-        !e.target.closest(".image-properties-panel")
-      ) {
-        // If _selectedImg was removed by a preview re-render, clear the
-        // stale reference so the next image click can start fresh.
-        if (!this._selectedImg.isConnected) {
-          this._selectedImg = null;
-          if (this._overlay) this._overlay.style.display = "none";
-          ImagePropertiesPanel.hide();
-          return;
-        }
-        this.deselect();
-      }
-    });
+  static get _selected() {
+    return this._selectedImg;
   }
 
-  static activate(slideContainer) {
-    this._slideContainer = slideContainer;
-    this._createOverlay(slideContainer);
-    ImageDragController.activate(slideContainer, {
+  static set _selected(value) {
+    this._selectedImg = value;
+  }
+
+  static get _overlayClassName() {
+    return "image-overlay";
+  }
+
+  static get _selectedClassName() {
+    return "image-selected";
+  }
+
+  static get _overlayInnerHTML() {
+    return [
+      '<div class="oh-l" data-edge="left"></div>',
+      '<div class="oh-r" data-edge="right"></div>',
+      '<div class="oh-t" data-edge="top"></div>',
+      '<div class="oh-b" data-edge="bottom"></div>',
+      '<div class="oh-tl" data-edge="top-left"></div>',
+      '<div class="oh-tr" data-edge="top-right"></div>',
+      '<div class="oh-bl" data-edge="bottom-left"></div>',
+      '<div class="oh-br" data-edge="bottom-right"></div>',
+    ].join("");
+  }
+
+  static get _DragController() {
+    return ImageDragController;
+  }
+
+  static _dragControllerContext() {
+    return {
       getSelectedImg: () => this._selectedImg,
       select: (img) => this.select(img),
       updateOverlay: () => this._updateOverlay(),
@@ -100,46 +98,15 @@ export class ImageInteractionHandler {
       onMoveArea: (md) => this._onMoveArea?.(md),
       getOverlay: () => this._overlay,
       isAspectLocked: () => this._aspectLocked,
-    });
-
-    if (this._selectedImg) {
-      this._updateOverlay();
-    }
+    };
   }
 
-  static deactivate() {
-    this.deselect();
-    ImageDragController.deactivate();
-    this._removeOverlay();
-    this._slideContainer = null;
+  static elementFromTarget(target) {
+    return target.closest("img") || null;
   }
 
-  // ── Overlay ─────────────────────────────────────────────────────────────
-
-  static _createOverlay(container) {
-    this._removeOverlay();
-    const overlay = document.createElement("div");
-    overlay.className = "image-overlay";
-    overlay.innerHTML = `
-            <div class="oh-l" data-edge="left"></div>
-            <div class="oh-r" data-edge="right"></div>
-            <div class="oh-t" data-edge="top"></div>
-            <div class="oh-b" data-edge="bottom"></div>
-            <div class="oh-tl" data-edge="top-left"></div>
-            <div class="oh-tr" data-edge="top-right"></div>
-            <div class="oh-bl" data-edge="bottom-left"></div>
-            <div class="oh-br" data-edge="bottom-right"></div>
-        `;
-    overlay.style.display = "none";
-    container.appendChild(overlay);
-    this._overlay = overlay;
-  }
-
-  static _removeOverlay() {
-    if (this._overlay) {
-      this._overlay.remove();
-      this._overlay = null;
-    }
+  static _isOverlayOrChromeTarget(target) {
+    return !!target.closest(".image-overlay, .image-properties-panel, img");
   }
 
   static _updateOverlay() {
@@ -188,6 +155,7 @@ export class ImageInteractionHandler {
   }
 
   static deselect() {
+    ImagePropertiesPanel.hide();
     if (this._selectedImg) {
       // If the element was removed by a preview re-render, skip
       // classList removal to avoid errors on orphaned nodes.
@@ -200,7 +168,6 @@ export class ImageInteractionHandler {
     if (this._overlay) {
       this._overlay.style.display = "none";
     }
-    ImagePropertiesPanel.hide();
   }
 
   static isSelected() {
@@ -208,11 +175,10 @@ export class ImageInteractionHandler {
   }
 
   /**
-   * Build the updated markdown for a cross-area image move.
-   * Finds the image by src within the source area's content range
-   * (not by DOM index, which can mismatch markdown order).
+   * Build updated markdown for a cross-area image move, inserting at a
+   * specific position within the target area.
    */
-  static _buildMoveMarkdown(img, fromAreaName, toAreaName) {
+  static _buildMoveMarkdownAtPosition(img, fromAreaName, toAreaName, insertBeforeEl) {
     const md = this._getMarkdown?.();
     if (!md) return null;
 
@@ -235,66 +201,32 @@ export class ImageInteractionHandler {
     const alt = img.getAttribute("alt") || extractAltText(entry) || "";
     const newTag = buildRepositionedImgTag(img, src, alt, w, h);
 
-    let updated = withoutImage.replace(/\n{3,}/g, "\n\n");
-    const targetRange = getAreaContentRange(updated, toAreaName);
-    const insertAt = targetRange.to;
-    const before = updated.slice(0, insertAt);
-    const after = updated.slice(insertAt);
-    const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
-    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
-    return before + needsNewline + newTag + trailingNewlines + after;
-  }
-
-  /**
-   * Build updated markdown for a cross-area image move, inserting at a
-   * specific position within the target area.
-   */
-  static _buildMoveMarkdownAtPosition(img, fromAreaName, toAreaName, insertBeforeEl) {
-    const md = this._getMarkdown?.();
-    if (!md) return null;
-
-    const src = img.dataset.originalSrc || img.getAttribute("src") || "";
-
-    // Find the image entry within the source area
-    const entries = parseAllImages(md);
-    const sourceRange = getAreaContentRange(md, fromAreaName);
-    const entry = entries.find(
-      (e) => e.src === src && e.start >= sourceRange.from && e.start < sourceRange.to,
-    );
-    if (!entry) return null;
-
-    // Remove from source
-    let updated = md.slice(0, entry.start) + md.slice(entry.end);
-    updated = updated.replace(/\n{3,}/g, "\n\n");
-
-    // Build a fresh <img> tag preserving all style properties
-    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || IMG_FALLBACK_W);
-    const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
-    const alt = img.getAttribute("alt") || extractAltText(entry) || "";
-    const newTag = buildRepositionedImgTag(img, src, alt, w, h);
-
     // Find insert position in target area
-    const targetRange = getAreaContentRange(updated, toAreaName);
+    const targetRange = getAreaContentRange(withoutImage, toAreaName);
     let insertAt = targetRange.to; // default: end of area
 
     if (insertBeforeEl) {
-      // Find the markdown position of the target element
-      const targetMdPos = findMarkdownPositionOfElement(updated, insertBeforeEl);
-      if (targetMdPos >= targetRange.from && targetMdPos <= targetRange.to) {
-        insertAt = targetMdPos;
+      if (insertBeforeEl.tagName === "IMG") {
+        // Target is another image — find its entry in the target area by DOM ordinal.
+        const targetIdx = getImageOrdinalIndexInArea(insertBeforeEl);
+        const targetImages = parseImagesInArea(withoutImage, toAreaName);
+        if (targetIdx >= 0 && targetImages[targetIdx]) {
+          insertAt = targetImages[targetIdx].start;
+        }
+      } else {
+        // Find the markdown position of the target element (text, code, etc.).
+        const targetMdPos = findMarkdownPositionOfElement(withoutImage, insertBeforeEl);
+        if (targetMdPos >= targetRange.from && targetMdPos <= targetRange.to) {
+          insertAt = targetMdPos;
+        }
       }
     }
 
-    const before = updated.slice(0, insertAt);
-    const after = updated.slice(insertAt);
-    const needsNewline =
-      before.length > 0 && !before.endsWith("\n")
-        ? "\n\n"
-        : before.endsWith("\n") && !before.endsWith("\n\n")
-          ? "\n"
-          : "";
-    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
-    return before + needsNewline + newTag + trailingNewlines + after;
+    return removeAndInsertBlock(
+      withoutImage,
+      { start: insertAt, end: insertAt, fullTag: newTag },
+      insertAt,
+    );
   }
 
   // ── Cross-area drag helpers ────────────────────────────────────────────────
@@ -399,22 +331,12 @@ export class ImageInteractionHandler {
           0,
         );
 
-    // Insert the new tag at the new position
-    const before = withoutImage.slice(0, insertAt);
-    const after = withoutImage.slice(insertAt);
-    const needsNewline =
-      before.length > 0 && !before.endsWith("\n")
-        ? "\n\n"
-        : before.endsWith("\n") && !before.endsWith("\n\n")
-          ? "\n"
-          : "";
-    // Ensure blank line after image for markdown-it block rendering.
-    // If `after` already starts with \n, we need an extra \n to form the blank line.
-    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
-    let updated = before + needsNewline + newTag + trailingNewlines + after;
-    // Collapse any accidental runs of 3+ newlines so repeated drags don't
-    // keep growing blank gaps in the markdown.
-    updated = updated.replace(/\n{3,}/g, "\n\n");
+    // Insert the new tag at the new position.
+    const updated = removeAndInsertBlock(
+      withoutImage,
+      { start: insertAt, end: insertAt, fullTag: newTag },
+      insertAt,
+    );
 
     // Move the image in the DOM immediately for visual snap, then update markdown.
     // The markdown update uses suppressOnChange so it won't trigger a re-render

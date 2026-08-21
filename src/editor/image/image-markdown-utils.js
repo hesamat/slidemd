@@ -7,14 +7,23 @@
  */
 
 import { parseAllImages } from "../../data/image-markdown-parser.js";
+import {
+  getAreaContentRange,
+  findMarkdownPosition as coreFindMarkdownPosition,
+} from "../core/markdown-utils.js";
 
 // Re-export for backward compatibility — editor consumers can continue
 // importing parseAllImages from this module.
 export { parseAllImages };
 
+// Re-export shared markdown position helpers from core.
+export { getAreaContentRange };
+export function findMarkdownPositionOfElement(markdown, element) {
+  return coreFindMarkdownPosition(markdown, element);
+}
+
 // ── Constants ────────────────────────────────────────────────────────────
 
-const AREA_MARKER_RE = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
 const ALT_ATTR_RE = /alt=["']([^"']*)["']/i;
 const ALT_MD_RE = /!\[([^\]]*)\]/;
 const ROTATION_RE = /rotate\(([-\d.]+)deg\)/i;
@@ -23,8 +32,6 @@ const SCALE_Y_RE = /scaleY\((-?[\d.]+)\)/i;
 const BRIGHTNESS_RE = /brightness\(([\d.]+)\)/i;
 const CONTRAST_RE = /contrast\(([\d.]+)\)/i;
 const SATURATE_RE = /saturate\(([\d.]+)\)/i;
-const SOURCE_LINE_ATTR = "sourceLine";
-const MAX_TEXT_MATCH_LEN = 50;
 const IMG_WIDTH_DEFAULT_PX = 320;
 export const AREA_DEFAULT_W = 1920;
 export const AREA_DEFAULT_H = 1080;
@@ -118,102 +125,6 @@ export function extractAltText(imageEntry) {
     return imageEntry.fullTag.match(ALT_ATTR_RE)?.[1] || "";
   }
   return imageEntry.fullMatch.match(ALT_MD_RE)?.[1] || "";
-}
-
-// ── Area range ───────────────────────────────────────────────────────────
-
-/**
- * Return the character range `{from, to}` for the content inside a named
- * `@area` block in the markdown source.
- *
- * @param {string} markdown
- * @param {string} areaName - The area name (e.g. "main", "media")
- * @returns {{from: number, to: number}}
- */
-export function getAreaContentRange(markdown, areaName) {
-  const normalized = String(markdown || "").replace(/\r\n?/g, "\n");
-  const lines = normalized.split("\n");
-  const target = String(areaName || "main")
-    .trim()
-    .toLowerCase();
-
-  let areaMarkerIdx = -1;
-  let nextMarkerIdx = lines.length;
-
-  for (let i = 0; i < lines.length; i++) {
-    const markerMatch = lines[i].match(AREA_MARKER_RE);
-    if (!markerMatch) continue;
-    if (markerMatch[1].toLowerCase() === target) {
-      areaMarkerIdx = i;
-    } else if (areaMarkerIdx >= 0 && i > areaMarkerIdx) {
-      nextMarkerIdx = i;
-      break;
-    }
-  }
-
-  if (areaMarkerIdx < 0) {
-    return { from: normalized.length, to: normalized.length };
-  }
-
-  const lineToCharOffset = (lineIndex) => {
-    let pos = 0;
-    for (let i = 0; i < lineIndex; i++) {
-      pos += lines[i].length + 1; // +1 for newline
-    }
-    return pos;
-  };
-
-  return {
-    from: lineToCharOffset(areaMarkerIdx + 1),
-    to: lineToCharOffset(nextMarkerIdx),
-  };
-}
-
-// ── DOM → markdown position ──────────────────────────────────────────────
-
-/**
- * Find the markdown character position of a non-image DOM element.
- * Uses the `data-source-line` attribute when available (set by the
- * markdown parser); falls back to text-content matching.
- *
- * @param {string} markdown
- * @param {HTMLElement} element
- * @returns {number} Character offset in `markdown`, or -1 if not found
- */
-export function findMarkdownPositionOfElement(markdown, element) {
-  const area = element.closest(".slide__area");
-  if (!area) return -1;
-
-  const areaName = area.dataset.areaName || "main";
-  const range = getAreaContentRange(markdown, areaName);
-
-  // Prefer data-source-line attribute (set by markdown parser)
-  const sourceLine = parseInt(element.dataset?.[SOURCE_LINE_ATTR], 10);
-  if (!isNaN(sourceLine)) {
-    const lines = markdown.slice(range.from, range.to).split("\n");
-    let charOffset = 0;
-    for (let i = 0; i < Math.min(sourceLine, lines.length); i++) {
-      charOffset += lines[i].length + 1;
-    }
-    return range.from + charOffset;
-  }
-
-  // Fallback: find by text content
-  const text = element.textContent?.trim();
-  if (!text) return -1;
-
-  const areaContent = markdown.slice(range.from, range.to);
-  const lines = areaContent.split("\n");
-  let charOffset = 0;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed && text.startsWith(trimmed.slice(0, MAX_TEXT_MATCH_LEN))) {
-      return range.from + charOffset;
-    }
-    charOffset += line.length + 1;
-  }
-
-  return -1;
 }
 
 // ── Style building ───────────────────────────────────────────────────────

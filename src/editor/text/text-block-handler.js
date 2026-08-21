@@ -22,6 +22,7 @@ import {
   removeLegacyTextBlock,
 } from "../../core/text-block-directive.js";
 import { iconString } from "../../core/icon.js";
+import { getStageScale } from "../../core/utils.js";
 
 const DEFAULT_W = 320;
 const DEFAULT_H = 80;
@@ -52,18 +53,6 @@ function readTextBlockSettings(el) {
     fontStyle: style.fontStyle || "",
     textDecoration: style.textDecoration || "",
   };
-}
-
-/**
- * Read the current stage scale factor from the DOM.
- */
-function getStageScale() {
-  const stage = document.querySelector(".stage__inner");
-  if (!stage) return 1;
-  const transform = getComputedStyle(stage).transform;
-  if (!transform || transform === "none") return 1;
-  const match = transform.match(/matrix\(([^,]+),/);
-  return match ? parseFloat(match[1]) : 1;
 }
 
 export class TextBlockHandler {
