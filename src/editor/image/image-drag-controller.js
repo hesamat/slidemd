@@ -153,16 +153,19 @@ export class ImageDragController extends BlockDragController {
     // Reselect the moved image after the preview re-renders.
     const movedSrc = img.dataset.originalSrc || img.getAttribute("src") || "";
     if (movedSrc) {
-      setTimeout(() => {
-        const imgs = this._container?.querySelectorAll(
-          `.slide__area[data-area-name="${toArea}"] img`,
-        );
-        const match = Array.from(imgs || []).find((el) => {
-          const elSrc = el.dataset.originalSrc || el.getAttribute("src") || "";
-          return elSrc === movedSrc;
-        });
-        if (match) ctx.select(match);
-      }, CROSS_AREA_RESELECT_MS);
+      const targetIndex = this._indexOfElementBefore(targetAreaEl, insertBeforeEl, "img");
+      this._reselectAfterMove(
+        this._container,
+        toArea,
+        targetIndex,
+        "img",
+        (match) => ctx.select(match),
+        {
+          delayMs: CROSS_AREA_RESELECT_MS,
+          getMatchValue: (el) => el.dataset.originalSrc || el.getAttribute("src") || "",
+          expectedValue: movedSrc,
+        },
+      );
     }
     return true;
   }
