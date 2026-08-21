@@ -17,6 +17,7 @@ import { fitToWidth } from "../image/image-position-presets.js";
 import { getStageScale } from "../../core/utils.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { FencedBlockInteractionHandler } from "../codeblock/fenced-block-interaction-handler.js";
+import { MathBlockInteractionHandler } from "../math/math-block-interaction-handler.js";
 import { AreaNavigation } from "../navigation/area-navigation.js";
 import { MarkdownEditor } from "./markdown-editor.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
@@ -199,6 +200,7 @@ export class EditController {
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       ImageInteractionHandler.deactivate();
+      MathBlockInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
       FencedBlockInteractionHandler.deactivate();
       SlideStylePanel.hide();
@@ -266,6 +268,12 @@ export class EditController {
           handler: FencedBlockInteractionHandler,
           getElement: (target) => FencedBlockInteractionHandler.elementFromTarget(target),
           onSelect: (el) => FencedBlockInteractionHandler.select(el),
+        },
+        {
+          name: "math",
+          handler: MathBlockInteractionHandler,
+          getElement: (target) => MathBlockInteractionHandler.elementFromTarget(target),
+          onSelect: (el) => MathBlockInteractionHandler.select(el),
         },
         {
           name: "image",
@@ -652,6 +660,33 @@ export class EditController {
       },
     );
 
+    // Math (KaTeX display) block interaction — drag/reorder/delete
+    MathBlockInteractionHandler.init(
+      () => this.markdownEditor?.getValue() ?? "",
+      (updated) => {
+        this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+        this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+        this.updateUnsavedChangesFlag();
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (slideEl) this.areaGuides.updateAreaOverflow(slideEl);
+      },
+      {
+        onDelete: (updated) => {
+          this.markdownEditor?.setValue(updated, { suppressOnChange: false });
+          this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+          this.updateUnsavedChangesFlag();
+          this.previewUpdater.update();
+        },
+        onMoveArea: (updated) => {
+          this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+          this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+          this.updateUnsavedChangesFlag();
+          this.previewUpdater.update();
+        },
+        onPreviewReady: (callback) => this.previewUpdater.onReadyOnce(callback),
+      },
+    );
+
     this._initImagePropertiesPanel();
 
     // Slide style panel — for styling all areas uniformly
@@ -772,6 +807,7 @@ export class EditController {
       document.body.removeAttribute("data-edit-mode");
       this.mermaidHelper.hide();
       ImageInteractionHandler.deactivate();
+      MathBlockInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
       FencedBlockInteractionHandler.deactivate();
       SlideStylePanel.hide();

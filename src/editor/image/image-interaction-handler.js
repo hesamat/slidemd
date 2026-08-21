@@ -39,8 +39,6 @@ import {
 import { BlockInteractionHandler } from "../core/block-interaction-handler.js";
 import { removeAndInsertBlock } from "../core/markdown-utils.js";
 
-const OVERLAY_BORDER = 2;
-const OVERLAY_BORDER_DOUBLE = OVERLAY_BORDER * 2;
 const IMG_FALLBACK_W = 480;
 const ARROW_KEY_STEP = 10;
 
@@ -86,13 +84,13 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
     return {
       getSelectedImg: () => this._selectedImg,
       select: (img) => this.select(img),
+      deselect: () => this.deselect(),
       updateOverlay: () => this._updateOverlay(),
       syncToMarkdown: () => this._syncToMarkdown(),
       prepareMdImgForDrag: (img) => this._prepareMdImgForDrag(img),
       buildMoveMarkdownAtPosition: (img, from, to, slot) =>
         this._buildMoveMarkdownAtPosition(img, from, to, slot),
       reorderImageInMarkdown: (img, slot) => this._reorderImageInMarkdown(img, slot),
-      findInsertBeforeSlot: (areaEl, ref, y) => this._findInsertBeforeSlot(areaEl, ref, y),
       getMarkdown: () => this._getMarkdown?.(),
       setMarkdown: (md) => this._setMarkdown?.(md),
       onMoveArea: (md) => this._onMoveArea?.(md),
@@ -109,69 +107,15 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
     return !!target.closest(".image-overlay, .image-properties-panel, img");
   }
 
-  static _updateOverlay() {
-    const img = this._selectedImg;
-    const overlay = this._overlay;
-    const grid = this._slideContainer;
-    if (!img || !overlay || !grid) return;
-
-    const imgRect = img.getBoundingClientRect();
-    const gridRect = grid.getBoundingClientRect();
-    const scale = getStageScale();
-
-    const left = (imgRect.left - gridRect.left) / scale;
-    const top = (imgRect.top - gridRect.top) / scale;
-    const w = imgRect.width / scale;
-    const h = imgRect.height / scale;
-
-    overlay.style.display = "block";
-    overlay.style.left = `${left - OVERLAY_BORDER}px`;
-    overlay.style.top = `${top - OVERLAY_BORDER}px`;
-    overlay.style.width = `${w + OVERLAY_BORDER_DOUBLE}px`;
-    overlay.style.height = `${h + OVERLAY_BORDER_DOUBLE}px`;
-  }
-
-  // ── Selection ───────────────────────────────────────────────────────────
-
-  static select(img) {
-    if (this._selectedImg === img) {
-      this._updateOverlay();
-      ImagePropertiesPanel.show(img, readImageSettings(img));
-      return;
-    }
-    // If _selectedImg is stale (removed by a re-render), force a clean
-    // deselect before selecting the new image.
-    if (this._selectedImg && !this._selectedImg.isConnected) {
-      this._selectedImg = null;
-      if (this._overlay) this._overlay.style.display = "none";
-    } else {
-      this.deselect();
-    }
-
-    this._selectedImg = img;
-    img.classList.add("image-selected");
-    this._updateOverlay();
+  static _onSelectExtra(img) {
     ImagePropertiesPanel.show(img, readImageSettings(img));
   }
 
-  static deselect() {
+  static _onDeselectExtra() {
     ImagePropertiesPanel.hide();
-    if (this._selectedImg) {
-      // If the element was removed by a preview re-render, skip
-      // classList removal to avoid errors on orphaned nodes.
-      if (this._selectedImg.isConnected) {
-        this._selectedImg.classList.remove("image-selected");
-        this._selectedImg.classList.remove("img-positioned");
-      }
-      this._selectedImg = null;
+    if (this._selectedImg?.isConnected) {
+      this._selectedImg.classList.remove("img-positioned");
     }
-    if (this._overlay) {
-      this._overlay.style.display = "none";
-    }
-  }
-
-  static isSelected() {
-    return !!this._selectedImg;
   }
 
   /**
@@ -230,24 +174,6 @@ export class ImageInteractionHandler extends BlockInteractionHandler {
   }
 
   // ── Cross-area drag helpers ────────────────────────────────────────────────
-
-  /**
-   * Find which child element in an area the cursor Y position falls
-   * before.  Returns the element to insert before, or null to append
-   * at the end.
-   */
-  static _findInsertBeforeSlot(areaEl, referenceEl, clientY) {
-    const allElements = [...areaEl.children].filter(
-      (el) => el !== referenceEl && !el.classList.contains("image-drop-indicator"),
-    );
-    if (allElements.length === 0) return null;
-    for (const el of allElements) {
-      const rect = el.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      if (clientY < midY) return el;
-    }
-    return null;
-  }
 
   /**
    * Reorder an image within its area by moving its tag in the markdown source.

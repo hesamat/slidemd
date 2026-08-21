@@ -7,6 +7,7 @@
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { FencedBlockInteractionHandler } from "../codeblock/fenced-block-interaction-handler.js";
+import { MathBlockInteractionHandler } from "../math/math-block-interaction-handler.js";
 import { AreaContextMenu } from "./area-context-menu.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 import { parseSingleColumnLayout } from "../core/directive-utils.js";
@@ -316,6 +317,7 @@ export class AreaGuideManager {
         ImageInteractionHandler.activate(grid);
         TextBlockHandler.activate(grid);
         FencedBlockInteractionHandler.activate(grid);
+        MathBlockInteractionHandler.activate(grid);
       }
     });
   }

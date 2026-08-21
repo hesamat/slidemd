@@ -228,7 +228,7 @@ export class BlockDragController {
     // the stale reference so the drag context starts fresh.
     const selected = this._getSelected();
     if (selected && !selected.isConnected) {
-      this._clearSelection?.();
+      this._ctx?.deselect?.();
     }
 
     ctx.select(el);
@@ -361,13 +361,54 @@ export class BlockDragController {
   }
 
   /**
+   * Count how many elements matching `selector` fall strictly before
+   * `insertBeforeEl` inside `areaEl`.  Used to predict the index of a block
+   * after it is inserted into a target area.
+   *
+   * @param {HTMLElement} areaEl
+   * @param {HTMLElement|null} insertBeforeEl
+   * @param {string} selector
+   * @returns {number}
+   */
+  static _indexOfElementBefore(areaEl, insertBeforeEl, selector) {
+    if (!areaEl) return 0;
+    const scoped = selector.startsWith(">") ? `:scope${selector}` : selector;
+    const elements = areaEl.querySelectorAll(scoped);
+    if (!insertBeforeEl) return elements.length;
+
+    let count = 0;
+    for (const el of elements) {
+      if (el === insertBeforeEl) return count;
+      const pos = insertBeforeEl.compareDocumentPosition(el);
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
+        count++;
+      } else {
+        return count;
+      }
+    }
+    return count;
+  }
+
+  /**
    * Reselect a moved element after a cross-area re-render.
+   *
+   * If `onPreviewReady` is provided, the reselect runs after the next preview
+   * update; otherwise it falls back to a `setTimeout`.  When `getMatchValue`
+   * and `expectedValue` are given, the element at `sourceIndex` is validated
+   * and, if it does not match, the first matching candidate is selected.  If
+   * nothing matches, `onNotFound` is called.
+   *
    * @param {HTMLElement} container
    * @param {string} targetArea
    * @param {number} sourceIndex
    * @param {string} selector
    * @param {(el: HTMLElement) => void} select
-   * @param {number} delayMs
+   * @param {object} [opts]
+   * @param {number} [opts.delayMs]
+   * @param {(cb: () => void) => void} [opts.onPreviewReady]
+   * @param {(el: HTMLElement) => string} [opts.getMatchValue]
+   * @param {string} [opts.expectedValue]
+   * @param {() => void} [opts.onNotFound]
    */
   static _reselectAfterMove(
     container,
@@ -375,15 +416,42 @@ export class BlockDragController {
     sourceIndex,
     selector,
     select,
-    delayMs = CROSS_AREA_RESELECT_MS,
+    {
+      delayMs = CROSS_AREA_RESELECT_MS,
+      onPreviewReady,
+      getMatchValue,
+      expectedValue,
+      onNotFound,
+    } = {},
   ) {
     if (isNaN(sourceIndex) || sourceIndex < 0) return;
-    setTimeout(() => {
+
+    const trySelect = () => {
       const candidates = container?.querySelectorAll(
         `.slide__area[data-area-name="${targetArea}"] ${selector}`,
       );
-      const match = candidates?.[sourceIndex];
-      if (match) select(match);
-    }, delayMs);
+      const all = Array.from(candidates || []);
+      let match = all[sourceIndex];
+
+      if (match && getMatchValue && expectedValue != null) {
+        if (getMatchValue(match) !== expectedValue) match = null;
+      }
+
+      if (!match && getMatchValue && expectedValue != null) {
+        match = all.find((el) => getMatchValue(el) === expectedValue) ?? null;
+      }
+
+      if (match) {
+        select(match);
+      } else if (onNotFound) {
+        onNotFound();
+      }
+    };
+
+    if (onPreviewReady) {
+      onPreviewReady(trySelect);
+    } else {
+      setTimeout(trySelect, delayMs);
+    }
   }
 }

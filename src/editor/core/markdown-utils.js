@@ -140,3 +140,51 @@ export function removeAndInsertBlock(markdown, block, insertAt, blockText) {
   updated = updated.replace(/\n{3,}/g, "\n\n");
   return updated;
 }
+
+/**
+ * Return the character ranges of fenced code blocks (``` / ~~~) in markdown.
+ *
+ * @param {string} markdown
+ * @returns {Array<{start: number, end: number}>}
+ */
+export function getFenceRanges(markdown) {
+  const text = String(markdown || "").replace(/\r\n?/g, "\n");
+  const lines = text.split("\n");
+  const ranges = [];
+
+  let inFence = false;
+  let fenceMarker = null;
+  let fenceStart = -1;
+  let charOffset = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const m = line.match(/^\s*(```+|~~~+)\s*/);
+
+    const wasInFence = inFence;
+    if (m) {
+      const marker = m[1][0];
+      if (!wasInFence) {
+        inFence = true;
+        fenceMarker = marker;
+        fenceStart = charOffset;
+      } else if (fenceMarker === marker) {
+        inFence = false;
+        fenceMarker = null;
+        ranges.push({ start: fenceStart, end: charOffset + line.length });
+      }
+    }
+
+    if (wasInFence && !inFence) {
+      fenceStart = -1;
+    }
+
+    charOffset += line.length + 1;
+  }
+
+  if (inFence && fenceStart >= 0) {
+    ranges.push({ start: fenceStart, end: text.length });
+  }
+
+  return ranges;
+}

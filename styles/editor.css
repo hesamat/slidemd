@@ -1204,10 +1204,35 @@
   cursor: move;
 }
 
-/* Mermaid diagrams and code blocks are draggable in edit mode */
+/* Mermaid diagrams, code blocks, and display math are draggable in edit mode */
 [data-edit-mode="true"] .slide__area .mermaid[data-mermaid-processed],
-[data-edit-mode="true"] .slide__area > pre {
+[data-edit-mode="true"] .slide__area > pre,
+[data-edit-mode="true"] .slide__area .katex-display {
   cursor: move;
+}
+
+/* ── Math (KaTeX display) drag/select ───────────────────────────────────── */
+
+/* The overlay tracks the selected display-math block's position/size */
+.math-block-overlay {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  border: 2px solid rgba(2, 132, 199, 0.6);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* Selected display-math block gets move cursor + subtle outline */
+[data-edit-mode="true"] .slide__area .katex-display.math-block-selected {
+  outline: 2px solid rgba(2, 132, 199, 0.6);
+  outline-offset: 2px;
+  cursor: move;
+}
+
+/* Drop gap for display math */
+.math-block-drop-indicator {
+  box-sizing: border-box;
 }
 
 /* Media-span fill images — a size edit or drag takes them out of fill mode */

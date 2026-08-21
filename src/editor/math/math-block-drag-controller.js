@@ -1,24 +1,24 @@
 /**
- * FencedBlockDragController
+ * MathBlockDragController
  *
- * interact.js drag setup for fenced blocks (Mermaid diagrams and code blocks).
+ * interact.js drag setup for KaTeX display-math blocks.
  * Extends BlockDragController, which owns the shared drag lifecycle.
  */
 import { BlockDragController } from "../core/block-drag-controller.js";
 
 const DRAG_OPACITY = "0.4";
 
-export class FencedBlockDragController extends BlockDragController {
+export class MathBlockDragController extends BlockDragController {
   static get _selector() {
-    return ".slide__area .mermaid, .slide__area > pre";
+    return ".slide__area .katex-display";
   }
 
   static get _indicatorClassName() {
-    return "fenced-block-drop-indicator";
+    return "math-block-drop-indicator";
   }
 
   static get _extraSlotExcludes() {
-    return ["editor-area-label"];
+    return ["editor-area-label", "text-block", "flex-row"];
   }
 
   static get _suppressesTextSelection() {
@@ -26,21 +26,19 @@ export class FencedBlockDragController extends BlockDragController {
   }
 
   static _getDragElement(e) {
-    return e.target.closest(".mermaid, pre");
+    return e.target.closest(".katex-display");
   }
 
   static _shouldIgnore(el) {
-    // Skip non-content <pre> (text-block wrappers, flex rows, editor chrome).
-    return !!el.closest(".text-block, .flex-row, .editor-area-label");
+    // Skip math inside text blocks, flex rows, and editor chrome.
+    return !!el.closest(".text-block, .flex-row, .editor-area-label, .editor-slide-warning");
   }
 
   static _onAfterDragStart(el) {
-    // Dim the dragged element so the user sees it being moved.
     el.style.opacity = DRAG_OPACITY;
   }
 
   static _onAfterDragEnd(el) {
-    // Restore opacity.
     if (el) el.style.opacity = "";
   }
 
@@ -51,10 +49,8 @@ export class FencedBlockDragController extends BlockDragController {
     const newMd = ctx.buildMoveMarkdown(el, fromArea, toArea, insertBeforeEl);
     if (!newMd) return false;
 
-    const movedIsMermaid = el.classList.contains("mermaid");
-    const movedContent = movedIsMermaid ? el.dataset.mermaidSource : el.textContent;
-    const selector = movedIsMermaid ? ".mermaid" : "> pre";
-    const targetIndex = this._indexOfElementBefore(targetAreaEl, insertBeforeEl, selector);
+    const targetIndex = this._indexOfElementBefore(targetAreaEl, insertBeforeEl, ".katex-display");
+    const movedContent = el.textContent?.trim();
 
     ctx.onMoveArea?.(newMd);
 
@@ -62,11 +58,13 @@ export class FencedBlockDragController extends BlockDragController {
       this._container,
       toArea,
       targetIndex,
-      selector,
+      ".katex-display",
       (match) => ctx.select(match),
       {
-        getMatchValue: (c) => (movedIsMermaid ? c.dataset.mermaidSource : c.textContent),
+        onPreviewReady: ctx.onPreviewReady,
+        getMatchValue: (m) => m.textContent?.trim(),
         expectedValue: movedContent,
+        onNotFound: () => ctx.deselect?.(),
       },
     );
 
