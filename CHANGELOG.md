@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.0 (2026-08-21)
+
+### Editor & UI
+
+- Adopt the Lucide icon library and unify modal styling across all bespoke modals with a shared `modal-base.css` (#263)
+- Redesign the image properties panel with filters (brightness, contrast, saturate), flip controls, and compact Style/Transform/Arrange tabs; drop border, layer-order, and shadow composer controls (#264)
+- Add drag-and-drop for Mermaid and fenced code blocks, including cross-area reorder, with shared drop-gap indicators and drop-target highlighting (#266)
+
+### Tables
+
+- Add a `::: table { ... }` container directive with curated styling options (width, align, fontSize, columns, borders, striped, headerColor, no-header); PPTX import auto-detects header fill color and emits `headerColor` (#265)
+
+### Refactor
+
+- Extract shared `BlockDragController` and `BlockInteractionHandler` base classes so image and fenced-block drag-and-drop share one lifecycle, overlay, and drop plumbing (#268)
+
 ## 0.12.0 (2026-08-19)
 
 ### AI
