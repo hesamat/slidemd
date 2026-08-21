@@ -36,56 +36,53 @@ import {
   rotateBy,
   getStageScale,
 } from "./image-position-presets.js";
+import { BlockInteractionHandler } from "../core/block-interaction-handler.js";
 
 const OVERLAY_BORDER = 2;
 const OVERLAY_BORDER_DOUBLE = OVERLAY_BORDER * 2;
 const IMG_FALLBACK_W = 480;
 const ARROW_KEY_STEP = 10;
 
-export class ImageInteractionHandler {
-  static _initialized = false;
+export class ImageInteractionHandler extends BlockInteractionHandler {
   static _selectedImg = null;
-  static _slideContainer = null;
-  static _getMarkdown = null;
-  static _setMarkdown = null;
-  static _onDelete = null;
-  static _onMoveArea = null;
-  static _overlay = null;
   static _pendingSelectSrc = null;
   static _aspectLocked = true;
 
-  static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
-    if (this._initialized) return;
-    this._initialized = true;
-    this._getMarkdown = getMarkdown;
-    this._setMarkdown = setMarkdown;
-    this._onDelete = onDelete || null;
-    this._onMoveArea = onMoveArea || null;
-
-    document.addEventListener("mousedown", (e) => {
-      if (
-        this._selectedImg &&
-        !e.target.closest(".image-overlay") &&
-        !e.target.closest("img") &&
-        !e.target.closest(".image-properties-panel")
-      ) {
-        // If _selectedImg was removed by a preview re-render, clear the
-        // stale reference so the next image click can start fresh.
-        if (!this._selectedImg.isConnected) {
-          this._selectedImg = null;
-          if (this._overlay) this._overlay.style.display = "none";
-          ImagePropertiesPanel.hide();
-          return;
-        }
-        this.deselect();
-      }
-    });
+  static get _selected() {
+    return this._selectedImg;
   }
 
-  static activate(slideContainer) {
-    this._slideContainer = slideContainer;
-    this._createOverlay(slideContainer);
-    ImageDragController.activate(slideContainer, {
+  static set _selected(value) {
+    this._selectedImg = value;
+  }
+
+  static get _overlayClassName() {
+    return "image-overlay";
+  }
+
+  static get _selectedClassName() {
+    return "image-selected";
+  }
+
+  static get _overlayInnerHTML() {
+    return [
+      '<div class="oh-l" data-edge="left"></div>',
+      '<div class="oh-r" data-edge="right"></div>',
+      '<div class="oh-t" data-edge="top"></div>',
+      '<div class="oh-b" data-edge="bottom"></div>',
+      '<div class="oh-tl" data-edge="top-left"></div>',
+      '<div class="oh-tr" data-edge="top-right"></div>',
+      '<div class="oh-bl" data-edge="bottom-left"></div>',
+      '<div class="oh-br" data-edge="bottom-right"></div>',
+    ].join("");
+  }
+
+  static get _DragController() {
+    return ImageDragController;
+  }
+
+  static _dragControllerContext() {
+    return {
       getSelectedImg: () => this._selectedImg,
       select: (img) => this.select(img),
       updateOverlay: () => this._updateOverlay(),
@@ -100,46 +97,15 @@ export class ImageInteractionHandler {
       onMoveArea: (md) => this._onMoveArea?.(md),
       getOverlay: () => this._overlay,
       isAspectLocked: () => this._aspectLocked,
-    });
-
-    if (this._selectedImg) {
-      this._updateOverlay();
-    }
+    };
   }
 
-  static deactivate() {
-    this.deselect();
-    ImageDragController.deactivate();
-    this._removeOverlay();
-    this._slideContainer = null;
+  static elementFromTarget(target) {
+    return target.closest("img") || null;
   }
 
-  // ── Overlay ─────────────────────────────────────────────────────────────
-
-  static _createOverlay(container) {
-    this._removeOverlay();
-    const overlay = document.createElement("div");
-    overlay.className = "image-overlay";
-    overlay.innerHTML = `
-            <div class="oh-l" data-edge="left"></div>
-            <div class="oh-r" data-edge="right"></div>
-            <div class="oh-t" data-edge="top"></div>
-            <div class="oh-b" data-edge="bottom"></div>
-            <div class="oh-tl" data-edge="top-left"></div>
-            <div class="oh-tr" data-edge="top-right"></div>
-            <div class="oh-bl" data-edge="bottom-left"></div>
-            <div class="oh-br" data-edge="bottom-right"></div>
-        `;
-    overlay.style.display = "none";
-    container.appendChild(overlay);
-    this._overlay = overlay;
-  }
-
-  static _removeOverlay() {
-    if (this._overlay) {
-      this._overlay.remove();
-      this._overlay = null;
-    }
+  static _isOverlayOrChromeTarget(target) {
+    return !!target.closest(".image-overlay, .image-properties-panel, img");
   }
 
   static _updateOverlay() {
@@ -162,6 +128,18 @@ export class ImageInteractionHandler {
     overlay.style.top = `${top - OVERLAY_BORDER}px`;
     overlay.style.width = `${w + OVERLAY_BORDER_DOUBLE}px`;
     overlay.style.height = `${h + OVERLAY_BORDER_DOUBLE}px`;
+  }
+
+  static _onSelectExtra(img) {
+    ImagePropertiesPanel.show(img, readImageSettings(img));
+  }
+
+  static _onDeselectExtra() {
+    const img = this._selectedImg;
+    ImagePropertiesPanel.hide();
+    if (img?.isConnected) {
+      img.classList.remove("img-positioned");
+    }
   }
 
   // ── Selection ───────────────────────────────────────────────────────────
@@ -188,6 +166,7 @@ export class ImageInteractionHandler {
   }
 
   static deselect() {
+    ImagePropertiesPanel.hide();
     if (this._selectedImg) {
       // If the element was removed by a preview re-render, skip
       // classList removal to avoid errors on orphaned nodes.
@@ -200,7 +179,6 @@ export class ImageInteractionHandler {
     if (this._overlay) {
       this._overlay.style.display = "none";
     }
-    ImagePropertiesPanel.hide();
   }
 
   static isSelected() {
@@ -278,10 +256,19 @@ export class ImageInteractionHandler {
     let insertAt = targetRange.to; // default: end of area
 
     if (insertBeforeEl) {
-      // Find the markdown position of the target element
-      const targetMdPos = findMarkdownPositionOfElement(updated, insertBeforeEl);
-      if (targetMdPos >= targetRange.from && targetMdPos <= targetRange.to) {
-        insertAt = targetMdPos;
+      if (insertBeforeEl.tagName === "IMG") {
+        // Target is another image — find its entry in the target area by DOM ordinal.
+        const targetIdx = getImageOrdinalIndexInArea(insertBeforeEl);
+        const targetImages = parseImagesInArea(updated, toAreaName);
+        if (targetIdx >= 0 && targetImages[targetIdx]) {
+          insertAt = targetImages[targetIdx].start;
+        }
+      } else {
+        // Find the markdown position of the target element (text, code, etc.).
+        const targetMdPos = findMarkdownPositionOfElement(updated, insertBeforeEl);
+        if (targetMdPos >= targetRange.from && targetMdPos <= targetRange.to) {
+          insertAt = targetMdPos;
+        }
       }
     }
 

@@ -375,6 +375,56 @@ export function findAreaNameForOffset(markdown, offset) {
   return currentArea;
 }
 
+const MAX_TEXT_MATCH_LEN = 50;
+
+/**
+ * Find the markdown character position of any rendered block-level element
+ * inside an area.  Prefer the `data-source-line` attribute set by the
+ * markdown parser; fall back to matching the element's text content against
+ * the area's markdown lines.  Returns -1 if the element cannot be mapped.
+ *
+ * @param {string} markdown
+ * @param {HTMLElement} element
+ * @param {object} [opts]
+ * @param {boolean} [opts.preferSourceLine=true] - Whether to use the
+ *   `data-source-line` attribute before falling back to text matching.
+ * @returns {number}
+ */
+export function findElementMarkdownPosition(markdown, element, { preferSourceLine = true } = {}) {
+  const area = element?.closest?.(".slide__area");
+  if (!area) return -1;
+
+  const areaName = area.dataset.areaName || "main";
+  const range = getAreaContentRange(markdown, areaName);
+
+  if (preferSourceLine) {
+    const sourceLine = parseInt(element.dataset?.sourceLine, 10);
+    if (!isNaN(sourceLine)) {
+      const lines = markdown.slice(range.from, range.to).split("\n");
+      let charOffset = 0;
+      for (let i = 0; i < Math.min(sourceLine, lines.length); i++) {
+        charOffset += lines[i].length + 1;
+      }
+      return range.from + charOffset;
+    }
+  }
+
+  const text = element.textContent?.trim();
+  if (!text) return -1;
+
+  const areaContent = markdown.slice(range.from, range.to);
+  const lines = areaContent.split("\n");
+  let charOffset = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed && text.startsWith(trimmed.slice(0, MAX_TEXT_MATCH_LEN))) {
+      return range.from + charOffset;
+    }
+    charOffset += line.length + 1;
+  }
+  return -1;
+}
+
 /**
  * Get the ordinal index of a fenced-block element among all draggable fenced
  * blocks (`.mermaid` divs and content `<pre>`) in its parent area.  Mirrors

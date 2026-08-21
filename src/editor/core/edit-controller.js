@@ -235,41 +235,54 @@ export class EditController {
     this._onSlidesContainerClick = (e) => {
       if (!this.isEditMode) return;
 
-      const textBlock = e.target.closest(".text-block");
-      if (textBlock && !TextBlockHandler.isMultiColumn(textBlock)) {
-        // Leave clicks alone while the block is being edited inline, otherwise
-        // re-selecting it clears contenteditable and drops the typed text.
-        if (textBlock.isContentEditable) return;
+      const blockHandlers = [
+        {
+          name: "text",
+          handler: TextBlockHandler,
+          getElement: (target) => {
+            const textBlock = target.closest(".text-block");
+            if (textBlock && !TextBlockHandler.isMultiColumn(textBlock)) {
+              // Leave clicks alone while the block is being edited inline, otherwise
+              // re-selecting it clears contenteditable and drops the typed text.
+              if (textBlock.isContentEditable) return null;
+              return textBlock;
+            }
+            return null;
+          },
+          onSelect: (el) => {
+            TextBlockHandler.select(el);
+            TextBlockHandler._showPanel();
+          },
+        },
+        {
+          name: "fenced",
+          handler: FencedBlockInteractionHandler,
+          getElement: (target) => FencedBlockInteractionHandler.elementFromTarget(target),
+          onSelect: (el) => FencedBlockInteractionHandler.select(el),
+        },
+        {
+          name: "image",
+          handler: ImageInteractionHandler,
+          getElement: (target) => {
+            const img = target.closest("img");
+            if (img && img.closest(".editor-area-label, .editor-slide-warning")) return null;
+            return img;
+          },
+          onSelect: (el) => ImageInteractionHandler.select(el),
+        },
+      ];
+
+      for (const entry of blockHandlers) {
+        const el = entry.getElement(e.target);
+        if (!el) continue;
         e.preventDefault();
         e.stopPropagation();
-        ImageInteractionHandler.deselect();
-        FencedBlockInteractionHandler.deselect();
-        TextBlockHandler.select(textBlock);
-        TextBlockHandler._showPanel();
+        for (const other of blockHandlers) {
+          if (other !== entry) other.handler.deselect();
+        }
+        entry.onSelect(el);
         return;
       }
-
-      // Fenced blocks (Mermaid diagrams and code blocks) — check before img
-      // so a click on a mermaid SVG (no <img>) selects the diagram.
-      const fencedEl = FencedBlockInteractionHandler.elementFromTarget(e.target);
-      if (fencedEl) {
-        e.preventDefault();
-        e.stopPropagation();
-        ImageInteractionHandler.deselect();
-        TextBlockHandler.deselect();
-        FencedBlockInteractionHandler.select(fencedEl);
-        return;
-      }
-
-      const img = e.target.closest("img");
-      if (!img) return;
-      if (img.closest(".editor-area-label, .editor-slide-warning")) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-      TextBlockHandler.deselect();
-      FencedBlockInteractionHandler.deselect();
-      ImageInteractionHandler.select(img);
     };
 
     this._onSlidesContainerContextMenu = (e) => {
