@@ -99,7 +99,22 @@ describe("getAreaContentRange", () => {
     expect(md.slice(range.from, range.to)).toBe("image here");
   });
 
-  it("returns empty range when area not found", () => {
+  it("returns default main range when no @main marker exists", () => {
+    const md = "preamble\n@media\nimage";
+    const range = getAreaContentRange(md, "main");
+    // "preamble\n" is before the first explicit @area marker, and the project
+    // convention is that content before the first @area belongs to @main.
+    expect(md.slice(range.from, range.to)).toBe("preamble\n");
+  });
+
+  it("returns full content as default main when no @area markers exist", () => {
+    const md = "line1\nline2";
+    const range = getAreaContentRange(md, "main");
+    expect(range.from).toBe(0);
+    expect(range.to).toBe(md.length);
+  });
+
+  it("returns empty range when non-main area not found", () => {
     const md = "@main\ncontent";
     const range = getAreaContentRange(md, "nonexistent");
     expect(range.from).toBe(range.to);
@@ -132,6 +147,14 @@ describe("findFencedBlockAtOpeningLine", () => {
     // Line 1 is "code" (inside the block but not its opening fence line)
     const block = findFencedBlockAtOpeningLine(md, "main", 1);
     expect(block).toBeNull();
+  });
+
+  it("finds block in a default main area with leading directives", () => {
+    const md = "layout: two-column\n\nProse\n\n```js\ncode\n```\n\n@media\nside";
+    // Area content lines: 0="Prose", 1="", 2="```js"
+    const block = findFencedBlockAtOpeningLine(md, "main", 2);
+    expect(block).not.toBeNull();
+    expect(block.lang).toBe("js");
   });
 });
 
@@ -227,8 +250,8 @@ describe("findAreaNameForOffset", () => {
     expect(findAreaNameForOffset(md, mediaContentOffset)).toBe("media");
   });
 
-  it("returns null for offset before any area marker", () => {
+  it("returns main for content before the first area marker", () => {
     const md = "preamble\n@main\ncontent";
-    expect(findAreaNameForOffset(md, 0)).toBeNull();
+    expect(findAreaNameForOffset(md, 0)).toBe("main");
   });
 });

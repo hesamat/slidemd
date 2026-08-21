@@ -12,11 +12,12 @@
  */
 import { FencedBlockDragController } from "./fenced-block-drag-controller.js";
 import {
-  findFencedBlockAtOpeningLine,
   removeFencedBlock,
   getAreaContentRange,
   getDraggableFencedBlockElement,
-  readSourceLine,
+  parseFencedBlocksInArea,
+  insertFencedBlockAt,
+  getFencedBlockOrdinalIndexInArea,
 } from "./fenced-block-utils.js";
 import { getStageScale } from "../image/image-position-presets.js";
 
@@ -188,20 +189,18 @@ export class FencedBlockInteractionHandler {
 
   /**
    * Find the FencedBlock entry matching a rendered DOM element by its
-   * `data-source-line` attribute.
-   *
-   * For `.mermaid` divs the attribute is on the div itself (put there by
-   * convertMermaidCodeBlocksToDiv). For `<pre>` code blocks the attribute
-   * is on the inner `<code>` element (markdown-it's fence renderer puts
-   * token attrs on `<code>`, not `<pre>`).
+   * position among the area's fenced blocks.  The area's `.mermaid`/`<pre>`
+   * elements render in markdown order, so the DOM ordinal maps 1:1 to the
+   * parsed block list — no source-line math (which is relative to the
+   * rendered area and drifts with directives/edits).
    */
   static _findBlockForElement(el, markdown) {
     const area = el.closest(".slide__area");
     if (!area) return null;
     const areaName = area.dataset.areaName || "main";
-    const sourceLine = parseInt(readSourceLine(el), 10);
-    if (isNaN(sourceLine)) return null;
-    return findFencedBlockAtOpeningLine(markdown, areaName, sourceLine);
+    const blocks = parseFencedBlocksInArea(markdown, areaName);
+    const idx = getFencedBlockOrdinalIndexInArea(el);
+    return idx >= 0 ? (blocks[idx] ?? null) : null;
   }
 
   /**
@@ -228,35 +227,17 @@ export class FencedBlockInteractionHandler {
         `.slide__area[data-area-name="${toAreaName}"]`,
       );
       if (targetAreaEl && insertBeforeEl.parentNode === targetAreaEl) {
-        const targetLine = parseInt(readSourceLine(insertBeforeEl), 10);
-        if (!isNaN(targetLine)) {
-          const areaContent = withoutBlock.slice(targetRange.from, targetRange.to);
-          const areaLines = areaContent.split("\n");
-          const offset = areaLines
-            .slice(0, targetLine)
-            .reduce((sum, line) => sum + line.length + 1, 0);
-          const candidate = targetRange.from + offset;
-          if (candidate >= targetRange.from && candidate <= targetRange.to) {
-            insertAt = candidate;
-          }
+        // Match the drop target by its DOM ordinal so the insert offset is
+        // correct even for default (marker-less) @main areas.
+        const targetIdx = getFencedBlockOrdinalIndexInArea(insertBeforeEl);
+        const targetBlocks = parseFencedBlocksInArea(withoutBlock, toAreaName);
+        if (targetIdx >= 0 && targetBlocks[targetIdx]) {
+          insertAt = targetBlocks[targetIdx].start;
         }
       }
     }
 
-    const before = withoutBlock.slice(0, insertAt);
-    const after = withoutBlock.slice(insertAt);
-    const leading =
-      before.length === 0
-        ? ""
-        : before.endsWith("\n\n")
-          ? ""
-          : before.endsWith("\n")
-            ? "\n"
-            : "\n\n";
-    const trailing = after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
-    let updated = before + leading + block.fullTag + trailing + after;
-    updated = updated.replace(/\n{3,}/g, "\n\n");
-    return updated;
+    return insertFencedBlockAt(withoutBlock, insertAt, block.fullTag);
   }
 
   /**
@@ -268,45 +249,36 @@ export class FencedBlockInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md || !el) return;
 
-    const block = this._findBlockForElement(el, md);
-    if (!block) return;
-
     const area = el.closest(".slide__area");
     const areaName = area?.dataset.areaName || "main";
 
-    const { markdown: withoutBlock } = removeFencedBlock(md, block);
+    // Locate the source and target blocks by their DOM ordinal (the area's
+    // fenced elements render in markdown order).  Re-finding the target by
+    // its ordinal in the post-removal markdown avoids source-line drift when
+    // the removed block comes before the target.
+    const originalBlocks = parseFencedBlocksInArea(md, areaName);
+    const srcIdx = getFencedBlockOrdinalIndexInArea(el);
+    if (srcIdx < 0 || srcIdx >= originalBlocks.length) return;
+
+    let targetIdx = -1;
+    if (targetEl && targetEl.parentNode === area) {
+      targetIdx = getFencedBlockOrdinalIndexInArea(targetEl);
+    }
+
+    const { markdown: withoutBlock } = removeFencedBlock(md, originalBlocks[srcIdx]);
     const range = getAreaContentRange(withoutBlock, areaName);
     if (range.from === range.to && range.from === withoutBlock.length) return;
 
     let insertAt = range.to;
-    if (targetEl && targetEl.parentNode === area) {
-      const targetLine = parseInt(readSourceLine(targetEl), 10);
-      if (!isNaN(targetLine)) {
-        const areaContent = withoutBlock.slice(range.from, range.to);
-        const areaLines = areaContent.split("\n");
-        const offset = areaLines
-          .slice(0, targetLine)
-          .reduce((sum, line) => sum + line.length + 1, 0);
-        const candidate = range.from + offset;
-        if (candidate >= range.from && candidate <= range.to) {
-          insertAt = candidate;
-        }
+    if (targetIdx >= 0) {
+      const newBlocks = parseFencedBlocksInArea(withoutBlock, areaName);
+      const adjustedIdx = srcIdx < targetIdx ? targetIdx - 1 : targetIdx;
+      if (newBlocks[adjustedIdx]) {
+        insertAt = newBlocks[adjustedIdx].start;
       }
     }
 
-    const before = withoutBlock.slice(0, insertAt);
-    const after = withoutBlock.slice(insertAt);
-    const leading =
-      before.length === 0
-        ? ""
-        : before.endsWith("\n\n")
-          ? ""
-          : before.endsWith("\n")
-            ? "\n"
-            : "\n\n";
-    const trailing = after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
-    let updated = before + leading + block.fullTag + trailing + after;
-    updated = updated.replace(/\n{3,}/g, "\n\n");
+    const updated = insertFencedBlockAt(withoutBlock, insertAt, originalBlocks[srcIdx].fullTag);
 
     // Move the element in the DOM immediately for visual snap, then update
     // markdown.  The markdown update uses suppressOnChange so it won't
@@ -318,11 +290,7 @@ export class FencedBlockInteractionHandler {
     }
     requestAnimationFrame(() => this._updateOverlay());
 
-    if (this._onMoveArea) {
-      this._onMoveArea(updated);
-    } else {
-      this._setMarkdown?.(updated);
-    }
+    this._setMarkdown?.(updated);
   }
 
   /**

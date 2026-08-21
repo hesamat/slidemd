@@ -12,7 +12,6 @@
  */
 import interact from "interactjs";
 import { DragDropHelpers } from "../core/drag-common.js";
-import { readSourceLine } from "./fenced-block-utils.js";
 
 const CROSS_AREA_RESELECT_MS = 400;
 const DRAG_OPACITY = "0.4";
@@ -182,18 +181,21 @@ export class FencedBlockDragController {
       if (newMd) {
         ctx.onMoveArea?.(newMd);
 
-        // Reselect the moved block after the preview re-renders.
-        const movedSourceLine = parseInt(readSourceLine(el), 10);
+        // Reselect the moved block after the preview re-renders by matching
+        // its content (source lines change when the block moves areas).
         const movedIsMermaid = el.classList.contains("mermaid");
+        const movedContent = movedIsMermaid ? el.dataset.mermaidSource : el.textContent;
         setTimeout(() => {
-          if (isNaN(movedSourceLine)) return;
+          if (movedContent == null) return;
           const targetName = toArea;
           const selector = movedIsMermaid
             ? `.slide__area[data-area-name="${targetName}"] .mermaid`
             : `.slide__area[data-area-name="${targetName}"] > pre`;
           const candidates = this._container?.querySelectorAll(selector);
-          const match = Array.from(candidates || []).find(
-            (c) => parseInt(readSourceLine(c), 10) === movedSourceLine,
+          const match = Array.from(candidates || []).find((c) =>
+            movedIsMermaid
+              ? c.dataset.mermaidSource === movedContent
+              : c.textContent === movedContent,
           );
           if (match) ctx.select(match);
         }, CROSS_AREA_RESELECT_MS);

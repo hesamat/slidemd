@@ -69,6 +69,7 @@ export function parseFencedBlocks(markdown) {
     const lineToChar = (lineIndex) => {
       let pos = 0;
       for (let k = 0; k < lineIndex; k++) pos += lines[k].length + 1;
+      if (lineIndex === lines.length && lines[lines.length - 1] !== "") pos -= 1;
       return pos;
     };
 
@@ -108,29 +109,45 @@ export function getAreaContentRange(markdown, areaName) {
     .trim()
     .toLowerCase();
 
+  const lineToCharOffset = (lineIndex) => {
+    let pos = 0;
+    for (let i = 0; i < lineIndex; i++) pos += lines[i].length + 1;
+    if (lineIndex === lines.length && lines[lines.length - 1] !== "") pos -= 1;
+    return pos;
+  };
+
   let areaMarkerIdx = -1;
-  let nextMarkerIdx = lines.length;
+  let firstMarkerIdx = lines.length;
 
   for (let i = 0; i < lines.length; i++) {
     const markerMatch = lines[i].match(AREA_MARKER_RE);
     if (!markerMatch) continue;
+    if (areaMarkerIdx < 0 && firstMarkerIdx === lines.length) {
+      firstMarkerIdx = i;
+    }
     if (markerMatch[1].toLowerCase() === target) {
       areaMarkerIdx = i;
-    } else if (areaMarkerIdx >= 0 && i > areaMarkerIdx) {
-      nextMarkerIdx = i;
       break;
     }
   }
 
   if (areaMarkerIdx < 0) {
+    if (target === "main") {
+      // Content before the first explicit @area marker belongs to @main by
+      // project convention (see MarkdownParser.parseAreas).
+      return { from: 0, to: lineToCharOffset(firstMarkerIdx) };
+    }
     return { from: normalized.length, to: normalized.length };
   }
 
-  const lineToCharOffset = (lineIndex) => {
-    let pos = 0;
-    for (let i = 0; i < lineIndex; i++) pos += lines[i].length + 1;
-    return pos;
-  };
+  let nextMarkerIdx = lines.length;
+  for (let i = areaMarkerIdx + 1; i < lines.length; i++) {
+    const markerMatch = lines[i].match(AREA_MARKER_RE);
+    if (markerMatch) {
+      nextMarkerIdx = i;
+      break;
+    }
+  }
 
   return {
     from: lineToCharOffset(areaMarkerIdx + 1),
@@ -165,18 +182,66 @@ export function parseFencedBlocksInArea(markdown, areaName) {
  * @param {number} sourceLine
  * @returns {FencedBlock|null}
  */
+const DIRECTIVE_RE =
+  /^\s*(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|header-style|area-style|area-bg(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i;
+
+function getAreaStartLine(markdown, areaName) {
+  const lines = String(markdown || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
+  const target = String(areaName || "main")
+    .trim()
+    .toLowerCase();
+  const isDirective = (line) => DIRECTIVE_RE.test(line);
+  let current = "main";
+  let inHtmlComment = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const startsComment = /^\s*<!--/.test(line);
+    const endsComment = /-->\s*$/.test(line);
+    if (startsComment) inHtmlComment = true;
+
+    const markerMatch = line.match(AREA_MARKER_RE);
+    if (!inHtmlComment && markerMatch) {
+      current = markerMatch[1].toLowerCase();
+      if (current === target) return i + 1;
+    } else if (current === target && !inHtmlComment && line.trim() !== "" && !isDirective(line)) {
+      // Default main area: the rendered area string begins at the first
+      // non-directive, non-comment, non-blank line.
+      return i;
+    }
+
+    if (endsComment) inHtmlComment = false;
+  }
+
+  if (target === "main") return 0;
+  return undefined;
+}
+
 export function findFencedBlockAtOpeningLine(markdown, areaName, sourceLine) {
-  const range = getAreaContentRange(markdown, areaName);
-  const areaContent = markdown.slice(range.from, range.to);
-  const areaLines = areaContent.split("\n");
+  const md = String(markdown || "");
+  if (!md) return null;
 
-  const openCharOffset = areaLines
-    .slice(0, sourceLine)
-    .reduce((sum, line) => sum + line.length + 1, 0);
+  // `data-source-line` is relative to the rendered area markdown (cleaned of
+  // directives).  Find the raw editor line where that area's content begins,
+  // then locate the fence whose opening line is `areaStart + sourceLine`.
+  let areaStart = getAreaStartLine(md, areaName);
+  if (areaStart === undefined) {
+    // @title / @header alias handling.
+    if (areaName === "title") {
+      areaStart = getAreaStartLine(md, "header");
+    } else if (areaName === "header") {
+      areaStart = getAreaStartLine(md, "title");
+    }
+  }
+  if (areaStart === undefined) return null;
 
-  const blocks = parseFencedBlocks(markdown);
+  const rawLine = areaStart + sourceLine;
+  const blocks = parseFencedBlocksInArea(md, areaName);
   for (const block of blocks) {
-    if (block.start === range.from + openCharOffset) return block;
+    const blockLine = md.slice(0, block.start).split("\n").length - 1;
+    if (blockLine === rawLine) return block;
   }
   return null;
 }
@@ -287,10 +352,12 @@ export function findAreaNameForOffset(markdown, offset) {
   const lineToCharOffset = (lineIndex) => {
     let pos = 0;
     for (let i = 0; i < lineIndex; i++) pos += lines[i].length + 1;
+    if (lineIndex === lines.length && lines[lines.length - 1] !== "") pos -= 1;
     return pos;
   };
 
-  let currentArea = null;
+  // Content before the first explicit @area marker belongs to @main.
+  let currentArea = "main";
   for (let i = 0; i < lines.length; i++) {
     const markerMatch = lines[i].match(AREA_MARKER_RE);
     if (markerMatch) {
@@ -308,21 +375,20 @@ export function findAreaNameForOffset(markdown, offset) {
   return currentArea;
 }
 
-const SOURCE_LINE_ATTR = "sourceLine";
-
 /**
- * Read the `data-source-line` attribute from a fenced-block element.
- * For `<pre>` code blocks the attribute lives on the inner `<code>` child
- * (markdown-it's fence renderer puts token attrs on `<code>`), so check
- * both the element and its `<code>` descendant.
+ * Get the ordinal index of a fenced-block element among all draggable fenced
+ * blocks (`.mermaid` divs and content `<pre>`) in its parent area.  Mirrors
+ * `getImageOrdinalIndexInArea` so blocks can be matched to their markdown
+ * entries by DOM position instead of source-line numbers (which are relative
+ * to the rendered area markdown and drift with directives/edits).
+ *
  * @param {HTMLElement} el
- * @returns {string|undefined}
+ * @returns {number} Index, or -1 if not found in an area.
  */
-export function readSourceLine(el) {
-  if (!el) return undefined;
-  if (el.dataset?.[SOURCE_LINE_ATTR]) return el.dataset[SOURCE_LINE_ATTR];
-  const code = el.querySelector?.("code");
-  return code?.dataset?.[SOURCE_LINE_ATTR];
+export function getFencedBlockOrdinalIndexInArea(el) {
+  const area = el.closest(".slide__area");
+  if (!area) return -1;
+  return Array.from(area.querySelectorAll(".mermaid, pre")).indexOf(el);
 }
 
 /**
