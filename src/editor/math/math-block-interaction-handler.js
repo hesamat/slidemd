@@ -127,7 +127,7 @@ export class MathBlockInteractionHandler extends BlockInteractionHandler {
           insertBeforeEl.querySelector?.(".katex-display");
         if (
           targetMathEl &&
-          !targetMathEl.closest(".text-block, .editor-area-label, .editor-slide-warning")
+          !targetMathEl.closest(".text-block, .editor-area-label, .editor-slide-warning, .flex-row")
         ) {
           const targetIdx = getDisplayMathOrdinalIndexInArea(targetMathEl);
           const targetBlocks = parseDisplayMathBlocksInArea(withoutBlock, toAreaName);
@@ -164,7 +164,9 @@ export class MathBlockInteractionHandler extends BlockInteractionHandler {
 
     let targetMathEl =
       targetEl?.closest?.(".katex-display") || targetEl?.querySelector?.(".katex-display");
-    if (targetMathEl?.closest?.(".text-block, .editor-area-label, .editor-slide-warning")) {
+    if (
+      targetMathEl?.closest?.(".text-block, .editor-area-label, .editor-slide-warning, .flex-row")
+    ) {
       targetMathEl = null;
     }
     const targetIdx =

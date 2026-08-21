@@ -212,6 +212,12 @@ export class BlockInteractionHandler {
     }
   }
 
+  static deselectIfOrphaned() {
+    if (this._selected && this._slideContainer && !this._slideContainer.contains(this._selected)) {
+      this.deselect();
+    }
+  }
+
   static isSelected() {
     return !!this._selected;
   }

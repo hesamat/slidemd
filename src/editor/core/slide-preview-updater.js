@@ -360,6 +360,9 @@ export class SlidePreviewUpdater {
           requestAnimationFrame(() => {
             this.areaGuides.updateAreaOverflow(slideEl);
             this._drainReadyCallbacks(slideEl);
+            ImageInteractionHandler.deselectIfOrphaned();
+            MathBlockInteractionHandler.deselectIfOrphaned();
+            FencedBlockInteractionHandler.deselectIfOrphaned();
           });
         } else {
           // ── Slow path: layout or areas changed — full replace ──────────

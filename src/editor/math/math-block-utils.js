@@ -147,11 +147,10 @@ export function getDisplayMathOrdinalIndexInArea(el) {
  */
 export function getDraggableDisplayMathElement(target) {
   if (!target?.closest) return null;
-  if (target.closest(".editor-area-label, .editor-slide-warning, .text-block")) return null;
+  if (target.closest(".editor-area-label, .editor-slide-warning, .text-block, .flex-row"))
+    return null;
   const display = target.closest(".katex-display");
   if (!display) return null;
-  // Inline math uses `.katex`, display math uses `.katex-display`.
-  if (display.classList.contains("katex")) return null;
   return display;
 }
 

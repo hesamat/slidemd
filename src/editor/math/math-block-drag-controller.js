@@ -20,7 +20,7 @@ export class MathBlockDragController extends BlockDragController {
   }
 
   static get _extraSlotExcludes() {
-    return ["editor-area-label"];
+    return ["editor-area-label", "text-block", "flex-row"];
   }
 
   static get _suppressesTextSelection() {
@@ -44,6 +44,24 @@ export class MathBlockDragController extends BlockDragController {
     if (el) el.style.opacity = "";
   }
 
+  static _mathIndexBefore(areaEl, insertBeforeEl) {
+    if (!areaEl) return 0;
+    const displays = areaEl.querySelectorAll(".katex-display");
+    if (!insertBeforeEl) return displays.length;
+
+    let count = 0;
+    for (const d of displays) {
+      if (d === insertBeforeEl) return count;
+      const pos = insertBeforeEl.compareDocumentPosition(d);
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
+        count++;
+      } else {
+        return count;
+      }
+    }
+    return count;
+  }
+
   static _onCrossAreaDrop(el, fromArea, toArea, targetAreaEl, insertBeforeEl, _e) {
     const ctx = this._ctx;
     if (!ctx) return false;
@@ -51,19 +69,30 @@ export class MathBlockDragController extends BlockDragController {
     const newMd = ctx.buildMoveMarkdown(el, fromArea, toArea, insertBeforeEl);
     if (!newMd) return false;
 
+    // Remember where the math will land so we can reselect the exact new
+    // element after the preview re-renders, even if there are duplicate
+    // equations in the target area.
+    const targetIndex = this._mathIndexBefore(targetAreaEl, insertBeforeEl);
+    const movedContent = el.textContent?.trim();
+
     ctx.onMoveArea?.(newMd);
 
-    // Reselect the moved math after the preview re-renders by matching the
-    // rendered text content.  Use onPreviewReady if available so the overlay
-    // snaps to the correct new location; fall back to a timeout otherwise.
-    const movedContent = el.textContent?.trim();
     const reselect = () => {
-      const candidates = this._container?.querySelectorAll(
-        `.slide__area[data-area-name="${toArea}"] .katex-display`,
-      );
-      const match = Array.from(candidates || []).find(
-        (m) => m.textContent?.trim() === movedContent,
-      );
+      const targetArea = this._container?.querySelector(`.slide__area[data-area-name="${toArea}"]`);
+      const displays = targetArea?.querySelectorAll(".katex-display") || [];
+      const byIndex = displays[targetIndex];
+      if (byIndex && (!movedContent || byIndex.textContent?.trim() === movedContent)) {
+        ctx.select(byIndex);
+        return;
+      }
+
+      // Fallback for unusual cases (e.g., the math ended up in a mixed
+      // paragraph and changed child order).
+      if (!movedContent) {
+        ctx.deselect?.();
+        return;
+      }
+      const match = Array.from(displays).find((m) => m.textContent?.trim() === movedContent);
       if (match) {
         ctx.select(match);
       } else {
@@ -71,7 +100,7 @@ export class MathBlockDragController extends BlockDragController {
       }
     };
 
-    if (movedContent && ctx.onPreviewReady) {
+    if (ctx.onPreviewReady) {
       ctx.onPreviewReady(reselect);
     } else if (movedContent) {
       setTimeout(reselect, CROSS_AREA_RESELECT_MS);
