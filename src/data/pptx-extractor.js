@@ -109,12 +109,14 @@ export class PptxExtractor {
   static async extract(buffer, limit = undefined) {
     const raw = await parse(buffer);
 
+    // Load the PPTX ZIP once and reuse it for the manual XML extractions.
+    // pptxtojson.parse() still parses the buffer internally, but the
+    // custom extractions below share this single JSZip instance.
+    const zip = await JSZip.loadAsync(buffer);
+
     // Extract ordered list start values from raw PPTX XML before pptxtojson
     // drops them from the generated HTML.
-    // NOTE: This calls JSZip.loadAsync separately from pptxtojson.parse(),
-    // so the ZIP is parsed twice. This is unavoidable because pptxtojson
-    // only accepts ArrayBuffer and drops <ol start="X"> attributes.
-    const olStartValues = await this.#extractOlStartValues(buffer);
+    const olStartValues = await this.#extractOlStartValues(zip);
 
     // pptxtojson sorts slides by filename (slide1.xml, slide2.xml, …), which
     // is usually but not always the same as the presentation order. PowerPoint
@@ -128,7 +130,7 @@ export class PptxExtractor {
     // This handles gaps in file numbering (e.g. slide1, slide2, slide4 after
     // a deletion) — raw.slides is indexed by position in the sorted file list,
     // not by file number.
-    const slideOrderInfo = await this.#extractSlideOrder(buffer);
+    const slideOrderInfo = await this.#extractSlideOrder(zip);
     let orderedRawSlides = slideOrderInfo
       ? slideOrderInfo.order
           .map((fileNum) => raw.slides[slideOrderInfo.fileNumToIndex.get(fileNum)])
@@ -141,7 +143,7 @@ export class PptxExtractor {
 
     // Text-box paragraph data (with <a:br/> breaks) keyed by slide file number,
     // used to restore line breaks that pptxtojson drops.
-    const xmlTexts = await this.#extractSlideXmlTexts(buffer);
+    const xmlTexts = await this.#extractSlideXmlTexts(zip);
 
     // Build a fallback fileNum→index map for the OL start value lookup when
     // #extractSlideOrder returned null. This keeps the olKey consistent: the
@@ -150,7 +152,6 @@ export class PptxExtractor {
     // in the fallback path.
     let fallbackFileNums = null;
     if (!slideOrderInfo) {
-      const zip = await JSZip.loadAsync(buffer);
       const slideFiles = Object.keys(zip.files)
         .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir)
         .map((name) => Number(name.match(/slide(\d+)\.xml/)[1]))
@@ -817,17 +818,15 @@ export class PptxExtractor {
    * when there are gaps.
    *
    * @static
-   * @param {ArrayBuffer} buffer - PPTX file buffer.
+   * @param {JSZip} zip - Already-loaded PPTX ZIP archive.
    * @returns {Promise<{order: number[], fileNumToIndex: Map<number, number>}|null>}
    *   `order[i]` is the 1-based file number of the i-th slide in presentation
    *   order. `fileNumToIndex.get(fileNum)` is the index into `raw.slides` for
    *   that file. Returns null if the order could not be determined (in which
    *   case the caller should fall back to filename order).
    */
-  static async #extractSlideOrder(buffer) {
+  static async #extractSlideOrder(zip) {
     try {
-      const zip = await JSZip.loadAsync(buffer);
-
       // 1. Read presentation.xml to get the <p:sldIdLst> order (rIds).
       const presXml = await zip.file("ppt/presentation.xml")?.async("text");
       if (!presXml) return null;
@@ -902,13 +901,12 @@ export class PptxExtractor {
    * PptxToJSON drops <ol start="X"> attributes, so we read them directly.
    *
    * @static
-   * @param {ArrayBuffer} buffer - PPTX file buffer.
+   * @param {JSZip} zip - Already-loaded PPTX ZIP archive.
    * @returns {Promise<Map<number, number[]>>} Slide index → array of start values.
    */
-  static async #extractOlStartValues(buffer) {
+  static async #extractOlStartValues(zip) {
     const startValues = new Map();
     try {
-      const zip = await JSZip.loadAsync(buffer);
       const slideFiles = Object.keys(zip.files).filter(
         (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir,
       );
@@ -975,16 +973,15 @@ export class PptxExtractor {
    * one merged paragraph), so the breaks are reconstructed here.
    *
    * @static
-   * @param {ArrayBuffer} buffer - PPTX file buffer.
+   * @param {JSZip} zip - Already-loaded PPTX ZIP archive.
    * @returns {Promise<Map<number, Array<{flatText: string, paragraphs: Array<{xmlWithBreaks: string, hasBreak: boolean}>}>>>}
    *   Keyed by 1-based slide file number. Each text box records the flat text
    *   (breaks removed, matching what pptxtojson produces) and per-paragraph
    *   text with `\n` substituted at every `<a:br/>`.
    */
-  static async #extractSlideXmlTexts(buffer) {
+  static async #extractSlideXmlTexts(zip) {
     const map = new Map();
     try {
-      const zip = await JSZip.loadAsync(buffer);
       const slideFiles = Object.keys(zip.files).filter(
         (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir,
       );
