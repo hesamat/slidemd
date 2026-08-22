@@ -537,14 +537,15 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 
 ### Available Attributes
 
-| Attribute                   | Effect                                         |
-| --------------------------- | ---------------------------------------------- |
-| `column-count`              | Multi-column flow                              |
-| `fontSize`                  | Override text size                             |
-| `color` / `backgroundColor` | Text and background color                      |
-| `align`                     | left / center / right                          |
-| `markdown`                  | Render markdown                                |
-| `preset` + `tail`           | Speech bubble (`preset="bubble"`, `tail` side) |
+| Attribute                   | Effect                                             |
+| --------------------------- | -------------------------------------------------- |
+| `column-count`              | Multi-column flow                                  |
+| `fontSize`                  | Override text size                                 |
+| `color` / `backgroundColor` | Text and background color                          |
+| `align`                     | left / center / right                              |
+| `markdown`                  | Render markdown                                    |
+| `preset` + `tail`           | Speech bubble (`preset="bubble"`, `tail` side)     |
+| `borderColor`               | Bubble outline color (only with `preset="bubble"`) |
 
 @media
 
