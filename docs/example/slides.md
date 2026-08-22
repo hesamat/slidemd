@@ -314,36 +314,6 @@ layout: two-column
 ---
 
 layout: two-column
-
-@header
-
-# AI Editing
-
-@main
-
-Let the AI handle the busywork so you can focus on the message.
-
-### Single Slide
-
-- **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
-- **Add speaker notes** — generate speaker notes without touching the slide
-
-<img src="images/image-d8f9.png" alt="image-d8f9" style="position: relative; left: 148px; top: 9px; width: 523px; height: 350px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
-@media
-
-### Whole Deck
-
-- **Polish** — fix formatting, wording, and layouts. Keeps slide count and order.
-- **Remix** — reorder, merge, or rewrite slides. AI proposes an outline to preview.
-- **Reimagine** — bold new direction with editable outline before generating.
-- **Vision** — send content images to the AI for visual-aware restructuring.
-- **Options** — choose Flow, add speaker notes, or preserve visual identity for Remix.
-
-Set up your provider in **Settings**, open the **AI dropdown**, and try any action. `Ctrl+Z` undoes the result.
-
----
-
-layout: two-column
 theme: dark
 background: #3e1d5f
 
@@ -526,7 +496,7 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
-layout: two-column
+layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 1.3643fr 0.6357fr
 @header
 
 # Text Blocks
@@ -570,7 +540,7 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 
 ### Speech bubble
 
-::: text-block { preset="bubble" tail="left" }
+::: text-block { id="tb-1" preset="bubble" tail=top }
 
 Anyone can write on slides!
 
@@ -624,6 +594,36 @@ Use `::: table { ... }` to wrap a markdown table with sizing, alignment, and sty
 | 4   | 5   | 6   |
 
 :::
+
+---
+
+layout: two-column
+
+@header
+
+# AI Editing
+
+@main
+
+Let the AI handle the busywork so you can focus on the message.
+
+### Single Slide
+
+- **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
+- **Add speaker notes** — generate speaker notes without touching the slide
+
+<img src="images/image-d8f9.png" alt="image-d8f9" style="position: relative; left: 148px; top: 9px; width: 523px; height: 350px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
+@media
+
+### Whole Deck
+
+- **Polish** — fix formatting, wording, and layouts. Keeps slide count and order.
+- **Remix** — reorder, merge, or rewrite slides. AI proposes an outline to preview.
+- **Reimagine** — bold new direction with editable outline before generating.
+- **Vision** — send content images to the AI for visual-aware restructuring.
+- **Options** — choose Flow, add speaker notes, or preserve visual identity for Remix.
+
+Set up your provider in **Settings**, open the **AI dropdown**, and try any action. `Ctrl+Z` undoes the result.
 
 ---
 
