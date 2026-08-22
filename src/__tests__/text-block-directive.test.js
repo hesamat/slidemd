@@ -148,7 +148,11 @@ describe("text block unknown attributes", () => {
     expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("column-count")).toBe(true);
     expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("markdown")).toBe(true);
     expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("style")).toBe(false);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("margin")).toBe(false);
     expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("padding")).toBe(false);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("preset")).toBe(true);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("tail")).toBe(true);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("borderColor")).toBe(true);
   });
 
   it("exports a curated canonical list without alias near-duplicates", () => {
@@ -227,5 +231,66 @@ describe("text block markdown flag", () => {
     expect(parsed.settings.left).toBe(10);
     expect(parsed.settings.top).toBe(20);
     expect(parsed.settings.fontSize).toBe(48);
+  });
+});
+
+describe("text block bubble preset", () => {
+  it("round-trips preset and tail side", () => {
+    const directive = buildTextBlockDirective({ id: "tb-b", preset: "bubble", tail: "left" }, "Hi");
+    expect(directive).toContain('preset="bubble"');
+    expect(directive).toContain("tail=left");
+    const [parsed] = parseTextBlockDirectives(directive);
+    expect(parsed.settings.preset).toBe("bubble");
+    expect(parsed.settings.tail).toBe("left");
+  });
+
+  it("defaults the bubble tail to bottom and omits it from the directive", () => {
+    const directive = buildTextBlockDirective({ id: "tb-b", preset: "bubble" }, "Hi");
+    expect(directive).toContain('preset="bubble"');
+    expect(directive).not.toContain("tail=");
+    const [parsed] = parseTextBlockDirectives(directive);
+    expect(parsed.settings.tail).toBe("bottom");
+  });
+
+  it("emits the bubble class with data-tail and data-align geometry hooks", () => {
+    const html = buildTextBlockHtml({ preset: "bubble", tail: "right", textAlign: "center" }, "Hi");
+    expect(html).toContain("text-block--bubble");
+    expect(html).toContain('data-preset="bubble"');
+    expect(html).toContain('data-tail="right"');
+    expect(html).toContain('data-align="center"');
+    expect(html).not.toContain("align-self");
+  });
+
+  it("maps borderColor to the --bubble-border-color custom property", () => {
+    const html = buildTextBlockHtml({ preset: "bubble", borderColor: "#f59e0b" }, "Hi");
+    expect(html).toContain("--bubble-border-color:#f59e0b");
+  });
+
+  it("round-trips bubble borderColor", () => {
+    const directive = buildTextBlockDirective({ preset: "bubble", borderColor: "#f59e0b" }, "Hi");
+    expect(directive).toContain('borderColor="#f59e0b"');
+    const [parsed] = parseTextBlockDirectives(directive);
+    expect(parsed.settings.borderColor).toBe("#f59e0b");
+  });
+
+  it("ignores borderColor without a bubble preset", () => {
+    const html = buildTextBlockHtml({ borderColor: "#f59e0b" }, "Hi");
+    expect(html).not.toContain("bubble-border-color");
+    const directive = buildTextBlockDirective({ borderColor: "#f59e0b" }, "Hi");
+    expect(directive).not.toContain("borderColor");
+  });
+
+  it("drops invalid tail sides and lowercases the preset name", () => {
+    const md = '::: text-block { preset="Bubble" tail="diagonal" }\nHi\n:::';
+    const [parsed] = parseTextBlockDirectives(md);
+    expect(parsed.settings.preset).toBe("bubble");
+    expect(parsed.settings.tail).toBe("bottom");
+  });
+
+  it("does not emit data hooks without a preset", () => {
+    const html = buildTextBlockHtml({ textAlign: "center" }, "Hi");
+    expect(html).not.toContain("data-align");
+    expect(html).not.toContain("data-tail");
+    expect(html).not.toContain("data-preset");
   });
 });

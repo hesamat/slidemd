@@ -1695,3 +1695,166 @@ body[data-edit-mode="true"] .slide__area .text-block--just-inserted {
   animation: text-block-pulse 2.5s ease-out forwards;
   border-radius: 4px;
 }
+
+/* Text block style presets ─ speech bubbles
+   One class, `text-block--bubble`, plus two data hooks emitted by the
+   directive renderer:
+   - data-tail picks the edge the tail points out of (top/left/right/bottom).
+   - data-align lets the tail and the flex cross-axis pin track the block's
+     text alignment, so centered layouts don't re-center the shrunken box.
+   Rounded body with a real border plus a pointed tail that sticks out of
+   the padding box, so no stacking-order tricks are needed:
+   - ::before is the outline tail: a zero-size element whose transparent
+     side borders and colored outer border form a triangle.
+   - ::after is the fill tail: a clip-path triangle whose background-color
+     is `inherit`ed from the element, so user backgroundColor overrides
+     keep the tail seamless.
+   Both bases sit flush against the padding-box edge so they overlap the
+   border band and read as one continuous shape.
+   Every dimension is a --bubble-* custom property: the borderColor
+   attribute and per-slide `area-style:` overrides (e.g.
+   `area-style: --bubble-radius: 24px`) set the same variables the body and
+   tail read, so they can never fall out of sync. The
+   `filter: drop-shadow()` shadow wraps around body + tail (unlike
+   box-shadow, which would leave the tail naked); use
+   `--bubble-shadow: 0 0 0 transparent` to hide it.
+*/
+.slide__area .text-block--bubble {
+  --bubble-border-width: 2px;
+  --bubble-border-color: var(--accent);
+  --bubble-radius: 18px;
+  --bubble-shadow: 0 4px 7px rgba(0, 0, 0, 0.12);
+  --bubble-tail-pos: 30px;
+  --bubble-tail-base: 26px; /* fill base width along the edge */
+  --bubble-tail-len: 15px; /* how far the tail points out */
+
+  position: relative;
+  z-index: 0;
+  width: fit-content;
+  min-width: 140px;
+  max-width: 80%;
+  padding: 16px 22px;
+  border: var(--bubble-border-width) solid var(--bubble-border-color);
+  border-radius: var(--bubble-radius);
+  background-color: var(--slide-bg);
+  filter: drop-shadow(var(--bubble-shadow));
+  /* fit-content shrinks the box; pin the cross axis so it stays where the
+     full-width block was. Float bubbles ignore this (absolute positioning). */
+  align-self: flex-start;
+}
+
+.slide__area .text-block--bubble[data-align="center"] {
+  align-self: center;
+}
+
+.slide__area .text-block--bubble[data-align="right"] {
+  align-self: flex-end;
+}
+
+/* Outline tail (::before): zero-size element + border triangle pointing
+   outward. Reset every side first: an unstyled border side would otherwise
+   fall back to `medium` width in currentColor and paint a stray dark edge. */
+.slide__area .text-block--bubble::before {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 0 solid transparent;
+}
+
+/* Fill tail (::after): clip-path triangle matching the body fill via
+   `background-color: inherit`. */
+.slide__area .text-block--bubble::after {
+  content: "";
+  position: absolute;
+  background-color: inherit;
+}
+
+/* ── Bottom tail ── */
+.slide__area .text-block--bubble[data-tail="bottom"]::before {
+  top: 100%;
+  left: calc(var(--bubble-tail-pos) - var(--bubble-border-width));
+  border-left: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-right: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-top: calc(var(--bubble-tail-len) + var(--bubble-border-width)) solid
+    var(--bubble-border-color);
+}
+.slide__area .text-block--bubble[data-tail="bottom"]::after {
+  top: 100%;
+  left: var(--bubble-tail-pos);
+  width: var(--bubble-tail-base);
+  height: var(--bubble-tail-len);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+/* ── Top tail ── */
+.slide__area .text-block--bubble[data-tail="top"]::before {
+  bottom: 100%;
+  left: calc(var(--bubble-tail-pos) - var(--bubble-border-width));
+  border-left: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-right: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-bottom: calc(var(--bubble-tail-len) + var(--bubble-border-width)) solid
+    var(--bubble-border-color);
+}
+.slide__area .text-block--bubble[data-tail="top"]::after {
+  bottom: 100%;
+  left: var(--bubble-tail-pos);
+  width: var(--bubble-tail-base);
+  height: var(--bubble-tail-len);
+  clip-path: polygon(0 100%, 100% 100%, 50% 0);
+}
+
+/* ── Left tail ── */
+.slide__area .text-block--bubble[data-tail="left"]::before {
+  right: 100%;
+  top: calc(var(--bubble-tail-pos) - var(--bubble-border-width));
+  border-top: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-bottom: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-right: calc(var(--bubble-tail-len) + var(--bubble-border-width)) solid
+    var(--bubble-border-color);
+}
+.slide__area .text-block--bubble[data-tail="left"]::after {
+  right: 100%;
+  top: var(--bubble-tail-pos);
+  width: var(--bubble-tail-len);
+  height: var(--bubble-tail-base);
+  clip-path: polygon(100% 0, 100% 100%, 0 50%);
+}
+
+/* ── Right tail ── */
+.slide__area .text-block--bubble[data-tail="right"]::before {
+  left: 100%;
+  top: calc(var(--bubble-tail-pos) - var(--bubble-border-width));
+  border-top: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-bottom: calc(var(--bubble-tail-base) / 2 + var(--bubble-border-width)) solid transparent;
+  border-left: calc(var(--bubble-tail-len) + var(--bubble-border-width)) solid
+    var(--bubble-border-color);
+}
+.slide__area .text-block--bubble[data-tail="right"]::after {
+  left: 100%;
+  top: var(--bubble-tail-pos);
+  width: var(--bubble-tail-len);
+  height: var(--bubble-tail-base);
+  clip-path: polygon(0 0, 0 100%, 100% 50%);
+}
+
+/* Horizontal (bottom/top) tails follow the block's alignment so
+   right/center bubbles don't leave the tail stranded on the opposite edge. */
+.slide__area .text-block--bubble[data-tail="bottom"][data-align="center"]::before,
+.slide__area .text-block--bubble[data-tail="top"][data-align="center"]::before {
+  left: calc(50% - var(--bubble-tail-base) / 2 - var(--bubble-border-width));
+}
+.slide__area .text-block--bubble[data-tail="bottom"][data-align="center"]::after,
+.slide__area .text-block--bubble[data-tail="top"][data-align="center"]::after {
+  left: calc(50% - var(--bubble-tail-base) / 2);
+}
+.slide__area .text-block--bubble[data-tail="bottom"][data-align="right"]::before,
+.slide__area .text-block--bubble[data-tail="top"][data-align="right"]::before {
+  left: auto;
+  right: calc(var(--bubble-tail-pos) - var(--bubble-border-width));
+}
+.slide__area .text-block--bubble[data-tail="bottom"][data-align="right"]::after,
+.slide__area .text-block--bubble[data-tail="top"][data-align="right"]::after {
+  left: auto;
+  right: var(--bubble-tail-pos);
+}

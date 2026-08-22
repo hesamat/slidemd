@@ -88,6 +88,8 @@ import {
   PencilLine,
   Wand2,
   ExternalLink,
+  MessageSquare,
+  MessageCircle,
 } from "lucide";
 
 /**
@@ -214,6 +216,10 @@ export const ICONS = Object.freeze({
   "pencil-line": PencilLine,
   wand: Wand2,
   "external-link": ExternalLink,
+  "message-square": MessageSquare,
+  message: MessageSquare,
+  "message-circle": MessageCircle,
+  "chat-bubble": MessageCircle,
 });
 
 /**
