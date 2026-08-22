@@ -34,11 +34,6 @@ const TEXT_ALIGNS = new Set(["left", "center", "right"]);
 
 const CLEAR_ICON = iconString("close", { size: "xl" });
 
-// Lucide doesn't have 4 separate directional bubble icons, so we rotate
-// `message-circle` (which has a tail at the bottom-left) by 45° increments
-// to point the tail up, left, right, or down while the circular body stays round.
-const BUBBLE_ICON = iconString("message-circle", { size: "lg" });
-
 /**
  * Read current settings from a text-block DOM element.
  */
@@ -81,6 +76,7 @@ export class TextBlockHandler {
   static _getSlideElementByIndex = null;
   static _idCounter = 0;
   static _panel = null;
+  static _panelSide = null;
   static _abortController = null;
   static _onPreviewReady = null;
   static _pendingContent = null;
@@ -203,9 +199,23 @@ export class TextBlockHandler {
     this._onPreviewReady?.(onReady);
   }
 
+  /**
+   * Next free text-block id. Ids are required so panel edits can target the
+   * exact directive in the markdown; they're kept short (`tb-1`, `tb-2`, …)
+   * and collision-checked against the current document so they stay readable
+   * in the editor source.
+   */
   static _nextId() {
-    this._idCounter += 1;
-    return `tb-${Date.now()}-${this._idCounter}`;
+    const md = this._getMarkdown?.() || "";
+    const taken = new Set(
+      parseTextBlockDirectives(md)
+        .map((b) => b.settings.id)
+        .filter(Boolean),
+    );
+    let n = this._idCounter + 1;
+    while (taken.has(`tb-${n}`)) n += 1;
+    this._idCounter = n;
+    return `tb-${n}`;
   }
 
   /**
@@ -489,6 +499,9 @@ export class TextBlockHandler {
           if (fresh) {
             this.select(fresh);
             this._syncPanelUI();
+            // The block may have moved/resized (preset toggles, float
+            // changes) — keep the panel anchored to it.
+            this._positionPanel(fresh);
           } else {
             // Fallback: the node is truly gone (deleted). Clear the stale ref.
             if (!this._selected?.isConnected) this._selected = null;
@@ -516,41 +529,49 @@ export class TextBlockHandler {
       <div class="text-properties-panel__body">
         <div class="text-properties-panel__tab" data-tab-content="text">
           <div class="text-properties-panel__row">
-            <textarea class="text-properties-panel__textarea" data-field="content" rows="4" placeholder="Text"></textarea>
+            <textarea class="text-properties-panel__textarea" data-field="content" rows="3" placeholder="Text"></textarea>
           </div>
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field text-properties-panel__field--check">
+              <input type="checkbox" class="text-properties-panel__checkbox" data-field="markdown" />
+              <span class="text-properties-panel__field-label">Render Markdown</span>
+            </label>
+            <label class="text-properties-panel__field text-properties-panel__field--compact">
+              <span class="text-properties-panel__field-label">Columns</span>
+              <input type="number" min="0" max="4" step="1" class="text-properties-panel__input" data-field="columnCount" placeholder="—" />
+            </label>
+          </div>
+          <div class="text-properties-panel__section-label">Paragraph</div>
           <div class="text-properties-panel__row">
             <button type="button" class="text-properties-panel__chip" data-action="align-left">Left</button>
             <button type="button" class="text-properties-panel__chip" data-action="align-center">Center</button>
             <button type="button" class="text-properties-panel__chip" data-action="align-right">Right</button>
           </div>
-          <div class="text-properties-panel__row text-properties-panel__row--bubble">
-            <span class="text-properties-panel__field-label">Bubble</span>
-            <div class="text-properties-panel__bubble-group">
-              <button type="button" class="text-properties-panel__bubble-btn" data-action="bubble-top" title="Tail up" aria-label="Bubble with tail up">${BUBBLE_ICON}</button>
-              <button type="button" class="text-properties-panel__bubble-btn" data-action="bubble-left" title="Tail left" aria-label="Bubble with tail left">${BUBBLE_ICON}</button>
-              <button type="button" class="text-properties-panel__bubble-btn" data-action="bubble-right" title="Tail right" aria-label="Bubble with tail right">${BUBBLE_ICON}</button>
-              <button type="button" class="text-properties-panel__bubble-btn" data-action="bubble-bottom" title="Tail down" aria-label="Bubble with tail down">${BUBBLE_ICON}</button>
-              <button type="button" class="text-properties-panel__bubble-btn text-properties-panel__bubble-btn--clear" data-action="bubble-none" title="No bubble" aria-label="Remove bubble">${CLEAR_ICON}</button>
+          <div class="text-properties-panel__section-label">Bubble</div>
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field text-properties-panel__field--check">
+              <input type="checkbox" class="text-properties-panel__checkbox" data-field="bubbleEnabled" />
+              <span class="text-properties-panel__field-label">Enabled</span>
+            </label>
+            <select class="text-properties-panel__input" data-field="tail" aria-label="Tail direction">
+              <option value="bottom">Tail: Bottom</option>
+              <option value="top">Tail: Top</option>
+              <option value="left">Tail: Left</option>
+              <option value="right">Tail: Right</option>
+            </select>
+          </div>
+          <div class="text-properties-panel__row text-properties-panel__row--bubble-only webdeck-hidden">
+            <div class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Border color</span>
+              <span class="text-properties-panel__input-wrap">
+                <button type="button" class="text-properties-panel__clear-btn" data-action="reset-border-color" aria-label="Reset border color">${CLEAR_ICON}</button>
+                <input type="color" class="text-properties-panel__input" data-field="borderColor" />
+              </span>
             </div>
-          </div>
-          <div class="text-properties-panel__row">
-            <label class="text-properties-panel__field">
-              <span class="text-properties-panel__field-label">Columns</span>
-              <input type="number" min="0" max="4" step="1" class="text-properties-panel__input" data-field="columnCount" placeholder="—" />
-            </label>
-            <label class="text-properties-panel__field text-properties-panel__field--check">
-              <input type="checkbox" class="text-properties-panel__checkbox" data-field="markdown" />
-              <span class="text-properties-panel__field-label">Render Markdown</span>
-            </label>
-          </div>
-          <div class="text-properties-panel__row">
-            <label class="text-properties-panel__field text-properties-panel__field--check">
-              <input type="checkbox" class="text-properties-panel__checkbox" data-field="float" />
-              <span class="text-properties-panel__field-label">Float (overlay)</span>
-            </label>
           </div>
         </div>
         <div class="text-properties-panel__tab webdeck-hidden" data-tab-content="style">
+          <div class="text-properties-panel__section-label">Font</div>
           <div class="text-properties-panel__row">
             <button type="button" class="text-properties-panel__chip" data-action="bold">B</button>
             <button type="button" class="text-properties-panel__chip" data-action="italic">I</button>
@@ -559,18 +580,18 @@ export class TextBlockHandler {
           </div>
           <div class="text-properties-panel__row">
             <label class="text-properties-panel__field">
-              <span class="text-properties-panel__field-label">Font</span>
+              <span class="text-properties-panel__field-label">Size</span>
               <input type="number" class="text-properties-panel__input" data-field="fontSize" />
             </label>
             <div class="text-properties-panel__field">
-              <span class="text-properties-panel__field-label">Color</span>
+              <span class="text-properties-panel__field-label">Text color</span>
               <span class="text-properties-panel__input-wrap">
                 <button type="button" class="text-properties-panel__clear-btn" data-action="reset-color" aria-label="Reset color">${CLEAR_ICON}</button>
                 <input type="color" class="text-properties-panel__input" data-field="color" />
               </span>
             </div>
           </div>
-
+          <div class="text-properties-panel__section-label">Surface</div>
           <div class="text-properties-panel__row">
             <div class="text-properties-panel__field">
               <span class="text-properties-panel__field-label">Background</span>
@@ -584,18 +605,15 @@ export class TextBlockHandler {
               <input type="number" step="0.1" min="0" max="1" class="text-properties-panel__input" data-field="opacity" />
             </label>
           </div>
-
-          <div class="text-properties-panel__row text-properties-panel__row--bubble-only webdeck-hidden">
-            <div class="text-properties-panel__field">
-              <span class="text-properties-panel__field-label">Border color</span>
-              <span class="text-properties-panel__input-wrap">
-                <button type="button" class="text-properties-panel__clear-btn" data-action="reset-border-color" aria-label="Reset border color">${CLEAR_ICON}</button>
-                <input type="color" class="text-properties-panel__input" data-field="borderColor" />
-              </span>
-            </div>
-          </div>
         </div>
         <div class="text-properties-panel__tab webdeck-hidden" data-tab-content="position">
+          <div class="text-properties-panel__section-label">Placement</div>
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field text-properties-panel__field--check">
+              <input type="checkbox" class="text-properties-panel__checkbox" data-field="float" />
+              <span class="text-properties-panel__field-label">Float (overlay)</span>
+            </label>
+          </div>
           <div class="text-properties-panel__row">
             <label class="text-properties-panel__field">
               <span class="text-properties-panel__field-label">X</span>
@@ -638,7 +656,16 @@ export class TextBlockHandler {
       this._onPanelInput(field, value);
     });
 
-    el.addEventListener("change", () => this._syncToMarkdown());
+    el.addEventListener("change", (e) => {
+      // <select> fires change, not input, in some browsers — keep the live
+      // DOM (dataset/style) in sync before the markdown sync reads it.
+      const field = e.target?.dataset?.field;
+      if (field === "tail" || field === "bubbleEnabled") {
+        const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+        this._onPanelInput(field, v);
+      }
+      this._syncToMarkdown();
+    });
     el.addEventListener("click", (e) => {
       const tab = e.target?.closest?.("[data-tab]")?.dataset?.tab;
       if (tab) {
@@ -679,23 +706,37 @@ export class TextBlockHandler {
     this._syncPanelUI();
     this._switchTab("text");
     this._panel.classList.remove("webdeck-hidden");
+    // Explicit opens always re-record the anchor side; sync re-anchors reuse it.
+    this._positionPanel(el, { below, preferredSide: true });
+  }
 
+  /**
+   * Anchor the panel to the block's current geometry. Called on open and
+   * again after sync-driven re-renders — the preview replaces the block node
+   * (and presets change its size), so the panel would otherwise float
+   * detached from the element it edits.
+   */
+  static _positionPanel(el, { below = false, preferredSide = null } = {}) {
+    if (!el || !this._panel) return;
+    // Remember which side the user opened with so re-anchors stay put.
+    if (preferredSide) this._panelSide = below ? "below" : "right";
+    const side = this._panelSide || (below ? "below" : "right");
+
+    if (this._panel.classList.contains("webdeck-hidden")) return;
     const rect = el.getBoundingClientRect();
+    if (!rect.width && !rect.height) return;
     const panelH = this._panel.offsetHeight || 260;
     const panelW = this._panel.offsetWidth || 280;
 
     let left;
     let top;
-    if (below) {
-      // Auto-open: place below the block, left-aligned with it.
-      // Falls back to above if there isn't room below.
+    if (side === "below") {
       left = rect.left + window.scrollX;
       top = rect.bottom + window.scrollY + 8;
       if (top + panelH > window.innerHeight + window.scrollY) {
         top = rect.top + window.scrollY - panelH - 8;
       }
     } else {
-      // Right-click: place to the right of the block, flip left on overflow.
       left = rect.right + window.scrollX + 8;
       top = rect.top + window.scrollY;
       if (left + panelW > window.innerWidth + window.scrollX) {
@@ -751,6 +792,12 @@ export class TextBlockHandler {
     setValue("borderColor", settings.borderColor);
     setValue("columnCount", settings.columnCount || "");
     setValue("markdown", settings.markdown);
+    setValue("bubbleEnabled", settings.preset === "bubble");
+    setValue("tail", settings.tail || "bottom");
+
+    // Tail direction only matters when bubble is on.
+    const tailInput = this._panel.querySelector('[data-field="tail"]');
+    if (tailInput) tailInput.disabled = settings.preset !== "bubble";
 
     // The border-color control only means something on a bubble preset.
     this._panel
@@ -781,15 +828,6 @@ export class TextBlockHandler {
           break;
         case "strikethrough":
           active = settings.textDecoration.includes("line-through");
-          break;
-        default:
-          if (action.startsWith("bubble-")) {
-            const side = action.slice(7);
-            active =
-              side === "none"
-                ? settings.preset !== "bubble"
-                : settings.preset === "bubble" && settings.tail === side;
-          }
           break;
       }
       btn.classList.toggle("active", active);
@@ -863,6 +901,31 @@ export class TextBlockHandler {
       return;
     }
 
+    if (field === "bubbleEnabled") {
+      const enabled = !!value;
+      if (enabled) {
+        el.classList.add("text-block--bubble");
+        el.dataset.preset = "bubble";
+        if (!TEXT_BLOCK_TAIL_SIDES.includes(el.dataset.tail)) el.dataset.tail = "bottom";
+        const a = el.style.textAlign || "left";
+        if (TEXT_ALIGNS.has(a)) el.dataset.align = a;
+      } else {
+        el.classList.remove("text-block--bubble");
+        delete el.dataset.preset;
+        delete el.dataset.tail;
+        delete el.dataset.align;
+      }
+      this._syncPanelUI();
+      return;
+    }
+
+    if (field === "tail") {
+      if (el.dataset.preset === "bubble" && TEXT_BLOCK_TAIL_SIDES.includes(value)) {
+        el.dataset.tail = value;
+      }
+      return;
+    }
+
     if (field === "opacity") {
       el.style.opacity = value;
     } else if (["color", "backgroundColor"].includes(field)) {
@@ -882,27 +945,6 @@ export class TextBlockHandler {
 
     if (action === "delete") {
       this._deleteSelected();
-      return;
-    }
-
-    if (action.startsWith("bubble-")) {
-      const side = action.slice(7);
-      if (side === "none") {
-        el.classList.remove("text-block--bubble");
-        delete el.dataset.preset;
-        delete el.dataset.tail;
-        delete el.dataset.align;
-      } else if (TEXT_BLOCK_TAIL_SIDES.includes(side)) {
-        el.classList.add("text-block--bubble");
-        el.dataset.preset = "bubble";
-        el.dataset.tail = side;
-        // The tail and cross-axis pin follow text alignment; slides.css
-        // turns data-align into align-self, so no inline style is needed.
-        const a = el.style.textAlign || "left";
-        if (TEXT_ALIGNS.has(a)) el.dataset.align = a;
-      }
-      this._syncPanelUI();
-      this._syncToMarkdown();
       return;
     }
 
