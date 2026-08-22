@@ -1289,6 +1289,7 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .text-properties-panel__row:last-child {
@@ -1353,6 +1354,83 @@
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
+}
+
+/* ── Bubble preset controls ── */
+.text-properties-panel__row--bubble {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.text-properties-panel__bubble-group {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.text-properties-panel__bubble-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: 6px;
+  color: var(--text-medium);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.text-properties-panel__bubble-btn:hover {
+  background: var(--accent-bg);
+  color: var(--text-high);
+  border-color: var(--accent-border);
+}
+
+.text-properties-panel__bubble-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.text-properties-panel__bubble-btn--clear {
+  color: var(--text-low);
+}
+
+.text-properties-panel__bubble-btn--clear:hover {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.text-properties-panel__bubble-btn--clear.active {
+  background: var(--surface-bg);
+  color: var(--text-medium);
+  border-color: var(--border-medium);
+}
+
+.text-properties-panel__bubble-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* message-circle's tail points bottom-left; CSS rotation is clockwise, so:
+   SW - 45° = down, SW + 45° = left, SW + 135° = up, SW + 225° = right */
+[data-action="bubble-bottom"] svg {
+  transform: rotate(-45deg);
+}
+
+[data-action="bubble-left"] svg {
+  transform: rotate(45deg);
+}
+
+[data-action="bubble-right"] svg {
+  transform: rotate(225deg);
+}
+
+[data-action="bubble-top"] svg {
+  transform: rotate(135deg);
 }
 
 .text-properties-panel__btn {

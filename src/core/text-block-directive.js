@@ -15,7 +15,14 @@
  * Supported attributes (key=value or key="value", NOT key: value):
  *   id, float, x, y, fontSize, color, backgroundColor (alias: background),
  *   align (alias: textAlign), opacity, z, rotate, column-count (alias: columnCount),
- *   markdown, bold, italic, underline, strikethrough
+ *   markdown, bold, italic, underline, strikethrough, preset, tail, borderColor
+ *
+ * Style presets: `preset="bubble"` renders a speech bubble. The tail side is
+ * `tail=top|left|right|bottom` (default bottom) and `borderColor` overrides
+ * the bubble outline. Every other bubble dimension is a `--bubble-*` CSS
+ * custom property, tunable per slide via the existing `area-style:` directive
+ * — the text-block grammar deliberately stays concept-level rather than
+ * mirroring CSS properties.
  *
  * Freeform CSS (style, padding, margin, etc.) is NOT supported — use the
  * attributes above.  Unknown attributes are surfaced via `unknownAttrs` on
@@ -84,9 +91,21 @@ export const CANONICAL_TEXT_BLOCK_ATTRIBUTES = [
   "italic",
   "underline",
   "strikethrough",
+  "preset",
+  "tail",
+  "borderColor",
 ];
 
 const TEXT_BLOCK_ATTRIBUTE_ALIASES = ["background", "textAlign", "columnCount"];
+
+/**
+ * Valid values for the `tail` attribute (the edge a preset tail points out
+ * of). Exported so the editor panel and CSS stay in sync with the parser.
+ */
+export const TEXT_BLOCK_TAIL_SIDES = Object.freeze(["top", "left", "right", "bottom"]);
+
+/** Text alignments the preset CSS knows how to mirror onto the tail side. */
+const PRESET_ALIGNS = new Set(["left", "center", "right"]);
 
 /**
  * Set of recognised text-block attribute names, including aliases (after
@@ -285,6 +304,15 @@ function buildStyleString(settings) {
   push("font-weight", settings.fontWeight);
   push("font-style", settings.fontStyle);
   push("text-decoration", settings.textDecoration);
+  // Style presets. The bubble look is driven entirely by the --bubble-*
+  // custom properties in slides.css; the only directive-level override is
+  // the border color, which rides the same property so the tail outline
+  // (drawn from the variable) can never desync from the body border.
+  // Cross-axis pinning of the shrunken bubble is likewise handled by CSS
+  // attribute selectors on data-align, not inline styles.
+  if (settings.preset === "bubble" && settings.borderColor) {
+    push("--bubble-border-color", settings.borderColor);
+  }
   if (settings.columnCount) {
     pushNum("column-count", settings.columnCount);
   } else if (!settings.markdown) {
@@ -315,16 +343,32 @@ export function buildTextBlockHtml(settings, content, sourceLine = 0) {
     ? textBlockMd.render(content, { sourceLine })
     : escapeHtml(content).replace(/\n/g, "&#10;");
   const style = buildStyleString(settings);
+  const preset = sanitizeId(settings.preset).toLowerCase();
   const cls = [
     "text-block",
     settings.float ? "text-block--float" : "",
     isColumn ? "text-block--multi-column" : "",
     settings.markdown ? "text-block--markdown" : "",
+    preset ? `text-block--${preset}` : "",
   ]
     .filter(Boolean)
     .join(" ");
   const id = sanitizeId(settings.id);
-  return `<div class="${cls}" data-id="${id}" data-source-line="${sourceLine}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
+  // data-tail and data-align are the preset geometry hooks consumed by
+  // slides.css: tail picks the edge the bubble tail points out of, align
+  // lets the tail and the flex cross-axis pin track the text alignment.
+  const tail = TEXT_BLOCK_TAIL_SIDES.includes(settings.tail) ? settings.tail : "";
+  const align = PRESET_ALIGNS.has(settings.textAlign) ? settings.textAlign : "";
+  const attrs = [
+    `data-id="${id}"`,
+    `data-source-line="${sourceLine}"`,
+    preset ? `data-preset="${preset}"` : "",
+    tail ? `data-tail="${tail}"` : "",
+    preset && align ? `data-align="${align}"` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `<div class="${cls}" ${attrs} style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
 }
 
 /**
@@ -358,6 +402,11 @@ export function buildTextBlockDirective(settings, content) {
     settings.fontStyle === "italic" ? "italic=true" : "",
     settings.textDecoration?.includes("underline") ? "underline=true" : "",
     settings.textDecoration?.includes("line-through") ? "strikethrough=true" : "",
+    settings.preset ? `preset="${sanitizeId(settings.preset).toLowerCase()}"` : "",
+    settings.tail && settings.tail !== "bottom" ? `tail=${settings.tail}` : "",
+    settings.preset === "bubble" && settings.borderColor
+      ? `borderColor="${sanitizeCssValue(settings.borderColor)}"`
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -398,6 +447,11 @@ export function parseTextBlockDirectives(markdown) {
     if (toBool(attrs.underline)) decorations.push("underline");
     if (toBool(attrs.strikethrough)) decorations.push("line-through");
     const textDecoration = decorations.join(" ") || "";
+    const preset = sanitizeId(attrs.preset || "").toLowerCase();
+    const tailSide = TEXT_BLOCK_TAIL_SIDES.includes(attrs.tail) ? attrs.tail : "";
+    // Bubbles always have a tail; other presets only get one when asked for.
+    const tail = preset === "bubble" ? tailSide || "bottom" : tailSide;
+    const borderColor = sanitizeCssValue(attrs.borderColor || "");
 
     const start = match.index;
     const end = match.index + match[0].length;
@@ -425,6 +479,9 @@ export function parseTextBlockDirectives(markdown) {
         fontWeight,
         fontStyle,
         textDecoration,
+        preset,
+        tail,
+        borderColor,
       },
     });
   }

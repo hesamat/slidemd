@@ -31,10 +31,10 @@ export default defineConfig({
             // receives. Rewriting Host to the CLI port would make every
             // write (POST /api/deck) fail the check with a 403.
             '/api': {
-                target: `http://localhost:${cliPort}`,
+                target: `http://127.0.0.1:${cliPort}`,
             },
             '/images': {
-                target: `http://localhost:${cliPort}`,
+                target: `http://127.0.0.1:${cliPort}`,
             },
         },
     },

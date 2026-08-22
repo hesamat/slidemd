@@ -537,14 +537,14 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 
 ### Available Attributes
 
-| Attribute      | Effect             |
-| -------------- | ------------------ |
-| `column-count` | Multi-column flow  |
-| `font-size`    | Override text size |
-| `color`        | Text color         |
-| `background`   | Background color   |
-| `padding`      | Inner padding      |
-| `markdown`     | Render markdown    |
+| Attribute                   | Effect                                         |
+| --------------------------- | ---------------------------------------------- |
+| `column-count`              | Multi-column flow                              |
+| `fontSize`                  | Override text size                             |
+| `color` / `backgroundColor` | Text and background color                      |
+| `align`                     | left / center / right                          |
+| `markdown`                  | Render markdown                                |
+| `preset` + `tail`           | Speech bubble (`preset="bubble"`, `tail` side) |
 
 @media
 
@@ -564,6 +564,14 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 ::: text-block { color="#1a95b8" markdown=true }
 
 **Bold text** and _italic_ inside a styled block.
+
+:::
+
+### Speech bubble
+
+::: text-block { preset="bubble" tail="left" }
+
+Anyone can write on slides!
 
 :::
 

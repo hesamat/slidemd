@@ -1018,7 +1018,7 @@ async function main() {
   const handler = createHandler(format);
   const server = http.createServer(handler);
 
-  server.listen(PORT, () => {
+  server.listen(PORT, "127.0.0.1", () => {
     console.log("");
     console.log(`  SlideMD Dev Server`);
     console.log(`  ─────────────────────────────────`);
@@ -1032,7 +1032,7 @@ async function main() {
     } else {
       console.log(`  Mode:    API-only (no deck loaded)`);
     }
-    console.log(`  Server:  http://localhost:${PORT}`);
+    console.log(`  Server:  http://127.0.0.1:${PORT}`);
     console.log(`  ─────────────────────────────────`);
     console.log("");
 
