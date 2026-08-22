@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14.0 (2026-08-22)
+
+### Editor & UI
+
+- Add text block styling presets: speech bubble (`preset="bubble"` + `tail` + `borderColor`) with checkbox + tail-direction select, tail alignment handling, and markdown-source preservation (#273)
+- Add theme preview to the New Presentation modal — live slide preview for light/dark + accent (#272)
+- Add drag-and-drop for Mermaid diagrams and fenced code blocks with cross-area reorder and shared drop-gap indicators (#266)
+- Add drag-and-drop for KaTeX display math blocks across areas (#270)
+
+### Refactor & Performance
+
+- Extract shared `BlockDragController` / `BlockInteractionHandler` bases for image, fenced-block, and math drag-and-drop (#268)
+- Share one JSZip instance across PPTX XML extractions for faster import (#271)
+
+### Developer Experience
+
+- Bind dev and Vite servers explicitly to `127.0.0.1` to avoid IPv6/host-check mismatches
+
 ## 0.13.0 (2026-08-21)
 
 ### Editor & UI
