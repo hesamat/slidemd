@@ -246,6 +246,97 @@
     0 0 0 2px rgba(var(--color-primary), 0.15);
 }
 
+/* ── Theme preview (mini slide) ── */
+
+/* Uses the slide CSS variables (--slide-bg-*, --slide-ink-*) defined in
+   slides.css for theme-appropriate colors, and the UI --accent (which
+   reflects the active palette) for the title underline. */
+.style-theme-preview {
+  width: 280px;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 22px 16px;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.style-theme-preview[data-theme="light"] {
+  background: var(--slide-bg-light, #ffffff);
+  color: var(--slide-ink-light, rgba(15, 23, 42, 0.92));
+}
+
+.style-theme-preview[data-theme="dark"] {
+  background: var(--slide-bg-dark, #0f172a);
+  color: var(--slide-ink-dark, #f0f2f5);
+}
+
+/* Title — accent underline mirrors the slide header-style hairline */
+.style-theme-preview__title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  padding-bottom: 6px;
+  --hairline-color: var(--accent, rgba(2, 132, 199, 0.95));
+  --hairline-width: 55%;
+  background: linear-gradient(
+    to right,
+    var(--hairline-color) 0%,
+    var(--hairline-color) var(--hairline-width),
+    transparent var(--hairline-width)
+  );
+  background-size: 100% 2px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+}
+
+.style-theme-preview[data-header-style="none"] .style-theme-preview__title {
+  background-image: none;
+}
+
+.style-theme-preview[data-header-style="full"] .style-theme-preview__title {
+  --hairline-width: 100%;
+}
+
+/* Body — sample bullets */
+.style-theme-preview__body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 4px 6px;
+  flex: 1;
+  min-height: 0;
+}
+
+.style-theme-preview__bullet {
+  font-size: 10px;
+  line-height: 1.4;
+  opacity: 0.8;
+  padding-left: 12px;
+  position: relative;
+}
+
+.style-theme-preview__bullet::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+}
+
 /* ── Range slider ── */
 .style-range {
   flex: 1;
@@ -428,12 +519,16 @@
 
 /* ── Sticky dark-theme toggle ── */
 /* Keeps the toggle visible while scrolling the background panel's image
-   controls. Needs a solid background so content scrolling underneath does
-   not show through. */
+   controls. The opaque background is scoped to the SlideStylePanel (which
+   scrolls); the New Presentation modal doesn't scroll so it stays
+   transparent to avoid a visible strip. */
 .style-bg-theme-row {
   position: sticky;
   bottom: 0;
-  background: var(--surface-bg);
   padding: 10px 0 0;
   margin-top: 14px;
+}
+
+.slide-style-panel-modal .style-bg-theme-row {
+  background: var(--surface-bg);
 }

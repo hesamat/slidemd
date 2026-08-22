@@ -347,6 +347,73 @@ export function buildTitlePanelHtml() {
 }
 
 /**
+ * Build a mini slide preview for the New Presentation modal.
+ *
+ * Renders a 16:9 box that reflects the currently selected theme (light/dark),
+ * accent color (from the active palette), background, title decoration, and
+ * content-area borders so the user can see the result before creating a deck.
+ */
+export function buildThemePreviewHtml() {
+  return `
+    <div class="style-inline-section">
+      <span class="style-label">Preview</span>
+      <div class="style-theme-preview" data-theme="light" data-header-style="line">
+        <div class="style-theme-preview__title">Presentation Title</div>
+        <div class="style-theme-preview__body">
+          <div class="style-theme-preview__bullet">Key point one</div>
+          <div class="style-theme-preview__bullet">Key point two</div>
+          <div class="style-theme-preview__bullet">Key point three</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Sync the mini slide preview to reflect the current modal state.
+ *
+ * @param {HTMLElement} rootEl
+ * @param {{
+ *   theme: string,
+ *   bgValue: string,
+ *   headerStyle: string,
+ *   areaStyle: string,
+ * }} state
+ */
+export function syncThemePreview(rootEl, state) {
+  const preview = rootEl.querySelector(".style-theme-preview");
+  if (!preview) return;
+
+  preview.setAttribute("data-theme", state.theme === "dark" ? "dark" : "light");
+  preview.setAttribute("data-header-style", state.headerStyle || "line");
+
+  // Background: use the selected value, or fall back to the theme's slide bg.
+  preview.style.background = state.bgValue || "";
+
+  // Apply area-style (border/radius/padding) to the body area.
+  const body = preview.querySelector(".style-theme-preview__body");
+  if (body) {
+    if (state.areaStyle) {
+      // Apply each declaration individually so we don't clobber layout styles.
+      body.style.cssText = "";
+      for (const decl of state.areaStyle
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)) {
+        const idx = decl.indexOf(":");
+        if (idx !== -1) {
+          const prop = decl.slice(0, idx).trim();
+          const val = decl.slice(idx + 1).trim();
+          if (prop && val) body.style.setProperty(prop, val);
+        }
+      }
+    } else {
+      body.style.cssText = "";
+    }
+  }
+}
+
+/**
  * Build the layout panel HTML for single-column main width/alignment controls.
  */
 export function buildLayoutPanelHtml() {
