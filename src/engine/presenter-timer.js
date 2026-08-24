@@ -3,31 +3,31 @@
  * Displays elapsed presentation time and wall-clock time in the presenter panel.
  * Extends the BreakManager timer pattern: interval-based, updates every second,
  * and cleans up on destroy. Owned by DeckController.
+ *
+ * The timer resets to zero when stopped — each presentation session is
+ * independent. This avoids fragile offset accumulation across pause/resume.
  */
 export class PresenterTimer {
   constructor(elements) {
     this.elements = elements;
     this.startTime = null;
-    this.elapsedOffset = 0;
   }
 
   start() {
     if (this.startTime) return;
     this.startTime = Date.now();
-    // elapsedOffset is preserved from a prior stop() so resume accumulates
     this.tick();
   }
 
   stop() {
-    if (!this.startTime) return;
-    this.elapsedOffset = Math.floor((Date.now() - this.startTime) / 1000);
     this.startTime = null;
+    this.updateDisplay(0, new Date());
   }
 
   tick() {
     const elapsed = this.startTime
-      ? this.elapsedOffset + Math.floor((Date.now() - this.startTime) / 1000)
-      : this.elapsedOffset;
+      ? Math.floor((Date.now() - this.startTime) / 1000)
+      : 0;
     this.updateDisplay(elapsed, new Date());
   }
 

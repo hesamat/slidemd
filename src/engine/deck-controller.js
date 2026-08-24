@@ -240,19 +240,15 @@ export class DeckController extends EventEmitter {
       syncState();
       this.presenterTimer.tick();
     }, 1000);
-    document.addEventListener("fullscreenchange", () => {
+    this._timerFullscreenHandler = () => {
       syncState();
       this.presenterTimer.tick();
-    });
+    };
+    document.addEventListener("fullscreenchange", this._timerFullscreenHandler);
     // Listen for viewer window open/close via EventEmitter (no monkey-patch)
     this.roleManager.addEventListener("viewerwindowchange", () => {
       syncState();
       this.presenterTimer.tick();
-    });
-    // Re-render the next-slide preview when the editor role becomes active,
-    // since the panel may have been hidden (clientWidth=0) on first render.
-    this.roleManager.addEventListener("rolechange", () => {
-      if (this.roleManager.isEditorWindow) this.updateNextPreview();
     });
     syncState();
   }
@@ -336,11 +332,12 @@ export class DeckController extends EventEmitter {
   setupEventListeners() {
     // Auto-exit edit mode when entering fullscreen/present (covers
     // browser F11 and any non-toggleFullscreen entry).
-    document.addEventListener("fullscreenchange", () => {
+    this._fullscreenChangeHandler = () => {
       if (document.fullscreenElement && this.isEditMode()) {
         this.toggleEditMode();
       }
-    });
+    };
+    document.addEventListener("fullscreenchange", this._fullscreenChangeHandler);
     this._deckEvents = new DeckEvents({
       elements: this.elements,
       handleKeyboard: (e) => this.handleKeyboard(e),
@@ -544,11 +541,6 @@ export class DeckController extends EventEmitter {
   }
 
   toggleFullscreen() {
-    // Auto-exit edit mode so the editor chrome drops away and the
-    // presenter panel gets full window space (Phase 16).
-    if (this.isEditMode()) {
-      this.toggleEditMode();
-    }
     this._uiActions?.toggleFullscreen(this.elements.stageHost);
   }
 
@@ -625,6 +617,12 @@ export class DeckController extends EventEmitter {
 
   destroy() {
     if (this._deckEvents) this._deckEvents.teardown();
+    if (this._fullscreenChangeHandler) {
+      document.removeEventListener("fullscreenchange", this._fullscreenChangeHandler);
+    }
+    if (this._timerFullscreenHandler) {
+      document.removeEventListener("fullscreenchange", this._timerFullscreenHandler);
+    }
     if (this.reloadManager) this.reloadManager.destroy();
     if (this.breakManager) this.breakManager.destroy();
     if (this.freezeManager) this.freezeManager.destroy();

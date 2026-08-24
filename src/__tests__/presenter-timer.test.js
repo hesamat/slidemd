@@ -16,52 +16,45 @@ describe("PresenterTimer", () => {
     vi.restoreAllMocks();
   });
 
-  it("displays 00:00 elapsed before start", () => {
+  it("displays 00:00 before start and counts after start", () => {
     const timer = new PresenterTimer(elements);
     timer.tick();
     expect(elements.presenterElapsed.textContent).toBe("00:00");
-  });
-
-  it("counts elapsed seconds after start", () => {
-    const timer = new PresenterTimer(elements);
     const now = 1000000;
     vi.spyOn(Date, "now").mockReturnValue(now);
     timer.start();
-    // Advance 65 seconds
     vi.spyOn(Date, "now").mockReturnValue(now + 65000);
     timer.tick();
     expect(elements.presenterElapsed.textContent).toBe("01:05");
   });
 
-  it("preserves elapsed offset after stop and resume", () => {
+  it("resets to 00:00 on stop and starts fresh on restart", () => {
     const timer = new PresenterTimer(elements);
     const t0 = 2000000;
     vi.spyOn(Date, "now").mockReturnValue(t0);
     timer.start();
-    vi.spyOn(Date, "now").mockReturnValue(t0 + 30000);
-    timer.stop();
-    expect(timer.elapsedOffset).toBe(30);
-    expect(timer.startTime).toBeNull();
-    // Resume 10 seconds later
-    vi.spyOn(Date, "now").mockReturnValue(t0 + 40000);
-    timer.start();
-    vi.spyOn(Date, "now").mockReturnValue(t0 + 45000);
+    vi.spyOn(Date, "now").mockReturnValue(t0 + 20000);
     timer.tick();
-    // 30 (offset) + 5 (new) = 35
-    expect(elements.presenterElapsed.textContent).toBe("00:35");
+    expect(elements.presenterElapsed.textContent).toBe("00:20");
+    timer.stop();
+    expect(elements.presenterElapsed.textContent).toBe("00:00");
+    // Restart 60s later — new session counts from zero
+    vi.spyOn(Date, "now").mockReturnValue(t0 + 80000);
+    timer.start();
+    vi.spyOn(Date, "now").mockReturnValue(t0 + 90000);
+    timer.tick();
+    expect(elements.presenterElapsed.textContent).toBe("00:10");
   });
 
   it("updates wall-clock time display", () => {
     const timer = new PresenterTimer(elements);
     timer.tick();
-    // toLocaleTimeString output varies by locale, just verify it's non-empty
     expect(elements.presenterClock.textContent.length).toBeGreaterThan(0);
   });
 
   it("does not double-start", () => {
     const timer = new PresenterTimer(elements);
-    const t0 = 3000000;
-    vi.spyOn(Date, "now").mockReturnValue(t0);
+    vi.spyOn(Date, "now").mockReturnValue(4000000);
     timer.start();
     const firstStart = timer.startTime;
     timer.start();
@@ -70,15 +63,13 @@ describe("PresenterTimer", () => {
 
   it("stop is a no-op when not running", () => {
     const timer = new PresenterTimer(elements);
-    timer.stop();
+    expect(() => timer.stop()).not.toThrow();
     expect(timer.startTime).toBeNull();
-    expect(timer.elapsedOffset).toBe(0);
   });
 
   it("destroy nulls elements and stops", () => {
     const timer = new PresenterTimer(elements);
-    const t0 = 4000000;
-    vi.spyOn(Date, "now").mockReturnValue(t0);
+    vi.spyOn(Date, "now").mockReturnValue(5000000);
     timer.start();
     timer.destroy();
     expect(timer.elements).toBeNull();
