@@ -76,9 +76,48 @@ describe("RoleManager orphan handling", () => {
   });
 
   it("editor window does not show orphan overlay on beforeunload", () => {
-    const rm = createRoleManager(true);
+    createRoleManager(true);
     // Editor binds beforeunload to close viewer, not to show overlay
     window.dispatchEvent(new Event("beforeunload"));
     expect(document.getElementById("viewerOrphan")).toBeNull();
+  });
+
+  it("viewer with no opener (standalone/exported) does not start the orphan watcher", () => {
+    vi.useFakeTimers();
+    window.opener = null;
+    const rm = createRoleManager(false);
+    rm.applyRoleFromUrl();
+    expect(rm._openerCheckInterval).toBeNull();
+    vi.advanceTimersByTime(5000);
+    expect(document.getElementById("viewerOrphan")).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it("viewer with closed opener shows the orphan overlay", () => {
+    vi.useFakeTimers();
+    window.opener = { closed: true };
+    const rm = createRoleManager(false);
+    rm.applyRoleFromUrl();
+    expect(rm._openerCheckInterval).not.toBeNull();
+    vi.advanceTimersByTime(1100);
+    expect(document.getElementById("viewerOrphan")).toBeTruthy();
+    // Watcher stops itself after showing the overlay
+    expect(rm._openerCheckInterval).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it("viewer whose opener becomes null after construction still shows the overlay", () => {
+    vi.useFakeTimers();
+    // Start with a live opener so the watcher begins
+    window.opener = { closed: false };
+    const rm = createRoleManager(false);
+    rm.applyRoleFromUrl();
+    expect(rm._openerCheckInterval).not.toBeNull();
+    // Opener navigates away / is nulled out after the watcher starts
+    window.opener = null;
+    vi.advanceTimersByTime(1100);
+    expect(document.getElementById("viewerOrphan")).toBeTruthy();
+    expect(rm._openerCheckInterval).toBeNull();
+    vi.useRealTimers();
   });
 });

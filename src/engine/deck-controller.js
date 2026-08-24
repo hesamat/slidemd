@@ -225,16 +225,20 @@ export class DeckController extends EventEmitter {
   initPresenterTimer() {
     this.presenterTimer = new PresenterTimer(this.elements);
     this.presenterTimer.tick();
+    let wasPresenting = false;
     const syncState = () => {
       const presenting = !!(
         document.fullscreenElement ||
         (this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed)
       );
-      if (presenting) {
+      // Only start/stop on transitions — start() resets the elapsed
+      // time, so calling it every tick would freeze the timer at 00:00.
+      if (presenting && !wasPresenting) {
         this.presenterTimer.start();
-      } else {
+      } else if (!presenting && wasPresenting) {
         this.presenterTimer.stop();
       }
+      wasPresenting = presenting;
     };
     this._presenterTimerInterval = setInterval(() => {
       syncState();
