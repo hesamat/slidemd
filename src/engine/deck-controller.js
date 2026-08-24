@@ -196,6 +196,13 @@ export class DeckController extends EventEmitter {
     if (this.reloadManager) {
       this.reloadManager.breakManager = this.breakManager;
     }
+    // Update break button text to reflect active state
+    this.addEventListener("breakchange", ({ isActive }) => {
+      const btn = this.elements.breakBtn;
+      if (!btn) return;
+      btn.textContent = isActive ? "End Break" : "Break";
+      btn.setAttribute("aria-pressed", String(isActive));
+    });
   }
 
   initFreezeManager() {
