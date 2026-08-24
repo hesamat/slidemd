@@ -77,6 +77,7 @@ describe("RoleManager orphan handling", () => {
 
   it("editor window does not show orphan overlay on beforeunload", () => {
     const rm = createRoleManager(true);
+    expect(rm).toBeTruthy();
     // Editor binds beforeunload to close viewer, not to show overlay
     window.dispatchEvent(new Event("beforeunload"));
     expect(document.getElementById("viewerOrphan")).toBeNull();

@@ -25,6 +25,7 @@ export const JS_BUNDLE_ORDER = [
   "src/core/modal-state.js",
   "src/core/asset-loader.js",
   "src/core/keyboard-shortcuts.js",
+  "src/core/image-upload-promise.js",
   // Data loading and parsing
   "src/data/layout-data.js",
   "src/data/markdown-parser.js",
@@ -51,6 +52,7 @@ export const JS_BUNDLE_ORDER = [
   "src/engine/deck-events.js",
   "src/engine/pptx-importer.js",
   "src/engine/presentation-creator.js",
+  "src/engine/presenter-timer.js",
   "src/engine/command-palette.js",
   "src/engine/deck-controller.js",
   // UI components

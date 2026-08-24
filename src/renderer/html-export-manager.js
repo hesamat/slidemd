@@ -489,7 +489,12 @@ ${escapedInitScript}
 
     // 2. Standard ESM stripping
     out = out.replace(/^\s*import\s+[\s\S]*?;\s*$/gm, "");
-    out = out.replace(/^\s*export\s+(class|function|const|let|var)\s+/gm, (_m, kind) => `${kind} `);
+    // Handle `export [async] function/class/const/let/var` declarations.
+    // Keep `async` when present (e.g. `export async function waitForImageUpload()`).
+    out = out.replace(
+      /^\s*export\s+(?:(async)\s+)?(class|function|const|let|var)\s+/gm,
+      (_m, asyncKeyword, kind) => `${asyncKeyword ? `${asyncKeyword} ` : ""}${kind} `,
+    );
     out = out.replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "");
     out = out.replace(/^\s*export\s+default\s+/gm, "const __default_export__ = ");
 
