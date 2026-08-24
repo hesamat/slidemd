@@ -820,6 +820,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   min-width: 100%;
 }
 
+/* Hide copy buttons while the stage is in fullscreen presentation mode */
+:fullscreen .slide__area .code-copy-button,
+:-webkit-full-screen .slide__area .code-copy-button {
+  display: none !important;
+}
+
 @media screen {
   /* Make room for the copy button so it does not overlap code text */
   .slide__area pre.has-copy-button:has(> code[class*="language-"]) {

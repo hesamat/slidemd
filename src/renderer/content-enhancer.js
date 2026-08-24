@@ -125,9 +125,11 @@ const COPY_BUTTON_TIMEOUT_MS = 2000;
 
 function isCopyButtonSurface() {
   if (typeof window === "undefined") return false;
-  // Enable in the editor/presenter (role="editor") and in self-contained
-  // exports/bundles. The viewer/audience window (role="viewer") and
-  // server-side rendering contexts do not get copy buttons.
+  // Hide copy buttons when the slide is in fullscreen presentation mode.
+  if (document?.fullscreenElement) return false;
+  // Enable in the editor (role="editor") and in self-contained exports/bundles.
+  // The viewer/audience window (role="viewer") and server-side rendering
+  // contexts do not get copy buttons.
   const role =
     typeof document !== "undefined"
       ? document.documentElement?.getAttribute("data-webdeck-role")
