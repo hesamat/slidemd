@@ -125,7 +125,18 @@ const COPY_BUTTON_TIMEOUT_MS = 2000;
 
 function isCopyButtonSurface() {
   if (typeof window === "undefined") return false;
-  return window.__WEBDECK_EXPORTED__ === true || window.__WEBDECK_BUNDLED_BUILD__ === true;
+  // Enable in self-contained exports/bundles and in the presenter/viewer window
+  // (role="viewer"). In the editor (role="editor") or in server-side rendering
+  // contexts, no copy button is added.
+  const role =
+    typeof document !== "undefined"
+      ? document.documentElement?.getAttribute("data-webdeck-role")
+      : null;
+  return (
+    window.__WEBDECK_EXPORTED__ === true ||
+    window.__WEBDECK_BUNDLED_BUILD__ === true ||
+    role === "viewer"
+  );
 }
 
 async function copyTextToClipboard(text) {

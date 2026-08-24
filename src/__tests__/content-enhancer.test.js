@@ -229,9 +229,11 @@ describe("ContentEnhancer", () => {
     }
   });
 
-  it("does not add copy buttons when not in an exported build", async () => {
+  it("does not add copy buttons in the editor", async () => {
     const savedExported = window.__WEBDECK_EXPORTED__;
+    const savedRole = document.documentElement.getAttribute("data-webdeck-role");
     window.__WEBDECK_EXPORTED__ = false;
+    document.documentElement.setAttribute("data-webdeck-role", "editor");
     try {
       const container = document.createElement("div");
       container.innerHTML = `<pre data-source-line="0"><code class="language-js">const x = 1;</code></pre>`;
@@ -241,6 +243,29 @@ describe("ContentEnhancer", () => {
       expect(container.querySelector(".code-copy-button")).toBeNull();
     } finally {
       window.__WEBDECK_EXPORTED__ = savedExported;
+      if (savedRole) document.documentElement.setAttribute("data-webdeck-role", savedRole);
+      else document.documentElement.removeAttribute("data-webdeck-role");
+    }
+  });
+
+  it("adds copy buttons to code blocks in the presenter/viewer", async () => {
+    const savedExported = window.__WEBDECK_EXPORTED__;
+    const savedRole = document.documentElement.getAttribute("data-webdeck-role");
+    window.__WEBDECK_EXPORTED__ = false;
+    document.documentElement.setAttribute("data-webdeck-role", "viewer");
+    try {
+      const container = document.createElement("div");
+      container.innerHTML = `<pre data-source-line="0"><code class="language-js">const x = 1;</code></pre>`;
+
+      await ContentEnhancer.enhanceRenderedContent(container, { force: true });
+
+      const button = container.querySelector(".code-copy-button");
+      expect(button).toBeTruthy();
+      expect(button.getAttribute("aria-label")).toBe("Copy code to clipboard");
+    } finally {
+      window.__WEBDECK_EXPORTED__ = savedExported;
+      if (savedRole) document.documentElement.setAttribute("data-webdeck-role", savedRole);
+      else document.documentElement.removeAttribute("data-webdeck-role");
     }
   });
 
