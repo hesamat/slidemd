@@ -719,6 +719,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   text-shadow: none;
   /* Prism themes sometimes set backgrounds; force our slide look */
   background: var(--code-surface) !important;
+  position: relative;
 }
 
 /* Per-code-block centering via fence info string `{ center }`
@@ -769,6 +770,73 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
    Flatten token colors so the snippet matches the slide theme. */
 .slide__area pre:has(> code.language-markdown) .token {
   color: currentColor !important;
+}
+
+/* --- COPY BUTTON FOR CODE BLOCKS --- */
+
+.slide__area .code-copy-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  appearance: none;
+  border: 1px solid var(--code-border-color);
+  background: var(--code-surface);
+  color: var(--code-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.65;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  min-width: 4.5em;
+  text-align: center;
+}
+
+.slide__area .code-copy-button:hover,
+.slide__area .code-copy-button:focus-visible {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.slide__area .code-copy-button.is-copied {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.slide__area .code-copy-button.is-copy-failed {
+  opacity: 1;
+  border-color: var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
+}
+
+.slide__area .code-copy-button__label {
+  display: inline-block;
+  min-width: 100%;
+}
+
+/* Hide copy buttons while the stage is in fullscreen presentation mode */
+:fullscreen .slide__area .code-copy-button,
+:-webkit-full-screen .slide__area .code-copy-button {
+  display: none !important;
+}
+
+@media screen {
+  /* Make room for the copy button so it does not overlap code text */
+  .slide__area pre.has-copy-button {
+    padding-right: max(80px, 4.5em);
+  }
 }
 
 /* --- INLINE CODE --- */
