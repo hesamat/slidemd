@@ -124,6 +124,10 @@ export class DeckController extends EventEmitter {
     this.roleManager.addEventListener("panelresize", () => {
       if (this.roleManager.isEditorWindow) this.updateNextPreview();
     });
+    // Single screen: fullscreen the current window instead of opening a viewer
+    this.roleManager.addEventListener("singleScreenPresent", () => {
+      this.toggleFullscreen();
+    });
   }
 
   initReloadManager() {

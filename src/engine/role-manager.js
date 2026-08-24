@@ -96,10 +96,15 @@ export class RoleManager extends EventEmitter {
   /**
    * Toggles the viewer window.
    * If a window is already open, closes it.
-   * When opening, uses the Window Management API (getScreenDetails) as a
-   * progressive enhancement to auto-place the viewer on the external screen
-   * and fullscreen it there. Falls back to a default-sized window on
-   * unsupported browsers or if permission is denied.
+   *
+   * Screen detection:
+   * - Single screen (screen.isExtended === false): dispatches a
+   *   "singleScreenPresent" event so DeckController can fullscreen the
+   *   current window instead of opening a useless second window.
+   * - Multiple screens: uses the Window Management API (getScreenDetails)
+   *   to auto-place the viewer on the external screen and fullscreen it.
+   * - Unknown (Firefox/Safari, screen.isExtended undefined): falls back
+   *   to opening a default-sized window.
    */
   async togglePresentWindow() {
     if (this.viewerWindowRef && !this.viewerWindowRef.closed) {
@@ -110,6 +115,14 @@ export class RoleManager extends EventEmitter {
       this.dispatchEvent("viewerwindowchange", { open: false });
       return;
     }
+
+    // Single screen: don't open a second window — let DeckController
+    // fullscreen the current window instead.
+    if (window.screen.isExtended === false) {
+      this.dispatchEvent("singleScreenPresent");
+      return;
+    }
+
     const url = new URL(window.location.href);
     url.searchParams.set("role", this.isEditorWindow ? "viewer" : "editor");
 
