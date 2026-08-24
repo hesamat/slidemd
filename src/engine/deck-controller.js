@@ -128,6 +128,14 @@ export class DeckController extends EventEmitter {
     this.roleManager.addEventListener("singleScreenPresent", () => {
       this.toggleFullscreen();
     });
+    // Dual screen: when a viewer window opens, auto-exit edit mode so the
+    // presenter panel becomes visible. (Single-screen fullscreen is handled
+    // by the fullscreenchange handler in setupEventListeners.)
+    this.roleManager.addEventListener("viewerwindowchange", (e) => {
+      if (e?.open && this.isEditMode()) {
+        this.toggleEditMode();
+      }
+    });
   }
 
   initReloadManager() {
