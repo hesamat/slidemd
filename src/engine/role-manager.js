@@ -278,11 +278,10 @@ export class RoleManager extends EventEmitter {
           // ignore cross-origin access errors
         }
       });
-    } else if (window.opener) {
-      // Only a viewer that was opened by an editor can become orphaned.
+    } else {
       this._openerCheckInterval = setInterval(() => {
         try {
-          if (window.opener.closed) {
+          if (!window.opener || window.opener.closed) {
             this._showOrphanOverlay();
             this._stopOpenerCheck();
           }

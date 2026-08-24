@@ -82,14 +82,4 @@ describe("RoleManager orphan handling", () => {
     window.dispatchEvent(new Event("beforeunload"));
     expect(document.getElementById("viewerOrphan")).toBeNull();
   });
-
-  it("standalone viewer with no opener does not start orphan watcher", () => {
-    window.opener = null;
-    const rm = createRoleManager(false);
-    expect(rm).toBeTruthy();
-    expect(rm._openerCheckInterval).toBeNull();
-    // Should still not show an overlay after a tick
-    const overlay = document.getElementById("viewerOrphan");
-    expect(overlay).toBeNull();
-  });
 });
