@@ -62,6 +62,7 @@ export class RoleManager extends EventEmitter {
 
       // Re-scale the stage to fit the new available space
       StageScaler.applyStageScale(this.elements);
+      this.dispatchEvent("panelresize", { width: constrainedWidth });
     };
 
     const onMouseUp = () => {
@@ -102,6 +103,7 @@ export class RoleManager extends EventEmitter {
       this.viewerWindowRef = null;
       this._stopWindowCheck();
       this._updatePresentButton(false);
+      this.dispatchEvent("viewerwindowchange", { open: false });
       return;
     }
     const url = new URL(window.location.href);
@@ -109,6 +111,7 @@ export class RoleManager extends EventEmitter {
     this.viewerWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
     this._startWindowCheck();
     this._updatePresentButton(true);
+    this.dispatchEvent("viewerwindowchange", { open: true });
   }
 
   /**
@@ -145,12 +148,46 @@ export class RoleManager extends EventEmitter {
     if (document.getElementById("viewerOrphan")) return;
     const overlay = document.createElement("div");
     overlay.id = "viewerOrphan";
-    overlay.style.cssText =
-      "position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(15,23,42,0.92);color:white;text-align:center;padding:24px;";
-    overlay.innerHTML =
-      '<h2 style="margin:0;font-size:20px">Presenter disconnected</h2><p style="margin:0;opacity:0.8">The editor window was closed. This viewer is now orphaned.</p><button id="orphanCloseBtn" style="padding:8px 16px;border-radius:6px;border:none;background:#3b82f6;color:white;font-weight:600;cursor:pointer">Close viewer</button>';
+    Object.assign(overlay.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "9999",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "16px",
+      background: "rgba(15,23,42,0.92)",
+      color: "white",
+      textAlign: "center",
+      padding: "24px",
+    });
+
+    const heading = document.createElement("h2");
+    heading.textContent = "Presenter disconnected";
+    Object.assign(heading.style, { margin: "0", fontSize: "20px" });
+    overlay.appendChild(heading);
+
+    const message = document.createElement("p");
+    message.textContent = "The editor window was closed. This viewer is now orphaned.";
+    Object.assign(message.style, { margin: "0", opacity: "0.8" });
+    overlay.appendChild(message);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "Close viewer";
+    Object.assign(closeBtn.style, {
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "none",
+      background: "#3b82f6",
+      color: "white",
+      fontWeight: "600",
+      cursor: "pointer",
+    });
+    closeBtn.addEventListener("click", () => window.close());
+    overlay.appendChild(closeBtn);
+
     document.body.appendChild(overlay);
-    overlay.querySelector("#orphanCloseBtn")?.addEventListener("click", () => window.close());
   }
 
   _stopOpenerCheck() {
@@ -188,6 +225,7 @@ export class RoleManager extends EventEmitter {
         this.viewerWindowRef = null;
         this._stopWindowCheck();
         this._updatePresentButton(false);
+        this.dispatchEvent("viewerwindowchange", { open: false });
       }
     }, 500);
   }

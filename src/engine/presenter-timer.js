@@ -14,7 +14,7 @@ export class PresenterTimer {
   start() {
     if (this.startTime) return;
     this.startTime = Date.now();
-    this.elapsedOffset = 0;
+    // elapsedOffset is preserved from a prior stop() so resume accumulates
     this.tick();
   }
 
@@ -22,12 +22,6 @@ export class PresenterTimer {
     if (!this.startTime) return;
     this.elapsedOffset = Math.floor((Date.now() - this.startTime) / 1000);
     this.startTime = null;
-  }
-
-  reset() {
-    this.startTime = null;
-    this.elapsedOffset = 0;
-    this.updateDisplay(0, new Date());
   }
 
   tick() {

@@ -178,7 +178,6 @@
   overflow: hidden;
   position: relative;
   min-height: 80px;
-  cursor: pointer;
 }
 
 .next-preview--empty {
@@ -197,8 +196,6 @@
   left: 0;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
-
-
 
 .notes {
   flex: 1;

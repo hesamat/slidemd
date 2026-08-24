@@ -853,9 +853,9 @@ Goal: Make presenting and handouts feel finished before 1.0. Extends the existin
 
 | Task                                 | Details                                                                                                                                                                                           |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Auto-exit edit mode on present   | Switch off edit mode automatically when the user starts presenting, so the editor chrome drops away and the presenter panel gets full window space. Re-entering edit mode restores the editor UI. |
-| [ ] Add elapsed-time timer and clock | Display elapsed presentation time and wall-clock time in the presenter panel. Extends the existing `BreakManager` timer pattern.                                                                  |
-| [ ] Add visual next-slide preview    | Render a scaled-down preview of the upcoming slide in the presenter panel, replacing the current text-only title. Reuses `SlideRenderer` + `ContentEnhancer` off-screen.                          |
+| [x] Auto-exit edit mode on present   | Switch off edit mode automatically when the user starts presenting, so the editor chrome drops away and the presenter panel gets full window space. Re-entering edit mode restores the editor UI. |
+| [x] Add elapsed-time timer and clock | Display elapsed presentation time and wall-clock time in the presenter panel. Extends the existing `BreakManager` timer pattern.                                                                  |
+| [x] Add visual next-slide preview    | Render a scaled-down preview of the upcoming slide in the presenter panel, replacing the current text-only title. Reuses `SlideRenderer` + `ContentEnhancer` off-screen.                          |
 | [ ] Add slide grid overview          | Grid view of all slides for quick jumping during Q&A.                                                                                                                                             |
 
 ### Copyable Code Blocks

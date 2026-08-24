@@ -1,4 +1,4 @@
-import { getDeckId, EventEmitter, escapeHtml } from "../core/utils.js";
+import { getDeckId, EventEmitter, escapeHtml, DESIGN_SIZE } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
@@ -120,6 +120,10 @@ export class DeckController extends EventEmitter {
   initRoleManager() {
     this.roleManager = new RoleManager(this.elements);
     this.roleManager.applyRoleFromUrl();
+    // Re-render the next-slide preview when the panel is resized
+    this.roleManager.addEventListener("panelresize", () => {
+      if (this.roleManager.isEditorWindow) this.updateNextPreview();
+    });
   }
 
   initReloadManager() {
@@ -229,16 +233,16 @@ export class DeckController extends EventEmitter {
       syncState();
       this.presenterTimer.tick();
     });
-    // Wrap present-window toggle so timer follows viewer open/close
-    const origToggle = this.roleManager.togglePresentWindow.bind(this.roleManager);
-    this.roleManager.togglePresentWindow = (...args) => {
-      const ret = origToggle(...args);
-      setTimeout(() => {
-        syncState();
-        this.presenterTimer.tick();
-      }, 0);
-      return ret;
-    };
+    // Listen for viewer window open/close via EventEmitter (no monkey-patch)
+    this.roleManager.addEventListener("viewerwindowchange", () => {
+      syncState();
+      this.presenterTimer.tick();
+    });
+    // Re-render the next-slide preview when the editor role becomes active,
+    // since the panel may have been hidden (clientWidth=0) on first render.
+    this.roleManager.addEventListener("rolechange", () => {
+      if (this.roleManager.isEditorWindow) this.updateNextPreview();
+    });
     syncState();
   }
 
@@ -496,9 +500,14 @@ export class DeckController extends EventEmitter {
   updateNextPreview(nextSlide) {
     const container = this.elements.nextPreview;
     if (!container) return;
+    // Allow calling with no args to re-derive the next slide (e.g. on resize)
+    if (nextSlide === undefined) {
+      nextSlide = this.deck.slides[this.slideNavigator.currentIndex + 1];
+    }
     container.innerHTML = "";
     container.onclick = null;
     container.style.height = "";
+    container.style.cursor = "";
     if (!nextSlide) {
       container.textContent = "(End)";
       container.classList.add("next-preview--empty");
@@ -510,14 +519,14 @@ export class DeckController extends EventEmitter {
     previewEl.classList.add("next-preview__slide", "active");
     previewEl.style.visibility = "visible";
     previewEl.style.position = "absolute";
-    previewEl.style.width = "1920px";
-    previewEl.style.height = "1080px";
+    previewEl.style.width = `${DESIGN_SIZE.width}px`;
+    previewEl.style.height = `${DESIGN_SIZE.height}px`;
     previewEl.style.pointerEvents = "none";
     previewEl.style.transformOrigin = "top left";
-    // Fit the 1920px slide into the container width
-    const scale = (container.clientWidth || 220) / 1920;
+    // Fit the design-size slide into the container width
+    const scale = (container.clientWidth || 220) / DESIGN_SIZE.width;
     previewEl.style.transform = `scale(${scale})`;
-    container.style.height = `${Math.round(1080 * scale)}px`;
+    container.style.height = `${Math.round(DESIGN_SIZE.height * scale)}px`;
     container.appendChild(previewEl);
     container.onclick = () => this.slideNavigator.goTo(idx);
     container.style.cursor = "pointer";
