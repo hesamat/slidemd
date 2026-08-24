@@ -6,6 +6,7 @@ import { DeckLoader } from "../data/deck-loader.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
 import { FreezeManager } from "./freeze-manager.js";
+import { PresenterTimer } from "./presenter-timer.js";
 import { WheelHandler } from "./wheel-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
@@ -88,6 +89,7 @@ export class DeckController extends EventEmitter {
     this.initWheelHandler();
     this.initBreakManager();
     this.initFreezeManager();
+    this.initPresenterTimer();
     this.setupEventListeners();
   }
 
@@ -205,6 +207,41 @@ export class DeckController extends EventEmitter {
     }
   }
 
+  initPresenterTimer() {
+    this.presenterTimer = new PresenterTimer(this.elements);
+    this.presenterTimer.tick();
+    const syncState = () => {
+      const presenting = !!(
+        document.fullscreenElement ||
+        (this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed)
+      );
+      if (presenting) {
+        this.presenterTimer.start();
+      } else {
+        this.presenterTimer.stop();
+      }
+    };
+    this._presenterTimerInterval = setInterval(() => {
+      syncState();
+      this.presenterTimer.tick();
+    }, 1000);
+    document.addEventListener("fullscreenchange", () => {
+      syncState();
+      this.presenterTimer.tick();
+    });
+    // Wrap present-window toggle so timer follows viewer open/close
+    const origToggle = this.roleManager.togglePresentWindow.bind(this.roleManager);
+    this.roleManager.togglePresentWindow = (...args) => {
+      const ret = origToggle(...args);
+      setTimeout(() => {
+        syncState();
+        this.presenterTimer.tick();
+      }, 0);
+      return ret;
+    };
+    syncState();
+  }
+
   async init() {
     // Initialize broadcast channel after breakManager is ready
     this.reloadManager.initBroadcastChannel();
@@ -282,6 +319,13 @@ export class DeckController extends EventEmitter {
   }
 
   setupEventListeners() {
+    // Auto-exit edit mode when entering fullscreen/present (covers
+    // browser F11 and any non-toggleFullscreen entry).
+    document.addEventListener("fullscreenchange", () => {
+      if (document.fullscreenElement && this.isEditMode()) {
+        this.toggleEditMode();
+      }
+    });
     this._deckEvents = new DeckEvents({
       elements: this.elements,
       handleKeyboard: (e) => this.handleKeyboard(e),
@@ -439,9 +483,7 @@ export class DeckController extends EventEmitter {
       const next = this.deck.slides[this.slideNavigator.currentIndex + 1];
       const slide = this.deck.slides[this.slideNavigator.currentIndex];
       if (this.elements.nextPreview) {
-        this.elements.nextPreview.textContent = next
-          ? SlideRenderer.getSlideTitleForUi(next, this.slideNavigator.currentIndex + 1)
-          : "(End)";
+        this.updateNextPreview(next);
       }
       if (this.elements.notesContainer) {
         this.elements.notesContainer.innerHTML = slide?.notes
@@ -451,7 +493,43 @@ export class DeckController extends EventEmitter {
     }
   }
 
+  updateNextPreview(nextSlide) {
+    const container = this.elements.nextPreview;
+    if (!container) return;
+    container.innerHTML = "";
+    container.onclick = null;
+    container.style.height = "";
+    if (!nextSlide) {
+      container.textContent = "(End)";
+      container.classList.add("next-preview--empty");
+      return;
+    }
+    container.classList.remove("next-preview--empty");
+    const idx = this.slideNavigator.currentIndex + 1;
+    const previewEl = SlideRenderer.createSlideElement(this.deck, nextSlide, idx, true);
+    previewEl.classList.add("next-preview__slide", "active");
+    previewEl.style.visibility = "visible";
+    previewEl.style.position = "absolute";
+    previewEl.style.width = "1920px";
+    previewEl.style.height = "1080px";
+    previewEl.style.pointerEvents = "none";
+    previewEl.style.transformOrigin = "top left";
+    // Fit the 1920px slide into the container width
+    const scale = (container.clientWidth || 220) / 1920;
+    previewEl.style.transform = `scale(${scale})`;
+    container.style.height = `${Math.round(1080 * scale)}px`;
+    container.appendChild(previewEl);
+    container.onclick = () => this.slideNavigator.goTo(idx);
+    container.style.cursor = "pointer";
+    ContentEnhancer.enhanceRenderedContent(previewEl).catch(() => {});
+  }
+
   toggleFullscreen() {
+    // Auto-exit edit mode so the editor chrome drops away and the
+    // presenter panel gets full window space (Phase 16).
+    if (this.isEditMode()) {
+      this.toggleEditMode();
+    }
     this._uiActions?.toggleFullscreen(this.elements.stageHost);
   }
 
@@ -532,6 +610,8 @@ export class DeckController extends EventEmitter {
     if (this.breakManager) this.breakManager.destroy();
     if (this.freezeManager) this.freezeManager.destroy();
     if (this.roleManager) this.roleManager.destroy();
+    if (this.presenterTimer) this.presenterTimer.destroy();
+    if (this._presenterTimerInterval) clearInterval(this._presenterTimerInterval);
     if (window.__WEBDECK_EDIT_CONTROLLER__?.destroy) {
       window.__WEBDECK_EDIT_CONTROLLER__.destroy();
     }

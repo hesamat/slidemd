@@ -17,6 +17,7 @@ export class RoleManager extends EventEmitter {
     this.isEditorWindow = false;
     this.viewerWindowRef = null;
     this._windowCheckInterval = null;
+    this._openerCheckInterval = null;
 
     // Initialize panel resize functionality
     this.initPanelResize();
@@ -51,9 +52,9 @@ export class RoleManager extends EventEmitter {
       const deltaX = startX - e.clientX;
       const newWidth = startWidth + deltaX;
 
-      // Constrain width between min and max
-      const minWidth = 200;
-      const maxWidth = 600;
+      // Constrain width between min and max — matches .presenterPanel in panels.css
+      const minWidth = 320;
+      const maxWidth = 520;
       const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
       presenterPanel.style.width = constrainedWidth + "px";
@@ -88,6 +89,7 @@ export class RoleManager extends EventEmitter {
       this.isEditorWindow ? "editor" : "viewer",
     );
     this.dispatchEvent("rolechange", { isEditorWindow: this.isEditorWindow });
+    this._bindOrphanHandling();
   }
 
   /**
@@ -107,6 +109,55 @@ export class RoleManager extends EventEmitter {
     this.viewerWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
     this._startWindowCheck();
     this._updatePresentButton(true);
+  }
+
+  /**
+   * Close orphan handling: editor closes its viewer on unload,
+   * viewer shows an overlay if its opener disappears.
+   */
+  _bindOrphanHandling() {
+    if (this._orphanBound) return;
+    this._orphanBound = true;
+    if (this.isEditorWindow) {
+      window.addEventListener("beforeunload", () => {
+        try {
+          if (this.viewerWindowRef && !this.viewerWindowRef.closed) this.viewerWindowRef.close();
+        } catch (_e) {
+          // ignore cross-origin access errors
+        }
+      });
+    } else {
+      this._openerCheckInterval = setInterval(() => {
+        try {
+          if (!window.opener || window.opener.closed) {
+            this._showOrphanOverlay();
+            this._stopOpenerCheck();
+          }
+        } catch (_e) {
+          this._showOrphanOverlay();
+          this._stopOpenerCheck();
+        }
+      }, 1000);
+    }
+  }
+
+  _showOrphanOverlay() {
+    if (document.getElementById("viewerOrphan")) return;
+    const overlay = document.createElement("div");
+    overlay.id = "viewerOrphan";
+    overlay.style.cssText =
+      "position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(15,23,42,0.92);color:white;text-align:center;padding:24px;";
+    overlay.innerHTML =
+      '<h2 style="margin:0;font-size:20px">Presenter disconnected</h2><p style="margin:0;opacity:0.8">The editor window was closed. This viewer is now orphaned.</p><button id="orphanCloseBtn" style="padding:8px 16px;border-radius:6px;border:none;background:#3b82f6;color:white;font-weight:600;cursor:pointer">Close viewer</button>';
+    document.body.appendChild(overlay);
+    overlay.querySelector("#orphanCloseBtn")?.addEventListener("click", () => window.close());
+  }
+
+  _stopOpenerCheck() {
+    if (this._openerCheckInterval) {
+      clearInterval(this._openerCheckInterval);
+      this._openerCheckInterval = null;
+    }
   }
 
   /**
@@ -195,6 +246,7 @@ export class RoleManager extends EventEmitter {
    */
   destroy() {
     this._stopWindowCheck();
+    this._stopOpenerCheck();
     this.removeAllListeners();
     this.elements = null;
     this.viewerWindowRef = null;

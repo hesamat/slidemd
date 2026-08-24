@@ -92,6 +92,8 @@
  * @property {HTMLElement} toggleFullscreenBtn
  * @property {HTMLSelectElement} breakDurationSelect
  * @property {HTMLElement} breakBtn
+ * @property {HTMLElement} presenterElapsed
+ * @property {HTMLElement} presenterClock
  * @property {HTMLElement} freezeBtn
  * @property {HTMLElement} menuBtn
  * @property {HTMLElement} menuDropdown
