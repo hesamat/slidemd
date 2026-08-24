@@ -171,6 +171,7 @@
 }
 
 .next-preview {
+  margin-top: 10px;
   border: 1px solid var(--border-medium);
   background: var(--surface-bg);
   border-radius: var(--radius-md);
