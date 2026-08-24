@@ -96,8 +96,12 @@ export class RoleManager extends EventEmitter {
   /**
    * Toggles the viewer window.
    * If a window is already open, closes it.
+   * When opening, uses the Window Management API (getScreenDetails) as a
+   * progressive enhancement to auto-place the viewer on the external screen
+   * and fullscreen it there. Falls back to a default-sized window on
+   * unsupported browsers or if permission is denied.
    */
-  togglePresentWindow() {
+  async togglePresentWindow() {
     if (this.viewerWindowRef && !this.viewerWindowRef.closed) {
       this.viewerWindowRef.close();
       this.viewerWindowRef = null;
@@ -108,10 +112,38 @@ export class RoleManager extends EventEmitter {
     }
     const url = new URL(window.location.href);
     url.searchParams.set("role", this.isEditorWindow ? "viewer" : "editor");
-    this.viewerWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
+
+    // Try to detect an external screen via the Window Management API
+    let features = "width=1100,height=700";
+    let externalScreen = null;
+    if ("getScreenDetails" in window) {
+      try {
+        const screenDetails = await window.getScreenDetails();
+        externalScreen = screenDetails.screens.find((s) => !s.isInternal);
+        if (externalScreen) {
+          features = `left=${externalScreen.availLeft},top=${externalScreen.availTop},width=${externalScreen.availWidth},height=${externalScreen.availHeight}`;
+        }
+      } catch (_e) {
+        // Permission denied or API blocked — fall back to default window
+      }
+    }
+
+    this.viewerWindowRef = window.open(url.toString(), "_blank", features);
     this._startWindowCheck();
     this._updatePresentButton(true);
     this.dispatchEvent("viewerwindowchange", { open: true });
+
+    // Fullscreen the viewer on the external screen if we detected one
+    if (externalScreen && this.viewerWindowRef && !this.viewerWindowRef.closed) {
+      try {
+        const viewerDoc = this.viewerWindowRef.document;
+        if (viewerDoc?.documentElement?.requestFullscreen) {
+          await viewerDoc.documentElement.requestFullscreen({ screen: externalScreen });
+        }
+      } catch (_e) {
+        // Fullscreen request failed — window is still placed on the external screen
+      }
+    }
   }
 
   /**
