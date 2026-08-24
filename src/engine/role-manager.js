@@ -5,6 +5,7 @@
 
 import { EventEmitter } from "../core/utils.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 export class RoleManager extends EventEmitter {
   /**
@@ -116,11 +117,16 @@ export class RoleManager extends EventEmitter {
       return;
     }
 
-    // Single screen: don't open a second window — let DeckController
-    // fullscreen the current window instead.
+    // Single screen: ask the user whether to fullscreen the current
+    // window or open a viewer window anyway (useful on a large monitor).
     if (window.screen.isExtended === false) {
-      this.dispatchEvent("singleScreenPresent");
-      return;
+      const choice = await this._showSingleScreenPrompt();
+      if (choice === "fullscreen") {
+        this.dispatchEvent("singleScreenPresent");
+        return;
+      }
+      if (choice === "cancel") return;
+      // "window" — fall through to open a viewer window
     }
 
     const url = new URL(window.location.href);
@@ -157,6 +163,104 @@ export class RoleManager extends EventEmitter {
         // Fullscreen request failed — window is still placed on the external screen
       }
     }
+  }
+
+  /**
+   * Shows a modal asking the user how to present on a single screen.
+   * @returns {Promise<"fullscreen" | "window" | "cancel">}
+   */
+  _showSingleScreenPrompt() {
+    return new Promise((resolve) => {
+      const modal = document.createElement("div");
+      modal.className = "modal";
+      modal.id = "single-screen-present-modal";
+
+      const overlay = document.createElement("div");
+      overlay.className = "modal__overlay";
+
+      const dialog = document.createElement("div");
+      dialog.className = "modal__dialog";
+      Object.assign(dialog.style, { maxWidth: "420px", textAlign: "center" });
+
+      const header = document.createElement("div");
+      header.className = "modal__header";
+
+      const title = document.createElement("h2");
+      title.className = "modal__title";
+      title.textContent = "Present";
+
+      header.appendChild(title);
+
+      const body = document.createElement("div");
+      body.className = "modal__body";
+      Object.assign(body.style, { display: "flex", flexDirection: "column", gap: "12px" });
+
+      const desc = document.createElement("p");
+      desc.textContent = "Only one screen detected. How would you like to present?";
+      desc.style.color = "var(--text-medium)";
+      body.appendChild(desc);
+
+      const fullscreenBtn = document.createElement("button");
+      fullscreenBtn.className = "btn";
+      fullscreenBtn.textContent = "Present Fullscreen";
+      Object.assign(fullscreenBtn.style, {
+        background: "var(--accent, #3b82f6)",
+        color: "white",
+        fontWeight: "600",
+      });
+      fullscreenBtn.addEventListener("click", () => {
+        cleanup();
+        resolve("fullscreen");
+      });
+
+      const windowBtn = document.createElement("button");
+      windowBtn.className = "btn";
+      windowBtn.textContent = "Open Viewer Window";
+      windowBtn.addEventListener("click", () => {
+        cleanup();
+        resolve("window");
+      });
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "btn";
+      cancelBtn.textContent = "Cancel";
+      Object.assign(cancelBtn.style, { color: "var(--text-low)" });
+      cancelBtn.addEventListener("click", () => {
+        cleanup();
+        resolve("cancel");
+      });
+
+      body.appendChild(fullscreenBtn);
+      body.appendChild(windowBtn);
+      body.appendChild(cancelBtn);
+
+      dialog.appendChild(header);
+      dialog.appendChild(body);
+      modal.appendChild(overlay);
+      modal.appendChild(dialog);
+
+      const targetParent = document.fullscreenElement || document.body;
+      targetParent.appendChild(modal);
+      modalOpened();
+
+      const escapeHandler = (e) => {
+        if (e.key === "Escape") {
+          cleanup();
+          resolve("cancel");
+        }
+      };
+      document.addEventListener("keydown", escapeHandler);
+      overlay.addEventListener("click", () => {
+        cleanup();
+        resolve("cancel");
+      });
+
+      function cleanup() {
+        modal.remove();
+        modalClosed();
+        document.removeEventListener("keydown", escapeHandler);
+      }
+    });
   }
 
   /**
