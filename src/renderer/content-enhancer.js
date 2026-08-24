@@ -175,7 +175,7 @@ async function copyTextToClipboard(text) {
 }
 
 function resetCopyButton(button, label) {
-  button.classList.remove("is-copied");
+  button.classList.remove("is-copied", "is-copy-failed");
   button.setAttribute("aria-label", "Copy code to clipboard");
   button.setAttribute("title", "Copy");
   label.textContent = "Copy";
@@ -196,7 +196,7 @@ async function onCopyButtonClick(button, label, codeEl) {
     button.setAttribute("title", "Copied");
     label.textContent = "Copied";
   } else {
-    button.classList.add("is-copied");
+    button.classList.add("is-copy-failed");
     button.setAttribute("aria-label", "Copy failed");
     button.setAttribute("title", "Copy failed");
     label.textContent = "Failed";

@@ -815,6 +815,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   color: var(--accent);
 }
 
+.slide__area .code-copy-button.is-copy-failed {
+  opacity: 1;
+  border-color: var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
+}
+
 .slide__area .code-copy-button__label {
   display: inline-block;
   min-width: 100%;
@@ -828,7 +834,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 @media screen {
   /* Make room for the copy button so it does not overlap code text */
-  .slide__area pre.has-copy-button:has(> code[class*="language-"]) {
+  .slide__area pre.has-copy-button {
     padding-right: max(80px, 4.5em);
   }
 }

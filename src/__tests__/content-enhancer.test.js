@@ -229,6 +229,52 @@ describe("ContentEnhancer", () => {
     }
   });
 
+  it("shows failed styling when a copy fails", async () => {
+    const savedExported = window.__WEBDECK_EXPORTED__;
+    const savedIsSecureContext = window.isSecureContext;
+    const savedClipboard = window.navigator.clipboard;
+
+    try {
+      window.__WEBDECK_EXPORTED__ = true;
+      Object.defineProperty(window, "isSecureContext", {
+        value: true,
+        configurable: true,
+      });
+      // Force both clipboard.writeText and execCommand to fail
+      Object.defineProperty(window.navigator, "clipboard", {
+        value: undefined,
+        configurable: true,
+      });
+      const originalExecCommand = document.execCommand;
+      document.execCommand = () => false;
+
+      const container = document.createElement("div");
+      container.innerHTML = `<pre data-source-line="0"><code class="language-js">const x = 1;</code></pre>`;
+
+      await ContentEnhancer.enhanceRenderedContent(container, { force: true });
+
+      const button = container.querySelector(".code-copy-button");
+      button.click();
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(button.textContent).toBe("Failed");
+      expect(button.classList.contains("is-copy-failed")).toBe(true);
+      expect(button.classList.contains("is-copied")).toBe(false);
+
+      document.execCommand = originalExecCommand;
+    } finally {
+      window.__WEBDECK_EXPORTED__ = savedExported;
+      Object.defineProperty(window, "isSecureContext", {
+        value: savedIsSecureContext,
+        configurable: true,
+      });
+      Object.defineProperty(window.navigator, "clipboard", {
+        value: savedClipboard,
+        configurable: true,
+      });
+    }
+  });
+
   it("does not add copy buttons in the viewer", async () => {
     const savedExported = window.__WEBDECK_EXPORTED__;
     const savedRole = document.documentElement.getAttribute("data-webdeck-role");
