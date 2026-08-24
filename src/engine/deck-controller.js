@@ -515,9 +515,8 @@ export class DeckController extends EventEmitter {
     }
     container.classList.remove("next-preview--empty");
     const idx = this.slideNavigator.currentIndex + 1;
-    const previewEl = SlideRenderer.createSlideElement(this.deck, nextSlide, idx, true);
-    previewEl.classList.add("next-preview__slide", "active");
-    previewEl.style.visibility = "visible";
+    const previewEl = SlideRenderer.createSlideElement(this.deck, nextSlide, idx, false);
+    previewEl.classList.add("next-preview__slide");
     previewEl.style.position = "absolute";
     previewEl.style.width = `${DESIGN_SIZE.width}px`;
     previewEl.style.height = `${DESIGN_SIZE.height}px`;

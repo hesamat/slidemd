@@ -851,12 +851,12 @@ Goal: Make presenting and handouts feel finished before 1.0. Extends the existin
 
 ### Presenter Core
 
-| Task                                 | Details                                                                                                                                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [x] Auto-exit edit mode on present   | Switch off edit mode automatically when the user starts presenting, so the editor chrome drops away and the presenter panel gets full window space. Re-entering edit mode restores the editor UI. |
-| [x] Add elapsed-time timer and clock | Display elapsed presentation time and wall-clock time in the presenter panel. Extends the existing `BreakManager` timer pattern.                                                                  |
-| [x] Add visual next-slide preview    | Render a scaled-down preview of the upcoming slide in the presenter panel, replacing the current text-only title. Reuses `SlideRenderer` + `ContentEnhancer` off-screen.                          |
-| [ ] Add slide grid overview          | Grid view of all slides for quick jumping during Q&A.                                                                                                                                             |
+| Task                                    | Details                                                                                                                                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Auto-exit edit mode on present      | Switch off edit mode automatically when the user starts presenting, so the editor chrome drops away and the presenter panel gets full window space. Re-entering edit mode restores the editor UI.       |
+| [x] Add elapsed-time timer and clock    | Display elapsed presentation time and wall-clock time in the presenter panel. Extends the existing `BreakManager` timer pattern.                                                                        |
+| [x] Add visual next-slide preview       | Render a scaled-down preview of the upcoming slide in the presenter panel, replacing the current text-only title. Reuses `SlideRenderer` + `ContentEnhancer` off-screen.                                |
+| [x] Add Go-to-Slide button in presenter | Button in the presenter panel that opens the existing go-to-slide overlay (`SlideNavigator.openGoToPrompt()`) for quick jumping during Q&A. Reuses the existing goto overlay — no new grid view needed. |
 
 ### Copyable Code Blocks
 
