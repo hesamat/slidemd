@@ -169,6 +169,14 @@ import { hydrateIcons } from "./src/core/icon.js";
       });
     });
 
+    // 5c. Wire presenter-panel Go-to-Slide button
+    const gotoSlideBtn = document.getElementById("gotoSlideBtn");
+    if (gotoSlideBtn) {
+      gotoSlideBtn.addEventListener("click", () => {
+        controller.slideNavigator.openGoToPrompt();
+      });
+    }
+
     // 5d. Sync footer theme toggle icon on every slide change
     const syncFooterThemeIcon = () => {
       const slide = controller.deck.slides[controller.slideNavigator.currentIndex];

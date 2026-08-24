@@ -1,4 +1,4 @@
-import { getDeckId, EventEmitter, escapeHtml } from "../core/utils.js";
+import { getDeckId, EventEmitter, escapeHtml, DESIGN_SIZE } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
@@ -6,6 +6,7 @@ import { DeckLoader } from "../data/deck-loader.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
 import { FreezeManager } from "./freeze-manager.js";
+import { PresenterTimer } from "./presenter-timer.js";
 import { WheelHandler } from "./wheel-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
@@ -88,6 +89,7 @@ export class DeckController extends EventEmitter {
     this.initWheelHandler();
     this.initBreakManager();
     this.initFreezeManager();
+    this.initPresenterTimer();
     this.setupEventListeners();
   }
 
@@ -118,6 +120,14 @@ export class DeckController extends EventEmitter {
   initRoleManager() {
     this.roleManager = new RoleManager(this.elements);
     this.roleManager.applyRoleFromUrl();
+    // Re-render the next-slide preview when the panel is resized
+    this.roleManager.addEventListener("panelresize", () => {
+      if (this.roleManager.isEditorWindow) this.updateNextPreview();
+    });
+    // Single screen: fullscreen the current window instead of opening a viewer
+    this.roleManager.addEventListener("singleScreenPresent", () => {
+      this.toggleFullscreen();
+    });
   }
 
   initReloadManager() {
@@ -190,6 +200,13 @@ export class DeckController extends EventEmitter {
     if (this.reloadManager) {
       this.reloadManager.breakManager = this.breakManager;
     }
+    // Update break button text to reflect active state
+    this.addEventListener("breakchange", ({ isActive }) => {
+      const btn = this.elements.breakBtn;
+      if (!btn) return;
+      btn.textContent = isActive ? "End Break" : "Break";
+      btn.setAttribute("aria-pressed", String(isActive));
+    });
   }
 
   initFreezeManager() {
@@ -203,6 +220,37 @@ export class DeckController extends EventEmitter {
     if (this.reloadManager) {
       this.reloadManager.freezeManager = this.freezeManager;
     }
+  }
+
+  initPresenterTimer() {
+    this.presenterTimer = new PresenterTimer(this.elements);
+    this.presenterTimer.tick();
+    const syncState = () => {
+      const presenting = !!(
+        document.fullscreenElement ||
+        (this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed)
+      );
+      if (presenting) {
+        this.presenterTimer.start();
+      } else {
+        this.presenterTimer.stop();
+      }
+    };
+    this._presenterTimerInterval = setInterval(() => {
+      syncState();
+      this.presenterTimer.tick();
+    }, 1000);
+    this._timerFullscreenHandler = () => {
+      syncState();
+      this.presenterTimer.tick();
+    };
+    document.addEventListener("fullscreenchange", this._timerFullscreenHandler);
+    // Listen for viewer window open/close via EventEmitter (no monkey-patch)
+    this.roleManager.addEventListener("viewerwindowchange", () => {
+      syncState();
+      this.presenterTimer.tick();
+    });
+    syncState();
   }
 
   async init() {
@@ -282,6 +330,14 @@ export class DeckController extends EventEmitter {
   }
 
   setupEventListeners() {
+    // Auto-exit edit mode when entering fullscreen/present (covers
+    // browser F11 and any non-toggleFullscreen entry).
+    this._fullscreenChangeHandler = () => {
+      if (document.fullscreenElement && this.isEditMode()) {
+        this.toggleEditMode();
+      }
+    };
+    document.addEventListener("fullscreenchange", this._fullscreenChangeHandler);
     this._deckEvents = new DeckEvents({
       elements: this.elements,
       handleKeyboard: (e) => this.handleKeyboard(e),
@@ -439,9 +495,7 @@ export class DeckController extends EventEmitter {
       const next = this.deck.slides[this.slideNavigator.currentIndex + 1];
       const slide = this.deck.slides[this.slideNavigator.currentIndex];
       if (this.elements.nextPreview) {
-        this.elements.nextPreview.textContent = next
-          ? SlideRenderer.getSlideTitleForUi(next, this.slideNavigator.currentIndex + 1)
-          : "(End)";
+        this.updateNextPreview(next);
       }
       if (this.elements.notesContainer) {
         this.elements.notesContainer.innerHTML = slide?.notes
@@ -449,6 +503,41 @@ export class DeckController extends EventEmitter {
           : "<p class='notes-empty'>No notes</p>";
       }
     }
+  }
+
+  updateNextPreview(nextSlide) {
+    const container = this.elements.nextPreview;
+    if (!container) return;
+    // Allow calling with no args to re-derive the next slide (e.g. on resize)
+    if (nextSlide === undefined) {
+      nextSlide = this.deck.slides[this.slideNavigator.currentIndex + 1];
+    }
+    container.innerHTML = "";
+    container.onclick = null;
+    container.style.height = "";
+    container.style.cursor = "";
+    if (!nextSlide) {
+      container.textContent = "(End)";
+      container.classList.add("next-preview--empty");
+      return;
+    }
+    container.classList.remove("next-preview--empty");
+    const idx = this.slideNavigator.currentIndex + 1;
+    const previewEl = SlideRenderer.createSlideElement(this.deck, nextSlide, idx, false);
+    previewEl.classList.add("next-preview__slide");
+    previewEl.style.position = "absolute";
+    previewEl.style.width = `${DESIGN_SIZE.width}px`;
+    previewEl.style.height = `${DESIGN_SIZE.height}px`;
+    previewEl.style.pointerEvents = "none";
+    previewEl.style.transformOrigin = "top left";
+    // Fit the design-size slide into the container width
+    const scale = (container.clientWidth || 220) / DESIGN_SIZE.width;
+    previewEl.style.transform = `scale(${scale})`;
+    container.style.height = `${Math.round(DESIGN_SIZE.height * scale)}px`;
+    container.appendChild(previewEl);
+    container.onclick = () => this.slideNavigator.goTo(idx);
+    container.style.cursor = "pointer";
+    ContentEnhancer.enhanceRenderedContent(previewEl).catch(() => {});
   }
 
   toggleFullscreen() {
@@ -528,10 +617,18 @@ export class DeckController extends EventEmitter {
 
   destroy() {
     if (this._deckEvents) this._deckEvents.teardown();
+    if (this._fullscreenChangeHandler) {
+      document.removeEventListener("fullscreenchange", this._fullscreenChangeHandler);
+    }
+    if (this._timerFullscreenHandler) {
+      document.removeEventListener("fullscreenchange", this._timerFullscreenHandler);
+    }
     if (this.reloadManager) this.reloadManager.destroy();
     if (this.breakManager) this.breakManager.destroy();
     if (this.freezeManager) this.freezeManager.destroy();
     if (this.roleManager) this.roleManager.destroy();
+    if (this.presenterTimer) this.presenterTimer.destroy();
+    if (this._presenterTimerInterval) clearInterval(this._presenterTimerInterval);
     if (window.__WEBDECK_EDIT_CONTROLLER__?.destroy) {
       window.__WEBDECK_EDIT_CONTROLLER__.destroy();
     }

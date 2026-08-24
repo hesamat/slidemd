@@ -50,6 +50,10 @@ export class ElementGatherer {
       breakDurationSelect: $("breakDuration"),
       breakBtn: $("breakBtn"),
 
+      // Presenter Timer
+      presenterElapsed: $("presenterElapsed"),
+      presenterClock: $("presenterClock"),
+
       // Freeze
       freezeBtn: $("freezeBtn"),
 
