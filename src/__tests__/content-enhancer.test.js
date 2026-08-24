@@ -229,11 +229,11 @@ describe("ContentEnhancer", () => {
     }
   });
 
-  it("does not add copy buttons in the editor", async () => {
+  it("does not add copy buttons in the viewer", async () => {
     const savedExported = window.__WEBDECK_EXPORTED__;
     const savedRole = document.documentElement.getAttribute("data-webdeck-role");
     window.__WEBDECK_EXPORTED__ = false;
-    document.documentElement.setAttribute("data-webdeck-role", "editor");
+    document.documentElement.setAttribute("data-webdeck-role", "viewer");
     try {
       const container = document.createElement("div");
       container.innerHTML = `<pre data-source-line="0"><code class="language-js">const x = 1;</code></pre>`;
@@ -248,11 +248,11 @@ describe("ContentEnhancer", () => {
     }
   });
 
-  it("adds copy buttons to code blocks in the presenter/viewer", async () => {
+  it("adds copy buttons to code blocks in the editor", async () => {
     const savedExported = window.__WEBDECK_EXPORTED__;
     const savedRole = document.documentElement.getAttribute("data-webdeck-role");
     window.__WEBDECK_EXPORTED__ = false;
-    document.documentElement.setAttribute("data-webdeck-role", "viewer");
+    document.documentElement.setAttribute("data-webdeck-role", "editor");
     try {
       const container = document.createElement("div");
       container.innerHTML = `<pre data-source-line="0"><code class="language-js">const x = 1;</code></pre>`;
