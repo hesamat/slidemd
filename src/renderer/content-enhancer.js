@@ -121,6 +121,114 @@ export function sanitizeMermaidSvg(svg) {
   return purify.sanitize(svg, MERMAID_SVG_PURIFY_CONFIG);
 }
 
+const COPY_BUTTON_TIMEOUT_MS = 2000;
+
+function isCopyButtonSurface() {
+  if (typeof window === "undefined") return false;
+  return window.__WEBDECK_EXPORTED__ === true || window.__WEBDECK_BUNDLED_BUILD__ === true;
+}
+
+async function copyTextToClipboard(text) {
+  if (
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === "function" &&
+    window.isSecureContext
+  ) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      Logger.warn("Clipboard write failed, falling back to execCommand", e);
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "readonly");
+  textarea.setAttribute("aria-hidden", "true");
+  textarea.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  let success = false;
+  try {
+    success = document.execCommand("copy");
+  } catch (e) {
+    Logger.warn("execCommand copy failed", e);
+  }
+
+  document.body.removeChild(textarea);
+  return success;
+}
+
+function resetCopyButton(button, label) {
+  button.classList.remove("is-copied");
+  button.setAttribute("aria-label", "Copy code to clipboard");
+  button.setAttribute("title", "Copy");
+  label.textContent = "Copy";
+}
+
+async function onCopyButtonClick(button, label, codeEl) {
+  const text = codeEl.textContent || "";
+  let success;
+  try {
+    success = await copyTextToClipboard(text);
+  } catch {
+    success = false;
+  }
+
+  if (success) {
+    button.classList.add("is-copied");
+    button.setAttribute("aria-label", "Copied");
+    button.setAttribute("title", "Copied");
+    label.textContent = "Copied";
+  } else {
+    button.classList.add("is-copied");
+    button.setAttribute("aria-label", "Copy failed");
+    button.setAttribute("title", "Copy failed");
+    label.textContent = "Failed";
+  }
+
+  setTimeout(() => resetCopyButton(button, label), COPY_BUTTON_TIMEOUT_MS);
+}
+
+function createCopyButton(codeEl) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "code-copy-button";
+  button.setAttribute("aria-label", "Copy code to clipboard");
+  button.setAttribute("title", "Copy");
+
+  const label = document.createElement("span");
+  label.className = "code-copy-button__label";
+  label.textContent = "Copy";
+  label.setAttribute("aria-hidden", "true");
+  button.appendChild(label);
+
+  button.addEventListener("click", () => onCopyButtonClick(button, label, codeEl));
+  return button;
+}
+
+function isMermaidCodeBlock(codeEl) {
+  const className = codeEl.className || "";
+  return /(?:^|\s)(?:language|lang)-mermaid(?:\s|$)/.test(className);
+}
+
+function addCopyButtonsToCodeBlocks(rootEl) {
+  if (!rootEl || !isCopyButtonSurface()) return;
+
+  const pres = rootEl.querySelectorAll("pre");
+  for (const pre of pres) {
+    if (pre.querySelector(".code-copy-button")) continue;
+    const codeEl = pre.querySelector(":scope > code");
+    if (!codeEl) continue;
+    if (isMermaidCodeBlock(codeEl)) continue;
+    if ((codeEl.textContent || "").trim() === "") continue;
+    pre.classList.add("has-copy-button");
+    pre.appendChild(createCopyButton(codeEl));
+  }
+}
+
 export class ContentEnhancer {
   static normalizeEmojiText(rootEl) {
     normalizeEmojiText(rootEl);
@@ -353,6 +461,9 @@ contain: layout paint style;
         Logger.warn("Prism error:", e);
       }
     }
+
+    // 2b. Add copy-to-clipboard buttons to code blocks in student-facing exports.
+    addCopyButtonsToCodeBlocks(rootEl);
 
     // 3. KaTeX math
     if (window.renderMathInElement) {

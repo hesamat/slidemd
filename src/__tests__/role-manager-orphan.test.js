@@ -77,8 +77,19 @@ describe("RoleManager orphan handling", () => {
 
   it("editor window does not show orphan overlay on beforeunload", () => {
     const rm = createRoleManager(true);
+    expect(rm).toBeTruthy();
     // Editor binds beforeunload to close viewer, not to show overlay
     window.dispatchEvent(new Event("beforeunload"));
     expect(document.getElementById("viewerOrphan")).toBeNull();
+  });
+
+  it("standalone viewer with no opener does not start orphan watcher", () => {
+    window.opener = null;
+    const rm = createRoleManager(false);
+    expect(rm).toBeTruthy();
+    expect(rm._openerCheckInterval).toBeNull();
+    // Should still not show an overlay after a tick
+    const overlay = document.getElementById("viewerOrphan");
+    expect(overlay).toBeNull();
   });
 });

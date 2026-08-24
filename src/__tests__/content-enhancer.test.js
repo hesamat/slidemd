@@ -183,6 +183,82 @@ describe("ContentEnhancer", () => {
     window.__WEBDECK_MERMAID__ = saved;
     window.mermaid = savedMermaid;
   });
+
+  it("adds copy buttons to code blocks in exported builds", async () => {
+    const savedExported = window.__WEBDECK_EXPORTED__;
+    const savedIsSecureContext = window.isSecureContext;
+    const savedClipboard = window.navigator.clipboard;
+
+    try {
+      window.__WEBDECK_EXPORTED__ = true;
+      Object.defineProperty(window, "isSecureContext", {
+        value: true,
+        configurable: true,
+      });
+      const writeText = vi.fn(() => Promise.resolve());
+      Object.defineProperty(window.navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+      });
+
+      const container = document.createElement("div");
+      container.innerHTML = `<pre data-source-line="0"><code class="language-js">const x = 1;</code></pre>`;
+
+      await ContentEnhancer.enhanceRenderedContent(container, { force: true });
+
+      const button = container.querySelector(".code-copy-button");
+      expect(button).toBeTruthy();
+      expect(button.getAttribute("aria-label")).toBe("Copy code to clipboard");
+
+      button.click();
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText).toHaveBeenCalledWith("const x = 1;");
+      expect(button.textContent).toBe("Copied");
+    } finally {
+      window.__WEBDECK_EXPORTED__ = savedExported;
+      Object.defineProperty(window, "isSecureContext", {
+        value: savedIsSecureContext,
+        configurable: true,
+      });
+      Object.defineProperty(window.navigator, "clipboard", {
+        value: savedClipboard,
+        configurable: true,
+      });
+    }
+  });
+
+  it("does not add copy buttons when not in an exported build", async () => {
+    const savedExported = window.__WEBDECK_EXPORTED__;
+    window.__WEBDECK_EXPORTED__ = false;
+    try {
+      const container = document.createElement("div");
+      container.innerHTML = `<pre data-source-line="0"><code class="language-js">const x = 1;</code></pre>`;
+
+      await ContentEnhancer.enhanceRenderedContent(container, { force: true });
+
+      expect(container.querySelector(".code-copy-button")).toBeNull();
+    } finally {
+      window.__WEBDECK_EXPORTED__ = savedExported;
+    }
+  });
+
+  it("does not add copy buttons to Mermaid code blocks", async () => {
+    const savedExported = window.__WEBDECK_EXPORTED__;
+    window.__WEBDECK_EXPORTED__ = true;
+    try {
+      const container = document.createElement("div");
+      container.innerHTML = `<pre data-source-line="0"><code class="language-mermaid">graph TD\nA --> B</code></pre>`;
+
+      await ContentEnhancer.enhanceRenderedContent(container, { force: true });
+
+      expect(container.querySelector(".code-copy-button")).toBeNull();
+      expect(container.querySelector(".mermaid")).toBeTruthy();
+    } finally {
+      window.__WEBDECK_EXPORTED__ = savedExported;
+    }
+  });
 });
 
 describe("sanitizeMermaidSvg", () => {
