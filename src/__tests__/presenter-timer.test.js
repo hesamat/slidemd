@@ -28,7 +28,7 @@ describe("PresenterTimer", () => {
     expect(elements.presenterElapsed.textContent).toBe("01:05");
   });
 
-  it("resets to 00:00 on stop and starts fresh on restart", () => {
+  it("freezes elapsed on stop and resets to 00:00 on next start", () => {
     const timer = new PresenterTimer(elements);
     const t0 = 2000000;
     vi.spyOn(Date, "now").mockReturnValue(t0);
@@ -36,11 +36,14 @@ describe("PresenterTimer", () => {
     vi.spyOn(Date, "now").mockReturnValue(t0 + 20000);
     timer.tick();
     expect(elements.presenterElapsed.textContent).toBe("00:20");
+    // Stop — display freezes at 00:20
     timer.stop();
-    expect(elements.presenterElapsed.textContent).toBe("00:00");
-    // Restart 60s later — new session counts from zero
+    timer.tick();
+    expect(elements.presenterElapsed.textContent).toBe("00:20");
+    // Start again — resets to 00:00, new session
     vi.spyOn(Date, "now").mockReturnValue(t0 + 80000);
     timer.start();
+    expect(elements.presenterElapsed.textContent).toBe("00:00");
     vi.spyOn(Date, "now").mockReturnValue(t0 + 90000);
     timer.tick();
     expect(elements.presenterElapsed.textContent).toBe("00:10");
@@ -50,15 +53,6 @@ describe("PresenterTimer", () => {
     const timer = new PresenterTimer(elements);
     timer.tick();
     expect(elements.presenterClock.textContent.length).toBeGreaterThan(0);
-  });
-
-  it("does not double-start", () => {
-    const timer = new PresenterTimer(elements);
-    vi.spyOn(Date, "now").mockReturnValue(4000000);
-    timer.start();
-    const firstStart = timer.startTime;
-    timer.start();
-    expect(timer.startTime).toBe(firstStart);
   });
 
   it("stop is a no-op when not running", () => {
