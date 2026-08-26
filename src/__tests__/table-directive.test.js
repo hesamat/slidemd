@@ -246,6 +246,20 @@ describe("convertTableDirectivesToMarkers", () => {
     // a continuation of the table.
     expect(result).toMatch(/\| 1 \| 2 \|\n\n\*Design Rule\*/);
   });
+
+  it("synthesizes a hidden header for no-header tables that omit the header row", () => {
+    const md = [
+      "::: table { width=90 no-header }",
+      "| 7 | 8 | 1 |",
+      "| . | 3 | 9 |",
+      "| 4 | 5 | 2 |",
+      ":::",
+    ].join("\n");
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).toContain("table {width=90 no-header}");
+    expect(result).not.toContain("::: table");
+    expect(result).toMatch(/\|   \|   \|   \|\n\|---\|---\|---\|\n\| 7 \| 8 \| 1 \|/);
+  });
 });
 
 describe("parseTableDirectiveAttrs (marker tokenizer)", () => {

@@ -268,6 +268,41 @@ export function buildTableDirective(settings, content) {
 }
 
 /**
+ * Synthesize a hidden table header for headerless markdown tables.
+ * markdown-it requires a header row + separator to recognize a table.
+ * The generated header cells are empty so the CSS can hide them.
+ */
+function synthesizeTableHeader(content) {
+  const trimmed = content.trim();
+  if (!trimmed) return "";
+  const rows = trimmed.split("\n");
+  const firstRow = rows.find((r) => r.trim().startsWith("|"));
+  if (!firstRow) return "";
+
+  const cells = firstRow
+    .split("|")
+    .map((c) => c.trim())
+    .filter((c) => c !== "");
+  const n = cells.length;
+  if (n === 0) return "";
+
+  const header = `|${"   |".repeat(n)}`;
+  const separator = `|${"---|".repeat(n)}`;
+  return `${header}\n${separator}\n`;
+}
+
+/**
+ * Check whether a markdown table already has a header separator row.
+ * A separator row contains only |, -, :, and whitespace.
+ */
+function hasTableHeader(content) {
+  const trimmed = content.trim();
+  if (!trimmed) return false;
+  const rows = trimmed.split("\n");
+  return rows.some((r) => /^\s*\|(\s*-+:?\s*\|)+\s*$/.test(r));
+}
+
+/**
  * Convert all `::: table { ... }` container directives in a markdown string
  * to a single-line marker that the markdown-it `table_style_directive` core
  * rule consumes. The marker uses `key=value` syntax (matching the container
@@ -297,8 +332,17 @@ export function convertTableDirectivesToMarkers(markdown) {
       markerParts.push(`headerColor=${quoteIfSpaced(settings.headerColor)}`);
     if (settings.noHeader) markerParts.push("no-header");
 
+    let tableContent = content.trim();
+    // markdown-it requires a header row + separator to recognize a table.
+    // If the table lacks one, synthesize an empty header and treat the table
+    // as headerless so the CSS hides it.
+    const needsHeader = !hasTableHeader(tableContent);
+    if (needsHeader) {
+      tableContent = synthesizeTableHeader(tableContent) + tableContent;
+      if (!settings.noHeader) markerParts.push("no-header");
+    }
     const marker = markerParts.length > 0 ? `table {${markerParts.join(" ")}}\n\n` : "";
-    const replacement = marker + content.trim();
+    const replacement = marker + tableContent;
     // The blank line after the closing ::: is preserved because `end` is the
     // position of the closing ::: itself, so any trailing blank line remains in
     // `result.slice(end)`.
