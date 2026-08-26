@@ -21,6 +21,13 @@ const PALETTE_EXTRAS = [
   { id: "textpackExport", name: "Export Textpack", category: "Export" },
 ];
 
+const PALETTE_AI = [
+  { id: "enhanceSlide", name: "Enhance current slide", category: "AI" },
+  { id: "addSpeakerNotes", name: "Add speaker notes", category: "AI" },
+  { id: "polish", name: "Polish all slides", category: "AI" },
+  { id: "importAiResult", name: "Import AI results", category: "AI" },
+];
+
 const IS_ENABLED = {
   edit: (ctx) => ctx.roleManager?.isEditorWindow,
   viewer: (ctx) => ctx.roleManager?.isEditorWindow && !ctx.isEditMode(),
@@ -43,6 +50,13 @@ const IS_ENABLED = {
   moveSlideDown: (ctx) => ctx.isEditMode(),
   undo: (ctx) => ctx.isEditMode(),
   redo: (ctx) => ctx.isEditMode(),
+  // AI single-slide intents mirror the AI dropdown: edit mode, editor window.
+  enhanceSlide: (ctx) => ctx.roleManager?.isEditorWindow && ctx.isEditMode(),
+  addSpeakerNotes: (ctx) => ctx.roleManager?.isEditorWindow && ctx.isEditMode(),
+  // Whole-deck polish is available in the editor window (pre-flight modal).
+  polish: (ctx) => ctx.roleManager?.isEditorWindow,
+  // Import AI result is available in the editor window (modal import flow).
+  importAiResult: (ctx) => ctx.roleManager?.isEditorWindow,
 };
 
 /** @type {CommandDefinition[]} */
@@ -53,6 +67,7 @@ export const COMMANDS = [
     category: s.category,
   })),
   ...PALETTE_EXTRAS,
+  ...PALETTE_AI,
 ];
 
 function getShortcutString(id) {
