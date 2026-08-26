@@ -165,6 +165,10 @@ export class DeckController extends EventEmitter {
       print: () => this.handlePrint(),
       htmlExport: () => this.handleHtmlExport(),
       textpackExport: () => this.handleTextpackExport(),
+      enhanceSlide: () => window.__WEBDECK_EDIT_CONTROLLER__?.runSingleSlideAi("enhanceSlide"),
+      addSpeakerNotes: () =>
+        window.__WEBDECK_EDIT_CONTROLLER__?.runSingleSlideAi("addSpeakerNotes"),
+      polish: () => window.__WEBDECK_EDIT_CONTROLLER__?.runWholeDeckAi(),
     };
 
     this.commandPalette = new CommandPalette({
