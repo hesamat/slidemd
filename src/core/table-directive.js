@@ -279,11 +279,11 @@ function synthesizeTableHeader(content) {
   const firstRow = rows.find((r) => r.trim().startsWith("|"));
   if (!firstRow) return "";
 
-  const cells = firstRow
-    .split("|")
-    .map((c) => c.trim())
-    .filter((c) => c !== "");
-  const n = cells.length;
+  const firstRowTrimmed = firstRow.trim();
+  if (!firstRowTrimmed.startsWith("|") || !firstRowTrimmed.endsWith("|")) return "";
+
+  const cells = firstRowTrimmed.split("|");
+  const n = Math.max(0, cells.length - 2);
   if (n === 0) return "";
 
   const header = `|${"   |".repeat(n)}`;
@@ -299,7 +299,7 @@ function hasTableHeader(content) {
   const trimmed = content.trim();
   if (!trimmed) return false;
   const rows = trimmed.split("\n");
-  return rows.some((r) => /^\s*\|(\s*-+:?\s*\|)+\s*$/.test(r));
+  return rows.some((r) => /^\s*\|(\s*:?\s*-{3,}\s*:?\s*\|)+\s*$/.test(r));
 }
 
 /**
