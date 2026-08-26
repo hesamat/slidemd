@@ -7,6 +7,7 @@
  */
 
 import { isVisionError } from "../data/ai/ai-orchestrator.js";
+import { Notification } from "../renderer/notification.js";
 import { Logger } from "../core/logger.js";
 import { icon } from "../core/icon.js";
 
@@ -90,7 +91,14 @@ export class AiSidebar {
     let discarded = false;
     let skipImagesOnRetry = false;
 
-    cancelBtn.addEventListener("click", () => {
+    cancelBtn.addEventListener("click", async () => {
+      if (!cancelBtn.hidden) {
+        const confirmed = await Notification.confirm(
+          "Cancelling will stop the AI run and discard any progress made so far. " +
+            "Cancel anyway?",
+        );
+        if (!confirmed) return;
+      }
       cancelled = true;
       this.cancel();
     });
@@ -408,7 +416,11 @@ export class AiSidebar {
     let closed = false;
     let discarded = false;
 
-    cancelBtn.addEventListener("click", () => {
+    cancelBtn.addEventListener("click", async () => {
+      const confirmed = await Notification.confirm(
+        "Cancelling will stop the current AI run and discard any partial result. Continue?",
+      );
+      if (!confirmed) return;
       ctrl.abort();
       this.cancel();
     });
