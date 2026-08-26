@@ -22,6 +22,34 @@ const COLUMN_BLOCK_DECK = `layout: title-slide
 :::
 `;
 
+const USER_SLIDE_DECK = `layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 1.3643fr 0.6357fr
+
+@header
+
+# Text Blocks
+
+@media
+
+### Multi-column
+
+::: text-block { column-count=2 }
+
+1. First item
+2. Second item
+3. Third item
+4. Fourth item
+
+:::
+
+### Styled block
+
+::: text-block { color="#1a95b8" markdown=true }
+
+**Bold text** and _italic_ inside a styled block.
+
+:::
+`;
+
 async function setEditorMarkdown(page, markdown) {
   await page.evaluate((md) => {
     const ec = window.__WEBDECK_EDIT_CONTROLLER__;
@@ -133,4 +161,33 @@ test("does not inline-edit a multi-column text block on double-click", async ({ 
 
   const isEditable = await textBlock.evaluate((el) => el.isContentEditable);
   expect(isEditable).toBe(false);
+});
+
+test("shows markdown source (not rendered text) for an id-less markdown-rendered block", async ({
+  page,
+}) => {
+  await loadExampleDeck(page);
+  await enterEditMode(page);
+  await setEditorMarkdown(page, USER_SLIDE_DECK);
+
+  const activeSlide = page.locator(".slide.active");
+  const textBlocks = activeSlide.locator(".text-block");
+  // First block: the multi-column list
+  await expect(textBlocks.nth(0)).toBeVisible({ timeout: 10_000 });
+  // Second block: the styled markdown block
+  await expect(textBlocks.nth(1)).toBeVisible({ timeout: 10_000 });
+
+  // Click the second text block and open its panel
+  const box = await textBlocks.nth(1).boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator("#textPropertiesPanel")).not.toHaveClass(/webdeck-hidden/, {
+    timeout: 5_000,
+  });
+
+  // The textarea should contain the markdown source, not the rendered text
+  const textarea = page.locator(".text-properties-panel__textarea");
+  const value = await textarea.inputValue();
+  expect(value).toMatch(/\*\*Bold text\*\*/);
+  expect(value).toMatch(/_italic_/);
 });

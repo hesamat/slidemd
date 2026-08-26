@@ -631,6 +631,7 @@ export class EditController {
       getMarkdownEditor: () => this.markdownEditor,
       getCurrentSlideIndex: () => this.currentSlideIndex,
       getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+      getAreaOffsets: (md) => MarkdownParser.parseAreas(md).areaOffsets,
       onPreviewReady: (callback) => this.previewUpdater.onReadyOnce(callback),
     });
 
