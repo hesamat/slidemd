@@ -246,6 +246,50 @@ describe("convertTableDirectivesToMarkers", () => {
     // a continuation of the table.
     expect(result).toMatch(/\| 1 \| 2 \|\n\n\*Design Rule\*/);
   });
+
+  it("synthesizes a hidden header for no-header tables that omit the header row", () => {
+    const md = [
+      "::: table { width=90 no-header }",
+      "| 7 | 8 | 1 |",
+      "| . | 3 | 9 |",
+      "| 4 | 5 | 2 |",
+      ":::",
+    ].join("\n");
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).toContain("table {width=90 no-header}");
+    expect(result).not.toContain("::: table");
+    expect(result).toMatch(/\| {3}\| {3}\| {3}\|\n\|---\|---\|---\|\n\| 7 \| 8 \| 1 \|/);
+  });
+
+  it("does not synthesize a header when an aligned separator is present", () => {
+    const md = [
+      "::: table { width=90 no-header }",
+      "| A | B |",
+      "| :--- | ---: |",
+      "| 1 | 2 |",
+      ":::",
+    ].join("\n");
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).toContain("table {width=90 no-header}");
+    expect(result).not.toContain("|   |   |");
+    expect(result).toContain("| 1 | 2 |");
+  });
+
+  it("synthesizes the right number of columns when the first data row has an empty cell", () => {
+    const md = ["::: table { width=90 no-header }", "| 7 | | 1 |", "| . | 3 | . |", ":::"].join(
+      "\n",
+    );
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).toMatch(/\| {3}\| {3}\| {3}\|\n\|---\|---\|---\|\n\| 7 \| \| 1 \|/);
+    expect(result).not.toMatch(/\| {3}\| {3}\|\n\|---\|---\|\n\| 7 \| \| 1 \|/);
+  });
+
+  it("emits a no-header marker for headerless tables without other attributes", () => {
+    const md = ["::: table { }", "| 7 | 8 |", "| 1 | 2 |", ":::"].join("\n");
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).toContain("table {no-header}");
+    expect(result).toMatch(/\| {3}\| {3}\|\n\|---\|---\|\n\| 7 \| 8 \|/);
+  });
 });
 
 describe("parseTableDirectiveAttrs (marker tokenizer)", () => {
