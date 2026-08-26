@@ -25,6 +25,7 @@ const PALETTE_AI = [
   { id: "enhanceSlide", name: "Enhance current slide", category: "AI" },
   { id: "addSpeakerNotes", name: "Add speaker notes", category: "AI" },
   { id: "polish", name: "Polish all slides", category: "AI" },
+  { id: "importAiResult", name: "Import AI results", category: "AI" },
 ];
 
 const IS_ENABLED = {
@@ -54,6 +55,8 @@ const IS_ENABLED = {
   addSpeakerNotes: (ctx) => ctx.roleManager?.isEditorWindow && ctx.isEditMode(),
   // Whole-deck polish is available in the editor window (pre-flight modal).
   polish: (ctx) => ctx.roleManager?.isEditorWindow,
+  // Import AI result is available in the editor window (modal import flow).
+  importAiResult: (ctx) => ctx.roleManager?.isEditorWindow,
 };
 
 /** @type {CommandDefinition[]} */

@@ -169,6 +169,7 @@ export class DeckController extends EventEmitter {
       addSpeakerNotes: () =>
         window.__WEBDECK_EDIT_CONTROLLER__?.runSingleSlideAi("addSpeakerNotes"),
       polish: () => window.__WEBDECK_EDIT_CONTROLLER__?.runWholeDeckAi(),
+      importAiResult: () => window.__WEBDECK_EDIT_CONTROLLER__?.importAiResult(),
     };
 
     this.commandPalette = new CommandPalette({
