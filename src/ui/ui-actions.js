@@ -25,14 +25,14 @@ export class UiActions {
   }
 
   /**
-   * Toggles fullscreen mode on the stage host element.
-   * @param {HTMLElement} stageHost - The stage host element
+   * Toggles fullscreen mode on the given element.
+   * @param {HTMLElement} element - The element to make fullscreen
    */
-  static toggleFullscreen(stageHost) {
+  static toggleFullscreen(element) {
     if (document.fullscreenElement) {
       document.exitFullscreen();
-    } else if (stageHost?.requestFullscreen) {
-      stageHost.requestFullscreen();
+    } else if (element?.requestFullscreen) {
+      element.requestFullscreen();
     }
   }
 

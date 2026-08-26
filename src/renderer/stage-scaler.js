@@ -17,9 +17,10 @@ export class StageScaler {
 
     const rect = host.getBoundingClientRect();
     const isSmallScreen = window.innerWidth <= 900;
-    const isFullscreen = document.fullscreenElement === host;
+    const isFullscreen = !!document.fullscreenElement;
 
-    // In fullscreen mode, use minimal padding to maximize slide size
+    // In fullscreen mode (browser or element), use minimal padding to
+    // maximize slide size.
     const padding = isFullscreen ? 8 : isSmallScreen ? 32 : 24;
     const availW = rect.width - padding;
     const availH = rect.height - padding;
