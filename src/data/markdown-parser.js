@@ -552,8 +552,8 @@ export class MarkdownParser {
         });
         result.push(
           withSingleLineMath
-            .replace(/\\\[/g, "\\\\[")
-            .replace(/\\\]/g, "\\\\]")
+            .replace(/(^|[^\\])\\\[/g, "$1\\\\[")
+            .replace(/(^|[^\\])\\\]/g, "$1\\\\]")
             .replace(/\\\$/g, '<span class="katex-ignore">$</span>'),
         );
       }

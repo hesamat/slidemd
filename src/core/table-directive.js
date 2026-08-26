@@ -299,6 +299,9 @@ export function convertTableDirectivesToMarkers(markdown) {
 
     const marker = markerParts.length > 0 ? `table {${markerParts.join(" ")}}\n\n` : "";
     const replacement = marker + content.trim();
+    // The blank line after the closing ::: is preserved because `end` is the
+    // position of the closing ::: itself, so any trailing blank line remains in
+    // `result.slice(end)`.
     result = result.slice(0, start) + replacement + result.slice(end);
   }
   return result;
