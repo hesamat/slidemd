@@ -278,19 +278,28 @@ export class RoleManager extends EventEmitter {
           // ignore cross-origin access errors
         }
       });
-    } else {
-      this._openerCheckInterval = setInterval(() => {
-        try {
-          if (!window.opener || window.opener.closed) {
-            this._showOrphanOverlay();
-            this._stopOpenerCheck();
-          }
-        } catch (_e) {
+      return;
+    }
+    // Viewer window: only watch for orphaning if we actually have an opener.
+    // Standalone windows (exported HTML opened directly, or any viewer without
+    // an opener) have no editor to lose, so the orphan overlay must not fire.
+    if (!window.opener) return;
+    this._openerCheckInterval = setInterval(() => {
+      try {
+        // Accessing .closed on a detached/cross-origin opener can throw —
+        // the catch handles that as "opener is gone". Check opener existence
+        // first so a null opener (closed navigated to about:blank etc.) is
+        // treated as orphaned without throwing on .closed.
+        if (!window.opener || window.opener.closed) {
           this._showOrphanOverlay();
           this._stopOpenerCheck();
         }
-      }, 1000);
-    }
+      } catch (_e) {
+        // Opener became inaccessible (cross-origin or destroyed) — treat as orphaned.
+        this._showOrphanOverlay();
+        this._stopOpenerCheck();
+      }
+    }, 1000);
   }
 
   _showOrphanOverlay() {

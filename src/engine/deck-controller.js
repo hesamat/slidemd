@@ -128,6 +128,14 @@ export class DeckController extends EventEmitter {
     this.roleManager.addEventListener("singleScreenPresent", () => {
       this.toggleFullscreen();
     });
+    // Dual screen: when a viewer window opens, auto-exit edit mode so the
+    // presenter panel becomes visible. (Single-screen fullscreen is handled
+    // by the fullscreenchange handler in setupEventListeners.)
+    this.roleManager.addEventListener("viewerwindowchange", (e) => {
+      if (e?.open && this.isEditMode()) {
+        this.toggleEditMode();
+      }
+    });
   }
 
   initReloadManager() {
@@ -225,16 +233,20 @@ export class DeckController extends EventEmitter {
   initPresenterTimer() {
     this.presenterTimer = new PresenterTimer(this.elements);
     this.presenterTimer.tick();
+    let wasPresenting = false;
     const syncState = () => {
       const presenting = !!(
         document.fullscreenElement ||
         (this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed)
       );
-      if (presenting) {
+      // Only start/stop on transitions — start() resets the elapsed
+      // time, so calling it every tick would freeze the timer at 00:00.
+      if (presenting && !wasPresenting) {
         this.presenterTimer.start();
-      } else {
+      } else if (!presenting && wasPresenting) {
         this.presenterTimer.stop();
       }
+      wasPresenting = presenting;
     };
     this._presenterTimerInterval = setInterval(() => {
       syncState();

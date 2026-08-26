@@ -171,6 +171,7 @@
 }
 
 .next-preview {
+  margin-top: 10px;
   border: 1px solid var(--border-medium);
   background: var(--surface-bg);
   border-radius: var(--radius-md);
@@ -190,10 +191,13 @@
   padding: 12px;
 }
 
-.next-preview__slide {
+.next-preview .next-preview__slide {
   position: absolute;
   top: 0;
   left: 0;
+  /* Override .slide { visibility: hidden } — slides.css loads after
+     panels.css, so a single-class selector loses the cascade. The
+     descendant selector raises specificity to (0,2,0) > (0,1,0). */
   visibility: visible;
   display: grid;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
