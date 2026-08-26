@@ -43,14 +43,20 @@ export class SourceJumpHandler {
           return;
         if (e.target.closest("img")) return;
 
-        // Text blocks have their own click-to-select/properties panel flow;
-        // skip the editor source-line jump for them.
-        if (e.target.closest(".text-block")) return;
-
         const areaEl = e.target.closest(".slide__area");
         if (!areaEl) return;
 
-        const blockEl = e.target.closest("[data-source-line]");
+        // Pick the outermost ancestor with data-source-line so clicking
+        // inside a rendered text block (e.g. a <li> or <p>) jumps to the
+        // directive/fence/paragraph line instead of the inner token line.
+        let blockEl = null;
+        let current = e.target;
+        while (current && current !== areaEl) {
+          if (current.dataset?.sourceLine != null) {
+            blockEl = current;
+          }
+          current = current.parentElement;
+        }
         if (!blockEl) return;
 
         const areaName = areaEl.dataset.areaName || "main";
