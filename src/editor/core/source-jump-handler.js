@@ -43,6 +43,10 @@ export class SourceJumpHandler {
           return;
         if (e.target.closest("img")) return;
 
+        // Text blocks have their own click-to-select/properties panel flow;
+        // skip the editor source-line jump for them.
+        if (e.target.closest(".text-block")) return;
+
         const areaEl = e.target.closest(".slide__area");
         if (!areaEl) return;
 
