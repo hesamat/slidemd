@@ -258,7 +258,7 @@ describe("convertTableDirectivesToMarkers", () => {
     const result = convertTableDirectivesToMarkers(md);
     expect(result).toContain("table {width=90 no-header}");
     expect(result).not.toContain("::: table");
-    expect(result).toMatch(/\|   \|   \|   \|\n\|---\|---\|---\|\n\| 7 \| 8 \| 1 \|/);
+    expect(result).toMatch(/\| {3}\| {3}\| {3}\|\n\|---\|---\|---\|\n\| 7 \| 8 \| 1 \|/);
   });
 });
 
