@@ -1066,18 +1066,18 @@ Phases 11-14 form the AI/state track and were reordered from their original sequ
 
 Items deferred or dropped from earlier phases.
 
-| Item                                                 | Notes                                                        |
-| ---------------------------------------------------- | ------------------------------------------------------------ |
-| `DesignSystem` JS module                             | No user-facing delta; CSS variables are the token system.    |
-| `ThemeRegistry` + custom themes                      | No demonstrated user need; light/dark + accent covers usage. |
-| `@import[theme.yaml]` / `@import[slides/section.md]` | Multi-deck composition; high parser blast radius.            |
-| Motion / transition tokens                           | No transition system to tokenize.                            |
-| Brand defaults                                       | New Presentation modal already covers per-deck choices.      |
-| Separate presenter window (PowerPoint-style)         | Existing editor + viewer is lower-risk; panels reusable.     |
-| `PrintAdapter` class                                 | No user-facing delta; defer unless bugs appear.              |
-| Laser pointer / drawing overlay                      | High blast radius, low demand; dropped.                      |
-| "Summarize for executive" AI intent                  | Niche, no demonstrated demand; dropped.                      |
-| "Convert bullets to metric cards" AI intent          | Very specific, no demonstrated demand; dropped.              |
-| `PresenterModel` class                               | State already works across existing managers; dropped.       |
-| Speaker notes in PDF                                 | Optional page-per-slide or notes section in PDF output; deferred from Phase 16. |
+| Item                                                 | Notes                                                                              |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `DesignSystem` JS module                             | No user-facing delta; CSS variables are the token system.                          |
+| `ThemeRegistry` + custom themes                      | No demonstrated user need; light/dark + accent covers usage.                       |
+| `@import[theme.yaml]` / `@import[slides/section.md]` | Multi-deck composition; high parser blast radius.                                  |
+| Motion / transition tokens                           | No transition system to tokenize.                                                  |
+| Brand defaults                                       | New Presentation modal already covers per-deck choices.                            |
+| Separate presenter window (PowerPoint-style)         | Existing editor + viewer is lower-risk; panels reusable.                           |
+| `PrintAdapter` class                                 | No user-facing delta; defer unless bugs appear.                                    |
+| Laser pointer / drawing overlay                      | High blast radius, low demand; dropped.                                            |
+| "Summarize for executive" AI intent                  | Niche, no demonstrated demand; dropped.                                            |
+| "Convert bullets to metric cards" AI intent          | Very specific, no demonstrated demand; dropped.                                    |
+| `PresenterModel` class                               | State already works across existing managers; dropped.                             |
+| Speaker notes in PDF                                 | Optional page-per-slide or notes section in PDF output; deferred from Phase 16.    |
 | Per-slide PNG export                                 | Playwright screenshots for visual QA / regression diffing; deferred from Phase 16. |
