@@ -872,15 +872,15 @@ Goal: Make presenting and handouts feel finished before 1.0. Extends the existin
 
 | Task                             | Details                                                                                                                                                                                 |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add AI category to palette   | Add an "AI" category to the existing command palette (`src/engine/command-palette.js`) and wire the existing intents (`enhanceSlide`, `addSpeakerNotes`, `polish`) as palette commands. |
-| [ ] Target current slide or deck | Single-slide intents target the current slide; whole-deck intents target the deck. Uses the existing `AiOrchestrator.runOperation()` path — no new execution logic.                     |
+| [x] Add AI category to palette   | Add an "AI" category to the existing command palette (`src/engine/command-palette.js`) and wire the existing intents (`enhanceSlide`, `addSpeakerNotes`, `polish`) as palette commands. |
+| [x] Target current slide or deck | Single-slide intents target the current slide; whole-deck intents target the deck. Uses the existing `AiOrchestrator.runOperation()` path — no new execution logic.                     |
 
 ### PDF Notes & Visual QA
 
 | Task                     | Details                                                                                                                                                                                                             |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Speaker notes in PDF | Optional page-per-slide or notes section in PDF output via `tools/pdf.mjs`. Useful for handout-style PDFs.                                                                                                          |
-| [ ] Per-slide PNG export | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Builds on the existing Playwright harness. Justified as a visual-QA / regression-diffing tool, not a user presentation feature. |
+| [ ] Speaker notes in PDF | Optional page-per-slide or notes section in PDF output via `tools/pdf.mjs`. Useful for handout-style PDFs. **Deferred.**                                                                                               |
+| [ ] Per-slide PNG export | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Builds on the existing Playwright harness. Justified as a visual-QA / regression-diffing tool, not a user presentation feature. **Deferred.** |
 
 ---
 
