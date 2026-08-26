@@ -29,7 +29,7 @@
  * compatibility, but the PPTX converter and AI now emit the container form.
  */
 
-const TABLE_DIRECTIVE_RE = /^:::\s*table\s*\{([^}]*)\}[ \t]*\r?\n([\s\S]*?)^:::\s*$/gim;
+const TABLE_DIRECTIVE_RE = /^:::\s*table\s*\{([^}]*)\}[ \t]*\r?\n([\s\S]*?)^:::[ \t]*$/gim;
 
 /**
  * Canonical table attribute names — the curated list shown to humans and the

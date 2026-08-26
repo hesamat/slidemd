@@ -229,6 +229,23 @@ describe("convertTableDirectivesToMarkers", () => {
     expect(result).toContain("headerColor=#003c68");
     expect(result).not.toContain('headerColor="');
   });
+
+  it("preserves the blank line after the closing ::: so the next paragraph is not merged into the table", () => {
+    const md = [
+      "::: table { width=95 align=center }",
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      ":::",
+      "",
+      "*Design Rule*: Tables must be followed by a blank line.",
+    ].join("\n");
+    const result = convertTableDirectivesToMarkers(md);
+    // The closing ::: should not consume the blank line; otherwise the
+    // design rule would sit directly under the last row and be parsed as
+    // a continuation of the table.
+    expect(result).toMatch(/\| 1 \| 2 \|\n\n\*Design Rule\*/);
+  });
 });
 
 describe("parseTableDirectiveAttrs (marker tokenizer)", () => {

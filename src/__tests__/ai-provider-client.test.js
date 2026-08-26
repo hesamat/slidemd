@@ -635,7 +635,7 @@ describe("AiProviderClient", () => {
 
     expect(result.content).toBe("success");
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
-    // First call sent reasoning with effort:none
+    // First call sent reasoning with effort:"none"
     const firstBody = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
     expect(firstBody.reasoning).toEqual({ effort: "none" });
     // Second call should NOT have reasoning at all

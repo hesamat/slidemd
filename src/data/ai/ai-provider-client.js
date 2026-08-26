@@ -119,13 +119,10 @@ export class AiProviderClient {
       throw new AiHttpError(0, validation.error || "Invalid base URL");
     }
     const url = `${baseUrl}/chat/completions`;
-    const rawModel = this._getModel();
-    // OpenRouter model IDs can have at most one routing suffix. Only append
-    // the default :nitro suffix when the user hasn't already picked one.
-    const model =
-      provider === "OpenRouter" && rawModel && !rawModel.includes(":")
-        ? `${rawModel}:nitro`
-        : rawModel;
+    const model = this._getModel();
+    // OpenRouter routing suffixes (e.g. :nitro, :floor) can be blocked by
+    // user guardrail/data-policy settings and are not required. Use the
+    // selected model ID as-is so OpenRouter's default routing applies.
     // OpenRouter's reasoning models default to "on" when the parameter is
     // omitted; send "none" when the user hasn't asked for reasoning.
     const effectiveReasoning = reasoning ?? (provider === "OpenRouter" ? { effort: "none" } : null);
