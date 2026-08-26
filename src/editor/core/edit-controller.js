@@ -250,7 +250,7 @@ export class EditController {
           handler: TextBlockHandler,
           getElement: (target) => {
             const textBlock = target.closest(".text-block");
-            if (textBlock && !TextBlockHandler.isMultiColumn(textBlock)) {
+            if (textBlock) {
               // Leave clicks alone while the block is being edited inline, otherwise
               // re-selecting it clears contenteditable and drops the typed text.
               if (textBlock.isContentEditable) return null;
@@ -631,6 +631,7 @@ export class EditController {
       getMarkdownEditor: () => this.markdownEditor,
       getCurrentSlideIndex: () => this.currentSlideIndex,
       getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+      getAreaOffsets: (md) => MarkdownParser.parseAreas(md).areaOffsets,
       onPreviewReady: (callback) => this.previewUpdater.onReadyOnce(callback),
     });
 

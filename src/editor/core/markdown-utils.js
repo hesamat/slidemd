@@ -105,8 +105,19 @@ export function findMarkdownPosition(markdown, element, { preferSourceLine = tru
   let charOffset = 0;
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed && text.startsWith(trimmed.slice(0, MAX_TEXT_MATCH_LEN))) {
-      return range.from + charOffset;
+    if (trimmed) {
+      if (text.startsWith(trimmed.slice(0, MAX_TEXT_MATCH_LEN))) {
+        return range.from + charOffset;
+      }
+      // Headings render without the `### ` prefix, so match the body text
+      // against the markdown line stripped of its heading markers.
+      const headingText = trimmed.replace(/^#{1,6}\s+/, "");
+      if (
+        headingText &&
+        (text === headingText || text.startsWith(headingText.slice(0, MAX_TEXT_MATCH_LEN)))
+      ) {
+        return range.from + charOffset;
+      }
     }
     charOffset += line.length + 1;
   }

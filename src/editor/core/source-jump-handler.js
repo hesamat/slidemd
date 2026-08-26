@@ -9,6 +9,7 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { findMarkdownPosition } from "./markdown-utils.js";
 
 export class SourceJumpHandler {
   /**
@@ -46,15 +47,32 @@ export class SourceJumpHandler {
         const areaEl = e.target.closest(".slide__area");
         if (!areaEl) return;
 
-        const blockEl = e.target.closest("[data-source-line]");
+        const textBlockEl = e.target.closest(".text-block");
+        let blockEl = null;
+        if (textBlockEl) {
+          // The text-block div carries the directive's source line; the
+          // nested <p>/<li>/<ol> elements have inner token lines that would
+          // jump to the wrong place.
+          blockEl = textBlockEl;
+        } else {
+          // Pick the outermost ancestor with data-source-line so clicking
+          // inside a nested block (e.g. a list <li>) jumps to the top-level
+          // fence/image/paragraph line instead of the inner token line.
+          let current = e.target;
+          while (current && current !== areaEl) {
+            if (current.dataset?.sourceLine != null) {
+              blockEl = current;
+            }
+            current = current.parentElement;
+          }
+        }
         if (!blockEl) return;
 
         const areaName = areaEl.dataset.areaName || "main";
-        const sourceLine = parseInt(blockEl.dataset.sourceLine, 10);
-        if (isNaN(sourceLine)) return;
 
         const markdownEditor = this._getMarkdownEditor();
         const editorMarkdown = markdownEditor?.getValue() ?? "";
+        if (!editorMarkdown) return;
         const lines = editorMarkdown.split("\n");
 
         const parser = new MarkdownParser();
@@ -70,15 +88,45 @@ export class SourceJumpHandler {
         }
         if (areaStart === undefined) areaStart = 0;
 
-        let targetLine = areaStart + sourceLine;
-        targetLine = Math.max(0, Math.min(targetLine, lines.length - 1));
+        let targetLine;
+        let pos;
 
-        let pos = 0;
-        for (let i = 0; i < targetLine; i++) {
-          pos += lines[i].length + 1;
+        if (textBlockEl) {
+          // The text-block div carries the directive's source line.
+          const sourceLine = parseInt(textBlockEl.dataset.sourceLine, 10);
+          if (isNaN(sourceLine)) return;
+          targetLine = areaStart + sourceLine;
+          targetLine = Math.max(0, Math.min(targetLine, lines.length - 1));
+          pos = 0;
+          for (let i = 0; i < targetLine; i++) {
+            pos += lines[i].length + 1;
+          }
+        } else {
+          // For headings, paragraphs and other non-text-block content, the
+          // data-source-line from the rendered HTML is often shifted because
+          // text-block/table directives are replaced with multi-line HTML
+          // before markdown-it renders the area. Find the source by matching
+          // the element's text against the area markdown instead.
+          const foundPos = findMarkdownPosition(editorMarkdown, blockEl, {
+            preferSourceLine: false,
+          });
+          if (foundPos >= 0) {
+            pos = foundPos;
+            targetLine = editorMarkdown.slice(0, pos).split("\n").length - 1;
+          } else {
+            // Fallback for elements with no usable text (e.g. <img>).
+            const sourceLine = parseInt(blockEl.dataset.sourceLine, 10);
+            if (isNaN(sourceLine)) return;
+            targetLine = areaStart + sourceLine;
+            targetLine = Math.max(0, Math.min(targetLine, lines.length - 1));
+            pos = 0;
+            for (let i = 0; i < targetLine; i++) {
+              pos += lines[i].length + 1;
+            }
+          }
         }
-        pos = Math.min(pos, editorMarkdown.length);
 
+        pos = Math.min(pos, editorMarkdown.length);
         markdownEditor.setValueWithCursor(editorMarkdown, pos, {
           suppressOnChange: true,
           scrollIntoView: true,

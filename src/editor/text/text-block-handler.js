@@ -74,6 +74,7 @@ export class TextBlockHandler {
   static _getMarkdownEditor = null;
   static _getCurrentSlideIndex = null;
   static _getSlideElementByIndex = null;
+  static _getAreaOffsets = null;
   static _idCounter = 0;
   static _panel = null;
   static _panelSide = null;
@@ -89,6 +90,8 @@ export class TextBlockHandler {
    * @param {() => object|null} opts.getMarkdownEditor
    * @param {() => number} opts.getCurrentSlideIndex
    * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   * @param {(markdown: string) => Record<string, number>} [opts.getAreaOffsets]
+   *   Returns the 0-indexed editor line where each area's content starts.
    * @param {(callback: (slideEl: HTMLElement) => void) => void} [opts.onPreviewReady]
    *   Register a one-shot callback to run after the next preview re-render.
    */
@@ -99,6 +102,7 @@ export class TextBlockHandler {
     getMarkdownEditor,
     getCurrentSlideIndex,
     getSlideElementByIndex,
+    getAreaOffsets,
     onPreviewReady,
   }) {
     if (this._initialized) return;
@@ -109,6 +113,7 @@ export class TextBlockHandler {
     this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._getSlideElementByIndex = getSlideElementByIndex;
+    this._getAreaOffsets = getAreaOffsets || null;
     this._onPreviewReady = onPreviewReady || null;
 
     document.addEventListener("mousedown", (e) => {
@@ -174,7 +179,7 @@ export class TextBlockHandler {
       const currentSlide = this._getCurrentSlideIndex?.() ?? 0;
       if (currentSlide !== insertionSlide) return;
       const block = slideEl?.querySelector(`.text-block[data-id="${id}"]`);
-      if (!block || this.isMultiColumn(block)) {
+      if (!block) {
         if (retries >= MAX_RETRIES) return;
         retries += 1;
         this._onPreviewReady?.(onReady);
@@ -285,7 +290,7 @@ export class TextBlockHandler {
       "contextmenu",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block || this.isMultiColumn(block)) return;
+        if (!block) return;
         e.preventDefault();
         e.stopPropagation();
         this.select(block);
@@ -348,8 +353,11 @@ export class TextBlockHandler {
 
   /**
    * Rendered-markdown text blocks (multi-column or explicitly marked as
-   * markdown) are layout wrappers, not free-form text, and must not be edited
-   * as text blocks.
+   * markdown) show rendered HTML in the DOM rather than their markdown
+   * source. They must not be inline-edited (dblclick) because innerText
+   * would destroy markdown syntax, and panel content edits must be staged
+   * as markdown source rather than read from the DOM. Selection, panel
+   * open, and drag are still allowed.
    */
   static isMultiColumn(el) {
     if (!el) return false;
@@ -361,10 +369,32 @@ export class TextBlockHandler {
 
   static _ensureId(el) {
     if (!el || el.dataset.id) return;
-    const content = el.innerText?.trim() || "";
     const md = this._getMarkdown?.() || "";
     const blocks = parseTextBlockDirectives(md);
-    const match = blocks.find((b) => !b.settings.id && b.content.trim() === content);
+    let match = null;
+
+    // Rendered (markdown / multi-column) blocks display rendered output in
+    // the DOM, so innerText no longer matches the directive's markdown source.
+    // Match by the area-relative source-line attribute instead.
+    const sourceLineAttr = el.dataset.sourceLine;
+    if (sourceLineAttr != null) {
+      const areaEl = el.closest(".slide__area");
+      const areaName = areaEl?.dataset?.areaName || "main";
+      const areaStart = this._getAreaOffsets?.(md)?.[areaName] ?? 0;
+      const targetLine = areaStart + parseInt(sourceLineAttr, 10);
+      match = blocks.find((b) => {
+        if (b.settings.id) return false;
+        const line = md.slice(0, b.start).split("\n").length - 1;
+        return line === targetLine;
+      });
+    }
+
+    // Fall back to content matching for plain (non-rendered) blocks where
+    // innerText and directive source are the same.
+    if (!match) {
+      const content = el.innerText?.trim() || "";
+      match = blocks.find((b) => !b.settings.id && b.content.trim() === content);
+    }
     if (!match) return;
 
     // Splice by the matched block's own offsets; looking the block up by an
@@ -378,7 +408,7 @@ export class TextBlockHandler {
 
   static _onDragStart(e) {
     const el = e.target?.closest?.(".text-block");
-    if (!el || this.isMultiColumn(el)) return;
+    if (!el) return;
     if (el.isContentEditable) {
       e.interaction?.stop?.();
       return;

@@ -1431,16 +1431,16 @@
 
 /* Compact labelled field sharing a row with a checkbox (e.g. Columns) */
 .text-properties-panel__field--compact {
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
   flex-direction: row;
   align-items: center;
   gap: 6px;
 }
 
 .text-properties-panel__field--compact .text-properties-panel__input {
-  flex: 1;
-  min-width: 0;
+  width: 56px;
+  min-width: 56px;
+  flex: 0 0 auto;
 }
 
 /* A bare control sharing a row with a checkbox grows to fill the rest */
