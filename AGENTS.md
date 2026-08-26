@@ -310,7 +310,6 @@ Do not use a generic "manual test" checkbox when concrete verification steps can
 
 - After a PR merges, delete the branch (enable "Automatically delete head branches" in repo settings; otherwise delete manually).
 - Branches must not live longer than ~30 days. Stale work should be closed, not left dormant.
-- The scheduled `.github/workflows/branch-cleanup.yml` bot deletes branches older than 60 days with no open PR, and closes PRs inactive for 45+ days (exempt labels: `keep-open`, `roadmap`).
 - Before deleting a stale branch with unique commits, archive its tip with an `archive/YYYY-MM-DD/<branch>` tag.
 
 ### Housekeeping
