@@ -1,5 +1,13 @@
-import { describe, it, expect } from "vitest";
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
+import markdownit from "markdown-it";
 import { DeckLoader } from "../data/deck-loader.js";
+
+beforeAll(() => {
+  window.markdownit = markdownit;
+});
 
 describe("DeckLoader.normalizeDeck", () => {
   const validDeck = {
@@ -144,5 +152,46 @@ describe("DeckLoader.normalizeDeck", () => {
     };
     const result = DeckLoader.normalizeDeck(deck);
     expect(result.slides[0].hidden).toBe(true);
+  });
+});
+
+describe("DeckLoader.loadDeckData", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("falls back to cached localStorage markdown when the dev server has no deck", async () => {
+    const serverMock = { ok: true, status: 200, json: async () => ({}) };
+    fetch.mockResolvedValueOnce(serverMock);
+
+    localStorage.setItem("webdeck_local_file", "# Cached\n\nA slide.");
+    localStorage.setItem("webdeck_opened_from_picker", "1");
+
+    const deck = await DeckLoader.loadDeckData();
+    expect(deck.meta.title).toBe("Cached");
+    expect(deck.slides).toHaveLength(1);
+  });
+
+  it("loads the example deck when no server deck and no cached picker deck", async () => {
+    const serverMock = { ok: true, status: 200, json: async () => ({}) };
+    const exampleMarkdown = "# Example\n\nExample slide.";
+    const exampleMock = {
+      ok: true,
+      status: 200,
+      text: async () => exampleMarkdown,
+    };
+    fetch
+      .mockResolvedValueOnce(serverMock)
+      .mockResolvedValueOnce(exampleMock)
+      .mockResolvedValueOnce({ ok: true });
+
+    const deck = await DeckLoader.loadDeckData();
+    expect(deck.meta.title).toBe("Example");
+    expect(deck.slides).toHaveLength(1);
   });
 });

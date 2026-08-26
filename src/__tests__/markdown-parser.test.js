@@ -314,6 +314,16 @@ describe("MarkdownParser.escapeKatexBracketDelimiters", () => {
     const result = parser.escapeKatexBracketDelimiters(md);
     expect(result).toContain("$$x^2 + y^2$$");
   });
+
+  it("doubles backslashes inside single-line $$...$$ math", () => {
+    const result = parser.escapeKatexBracketDelimiters("$$x\\_1 + y\\_2$$");
+    expect(result).toBe("$$x\\\\_1 + y\\\\_2$$");
+  });
+
+  it("does not double-escape already-escaped bracket delimiters", () => {
+    const result = parser.escapeKatexBracketDelimiters("\\\\[x^2\\\\]");
+    expect(result).toBe("\\\\[x^2\\\\]");
+  });
 });
 
 describe("MarkdownParser.parseAreas", () => {

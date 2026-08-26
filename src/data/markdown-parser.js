@@ -543,11 +543,17 @@ export class MarkdownParser {
         // Collect lines inside the math block
         mathBlockLines.push(line);
       } else {
-        // Outside math blocks, escape LaTeX bracket delimiters
+        // Outside math blocks, escape LaTeX bracket delimiters and
+        // single-line $$...$$ display math so markdown-it does not eat
+        // backslash-escaped punctuation (e.g. \_) before KaTeX sees it.
+        const withSingleLineMath = line.replace(/\$\$([^$]+?)\$\$/g, (_, content) => {
+          const escaped = content.replace(/\\/g, "\\\\");
+          return `$$${escaped}$$`;
+        });
         result.push(
-          line
-            .replace(/\\\[/g, "\\\\[")
-            .replace(/\\\]/g, "\\\\]")
+          withSingleLineMath
+            .replace(/(^|[^\\])\\\[/g, "$1\\\\[")
+            .replace(/(^|[^\\])\\\]/g, "$1\\\\]")
             .replace(/\\\$/g, '<span class="katex-ignore">$</span>'),
         );
       }

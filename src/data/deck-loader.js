@@ -101,7 +101,29 @@ export class DeckLoader {
    * @returns {Promise<import('../types.js').Deck>}
    */
   static async loadDeckData() {
-    // 1. Try CLI dev server API (skip in exported HTML files)
+    // 1. Try Embedded JSON (build output)
+    const embedded = document.getElementById("deckData");
+    if (embedded?.textContent?.trim()) {
+      try {
+        return JSON.parse(embedded.textContent);
+      } catch (e) {
+        throw new Error(`Invalid embedded deck JSON: ${e.message}`, { cause: e });
+      }
+    }
+
+    // 2. Use cached deck from a previous picker-based open when it is the
+    // active source. The dev server may not know about picker-opened files,
+    // so prefer the cache over a stale server deck while the picker flag is
+    // set and no server source URL is recorded.
+    const cachedMarkdown = localStorage.getItem("webdeck_local_file");
+    const openedFromPicker = localStorage.getItem("webdeck_opened_from_picker") === "1";
+    const sourceUrl = localStorage.getItem("webdeck_source_url");
+    if (cachedMarkdown && openedFromPicker && !sourceUrl) {
+      await AssetLoader.ensureMarkdownItLoaded();
+      return new MarkdownParser().parseDeckMarkdown(cachedMarkdown);
+    }
+
+    // 3. Try CLI dev server API (skip in exported HTML files)
     if (!window.__WEBDECK_EXPORTED__) {
       try {
         const res = await fetch("/api/deck");
@@ -122,17 +144,7 @@ export class DeckLoader {
       }
     }
 
-    // 2. Try Embedded JSON (build output)
-    const embedded = document.getElementById("deckData");
-    if (embedded?.textContent?.trim()) {
-      try {
-        return JSON.parse(embedded.textContent);
-      } catch (e) {
-        throw new Error(`Invalid embedded deck JSON: ${e.message}`, { cause: e });
-      }
-    }
-
-    // 3. Default — auto-load example deck
+    // 4. Default — auto-load example deck
     // Keep existing localStorage data intact (don't wipe).
     // User may have a cached deck from a previous session.
 
