@@ -124,13 +124,13 @@ export class DeckController extends EventEmitter {
     this.roleManager.addEventListener("panelresize", () => {
       if (this.roleManager.isEditorWindow) this.updateNextPreview();
     });
-    // Single screen: fullscreen the current window instead of opening a viewer
+    // Single screen: enter presentation-style fullscreen (stage fills the
+    // screen) when the user explicitly chooses "Present fullscreen".
     this.roleManager.addEventListener("singleScreenPresent", () => {
-      this.toggleFullscreen();
+      this.enterPresentFullscreen();
     });
     // Dual screen: when a viewer window opens, auto-exit edit mode so the
-    // presenter panel becomes visible. (Single-screen fullscreen is handled
-    // by the fullscreenchange handler in setupEventListeners.)
+    // presenter panel becomes visible.
     this.roleManager.addEventListener("viewerwindowchange", (e) => {
       if (e?.open && this.isEditMode()) {
         this.toggleEditMode();
@@ -235,10 +235,16 @@ export class DeckController extends EventEmitter {
     this.presenterTimer.tick();
     let wasPresenting = false;
     const syncState = () => {
-      const presenting = !!(
-        document.fullscreenElement ||
-        (this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed)
+      const viewerOpen = !!(
+        this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed
       );
+      // In the editor, fullscreen alone should not count as presenting.
+      // Single-screen "Present" still opens a viewer window or uses
+      // browser fullscreen, but that is just a view state, not a mode
+      // change. In viewer/export windows, the existing behavior is kept.
+      const presenting = this.roleManager.isEditorWindow
+        ? viewerOpen
+        : viewerOpen || !!document.fullscreenElement;
       // Only start/stop on transitions — start() resets the elapsed
       // time, so calling it every tick would freeze the timer at 00:00.
       if (presenting && !wasPresenting) {
@@ -342,14 +348,6 @@ export class DeckController extends EventEmitter {
   }
 
   setupEventListeners() {
-    // Auto-exit edit mode when entering fullscreen/present (covers
-    // browser F11 and any non-toggleFullscreen entry).
-    this._fullscreenChangeHandler = () => {
-      if (document.fullscreenElement && this.isEditMode()) {
-        this.toggleEditMode();
-      }
-    };
-    document.addEventListener("fullscreenchange", this._fullscreenChangeHandler);
     this._deckEvents = new DeckEvents({
       elements: this.elements,
       handleKeyboard: (e) => this.handleKeyboard(e),
@@ -553,6 +551,22 @@ export class DeckController extends EventEmitter {
   }
 
   toggleFullscreen() {
+    // The generic fullscreen shortcut (F key / toolbar button) should not
+    // act as present mode. In the editor it full-screens the whole page so
+    // the editor/presenter controls remain accessible; in viewer/export it
+    // full-screens the stage as before.
+    if (this.roleManager.isEditorWindow) {
+      this._uiActions?.toggleFullscreen(document.documentElement);
+    } else {
+      this._uiActions?.toggleFullscreen(this.elements.stageHost);
+    }
+  }
+
+  enterPresentFullscreen() {
+    // "Present fullscreen" from the single-screen prompt still fills the
+    // stage and hides the editor shell, but it does not start the presenter
+    // timer. Edit mode is exited because we are starting a presentation.
+    if (this.isEditMode()) this.toggleEditMode();
     this._uiActions?.toggleFullscreen(this.elements.stageHost);
   }
 
@@ -629,9 +643,6 @@ export class DeckController extends EventEmitter {
 
   destroy() {
     if (this._deckEvents) this._deckEvents.teardown();
-    if (this._fullscreenChangeHandler) {
-      document.removeEventListener("fullscreenchange", this._fullscreenChangeHandler);
-    }
     if (this._timerFullscreenHandler) {
       document.removeEventListener("fullscreenchange", this._timerFullscreenHandler);
     }

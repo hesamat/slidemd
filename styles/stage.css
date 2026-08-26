@@ -41,6 +41,22 @@
   box-shadow: none;
 }
 
+/* Editor full-page fullscreen (document.documentElement) keeps controls visible
+   but maximizes the stage within the available viewport. */
+html[data-webdeck-role="editor"]:fullscreen .viewer,
+html[data-webdeck-role="editor"]:-webkit-full-screen .viewer {
+  padding: 0;
+}
+
+html[data-webdeck-role="editor"]:fullscreen .stage-host,
+html[data-webdeck-role="editor"]:-webkit-full-screen .stage-host {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  background: var(--slide-bg);
+}
+
 .stage {
   position: relative;
   background: var(--slide-bg);

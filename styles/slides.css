@@ -826,9 +826,11 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   min-width: 100%;
 }
 
-/* Hide copy buttons while the stage is in fullscreen presentation mode */
-:fullscreen .slide__area .code-copy-button,
-:-webkit-full-screen .slide__area .code-copy-button {
+/* Hide copy buttons in fullscreen for viewer/export windows only.
+   In the editor, fullscreen is just browser fullscreen, not present mode,
+   so the copy button remains accessible. */
+html[data-webdeck-role="viewer"] :fullscreen .slide__area .code-copy-button,
+html[data-webdeck-role="viewer"] :-webkit-full-screen .slide__area .code-copy-button {
   display: none !important;
 }
 
