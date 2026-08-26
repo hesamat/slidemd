@@ -46,16 +46,24 @@ export class SourceJumpHandler {
         const areaEl = e.target.closest(".slide__area");
         if (!areaEl) return;
 
-        // Pick the outermost ancestor with data-source-line so clicking
-        // inside a rendered text block (e.g. a <li> or <p>) jumps to the
-        // directive/fence/paragraph line instead of the inner token line.
+        const textBlockEl = e.target.closest(".text-block");
         let blockEl = null;
-        let current = e.target;
-        while (current && current !== areaEl) {
-          if (current.dataset?.sourceLine != null) {
-            blockEl = current;
+        if (textBlockEl) {
+          // The text-block div carries the directive's source line; the
+          // nested <p>/<li>/<ol> elements have inner token lines that would
+          // jump to the wrong place.
+          blockEl = textBlockEl;
+        } else {
+          // Pick the outermost ancestor with data-source-line so clicking
+          // inside a nested block (e.g. a list <li>) jumps to the top-level
+          // fence/image/paragraph line instead of the inner token line.
+          let current = e.target;
+          while (current && current !== areaEl) {
+            if (current.dataset?.sourceLine != null) {
+              blockEl = current;
+            }
+            current = current.parentElement;
           }
-          current = current.parentElement;
         }
         if (!blockEl) return;
 
