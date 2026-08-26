@@ -174,7 +174,7 @@ export class TextBlockHandler {
       const currentSlide = this._getCurrentSlideIndex?.() ?? 0;
       if (currentSlide !== insertionSlide) return;
       const block = slideEl?.querySelector(`.text-block[data-id="${id}"]`);
-      if (!block || this.isMultiColumn(block)) {
+      if (!block) {
         if (retries >= MAX_RETRIES) return;
         retries += 1;
         this._onPreviewReady?.(onReady);
@@ -285,7 +285,7 @@ export class TextBlockHandler {
       "contextmenu",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block || this.isMultiColumn(block)) return;
+        if (!block) return;
         e.preventDefault();
         e.stopPropagation();
         this.select(block);
@@ -348,8 +348,11 @@ export class TextBlockHandler {
 
   /**
    * Rendered-markdown text blocks (multi-column or explicitly marked as
-   * markdown) are layout wrappers, not free-form text, and must not be edited
-   * as text blocks.
+   * markdown) show rendered HTML in the DOM rather than their markdown
+   * source. They must not be inline-edited (dblclick) because innerText
+   * would destroy markdown syntax, and panel content edits must be staged
+   * as markdown source rather than read from the DOM. Selection, panel
+   * open, and drag are still allowed.
    */
   static isMultiColumn(el) {
     if (!el) return false;
@@ -378,7 +381,7 @@ export class TextBlockHandler {
 
   static _onDragStart(e) {
     const el = e.target?.closest?.(".text-block");
-    if (!el || this.isMultiColumn(el)) return;
+    if (!el) return;
     if (el.isContentEditable) {
       e.interaction?.stop?.();
       return;
