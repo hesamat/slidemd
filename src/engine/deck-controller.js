@@ -235,10 +235,16 @@ export class DeckController extends EventEmitter {
     this.presenterTimer.tick();
     let wasPresenting = false;
     const syncState = () => {
-      const presenting = !!(
-        document.fullscreenElement ||
-        (this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed)
+      const viewerOpen = !!(
+        this.roleManager.viewerWindowRef && !this.roleManager.viewerWindowRef.closed
       );
+      // In the editor, fullscreen alone should not count as presenting.
+      // Single-screen "Present" still opens a viewer window or uses
+      // browser fullscreen, but that is just a view state, not a mode
+      // change. In viewer/export windows, the existing behavior is kept.
+      const presenting = this.roleManager.isEditorWindow
+        ? viewerOpen
+        : viewerOpen || !!document.fullscreenElement;
       // Only start/stop on transitions — start() resets the elapsed
       // time, so calling it every tick would freeze the timer at 00:00.
       if (presenting && !wasPresenting) {
@@ -342,14 +348,6 @@ export class DeckController extends EventEmitter {
   }
 
   setupEventListeners() {
-    // Auto-exit edit mode when entering fullscreen/present (covers
-    // browser F11 and any non-toggleFullscreen entry).
-    this._fullscreenChangeHandler = () => {
-      if (document.fullscreenElement && this.isEditMode()) {
-        this.toggleEditMode();
-      }
-    };
-    document.addEventListener("fullscreenchange", this._fullscreenChangeHandler);
     this._deckEvents = new DeckEvents({
       elements: this.elements,
       handleKeyboard: (e) => this.handleKeyboard(e),
@@ -629,9 +627,6 @@ export class DeckController extends EventEmitter {
 
   destroy() {
     if (this._deckEvents) this._deckEvents.teardown();
-    if (this._fullscreenChangeHandler) {
-      document.removeEventListener("fullscreenchange", this._fullscreenChangeHandler);
-    }
     if (this._timerFullscreenHandler) {
       document.removeEventListener("fullscreenchange", this._timerFullscreenHandler);
     }
