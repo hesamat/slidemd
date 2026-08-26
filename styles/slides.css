@@ -783,11 +783,10 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   border: 1px solid var(--code-border-color);
   background: var(--code-surface);
   color: var(--code-ink);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1;
-  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   opacity: 0.65;
@@ -796,8 +795,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     background-color 0.15s ease,
     border-color 0.15s ease,
     color 0.15s ease;
-  min-width: 4.5em;
-  text-align: center;
+  min-width: 1.4em;
+  min-height: 1.4em;
 }
 
 .slide__area .code-copy-button:hover,
@@ -821,9 +820,10 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   color: var(--danger, #ef4444);
 }
 
-.slide__area .code-copy-button__label {
-  display: inline-block;
-  min-width: 100%;
+.slide__area .code-copy-button__icon {
+  display: block;
+  width: 1.1em;
+  height: 1.1em;
 }
 
 /* Hide copy buttons in fullscreen for viewer/export windows only.
@@ -835,9 +835,9 @@ html[data-webdeck-role="viewer"] :-webkit-full-screen .slide__area .code-copy-bu
 }
 
 @media screen {
-  /* Make room for the copy button so it does not overlap code text */
-  .slide__area pre.has-copy-button {
-    padding-right: max(80px, 4.5em);
+  /* Reserve horizontal space for the absolute copy button so it does not overlap code text */
+  .slide__area pre.has-copy-button:has(> code) {
+    padding-right: max(48px, 3em);
   }
 }
 

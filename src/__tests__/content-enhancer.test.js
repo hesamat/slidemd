@@ -210,12 +210,17 @@ describe("ContentEnhancer", () => {
       expect(button).toBeTruthy();
       expect(button.getAttribute("aria-label")).toBe("Copy code to clipboard");
 
+      const initialIcon = button.querySelector('[data-copy-icon="copy"]');
+      expect(initialIcon).toBeTruthy();
+
       button.click();
       await new Promise((r) => setTimeout(r, 10));
 
       expect(writeText).toHaveBeenCalledTimes(1);
       expect(writeText).toHaveBeenCalledWith("const x = 1;");
-      expect(button.textContent).toBe("Copied");
+      expect(button.getAttribute("aria-label")).toBe("Copied");
+      expect(button.classList.contains("is-copied")).toBe(true);
+      expect(button.querySelector('[data-copy-icon="check"]')).toBeTruthy();
     } finally {
       window.__WEBDECK_EXPORTED__ = savedExported;
       Object.defineProperty(window, "isSecureContext", {
@@ -254,12 +259,16 @@ describe("ContentEnhancer", () => {
       await ContentEnhancer.enhanceRenderedContent(container, { force: true });
 
       const button = container.querySelector(".code-copy-button");
+      const initialIcon = button.querySelector('[data-copy-icon="copy"]');
+      expect(initialIcon).toBeTruthy();
+
       button.click();
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(button.textContent).toBe("Failed");
+      expect(button.getAttribute("aria-label")).toBe("Copy failed");
       expect(button.classList.contains("is-copy-failed")).toBe(true);
       expect(button.classList.contains("is-copied")).toBe(false);
+      expect(button.querySelector('[data-copy-icon="triangle-alert"]')).toBeTruthy();
 
       document.execCommand = originalExecCommand;
     } finally {
@@ -308,6 +317,7 @@ describe("ContentEnhancer", () => {
       const button = container.querySelector(".code-copy-button");
       expect(button).toBeTruthy();
       expect(button.getAttribute("aria-label")).toBe("Copy code to clipboard");
+      expect(button.querySelector('[data-copy-icon="copy"]')).toBeTruthy();
     } finally {
       window.__WEBDECK_EXPORTED__ = savedExported;
       if (savedRole) document.documentElement.setAttribute("data-webdeck-role", savedRole);

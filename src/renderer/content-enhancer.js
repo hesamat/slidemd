@@ -4,6 +4,7 @@
  */
 import { normalizeCodeLanguage, base64Encode, base64Decode } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
+import { icon } from "../core/icon.js";
 import createDOMPurify from "dompurify";
 
 const EMOJI_SEQUENCE_RE =
@@ -123,6 +124,12 @@ export function sanitizeMermaidSvg(svg) {
 
 const COPY_BUTTON_TIMEOUT_MS = 2000;
 
+const COPY_ICONS = {
+  default: "copy",
+  copied: "check",
+  failed: "triangle-alert",
+};
+
 function isCopyButtonSurface() {
   if (typeof window === "undefined") return false;
   // Enable in the editor (role="editor") and in self-contained exports/bundles.
@@ -172,14 +179,28 @@ async function copyTextToClipboard(text) {
   return success;
 }
 
-function resetCopyButton(button, label) {
+function setCopyButtonIcon(button, name) {
+  const existing = button.querySelector(".code-copy-button__icon");
+  if (existing) existing.remove();
+
+  const svg = icon(name, { size: "md" });
+  if (!svg) return;
+
+  svg.classList.add("code-copy-button__icon");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  svg.setAttribute("data-copy-icon", name);
+  button.appendChild(svg);
+}
+
+function resetCopyButton(button) {
   button.classList.remove("is-copied", "is-copy-failed");
   button.setAttribute("aria-label", "Copy code to clipboard");
   button.setAttribute("title", "Copy");
-  label.textContent = "Copy";
+  setCopyButtonIcon(button, COPY_ICONS.default);
 }
 
-async function onCopyButtonClick(button, label, codeEl) {
+async function onCopyButtonClick(button, codeEl) {
   const text = codeEl.textContent || "";
   let success;
   try {
@@ -192,15 +213,15 @@ async function onCopyButtonClick(button, label, codeEl) {
     button.classList.add("is-copied");
     button.setAttribute("aria-label", "Copied");
     button.setAttribute("title", "Copied");
-    label.textContent = "Copied";
+    setCopyButtonIcon(button, COPY_ICONS.copied);
   } else {
     button.classList.add("is-copy-failed");
     button.setAttribute("aria-label", "Copy failed");
     button.setAttribute("title", "Copy failed");
-    label.textContent = "Failed";
+    setCopyButtonIcon(button, COPY_ICONS.failed);
   }
 
-  setTimeout(() => resetCopyButton(button, label), COPY_BUTTON_TIMEOUT_MS);
+  setTimeout(() => resetCopyButton(button), COPY_BUTTON_TIMEOUT_MS);
 }
 
 function createCopyButton(codeEl) {
@@ -210,13 +231,8 @@ function createCopyButton(codeEl) {
   button.setAttribute("aria-label", "Copy code to clipboard");
   button.setAttribute("title", "Copy");
 
-  const label = document.createElement("span");
-  label.className = "code-copy-button__label";
-  label.textContent = "Copy";
-  label.setAttribute("aria-hidden", "true");
-  button.appendChild(label);
-
-  button.addEventListener("click", () => onCopyButtonClick(button, label, codeEl));
+  button.addEventListener("click", () => onCopyButtonClick(button, codeEl));
+  resetCopyButton(button);
   return button;
 }
 
