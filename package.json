@@ -33,6 +33,7 @@
   "scripts": {
     "dev": "node tools/dev.mjs",
     "dev:cli": "node tools/dev-server.mjs",
+    "pptx": "node tools/pptx-import.mjs",
     "dev:vite": "vite",
     "build": "node tools/build.mjs -- docs/example/slides.md",
     "build-example": "node tools/build-example.mjs",

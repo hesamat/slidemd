@@ -12,7 +12,7 @@ SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on
 - **Dual-window presenter view** — speaker notes, next-slide preview, and break timer
 - **Code highlighting** via Prism, **math** via KaTeX, **diagrams** via Mermaid
 - **Table styling** — `::: table { ... }` container directive for width, alignment, borders, striping, header color, and column weights
-- **PPTX import** — convert PowerPoint decks to Markdown with layout inference
+- **PPTX import** — convert PowerPoint decks to Markdown with layout inference, in the app or from the command line (`npm run pptx`)
 - **AI editing** — enhance, remix, or reimagine slides with OpenRouter, Ollama, or any OpenAI-compatible endpoint
 - **Export** — standalone HTML (all assets inlined) or deterministic PDF
 - **Offline builds** — no Tailwind, no CDN dependencies at runtime
