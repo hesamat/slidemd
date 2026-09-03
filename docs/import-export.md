@@ -50,6 +50,23 @@ Import PowerPoint files via **Menu → Import PPTX**. The import:
 
 Use the [AI editing](ai-editing.md) features to refine slides afterward.
 
+### Command line
+
+Convert decks without opening the app:
+
+```bash
+npm run pptx -- deck.pptx                    # deck folder: deck/deck.md + images/
+npm run pptx -- deck.pptx --format textpack  # single .textpack archive
+npm run pptx -- deck.pptx --pdf              # also render deck.pdf
+npm run pptx -- ~/decks/ --out ~/out         # batch-convert every .pptx in a folder
+```
+
+The options mirror the import dialog: `--code-language <lang>` tags fenced code
+blocks, `--no-content-images` / `--no-backgrounds` / `--no-theme` drop
+respectively content images, background images, and slide appearance directives,
+plus `--limit <n>` for partial conversion and `--out <dir>` for the output
+location. Requires `npx playwright install chromium`.
+
 ## CLI Dev Server
 
 ```bash

@@ -705,7 +705,7 @@ Scope note: the first slice shipped a 3-color palette; it has since been replace
 
 ---
 
-## Phase 14.9: PPTX Import Quality
+## Phase 14.9: PPTX Import Quality ✅
 
 Goal: Improve the PPTX import pipeline itself — layout inference accuracy, shape/diagram visual preservation, and a complementary code-block centering directive. Distinct from Phase 14.6 (which improves AI post-processing of imported decks); this phase fixes the deterministic import path.
 
@@ -737,6 +737,10 @@ Goal: Improve the PPTX import pipeline itself — layout inference accuracy, sha
 | Task                  | Details                                                                                                                                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [x] Stop escaping `>` | PPTX import (`pptx-html-to-markdown.js`) was escaping `>` to `&gt;` everywhere in markdown output. Now only `<` is escaped — `>` has no special meaning in markdown except at line start (blockquote), which is rare in PPTX text. |
+
+### Command-line Import
+
+- [x] Add `tools/pptx-import.mjs` (`npm run pptx`) — headless-Chromium conversion of `.pptx` files to md deck folders or `.textpack` archives using the in-app extraction pipeline (so diagram crops and image conversion match the app), with the import dialog's options (code language, content images, background images, theme) plus batch directory conversion, `--limit`, and direct `--pdf` rendering via the build and PDF tools.
 
 ### Acceptance Criteria
 
