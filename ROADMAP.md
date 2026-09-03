@@ -375,7 +375,7 @@ Goal: Build the stateless AI building blocks — provider client, output schema/
 
 ---
 
-## Phase 12: Deck Store & Patches
+## Phase 12: Deck Store & Patches ✅
 
 Goal: Make the slide array a canonical, patchable store with undo history — the apply target for AI and editor edits. Pulled ahead of the AI orchestrator (Phase 13) because single-slide AI edits need undoable patches to land cleanly.
 
@@ -402,7 +402,7 @@ Goal: Make the slide array a canonical, patchable store with undo history — th
 
 ---
 
-## Phase 13: AI Orchestrator & Single-Slide Editing
+## Phase 13: AI Orchestrator & Single-Slide Editing ✅
 
 Goal: One entry point owning context selection, the LLM call, validation, and repair; plus per-slide AI editing that writes back through `DeckStore`. Depends on Phase 11 (foundation blocks) and Phase 12 (`DeckStore` as apply target).
 
@@ -439,7 +439,7 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 
 ---
 
-## Phase 13.1: Remix Planner (Two-Phase Restructuring)
+## Phase 13.1: Remix Planner (Two-Phase Restructuring) ✅
 
 Goal: Replace the experimental single-shot Remix with a reliable two-phase plan→execute flow. A cheap planning call produces a structured restructuring plan, which is converted to a virtual deck and fed through the existing batched generate path. Unlocks Remix for decks of any size.
 
@@ -454,7 +454,7 @@ Goal: Replace the experimental single-shot Remix with a reliable two-phase plan�
 
 ---
 
-## Phase 13.2: Vision-Enabled Remix & Hardening
+## Phase 13.2: Vision-Enabled Remix & Hardening ✅
 
 Goal: Add vision support to the two-phase Remix/Reimagine flow and harden the dev server, save, reload, and settings paths.
 
@@ -489,7 +489,7 @@ Goal: Add vision support to the two-phase Remix/Reimagine flow and harden the de
 
 ---
 
-## Phase 14: Conflict Resolution & Global Undo
+## Phase 14: Conflict Resolution & Global Undo ✅
 
 Goal: Make the current working deck safe under asynchronous AI edits and undoable as a single state track. Reconcile stale single-slide patches, define global undo semantics for committed deck operations, synchronize `DeckStore` with the editor view, and remove the Phase 12 boundary-sync mirror.
 
@@ -610,7 +610,7 @@ Goal: Make Polish a reliable conservative pass that improves presentation qualit
 
 ---
 
-## Phase 14.7: Remix Quality & Visual Identity
+## Phase 14.7: Remix Quality & Visual Identity ✅
 
 Goal: Make Remix a dependable plan→execute restructuring mode between conservative Polish and fully creative Reimagine.
 
@@ -643,7 +643,7 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 ---
 
-## Phase 14.8: Reimagine Creative Direction & Presentation Quality
+## Phase 14.8: Reimagine Creative Direction & Presentation Quality ✅
 
 Goal: Make Reimagine feel like a guided editorial art director: surprising in its thinking, reassuring in its structure, and coherent in its execution.
 
@@ -705,7 +705,7 @@ Scope note: the first slice shipped a 3-color palette; it has since been replace
 
 ---
 
-## Phase 14.9: PPTX Import Quality
+## Phase 14.9: PPTX Import Quality ✅
 
 Goal: Improve the PPTX import pipeline itself — layout inference accuracy, shape/diagram visual preservation, and a complementary code-block centering directive. Distinct from Phase 14.6 (which improves AI post-processing of imported decks); this phase fixes the deterministic import path.
 
@@ -737,6 +737,10 @@ Goal: Improve the PPTX import pipeline itself — layout inference accuracy, sha
 | Task                  | Details                                                                                                                                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [x] Stop escaping `>` | PPTX import (`pptx-html-to-markdown.js`) was escaping `>` to `&gt;` everywhere in markdown output. Now only `<` is escaped — `>` has no special meaning in markdown except at line start (blockquote), which is rare in PPTX text. |
+
+### Command-line Import
+
+- [x] Add `tools/pptx-import.mjs` (`npm run pptx`) — headless-Chromium conversion of `.pptx` files to md deck folders or `.textpack` archives using the in-app extraction pipeline (so diagram crops and image conversion match the app), with the import dialog's options (code language, content images, background images, theme) plus batch directory conversion, `--limit`, and direct `--pdf` rendering via the build and PDF tools.
 
 ### Acceptance Criteria
 
@@ -857,7 +861,7 @@ Goal: Surface real deck-quality problems in the editor and polish existing edito
 
 ---
 
-## Phase 16: Presenter Polish, Print & Copyable Code
+## Phase 16: Presenter Polish, Print & Copyable Code ✅
 
 Goal: Make presenting and handouts feel finished before 1.0. Extends the existing two-window architecture (editor + viewer) — the presenter panel lives in the editor window and grows to cover timer, visual next-slide preview, and grid overview. No separate presenter window.
 

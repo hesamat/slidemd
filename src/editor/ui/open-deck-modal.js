@@ -367,9 +367,16 @@ export class OpenDeckModal {
 
         let fileName = mdNames[0];
         if (mdNames.length > 1) {
+          // The chooser has no scrolling, so cap the buttons and name the
+          // rest in the message.
+          const capped = mdNames.length > 6;
           const chosen = await Notification.showModal({
             title: "Multiple presentations",
-            message: "This folder contains several .md decks. Which one do you want to open?",
+            message:
+              `This folder contains ${mdNames.length} .md decks. Which one do you want to open?` +
+              (capped
+                ? ` Showing the first 6 — the others are: ${mdNames.slice(6).join(", ")}.`
+                : ""),
             type: "info",
             blockBackdrop: true,
             buttons: mdNames.slice(0, 6).map((name, i) => ({

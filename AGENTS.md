@@ -494,6 +494,7 @@ Themes can be set per-slide via `theme:` frontmatter.
 - **App UI PDF export:** `src/renderer/print-manager.js`
 - **Build script HTML:** `tools/build.mjs`
 - **Build script PDF:** `tools/pdf.mjs` — Uses Playwright for headless PDF generation
+- **PPTX import CLI:** `tools/pptx-import.mjs` (`npm run pptx`) — Converts `.pptx` files to `.md` deck folders or `.textpack` archives via the in-app pipeline (`PptxExtractor` + `convertToSlideMd`) run in headless Chromium, so diagram crops and image conversion match the app's import path. Supports the import modal's options (`--code-language`, `--no-content-images`, `--no-backgrounds`, `--no-theme`) plus `--pdf` for direct PPTX-to-PDF rendering and `--limit`, `--out`, `--format md|textpack|both`
 
 ---
 

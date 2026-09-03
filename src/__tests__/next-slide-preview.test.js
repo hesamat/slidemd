@@ -79,4 +79,18 @@ describe("DeckController.updateNextPreview", () => {
     DeckController.prototype.updateNextPreview.call(stub, slide1);
     expect(container.style.cursor).toBe("pointer");
   });
+
+  it("routes preview images through DeckImagesResolver like the main stage", async () => {
+    const rewriteImgSrcs = vi.fn().mockResolvedValue(undefined);
+    const rewriteBackgroundUrls = vi.fn().mockResolvedValue(undefined);
+    stub._deckImagesResolver = { rewriteImgSrcs, rewriteBackgroundUrls };
+    DeckController.prototype.updateNextPreview.call(stub, slide1);
+    const previewEl = container.querySelector(".next-preview__slide");
+    expect(rewriteImgSrcs).toHaveBeenCalledWith(previewEl);
+    expect(rewriteBackgroundUrls).toHaveBeenCalledWith(previewEl);
+  });
+
+  it("does not throw when no DeckImagesResolver is wired", () => {
+    expect(() => DeckController.prototype.updateNextPreview.call(stub, slide1)).not.toThrow();
+  });
 });
