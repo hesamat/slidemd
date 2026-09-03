@@ -341,94 +341,141 @@ export class OpenDeckModal {
   }
 
   /**
-   * Open a .md file using the File System Access API or file input fallback.
+   * Open a .md presentation in a single step: the user picks the deck folder
+   * and the .md file inside it is opened together with its sibling images/
+   * folder (one permission covers both, so no follow-up "Load deck images"
+   * prompt is needed).
+   *
+   * Falls back to a plain .md file input on browsers without the File System
+   * Access API; in that case images cannot be read from disk.
    */
   static async _openMdFile() {
-    try {
-      let file;
-      let fileHandle = null;
-
-      if ("showOpenFilePicker" in window) {
-        [fileHandle] = await window.showOpenFilePicker({
-          types: [
-            {
-              description: "Markdown file",
-              accept: { "text/markdown": [".md"] },
-            },
-          ],
-        });
-        file = await fileHandle.getFile();
-      } else {
-        // Safari/Firefox fallback
-        file = await this._pickFileViaInput(".md");
-        if (!file) return;
-      }
-
-      const rawText = await file.text();
-
-      if (fileHandle) {
-        DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
-      }
-
-      // The CLI dev server does not know where a picker-opened .md lives, so
-      // resolve its sibling images/ folder directly from disk (blob URLs).
-      const folderHandle = await this._resolveDeckFolderHandle(file.name, rawText);
-      DeckImagesResolver.setDirectoryHandle(
-        folderHandle,
-        DeckImagesResolver.extractImageRefs(rawText),
-      );
-
-      localStorage.setItem("webdeck_local_file", rawText);
-      localStorage.setItem("webdeck_local_file_type", "md");
-      localStorage.setItem("webdeck_local_file_name", file.name);
-      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      // Picker-opened .md files are not authoritative server sources, so don't
-      // let Save POST back to the dev server. Clear the source URL so a reload
-      // does not fetch a stale server source and instead uses the cached file.
-      localStorage.setItem("webdeck_opened_from_picker", "1");
-      localStorage.removeItem("webdeck_source_url");
-
-      await DraftManager.saveDraft(rawText);
-
-      // Clear stale images from the previous deck so the picker is clean
+    if ("showOpenFilePicker" in window && window.showDirectoryPicker) {
       try {
-        await fetch("/api/images/clear", { method: "POST" });
-      } catch {
-        /* ignore — best-effort cleanup */
+        const dirHandle = await window.showDirectoryPicker({ mode: "read", startIn: "documents" });
+
+        const mdNames = [];
+        for await (const [name, handle] of dirHandle.entries()) {
+          if (handle.kind === "file" && name.toLowerCase().endsWith(".md")) {
+            mdNames.push(name);
+          }
+        }
+        if (mdNames.length === 0) {
+          Notification.warning("No .md file found in the selected folder.", 6000);
+          return;
+        }
+
+        let fileName = mdNames[0];
+        if (mdNames.length > 1) {
+          const chosen = await Notification.showModal({
+            title: "Multiple presentations",
+            message: "This folder contains several .md decks. Which one do you want to open?",
+            type: "info",
+            blockBackdrop: true,
+            buttons: mdNames.slice(0, 6).map((name, i) => ({
+              label: name,
+              isPrimary: i === 0,
+              resolvesTo: name,
+            })),
+            closeResolvesTo: null,
+          });
+          if (!chosen) return;
+          fileName = chosen;
+        }
+
+        const fileHandle = await dirHandle.getFileHandle(fileName);
+        const file = await fileHandle.getFile();
+        const rawText = await file.text();
+
+        // Register both handles so reload (Ctrl+R deck) and save can reuse
+        // them without re-picking.
+        DeckLoader.fileHandleRegistry.set(fileName, fileHandle);
+        await DirectoryHandleStore.save(dirHandle, "parent", fileName);
+
+        await this._loadMdDeck(fileName, rawText, dirHandle);
+      } catch (e) {
+        if (e.name !== "AbortError") {
+          Logger.error("Failed to open .md deck folder:", e);
+          Notification.error("Failed to open .md presentation");
+        }
       }
+      return;
+    }
 
-      // Show loading state before hiding the modal so the user sees feedback
-      SlideRenderer.showLoadingState();
-      this.hide();
-
-      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-      const fallbackCtrl = window.__WEBDECK_CONTROLLER__;
-      const deckStore = editCtrl?.deckStore ?? fallbackCtrl?.deckStore;
-      if (deckStore) {
-        deckStore.loadFromMarkdown(rawText, 0);
-      }
-
-      // Flush cached images so the new deck doesn’t show stale thumbnails
-      DeckImagesResolver.invalidateCache();
-      ImagePicker.clearImageCache();
-
-      const newDeck = await DeckLoader.parseMarkdown(rawText);
-      const reloadManager = editCtrl?.controller?.reloadManager ?? fallbackCtrl?.reloadManager;
-      if (reloadManager?.replaceDeck) {
-        await reloadManager.replaceDeck(newDeck, {
-          startAtFirstSlide: true,
-          syncStore: false,
-        });
-      }
-
-      // Clear stale draft from any previously opened deck
-      await DraftManager.clearDraft();
+    // Safari/Firefox fallback — plain file input, no folder access.
+    try {
+      const file = await this._pickFileViaInput(".md");
+      if (!file) return;
+      const rawText = await file.text();
+      const folderHandle = await this._resolveDeckFolderHandle(file.name, rawText);
+      await this._loadMdDeck(file.name, rawText, folderHandle);
     } catch (e) {
       if (e.name !== "AbortError") {
         Logger.error("Failed to open .md file:", e);
         Notification.error("Failed to open .md file");
       }
     }
+  }
+
+  /**
+   * Shared tail of the .md open flow: persist open state, flush caches, and
+   * swap the loaded deck.
+   * @param {string} fileName — the opened .md file name
+   * @param {string} rawText — deck markdown
+   * @param {FileSystemDirectoryHandle|null} folderHandle — deck folder handle
+   *   (already permitted), or null when images can't be read from disk
+   */
+  static async _loadMdDeck(fileName, rawText, folderHandle) {
+    DeckImagesResolver.setDirectoryHandle(
+      folderHandle,
+      DeckImagesResolver.extractImageRefs(rawText),
+    );
+
+    localStorage.setItem("webdeck_local_file", rawText);
+    localStorage.setItem("webdeck_local_file_type", "md");
+    localStorage.setItem("webdeck_local_file_name", fileName);
+    localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+    // Picker-opened .md files are not authoritative server sources, so don't
+    // let Save POST back to the dev server. Clear the source URL so a reload
+    // does not fetch a stale server source and instead uses the cached file.
+    localStorage.setItem("webdeck_opened_from_picker", "1");
+    localStorage.removeItem("webdeck_source_url");
+
+    await DraftManager.saveDraft(rawText);
+
+    // Clear stale images from the previous deck so the picker is clean
+    try {
+      await fetch("/api/images/clear", { method: "POST" });
+    } catch {
+      /* ignore — best-effort cleanup */
+    }
+
+    // Show loading state before hiding the modal so the user sees feedback
+    SlideRenderer.showLoadingState();
+    this.hide();
+
+    const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+    const fallbackCtrl = window.__WEBDECK_CONTROLLER__;
+    const deckStore = editCtrl?.deckStore ?? fallbackCtrl?.deckStore;
+    if (deckStore) {
+      deckStore.loadFromMarkdown(rawText, 0);
+    }
+
+    // Flush cached images so the new deck doesn’t show stale thumbnails
+    DeckImagesResolver.invalidateCache();
+    ImagePicker.clearImageCache();
+
+    const newDeck = await DeckLoader.parseMarkdown(rawText);
+    const reloadManager = editCtrl?.controller?.reloadManager ?? fallbackCtrl?.reloadManager;
+    if (reloadManager?.replaceDeck) {
+      await reloadManager.replaceDeck(newDeck, {
+        startAtFirstSlide: true,
+        syncStore: false,
+      });
+    }
+
+    // Clear stale draft from any previously opened deck
+    await DraftManager.clearDraft();
   }
 
   /**
