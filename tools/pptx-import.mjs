@@ -30,7 +30,7 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { pathToFileURL } from "node:url";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const { default: JSZip } = await import(
@@ -103,6 +103,10 @@ background images, theme) and adds direct PPTX-to-PDF conversion.`);
     console.error(
       `Error: invalid --code-language "${codeLanguage}" (expected one of: ${[...CODE_LANGUAGES].join(", ")})`,
     );
+    process.exit(1);
+  }
+  if (limit !== undefined && (Number.isNaN(limit) || limit <= 0)) {
+    console.error(`Error: invalid --limit "${limit}" (expected a positive integer)`);
     process.exit(1);
   }
   if (pdf && !["md", "both"].includes(format)) {
@@ -209,21 +213,45 @@ async function renderPdf(deckMdPath, deckName, outDir) {
   const distPdf = path.join(projectRoot, "dist", `${deckName}.pdf`);
   const finalPdf = path.join(outDir, `${deckName}.pdf`);
   fs.mkdirSync(outDir, { recursive: true });
-  fs.renameSync(distPdf, finalPdf);
+  // copy+unlink: renameSync throws EXDEV across mounts
+  fs.copyFileSync(distPdf, finalPdf);
+  fs.rmSync(distPdf, { force: true });
   fs.rmSync(distHtml, { force: true });
   return finalPdf;
 }
 
-// ── Result server (receives conversion results via plain HTTP POST) ─────────
+// ── Bridge server (moves bulk data over plain HTTP) ──────────────────────────
 // Bulk data must not cross the Playwright evaluate bridge — 100MB+ decks
-// dead-lock CDP serialization in both directions. The browser fetches the
-// PPTX from Vite's /@fs route and POSTs the result here instead.
+// dead-lock CDP serialization in both directions. The browser GETs the PPTX
+// bytes from this server and POSTs the result back to it instead.
+// Serving the PPTX from here (not Vite's /@fs) avoids Vite's fs.allow
+// restriction, so inputs can live anywhere on disk.
 
-function startResultServer() {
+function startBridgeServer(pptxPaths) {
   const results = new Map();
+  const errors = new Map();
   const waiters = new Map();
   const server = http.createServer((req, res) => {
-    const idx = Number(req.url.split("/").pop());
+    // The page origin (Vite port) differs from this port, so CORS is required.
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    const url = new URL(req.url, "http://127.0.0.1");
+    if (req.method === "GET") {
+      const idx = Number(url.pathname.split("/").pop());
+      const pptxPath = pptxPaths[idx];
+      if (!pptxPath || Number.isNaN(idx)) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      const buf = fs.readFileSync(pptxPath);
+      res.writeHead(200, {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "Content-Length": buf.length,
+      });
+      res.end(buf);
+      return;
+    }
+    const idx = Number(url.pathname.split("/").pop());
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
@@ -243,8 +271,18 @@ function startResultServer() {
         server.once("error", reject);
         server.listen(port2, "127.0.0.1", () => resolve(port2));
       }),
+    // Called when the in-page evaluate fails before it could POST a result.
+    fail(idx, message) {
+      errors.set(idx, message);
+      const waiter = waiters.get(idx);
+      if (waiter) {
+        waiters.delete(idx);
+        waiter();
+      }
+    },
     async waitFor(idx, timeoutMs = 10 * 60 * 1000) {
       if (results.has(idx)) return results.get(idx);
+      if (errors.has(idx)) throw new Error(errors.get(idx));
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           waiters.delete(idx);
@@ -255,6 +293,7 @@ function startResultServer() {
           resolve();
         });
       });
+      if (errors.has(idx)) throw new Error(errors.get(idx));
       return results.get(idx);
     },
     close: () => server.close(),
@@ -264,12 +303,15 @@ function startResultServer() {
 // ── Vite server (serves the app's src modules to the browser) ────────────────
 
 const port = portArg || (await findFreePort(5195));
-const server = spawn("npx", ["vite", "--port", String(port), "--strictPort"], {
+const viteBin = path.join(projectRoot, "node_modules", "vite", "bin", "vite.js");
+const server = spawn(process.execPath, [viteBin, "--port", String(port), "--strictPort"], {
   cwd: projectRoot,
   stdio: "pipe",
+  env: { ...process.env, WEBDECK_NO_OPEN: "1" },
 });
 const serverExited = new Promise((resolve) => server.on("exit", (code) => resolve(code)));
-const results = startResultServer();
+const results = startBridgeServer(pptxFiles);
+let browser;
 try {
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("vite dev server timed out")), 30000);
@@ -283,7 +325,7 @@ try {
     serverExited.then(() => reject(new Error("vite dev server exited early")));
   });
 
-  const browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   page.on("pageerror", (err) => console.error("[browser error]", err.message));
 
@@ -296,6 +338,9 @@ try {
   let failures = 0;
   let lastOutDir = null;
   const evalPromises = [];
+  const warnOverwrite = (target) => {
+    if (fs.existsSync(target)) console.log(`\n  note: overwriting existing ${path.basename(target)}`);
+  };
   for (let i = 0; i < pptxFiles.length; i++) {
     const pptxPath = pptxFiles[i];
     const deckName = path.basename(pptxPath).replace(/\.pptx$/i, "");
@@ -303,9 +348,8 @@ try {
     try {
       const started = Date.now();
 
-      // The page fetches the PPTX bytes from Vite's /@fs route and POSTs the
-      // result back to the local result server — nothing bulky crosses the
-      // evaluate bridge.
+      // The page fetches the PPTX bytes from the bridge server and POSTs the
+      // result back to it — nothing bulky crosses the evaluate bridge.
       evalPromises.push(
         page.evaluate(
         async ({ pptxUrl, resultUrl, limit, importBackgrounds }) => {
@@ -324,7 +368,7 @@ try {
             for (const slide of extraction.slides) {
               for (const el of slide.elements) {
                 if (!el.base64 || !el.ref) continue;
-                const name = el.ref.split("/").pop().replace(/\.(svg|emf|wmf)$/i, ".png");
+                const name = el.ref.split("/").pop().replace(/\.(emf|wmf)$/i, ".png");
                 if (seen.has(name)) continue;
                 seen.add(name);
                 images.push({ name, base64: el.base64.replace(/^data:[^;]*;base64,/, "") });
@@ -339,12 +383,12 @@ try {
           }
         },
         {
-          pptxUrl: `http://127.0.0.1:${port}/@fs${pptxPath}`,
+          pptxUrl: `http://127.0.0.1:${resultPort}/pptx/${i}`,
           resultUrl: `http://127.0.0.1:${resultPort}/result/${i}`,
           limit,
           importBackgrounds: backgrounds,
         },
-        ).catch(() => {}), // errors arrive via the result channel
+        ).catch((e) => results.fail(i, e?.message ?? String(e))), // surface bridge failures immediately
       );
 
       const raw = await results.waitFor(i);
@@ -363,6 +407,7 @@ try {
 
       if (format === "md" || format === "both") {
         const deckDir = path.join(outDir, deckName);
+        warnOverwrite(deckDir);
         const imgDir = path.join(deckDir, "images");
         fs.mkdirSync(imgDir, { recursive: true });
         for (const img of result.images) {
@@ -378,6 +423,7 @@ try {
       }
 
       if (format === "textpack" || format === "both") {
+        warnOverwrite(path.join(outDir, `${deckName}.textpack`));
         const zip = new JSZip();
         zip.file("text.markdown", finalMarkdown);
         const assets = zip.folder("assets");
@@ -396,11 +442,12 @@ try {
   }
 
   await Promise.allSettled(evalPromises);
-  await browser.close();
+  if (browser) await browser.close();
   console.log(`\nDone: ${pptxFiles.length - failures}/${pptxFiles.length} converted (${format})`);
   if (lastOutDir) console.log(`Output: ${path.relative(process.cwd(), lastOutDir) || "."}`);
   process.exitCode = failures > 0 ? 1 : 0;
 } finally {
+  if (browser) await browser.close().catch(() => {});
   server.kill();
   await serverExited;
   results.close();
