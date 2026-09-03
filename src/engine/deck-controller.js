@@ -155,6 +155,10 @@ export class DeckController extends EventEmitter {
       this.dispatchEvent("deckchange", e);
       // Re-rewrite image srcs to blob URLs on the freshly created DOM
       this.#rewriteImages();
+      // render() already ran during replaceDeck's goTo() while this.deck was
+      // still the old deck, so the next-slide preview and notes panel are
+      // stale until the next navigation — re-render with the new deck now.
+      this.render();
     });
     // Note: broadcast channel initialized later, after breakManager exists
   }
@@ -552,6 +556,11 @@ export class DeckController extends EventEmitter {
     container.appendChild(previewEl);
     container.onclick = () => this.slideNavigator.goTo(idx);
     container.style.cursor = "pointer";
+    // Route the preview's images/... references through the resolver like the
+    // main stage does, otherwise a picker-opened deck's preview resolves them
+    // against the dev server and shows the previously loaded deck's images.
+    this._deckImagesResolver?.rewriteImgSrcs(previewEl).catch(() => {});
+    this._deckImagesResolver?.rewriteBackgroundUrls(previewEl).catch(() => {});
     ContentEnhancer.enhanceRenderedContent(previewEl).catch(() => {});
   }
 
