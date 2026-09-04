@@ -127,6 +127,24 @@ describe("DeckLoader.normalizeDeck", () => {
     expect(result.slides[0].areaStyle).toBe("border: 1px");
   });
 
+  it("preserves areaInks", () => {
+    // Without this, dark slides with light panels lose their per-area ink on
+    // the app's runtime load path (the export path parses separately).
+    const deck = {
+      meta: { title: "Test" },
+      slides: [
+        {
+          id: "s1",
+          title: "S",
+          areaInks: { main: "rgba(15, 23, 42, 0.92)" },
+          areas: { main: "<p>Hi</p>" },
+        },
+      ],
+    };
+    const result = DeckLoader.normalizeDeck(deck);
+    expect(result.slides[0].areaInks).toEqual({ main: "rgba(15, 23, 42, 0.92)" });
+  });
+
   it("preserves the visual system", () => {
     const visualSystem = {
       visualDirection: "Dark, technical. Use dark backgrounds for content, bright for emphasis.",

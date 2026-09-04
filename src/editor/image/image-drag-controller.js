@@ -224,7 +224,7 @@ export class ImageDragController extends BlockDragController {
       e.preventDefault();
       e.stopPropagation();
 
-      const img = ctx.getSelected?.();
+      const img = this._getSelected();
       if (!img) return;
 
       if (isMediaSpanFillImage(img)) {

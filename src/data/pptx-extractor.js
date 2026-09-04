@@ -1605,6 +1605,9 @@ export class PptxExtractor {
         el.content
           .replace(/[#*`_~]/g, "") // strip markdown emphasis
           .replace(/\s+/g, " ") // flatten newlines/extra whitespace
+          .trim()
+          .replace(/^[-•·–*+]\s+/, "") // strip a leading bullet marker
+          .replace(/^\d+[.)]\s+/, "") // strip a leading list number
           .trim(),
       )
       .filter((t) => t && t !== "[Diagram]" && !seen.has(t) && seen.add(t));

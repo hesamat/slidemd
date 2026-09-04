@@ -140,6 +140,12 @@ export const CONFIG = {
   // Partial (contain) backgrounds never get a scrim — the gradient would
   // darken the areas around the image too.
   bgScrimAlpha: 0.55,
+  // Text color emitted as `area-ink-<name>:` when a light panel sits on a
+  // dark slide surface: the slide goes `theme: dark` (readable header on the
+  // dark background) while the panel keeps dark text. Matches the app's
+  // light-theme ink (`--slide-ink-light` in styles/slides.css) so the panel
+  // looks like a light slide inset into a dark one.
+  lightPanelInk: "rgba(15, 23, 42, 0.92)",
   spreadOverlapThreshold: 0.5,
   partitionMidTolerance: 0.05,
   tallColumnHeightRatio: 0.5,

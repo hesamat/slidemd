@@ -506,7 +506,7 @@ export function stripThemeAndBackground(markdown) {
 export function stripAllVisualIdentity(markdown) {
   return stripDirectives(
     markdown,
-    /^\s*(theme|background|color|backgroundColor|area-bg-[\w-]+)\s*:\s*.*$/i,
+    /^\s*(theme|background|color|backgroundColor|area-bg-[\w-]+|area-ink-[\w-]+)\s*:\s*.*$/i,
   );
 }
 
@@ -534,10 +534,13 @@ export function stripAllVisualIdentity(markdown) {
  */
 export function stripVisualIdentity(markdown) {
   return stripDirectivesWith(markdown, (line) => {
-    const match = line.match(/^\s*(theme|background|area-bg-[\w-]+)\s*:\s*(.*)$/i);
+    const match = line.match(/^\s*(theme|background|area-bg-[\w-]+|area-ink-[\w-]+)\s*:\s*(.*)$/i);
     if (!match) return false;
     const name = match[1].toLowerCase();
     if (name === "theme") return true; // strip theme entirely
+    // area-ink-<name>: is a per-area text color — pure visual identity with no
+    // content nuance, so it is stripped entirely.
+    if (name.startsWith("area-ink-")) return true;
     // background: and area-bg-<name>: follow the same rule — a per-area
     // background is also visual identity, so pure colors/gradients are
     // stripped while image layers (content) survive, mirroring background.

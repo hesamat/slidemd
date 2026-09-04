@@ -308,6 +308,7 @@ export class DeckLoader {
         areas: s.areas || {},
         areaStyle: safeString(s.areaStyle),
         areaStyles: s.areaStyles || {},
+        areaInks: s.areaInks || {},
         codeFontSize: Number(s.codeFontSize) || 0,
       };
     });

@@ -106,6 +106,61 @@ describe("buildShapeSvg", () => {
     expect(svg).toContain("<text");
   });
 
+  it("picks light text on dark fills and dark text on light fills", () => {
+    // The SVG fallback has no theme context — `#222` text on a dark shape
+    // was unreadable, so the ink contrasts the resolved fill.
+    const darkFill = buildShapeSvg(
+      [
+        shape({
+          shapType: "rect",
+          content: "Dark box",
+          left: 0,
+          top: 0,
+          width: 100,
+          height: 50,
+          fill: "#0F172A",
+          fillRaw: { type: "color", value: "#0F172A" },
+        }),
+      ],
+      { width: 100, height: 50 },
+    );
+    expect(darkFill).toContain('fill="#f1f5f9"');
+
+    const lightFill = buildShapeSvg(
+      [
+        shape({
+          shapType: "rect",
+          content: "Light box",
+          left: 0,
+          top: 0,
+          width: 100,
+          height: 50,
+          fill: "#F1F5F9",
+          fillRaw: { type: "color", value: "#F1F5F9" },
+        }),
+      ],
+      { width: 100, height: 50 },
+    );
+    expect(lightFill).toContain('fill="#222222"');
+
+    const noFill = buildShapeSvg(
+      [
+        shape({
+          shapType: "rect",
+          content: "Bare",
+          left: 0,
+          top: 0,
+          width: 100,
+          height: 50,
+          fill: null,
+          fillRaw: null,
+        }),
+      ],
+      { width: 100, height: 50 },
+    );
+    expect(noFill).toContain('fill="#222222"');
+  });
+
   it("renders a triangle shape as an SVG polygon", () => {
     const svg = buildShapeSvg(
       [shape({ shapType: "triangle", left: 0, top: 0, width: 100, height: 50 })],
@@ -672,7 +727,9 @@ describe("renderDiagramsToPng", () => {
       expect(slides[0].elements[0].type).toBe("image");
     });
 
-    it("skips the crop path for group-sourced diagrams (fromGroup)", async () => {
+    it("uses the crop path for group-sourced diagrams (fromGroup)", async () => {
+      // The cropper's matcher walks group containers with accumulated
+      // offsets, so grouped diagrams get the high-fidelity crop too.
       const slides = [
         {
           index: 0,
@@ -683,8 +740,7 @@ describe("renderDiagramsToPng", () => {
         },
       ];
       await renderDiagramsToPng(slides, [], new ArrayBuffer(0));
-      expect(cropSlideToDiagram).not.toHaveBeenCalled();
-      expect(parsePresentation).not.toHaveBeenCalled();
+      expect(cropSlideToDiagram).toHaveBeenCalled();
       expect(slides[0].elements[0].type).toBe("image");
     });
 

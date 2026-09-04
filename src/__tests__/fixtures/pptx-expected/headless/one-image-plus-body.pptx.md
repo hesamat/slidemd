@@ -11,7 +11,7 @@ background: #F7D99F
 - Every operation returns a new string
 - Rebinding a variable is not mutation
 - We capture the new value with an assignment:
-```
+```python
 greeting = 'hello world'
 new_greeting = greeting.upper( )
 print(greeting)      # unchanged

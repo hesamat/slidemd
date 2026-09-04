@@ -4141,4 +4141,34 @@ describe("convertToSlideMd area-bg from filled text placeholders", () => {
     expect(md).toContain("area-bg-main: #C1986A");
     expect(md).not.toContain("theme: dark");
   });
+
+  it("goes dark with a panel ink override when a light panel sits on a dark slide", () => {
+    // Dark themed deck slides with white content cards: theme: dark keeps the
+    // header readable on the dark background, and area-ink-main keeps the
+    // panel's body text dark on its light surface. Suppressing the dark theme
+    // (the old behavior) produced dark header text on the dark background.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "- Body text on a light panel",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+            fillRaw: { type: "color", value: "#ffffffb3" },
+          },
+        ],
+        background: "#071d28",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("theme: dark");
+    expect(md).toContain("area-bg-main: #ffffffb3");
+    expect(md).toContain("area-ink-main: rgba(15, 23, 42, 0.92)");
+  });
 });

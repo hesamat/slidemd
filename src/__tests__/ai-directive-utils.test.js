@@ -18,6 +18,7 @@ describe("extractDirectives", () => {
       theme: "",
       mediaFullBleed: false,
       areaBg: {},
+      areaInk: {},
     });
     expect(result[1]).toEqual({
       layout: "two-column",
@@ -25,6 +26,7 @@ describe("extractDirectives", () => {
       theme: "dark",
       mediaFullBleed: false,
       areaBg: {},
+      areaInk: {},
     });
   });
 
@@ -45,6 +47,7 @@ describe("extractDirectives", () => {
       theme: "",
       mediaFullBleed: false,
       areaBg: {},
+      areaInk: {},
     });
     expect(result[1]).toEqual({
       layout: "two-column",
@@ -52,6 +55,7 @@ describe("extractDirectives", () => {
       theme: "dark",
       mediaFullBleed: false,
       areaBg: {},
+      areaInk: {},
     });
   });
 
@@ -68,6 +72,7 @@ describe("extractDirectives", () => {
       theme: "",
       mediaFullBleed: false,
       areaBg: {},
+      areaInk: {},
     });
     expect(result[1]).toEqual({
       layout: "header-content",
@@ -75,6 +80,7 @@ describe("extractDirectives", () => {
       theme: "light",
       mediaFullBleed: false,
       areaBg: {},
+      areaInk: {},
     });
   });
 });
@@ -377,6 +383,78 @@ describe("injectDirectives", () => {
       expect(result.match(/^area-bg-media:/gm) || []).toHaveLength(1);
       expect(result).toContain("area-bg-media: #0f172a");
       expect(result).not.toContain("area-bg-media: #1e293b");
+    });
+  });
+
+  describe("area-ink directives", () => {
+    it("extracts per-area ink colors from the slide", () => {
+      const md = "layout: header-content\narea-ink-main: rgba(15, 23, 42, 0.92)\n@main\n- A";
+      const result = extractDirectives(md);
+      expect(result[0].areaInk).toEqual({ main: "rgba(15, 23, 42, 0.92)" });
+    });
+
+    it("restores a dropped per-area ink in fix mode", () => {
+      const md = "layout: header-content\n\n@main\n- Content";
+      const orig = [
+        {
+          layout: "header-content",
+          background: "",
+          theme: "",
+          areaBg: {},
+          areaInk: { main: "rgba(15, 23, 42, 0.92)" },
+        },
+      ];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result).toContain("area-ink-main: rgba(15, 23, 42, 0.92)");
+    });
+
+    it("strips an AI-echoed per-area ink and restores the original in fix mode", () => {
+      const md = "layout: header-content\narea-ink-main: #ffffff\n\n@main\n- Content";
+      const orig = [
+        {
+          layout: "header-content",
+          background: "",
+          theme: "",
+          areaBg: {},
+          areaInk: { main: "rgba(15, 23, 42, 0.92)" },
+        },
+      ];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result.match(/^area-ink-main:/gm) || []).toHaveLength(1);
+      expect(result).toContain("area-ink-main: rgba(15, 23, 42, 0.92)");
+      expect(result).not.toContain("area-ink-main: #ffffff");
+    });
+
+    it("fills in a per-area ink the AI dropped in generate mode", () => {
+      const md = "layout: header-content\n\n@main\n- Content";
+      const orig = [
+        {
+          layout: "header-content",
+          background: "",
+          theme: "",
+          areaBg: {},
+          areaInk: { main: "rgba(15, 23, 42, 0.92)" },
+        },
+      ];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toContain("area-ink-main: rgba(15, 23, 42, 0.92)");
+    });
+
+    it("keeps an AI-chosen per-area ink in generate mode", () => {
+      const md = "layout: header-content\narea-ink-main: #0f172a\n\n@main\n- Content";
+      const orig = [
+        {
+          layout: "header-content",
+          background: "",
+          theme: "",
+          areaBg: {},
+          areaInk: { main: "rgba(15, 23, 42, 0.92)" },
+        },
+      ];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result.match(/^area-ink-main:/gm) || []).toHaveLength(1);
+      expect(result).toContain("area-ink-main: #0f172a");
+      expect(result).not.toContain("area-ink-main: rgba(15, 23, 42, 0.92)");
     });
   });
 

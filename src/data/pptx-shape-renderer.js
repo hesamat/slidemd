@@ -24,7 +24,7 @@
  */
 import { Logger } from "../core/logger.js";
 import { trimTransparentMargins } from "./pptx-image-converter.js";
-import { sanitizeCssColor } from "./pptx-color-utils.js";
+import { isColorDark, sanitizeCssColor } from "./pptx-color-utils.js";
 import { cropSlideToDiagram, parsePresentation } from "./pptx-diagram-cropper.js";
 import { createImportWarningCollector } from "./pptx-import-warnings.js";
 
@@ -140,9 +140,12 @@ function isRenderable(shape) {
  * @param {number} top
  * @param {number} width
  * @param {number} height
+ * @param {string|null} fillColor - The shape's resolved fill color (or null
+ *   when unfilled).  Text picks light/dark ink to contrast it — the fallback
+ *   renderer has no theme context, so `#222` on a dark shape was unreadable.
  * @returns {string} SVG text markup, or "" when empty.
  */
-function buildShapeTextSvg(content, left, top, width, height) {
+function buildShapeTextSvg(content, left, top, width, height, fillColor = null) {
   const textContent = content.replace(/<[^>]+>/g, "").trim();
   const lines = textContent ? textContent.split(/\n+/) : [];
   if (lines.length === 0) return "";
@@ -152,11 +155,12 @@ function buildShapeTextSvg(content, left, top, width, height) {
   const lineHeight = fontSize * 1.3;
   const totalTextHeight = lines.length * lineHeight;
   const startY = top + (height - totalTextHeight) / 2 + fontSize * 0.8;
+  const ink = fillColor && isColorDark(fillColor) ? "#f1f5f9" : "#222222";
   return lines
     .map((line, i) => {
       const y = startY + i * lineHeight;
       const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      return `<text x="${left + width / 2}" y="${y}" font-size="${fontSize}" font-family="sans-serif" text-anchor="middle" fill="#222" dominant-baseline="middle">${escaped}</text>`;
+      return `<text x="${left + width / 2}" y="${y}" font-size="${fontSize}" font-family="sans-serif" text-anchor="middle" fill="${ink}" dominant-baseline="middle">${escaped}</text>`;
     })
     .join("");
 }
@@ -174,9 +178,11 @@ function shapeToSvg(shape, originX = 0, originY = 0) {
   const width = Math.max(shape.width || 0, 1);
   const height = Math.max(shape.height || 0, 1);
 
-  const fillAttr = buildFillAttr(
-    shape.fillRaw || (shape.fill ? { type: "color", value: shape.fill } : null),
-  );
+  const fillRaw = shape.fillRaw || (shape.fill ? { type: "color", value: shape.fill } : null);
+  const fillAttr = buildFillAttr(fillRaw);
+  // Resolve the same color the fill renders with (solid or first gradient
+  // stop) so the text can contrast it.
+  const resolvedFill = resolveFillColor(fillRaw);
   const strokeAttr = buildStrokeAttr(shape);
   const transform = buildTransform(shape, left, top, width, height);
 
@@ -210,7 +216,7 @@ function shapeToSvg(shape, originX = 0, originY = 0) {
 
   // Text elements with content but no shape geometry → render as SVG <text>
   if (shape.content && shape.content.trim() && !shape.shapType && !shape.path) {
-    return buildShapeTextSvg(shape.content, left, top, width, height);
+    return buildShapeTextSvg(shape.content, left, top, width, height, resolvedFill);
   }
 
   // Preset shape types → SVG primitives (with text if present)
@@ -247,9 +253,34 @@ function shapeToSvg(shape, originX = 0, originY = 0) {
       shapeSvg = `<rect x="${left}" y="${top}" width="${width}" height="${height}"${fillAttr}${strokeAttr}${transform}/>`;
   }
   if (shape.content && shape.content.trim()) {
-    shapeSvg += buildShapeTextSvg(shape.content, left, top, width, height);
+    shapeSvg += buildShapeTextSvg(shape.content, left, top, width, height, resolvedFill);
   }
   return shapeSvg;
+}
+
+/**
+ * Resolve the effective fill color of a shape the same way `buildFillAttr`
+ * renders it: solid color as-is, gradient/pattern approximated by its first
+ * color, image fills → null (unknown contrast).  Returns null when the shape
+ * has no fill.
+ * @param {object | null} fill
+ * @returns {string|null}
+ */
+function resolveFillColor(fill) {
+  if (!fill) return null;
+  if (fill.type === "color") {
+    const color = sanitizeCssColor(fill.value);
+    return color === "transparent" ? null : color;
+  }
+  if (fill.type === "gradient") {
+    const color = sanitizeCssColor(fill.value?.colors?.[0]?.color);
+    return color === "transparent" ? null : color;
+  }
+  if (fill.type === "pattern") {
+    const color = sanitizeCssColor(fill.value?.foregroundColor);
+    return color === "transparent" ? null : color;
+  }
+  return null; // image fills and unknown types
 }
 
 /**
@@ -416,11 +447,11 @@ export async function renderSvgToPng(svg, widthPx, heightPx) {
  *   4. On failure (no canvas, no renderable shapes): leave the diagram element
  *      unchanged so the `[Diagram: ...]` marker is preserved for AI Mermaid conversion.
  *
- * Grouped diagrams (`el.fromGroup`, produced from `<p:grpSp>`) skip the crop
- * path: `@aiden0z/pptx-renderer` lays out group children relative to the group
- * container, so the cropper's absolute-position matcher cannot see them and
- * would produce a blank crop.  The SVG builder handles their (absolute)
- * coordinates correctly.
+ * Grouped diagrams (`el.fromGroup`, produced from `<p:grpSp>`) use the crop
+ * path too: the cropper's position matcher walks the rendered tree with
+ * accumulated parent offsets, so group children (laid out group-relatively by
+ * `@aiden0z/pptx-renderer`) match their slide-absolute shape coordinates.
+ * The SVG builder remains the fallback for failed or blank crops.
  *
  * @param {import('./pptx-extractor.js').ExtractedSlide[]} slides
  * @param {import('./pptx-extractor.js').ExtractedImage[]} imagesAccum
@@ -474,8 +505,7 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer, warni
       // Safari's WebKit can hang inside html-to-image when rasterizing slides
       // that contain image-filled shapes, so we skip the high-fidelity crop
       // path there and use the SVG builder instead.
-      const canCrop =
-        !isSafari && pptxBuffer && !el.fromGroup && el.width != null && el.height != null;
+      const canCrop = !isSafari && pptxBuffer && el.width != null && el.height != null;
       if (canCrop) {
         try {
           const presentation = await getPresentation();

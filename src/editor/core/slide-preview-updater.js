@@ -308,6 +308,7 @@ export class SlidePreviewUpdater {
           const areas = slideData.areas || {};
           const globalAreaStyle = slideData?.areaStyle || "";
           const perAreaStyles = slideData?.areaStyles || {};
+          const perAreaInks = slideData?.areaInks || {};
           for (const [name, html] of Object.entries(areas)) {
             const areaEl = slideEl.querySelector(`.slide__area[data-area-name="${name}"]`);
             if (!areaEl) continue;
@@ -317,6 +318,7 @@ export class SlidePreviewUpdater {
             const prevStyle = areaEl.dataset.appliedAreaStyle || "";
             const newGlobal = name !== "footer" ? globalAreaStyle : "";
             const newPerArea = name !== "footer" ? perAreaStyles[name] || "" : "";
+            const newInk = name !== "footer" ? perAreaInks[name] || "" : "";
 
             for (const decl of splitCssDeclarations(prevStyle)) {
               const d = decl.trim();
@@ -326,10 +328,18 @@ export class SlidePreviewUpdater {
               const prop = d.slice(0, idx).trim();
               if (prop) areaEl.style.removeProperty(prop);
             }
+            // The ink also sets theme vars, which the prevStyle cleanup above
+            // does not cover — clear and re-apply it explicitly.
+            SlideRenderer._clearAreaInk(areaEl);
 
             if (newGlobal) SlideRenderer._applyAreaStyle(areaEl, newGlobal);
             if (newPerArea) areaEl.style.setProperty("background", newPerArea);
-            areaEl.dataset.appliedAreaStyle = [newGlobal, newPerArea && `background: ${newPerArea}`]
+            if (newInk) SlideRenderer._applyAreaInk(areaEl, newInk);
+            areaEl.dataset.appliedAreaStyle = [
+              newGlobal,
+              newPerArea && `background: ${newPerArea}`,
+              newInk && `color: ${newInk}`,
+            ]
               .filter(Boolean)
               .join("; ");
 

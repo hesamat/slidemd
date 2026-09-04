@@ -78,7 +78,8 @@ export class ConversionModal {
       let importImages = true;
       let importBackgrounds = true;
       let importTheme = true;
-      let codeLanguage = "";
+      // Default to per-block auto-detection; "" (None) keeps fences bare.
+      let codeLanguage = "auto";
       let isConverting = false;
 
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
@@ -258,6 +259,7 @@ export class ConversionModal {
           langRow.innerHTML = `
             <label class="${P}select-label">Code language</label>
             <select class="${P}select" data-field="code-language">
+              <option value="auto">Auto-detect</option>
               <option value="">None</option>
               <option value="javascript">JavaScript</option>
               <option value="python">Python</option>
@@ -374,24 +376,15 @@ export class ConversionModal {
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
         }
-        // Add language tag to opening fences of fenced code blocks only.
-        // Use a state machine to distinguish opening fences from closing fences.
-        if (codeLanguage) {
-          const mdLines = finalMarkdown.split("\n");
-          let inCodeBlock = false;
-          for (let j = 0; j < mdLines.length; j++) {
-            if (mdLines[j].trim() === "```") {
-              if (inCodeBlock) {
-                mdLines[j] = "```";
-                inCodeBlock = false;
-              } else {
-                mdLines[j] = "```" + codeLanguage;
-                inCodeBlock = true;
-              }
-            }
-          }
-          finalMarkdown = mdLines.join("\n");
-        }
+        // Tag opening fences via the shared detector: auto-detect per block
+        // (default), a forced language, or "none" to keep fences bare. The
+        // module (and highlight.js with it) is loaded on first import so it
+        // stays out of the main editor bundle.
+        const { applyCodeLanguages } = await import("../data/pptx-code-language.js");
+        finalMarkdown = await applyCodeLanguages(
+          finalMarkdown,
+          codeLanguage === "" ? "none" : codeLanguage,
+        );
         ConversionModal.close();
         // Always return images so background images can be uploaded and their
         // file references in the markdown can be rewritten to server paths.

@@ -39,6 +39,9 @@ const { default: JSZip } = await import(
 const { buildImportReport } = await import(
   pathToFileURL(path.join(projectRoot, "src", "data", "pptx-import-warnings.js")).href
 );
+const { applyCodeLanguages, CODE_LANGUAGES } = await import(
+  pathToFileURL(path.join(projectRoot, "src", "data", "pptx-code-language.js")).href
+);
 
 // Retry each deck once on failure — a hung conversion (stalled diagram crop,
 // CDP hiccup) usually succeeds immediately on a second run.
@@ -46,18 +49,7 @@ const MAX_ATTEMPTS = 2;
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
-const CODE_LANGUAGES = new Set([
-  "javascript",
-  "python",
-  "java",
-  "cpp",
-  "html",
-  "css",
-  "sql",
-  "bash",
-  "json",
-  "typescript",
-]);
+const CODE_LANGUAGE_MODES = new Set(["auto", "none", ...CODE_LANGUAGES]);
 
 function parseArgs(argv) {
   const inputs = [];
@@ -65,7 +57,7 @@ function parseArgs(argv) {
   let out = null;
   let limit;
   let port;
-  let codeLanguage = "";
+  let codeLanguage = "auto";
   let contentImages = true;
   let backgrounds = true;
   let theme = true;
@@ -88,9 +80,9 @@ Options:
   --format md|textpack|both   Output format (default: md)
   --out <dir>                 Output directory (default: alongside the input)
   --limit <n>                 Only convert the first n slides
-  --code-language <lang>      Tag fenced code blocks with a language
-                              (javascript, python, java, cpp, html, css, sql,
-                              bash, json, typescript)
+  --code-language <mode>      Code fence tagging (default: auto-detect per
+                              block; "none" leaves fences bare, or force one:
+                              ${CODE_LANGUAGES.join(", ")})
   --no-content-images         Drop content <img> tags (diagram crops are kept)
   --no-backgrounds            Drop slide background images
   --no-theme                  Drop background/theme color directives
@@ -106,9 +98,9 @@ background images, theme) and adds direct PPTX-to-PDF conversion.`);
     console.error(`Error: invalid --format "${format}" (expected md, textpack, or both)`);
     process.exit(1);
   }
-  if (codeLanguage && !CODE_LANGUAGES.has(codeLanguage)) {
+  if (!CODE_LANGUAGE_MODES.has(codeLanguage)) {
     console.error(
-      `Error: invalid --code-language "${codeLanguage}" (expected one of: ${[...CODE_LANGUAGES].join(", ")})`,
+      `Error: invalid --code-language "${codeLanguage}" (expected auto, none, or one of: ${CODE_LANGUAGES.join(", ")})`,
     );
     process.exit(1);
   }
@@ -180,7 +172,7 @@ function findFreePort(start) {
 // Mirrors ConversionModal's Import button: strip non-diagram content images,
 // strip theme/background directives, and tag opening code fences.
 
-function applyConversionOptions(markdown, { codeLanguage: lang, contentImages: keepImages, theme: keepTheme }) {
+async function applyConversionOptions(markdown, { codeLanguage: lang, contentImages: keepImages, theme: keepTheme }) {
   let md = markdown;
   if (!keepImages) {
     // Keep diagram-derived images (data-diagram="true") — they are content.
@@ -189,18 +181,9 @@ function applyConversionOptions(markdown, { codeLanguage: lang, contentImages: k
   if (!keepTheme) {
     md = md.replace(/^\s*background:.*$/gm, "").replace(/^\s*theme:.*$/gm, "").replace(/\n{3,}/g, "\n\n");
   }
-  if (lang) {
-    // Tag opening fences only — use a state machine to skip closing fences.
-    const lines = md.split("\n");
-    let inCode = false;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim() === "```") {
-        lines[i] = inCode ? "```" : "```" + lang;
-        inCode = !inCode;
-      }
-    }
-    md = lines.join("\n");
-  }
+  // Shared with the import modal: "auto" detects per block, "none" strips
+  // tags, an explicit language forces every block.
+  md = await applyCodeLanguages(md, lang);
   return md;
 }
 
@@ -408,7 +391,7 @@ try {
         // result back to it — nothing bulky crosses the evaluate bridge.
         evalPromises.push(
           page.evaluate(
-            async ({ pptxUrl, resultUrl, limit, importBackgrounds }) => {
+            async ({ pptxUrl, resultUrl, limit, importBackgrounds, debug }) => {
               try {
                 const { PptxExtractor } = await import(`/src/data/pptx-extractor.js?t=${Date.now()}`);
                 const { convertToSlideMd } = await import(`/src/data/pptx-to-slide-md.js?t=${Date.now()}`);
@@ -440,7 +423,13 @@ try {
                   }),
                 });
               } catch (e) {
-                await fetch(resultUrl, { method: "POST", body: JSON.stringify({ error: String(e && e.message ? e.message : e) }) });
+                await fetch(resultUrl, {
+                  method: "POST",
+                  body: JSON.stringify({
+                    error: String(e && e.message ? e.message : e),
+                    stack: debug ? e.stack : undefined,
+                  }),
+                });
               }
             },
             {
@@ -448,19 +437,23 @@ try {
               resultUrl: `http://127.0.0.1:${resultPort}/result/${resultKey}`,
               limit,
               importBackgrounds: backgrounds,
+              debug: !!process.env.WEBDECK_PPTX_DEBUG_STACK,
             },
           ).catch((e) => results.fail(resultKey, e?.message ?? String(e))), // surface bridge failures immediately
         );
 
         const raw = await results.waitFor(resultKey);
         const result = JSON.parse(raw.toString("utf8"));
-        if (result.error) throw new Error(result.error);
+        if (result.error) {
+          if (result.stack) console.error(`[page stack]\n${result.stack}`);
+          throw new Error(result.error);
+        }
 
         const outDir = path.resolve(out ?? path.dirname(pptxPath));
         lastOutDir = outDir;
         fs.mkdirSync(outDir, { recursive: true });
 
-        const finalMarkdown = applyConversionOptions(result.markdown, {
+        const finalMarkdown = await applyConversionOptions(result.markdown, {
           codeLanguage,
           contentImages,
           theme,
@@ -476,6 +469,9 @@ try {
           }
           const deckMdPath = path.join(deckDir, `${deckName}.md`);
           fs.writeFileSync(deckMdPath, finalMarkdown);
+          // Output is on disk — a later-stage failure (PDF rendering) must not
+          // re-run the whole browser conversion on the retry.
+          outputsWritten = true;
           if (wantPdf) {
             process.stdout.write("  rendering PDF ... ");
             const pdfPath = await renderPdf(deckMdPath, deckName, outDir);
@@ -491,8 +487,8 @@ try {
           for (const img of result.images) assets.file(img.name, img.base64, { base64: true });
           const buf = await zip.generateAsync({ type: "nodebuffer", compression: "STORE" });
           fs.writeFileSync(path.join(outDir, `${deckName}.textpack`), buf);
+          outputsWritten = true;
         }
-        outputsWritten = true;
 
         console.log(
           `ok — ${result.slideCount} slides, ${result.images.length} images (${Math.round((Date.now() - started) / 100) / 10}s)`,
@@ -506,6 +502,9 @@ try {
         }
         break;
       } catch (e) {
+        if (process.env.WEBDECK_PPTX_DEBUG_STACK) {
+          console.error(`[debug stack]\n${e.stack || e.message}`);
+        }
         if (attempt < MAX_ATTEMPTS && !outputsWritten) {
           console.log(`attempt ${attempt} failed (${e.message}) — retrying ...`);
           process.stdout.write(`Converting ${path.basename(pptxPath)} ... `);

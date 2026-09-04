@@ -45,6 +45,7 @@ Import PowerPoint files via **Menu → Import PPTX**. The import:
 - Preserves the original slide order from the presentation
 - Extracts images into an `images/` folder
 - Converts slide content to Markdown with layout inference
+- Tags fenced code blocks with their detected language by default (configurable via the dialog's **Code language** option)
 - Does not modify the original `.pptx`
 - Is instant — no AI processing during import
 
@@ -61,8 +62,10 @@ npm run pptx -- deck.pptx --pdf              # also render deck.pdf
 npm run pptx -- ~/decks/ --out ~/out         # batch-convert every .pptx in a folder
 ```
 
-The options mirror the import dialog: `--code-language <lang>` tags fenced code
-blocks, `--no-content-images` / `--no-backgrounds` / `--no-theme` drop
+The options mirror the import dialog: `--code-language <mode>` tags fenced code
+blocks (`auto` — the default — detects each block's language; `none` leaves
+fences bare; or force one language onto every block), `--no-content-images` /
+`--no-backgrounds` / `--no-theme` drop
 respectively content images, background images, and slide appearance directives,
 plus `--limit <n>` for partial conversion and `--out <dir>` for the output
 location. Requires `npx playwright install chromium`.

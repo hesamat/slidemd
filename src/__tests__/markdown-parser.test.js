@@ -292,6 +292,34 @@ describe("MarkdownParser.extractDirective", () => {
   });
 });
 
+describe("MarkdownParser.extractAreaInkDirectives", () => {
+  it("extracts per-area ink values and strips the directives", () => {
+    const md = "layout: header-content\narea-ink-main: rgba(15, 23, 42, 0.92)\n@main\n- A";
+    const result = parser.extractAreaInkDirectives(md);
+    expect(result.areaInks).toEqual({ main: "rgba(15, 23, 42, 0.92)" });
+    expect(result.markdown).not.toContain("area-ink-main:");
+    expect(result.markdown).toContain("- A");
+  });
+
+  it("ignores ink-like lines inside code fences", () => {
+    const md = "```\narea-ink-main: #fff\n```\n@main\n- A";
+    const result = parser.extractAreaInkDirectives(md);
+    expect(result.areaInks).toEqual({});
+    expect(result.markdown).toContain("area-ink-main: #fff");
+  });
+});
+
+describe("MarkdownParser.parseDeckMarkdown area-ink", () => {
+  it("surfaces areaInks on the parsed slide and keeps them out of area content", () => {
+    const md =
+      "layout: header-content\n\ntheme: dark\n\narea-ink-main: rgba(15, 23, 42, 0.92)\n\n@header\n\n## Title\n\n@main\n\n- Body";
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].areaInks).toEqual({ main: "rgba(15, 23, 42, 0.92)" });
+    expect(deck.slides[0].areas.main).not.toContain("area-ink-main");
+    expect(deck.slides[0].areas.main).toContain(">Body</li>");
+  });
+});
+
 describe("MarkdownParser.escapeKatexBracketDelimiters", () => {
   it("escapes \\[ and \\] delimiters", () => {
     const result = parser.escapeKatexBracketDelimiters("\\[x^2\\]");

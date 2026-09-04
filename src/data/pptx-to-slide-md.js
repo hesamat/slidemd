@@ -785,21 +785,21 @@ function convertSlide(
   // Dark theme whenever the slide needs light text: a dark photo background
   // or a dark area-bg panel. Evaluated even without a `background:` directive
   // — an area-bg panel can be the only dark surface on the slide.
-  // Exception: when area-bg-main is light, the main content needs dark text
-  // to be readable on the light panel — don't force theme: dark even if the
-  // slide background is dark. The header may be less readable, but the main
-  // content (the bulk of the slide) takes priority.
+  // A light panel on a dark slide no longer suppresses the dark theme (that
+  // made the header unreadable): the slide goes dark and the light panel
+  // keeps dark text via an `area-ink-<name>:` directive instead.
   // Note: the edge sidebar (slidePanelBg) is prepended to slide.background,
   // so isColorDark(slide.background) already accounts for it. A dark sidebar
   // covering a minority of the slide should not flip the whole slide to dark
   // when the remaining background is light — the sidebar text color is
   // handled by the area-bg CSS, not the global slide theme.
-  const hasLightMain = areaBg.main && !isColorDark(areaBg.main);
-  if (
-    !hasLightMain &&
-    (bgCandidate || isColorDark(slide.background) || Object.values(areaBg).some(isColorDark))
-  ) {
+  const darkSlide =
+    bgCandidate || isColorDark(slide.background) || Object.values(areaBg).some(isColorDark);
+  if (darkSlide) {
     parts.push("theme: dark");
+    // `area-ink-<name>:` lines for light panels are appended later, alongside
+    // the area-bg directives, so layout downgrades (which delete panel
+    // entries from areaBg) never leave orphaned ink directives.
   }
 
   // --- FULL-IMAGE OVERRIDE ---
@@ -1326,6 +1326,17 @@ function convertSlide(
   }
   for (const [area, css] of Object.entries(areaBg)) {
     extraDirectives.push(`area-bg-${area}: ${css}`);
+  }
+  // Per-area ink: a light panel on a dark slide keeps dark text while the
+  // header stays light on the dark background. Emitted here (not in the
+  // theme block) so downgrades that cleared areaBg entries never leave
+  // orphaned ink directives for areas the final layout doesn't have.
+  if (darkSlide) {
+    for (const [area, css] of Object.entries(areaBg)) {
+      if (css && !isColorDark(css)) {
+        extraDirectives.push(`area-ink-${area}: ${CONFIG.lightPanelInk}`);
+      }
+    }
   }
   if (extraDirectives.length > 0) {
     parts.splice(directiveIndex, 0, ...extraDirectives);

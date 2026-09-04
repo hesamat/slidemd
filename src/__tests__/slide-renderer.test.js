@@ -67,6 +67,30 @@ describe("SlideRenderer", () => {
     expect(html).toContain('class="mermaid"');
   });
 
+  it("applies per-area ink as the area text color", () => {
+    // A dark slide with a light panel: area-ink-main keeps the panel's body
+    // text dark while the slide theme stays dark for the header.
+    const slide = {
+      id: "area-ink-check",
+      title: "Area Ink Check",
+      theme: "dark",
+      areas: { header: "<h2>Title</h2>", main: "<p>Panel body</p>" },
+      areaInks: { main: "rgba(15, 23, 42, 0.92)" },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const mainArea = el.querySelector('[data-area-name="main"]');
+    const headerArea = el.querySelector('[data-area-name="header"]');
+
+    expect(mainArea.style.getPropertyValue("color")).toBe("rgba(15, 23, 42, 0.92)");
+    // Descendant rules (`.slide__area li` etc.) read the theme vars, so the
+    // ink must override them too — an inherited `color` alone loses.
+    for (const inkVar of ["--slide-ink", "--slide-body", "--slide-muted", "--slide-secondary"]) {
+      expect(mainArea.style.getPropertyValue(inkVar)).toBe("rgba(15, 23, 42, 0.92)");
+    }
+    expect(headerArea.style.getPropertyValue("color")).toBe("");
+    expect(el.innerHTML).toContain("color: rgba(15, 23, 42, 0.92)");
+  });
+
   it("keeps media-span intent when a resized custom grid is rendered", () => {
     const slide = {
       id: "resized-media",

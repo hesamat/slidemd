@@ -46,6 +46,9 @@ let _purify;
 let _configuredPurifiers = new WeakSet();
 let _rendererPurifyWarned = false;
 
+/** Theme ink custom properties overridden by `area-ink-<name>:` directives. */
+const AREA_INK_VARS = ["--slide-ink", "--slide-body", "--slide-muted", "--slide-secondary"];
+
 function configureDOMPurify(purify) {
   if (!purify || _configuredPurifiers.has(purify)) return purify;
   purify.addHook("uponSanitizeAttribute", (_node, data) => {
@@ -136,6 +139,33 @@ export class SlideRenderer {
       if (prop && val) {
         areaEl.style.setProperty(prop, val);
       }
+    }
+  }
+
+  /**
+   * Apply a per-area ink (`area-ink-<name>:` value) to an area element. The
+   * theme vars are overridden alongside `color` because descendant rules
+   * (`.slide__area li`, headings, …) pull their color from
+   * `var(--slide-ink)` / `var(--slide-body)` — a plain inherited `color`
+   * would lose to those rules.
+   * @param {HTMLElement} areaEl
+   * @param {string} ink - CSS color value.
+   */
+  static _applyAreaInk(areaEl, ink) {
+    areaEl.style.setProperty("color", ink);
+    for (const inkVar of AREA_INK_VARS) {
+      areaEl.style.setProperty(inkVar, ink);
+    }
+  }
+
+  /**
+   * Remove a previously applied per-area ink.
+   * @param {HTMLElement} areaEl
+   */
+  static _clearAreaInk(areaEl) {
+    areaEl.style.removeProperty("color");
+    for (const inkVar of AREA_INK_VARS) {
+      areaEl.style.removeProperty(inkVar);
     }
   }
 
@@ -243,6 +273,7 @@ export class SlideRenderer {
 
     const areaStyle = safeString(slide?.areaStyle);
     const perAreaStyles = slide?.areaStyles || {};
+    const perAreaInks = slide?.areaInks || {};
 
     if (fullHeightAreas.size > 0) {
       grid.classList.add("slide__grid--full-height");
@@ -287,7 +318,19 @@ export class SlideRenderer {
         area.style.setProperty("background", perAreaBg);
       }
 
-      area.dataset.appliedAreaStyle = [areaStyle, perAreaBg && `background: ${perAreaBg}`]
+      // Per-area ink (`area-ink-<name>:`): overrides the slide-theme text
+      // colors for one area, e.g. dark text on a light panel sitting on a
+      // dark slide surface.
+      const perAreaInk = perAreaInks[name];
+      if (perAreaInk && name !== "footer") {
+        SlideRenderer._applyAreaInk(area, perAreaInk);
+      }
+
+      area.dataset.appliedAreaStyle = [
+        areaStyle,
+        perAreaBg && `background: ${perAreaBg}`,
+        perAreaInk && `color: ${perAreaInk}`,
+      ]
         .filter(Boolean)
         .join("; ");
 

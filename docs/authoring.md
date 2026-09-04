@@ -34,6 +34,7 @@ Directives go at the top of each slide, before any `@area` markers.
 | `theme:`            | Slide color scheme            | `theme: dark`            |
 | `background:`       | Full-slide background         | `background: #1a1a2e`    |
 | `area-bg-<name>:`   | Background for one area       | `area-bg-media: #1e293b` |
+| `area-ink-<name>:`  | Text color for one area       | `area-ink-main: #16283c` |
 | `hidden:`           | Skip slide in presentation    | `hidden: true`           |
 | `media-full-bleed:` | Media area touches slide edge | `media-full-bleed: true` |
 
@@ -77,6 +78,25 @@ area-bg-media: url(images/screenshot.png) center / cover no-repeat
 gradients, or image URLs with size/position/repeat). The `<name>` must match
 an area in the layout. Use it sparingly — typically to give one column a
 distinct color or image background while the slide background covers the rest.
+
+### Per-Area Text Color
+
+`area-ink-<name>:` sets the text color of a single area, overriding the slide
+theme for that area. Use it when a light panel sits on a dark slide (or the
+reverse): the slide keeps `theme: dark` for the header while the panel keeps
+dark, readable text.
+
+```yaml
+layout: header-content
+background: #071d28
+theme: dark
+area-bg-main: #ffffffb3
+area-ink-main: rgba(15, 23, 42, 0.92)
+```
+
+The `<name>` must match an area in the layout, and the value is any CSS color.
+The PPTX import emits this directive automatically when a slide mixes a dark
+background with light content panels.
 
 ### Media Full-Bleed
 

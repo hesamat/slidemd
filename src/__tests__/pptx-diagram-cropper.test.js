@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { shrinkTextToFit, cropIsBlank, replaceFontsInDOM } from "../data/pptx-diagram-cropper.js";
+import {
+  shrinkTextToFit,
+  cropIsBlank,
+  replaceFontsInDOM,
+  findRenderedShapeElement,
+} from "../data/pptx-diagram-cropper.js";
 
 const PT_TO_PX = 96 / 72;
 const px = (pt) => pt * PT_TO_PX;
@@ -64,6 +69,62 @@ function installMeasurement(text, { baseWidth, baseHeight, basePt, lineCount = 1
   };
   return originalCreateRange;
 }
+
+describe("findRenderedShapeElement", () => {
+  /** Build a group container with a group-relative child, mimicking the
+   * renderer's grouped-shape DOM: the container sits at the group's slide
+   * offset, the child at its group-local position. */
+  function buildGroupDom({ groupPos, childPos, childSize }) {
+    const root = document.createElement("div");
+    const group = document.createElement("div");
+    group.style.left = `${px(groupPos.x)}px`;
+    group.style.top = `${px(groupPos.y)}px`;
+    group.style.width = `${px(360)}px`;
+    group.style.height = `${px(120)}px`;
+    const child = document.createElement("div");
+    child.style.left = `${px(childPos.x)}px`;
+    child.style.top = `${px(childPos.y)}px`;
+    child.style.width = `${px(childSize.w)}px`;
+    child.style.height = `${px(childSize.h)}px`;
+    group.appendChild(child);
+    root.appendChild(group);
+    return { root, group, child };
+  }
+
+  it("finds a top-level shape by absolute position", () => {
+    const shape = { left: 10, top: 20, width: 100, height: 50 };
+    const { root, shapeEl } = buildShapeDom({ shape });
+    const found = findRenderedShapeElement(
+      root,
+      px(shape.left),
+      px(shape.top),
+      px(shape.width),
+      px(shape.height),
+    );
+    expect(found).toBe(shapeEl);
+  });
+
+  it("finds a shape inside a group container via accumulated offsets", () => {
+    // Group at (180,140); child at group-local (0,30) — the same geometry as
+    // the shape-diagram.pptx fixture. Slide-absolute box: (180,170).
+    const { root, child } = buildGroupDom({
+      groupPos: { x: 180, y: 140 },
+      childPos: { x: 0, y: 30 },
+      childSize: { w: 140, h: 60 },
+    });
+    const found = findRenderedShapeElement(root, px(180), px(170), px(140), px(60));
+    expect(found).toBe(child);
+  });
+
+  it("returns null when nothing matches", () => {
+    const { root } = buildGroupDom({
+      groupPos: { x: 180, y: 140 },
+      childPos: { x: 0, y: 30 },
+      childSize: { w: 140, h: 60 },
+    });
+    expect(findRenderedShapeElement(root, px(10), px(10), px(50), px(50))).toBeNull();
+  });
+});
 
 describe("shrinkTextToFit", () => {
   it("returns immediately when there are no shapes", () => {
