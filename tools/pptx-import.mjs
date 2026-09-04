@@ -36,6 +36,13 @@ const projectRoot = path.resolve(import.meta.dirname, "..");
 const { default: JSZip } = await import(
   pathToFileURL(path.join(projectRoot, "node_modules", "jszip", "dist", "jszip.min.js")).href
 );
+const { buildImportReport } = await import(
+  pathToFileURL(path.join(projectRoot, "src", "data", "pptx-import-warnings.js")).href
+);
+
+// Retry each deck once on failure — a hung conversion (stalled diagram crop,
+// CDP hiccup) usually succeeds immediately on a second run.
+const MAX_ATTEMPTS = 2;
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -280,6 +287,11 @@ function startBridgeServer(pptxPaths) {
         waiter();
       }
     },
+    // Clear a previous attempt's result/error so a retry starts fresh.
+    reset(idx) {
+      results.delete(idx);
+      errors.delete(idx);
+    },
     async waitFor(idx, timeoutMs = 10 * 60 * 1000) {
       if (results.has(idx)) return results.get(idx);
       if (errors.has(idx)) throw new Error(errors.get(idx));
@@ -345,8 +357,9 @@ try {
     const pptxPath = pptxFiles[i];
     const deckName = path.basename(pptxPath).replace(/\.pptx$/i, "");
     process.stdout.write(`\nConverting ${path.basename(pptxPath)} ... `);
-    try {
-      const started = Date.now();
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const started = Date.now();
 
       // The page fetches the PPTX bytes from the bridge server and POSTs the
       // result back to it — nothing bulky crosses the evaluate bridge.
@@ -376,7 +389,12 @@ try {
             }
             await fetch(resultUrl, {
               method: "POST",
-              body: JSON.stringify({ markdown, images, slideCount: extraction.slides.length }),
+              body: JSON.stringify({
+                markdown,
+                images,
+                slideCount: extraction.slides.length,
+                warnings: extraction.warnings?.warnings || [],
+              }),
             });
           } catch (e) {
             await fetch(resultUrl, { method: "POST", body: JSON.stringify({ error: String(e && e.message ? e.message : e) }) });
@@ -435,9 +453,22 @@ try {
       console.log(
         `ok — ${result.slideCount} slides, ${result.images.length} images (${Math.round((Date.now() - started) / 100) / 10}s)`,
       );
-    } catch (e) {
-      failures++;
-      console.log(`FAILED: ${e.message}`);
+      const report = buildImportReport(result.warnings || [], result.slideCount);
+      if (report.summary) {
+        console.log(`  review needed: ${report.summary}`);
+        for (const line of report.details) console.log(`   - ${line}`);
+      }
+      break;
+        } catch (e) {
+          if (attempt < MAX_ATTEMPTS) {
+            console.log(`attempt ${attempt} failed (${e.message}) — retrying ...`);
+            results.reset(i);
+            process.stdout.write(`Converting ${path.basename(pptxPath)} ... `);
+            continue;
+          }
+          failures++;
+          console.log(`FAILED: ${e.message}`);
+        }
     }
   }
 

@@ -26,6 +26,36 @@ import { Logger } from "../core/logger.js";
 import { trimTransparentMargins } from "./pptx-image-converter.js";
 import { sanitizeCssColor } from "./pptx-color-utils.js";
 import { cropSlideToDiagram, parsePresentation } from "./pptx-diagram-cropper.js";
+import { createImportWarningCollector } from "./pptx-import-warnings.js";
+
+/** Per-diagram render timeout. A hung crop/render (e.g. a stuck
+ * requestAnimationFrame promise) must not stall the whole import; the caller
+ * falls back to the next path and the slide keeps its `[Diagram: ...]` marker. */
+const DIAGRAM_TIMEOUT_MS = 30_000;
+
+/**
+ * Reject with `error` when `promise` does not settle within `ms`.
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} ms
+ * @param {() => Error} makeError
+ * @returns {Promise<T>}
+ */
+function withTimeout(promise, ms, makeError) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(makeError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 
 /** Detect WebKit-based Safari (macOS / iOS).  Excludes Chrome/Edge on those platforms. */
 const isSafari =
@@ -390,10 +420,15 @@ export async function renderSvgToPng(svg, widthPx, heightPx) {
  * @param {ArrayBuffer} [pptxBuffer] - Optional original PPTX bytes. When
  *   provided, the high-fidelity slide-crop path is used; otherwise the SVG
  *   builder is used.
+ * @param {{ warnings: Array, add: Function }} [warnings] - Optional import
+ *   warnings collector (see pptx-import-warnings.js). When omitted, a local
+ *   collector is created and discarded; pass one to surface degradations in
+ *   the post-import report.
  * @returns {Promise<void>}
  */
-export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
+export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer, warnings) {
   if (typeof document === "undefined" || !document.createElement) return;
+  const warn = warnings || createImportWarningCollector();
 
   // Parse the presentation once for the whole import instead of once per
   // diagram.  If parsing fails, every diagram falls back to the SVG path.
@@ -423,6 +458,7 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
       }
 
       let dataUrl = null;
+      let timedOut = false;
       // Safari's WebKit can hang inside html-to-image when rasterizing slides
       // that contain image-filled shapes, so we skip the high-fidelity crop
       // path there and use the SVG builder instead.
@@ -432,31 +468,57 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer) {
         try {
           const presentation = await getPresentation();
           if (presentation) {
-            dataUrl = await cropSlideToDiagram(
-              pptxBuffer,
-              slide.index,
-              {
-                left: el.left || 0,
-                top: el.top || 0,
-                width: el.width,
-                height: el.height,
-              },
-              el.shapes,
-              1,
-              null,
-              presentation,
+            dataUrl = await withTimeout(
+              cropSlideToDiagram(
+                pptxBuffer,
+                slide.index,
+                {
+                  left: el.left || 0,
+                  top: el.top || 0,
+                  width: el.width,
+                  height: el.height,
+                },
+                el.shapes,
+                1,
+                null,
+                presentation,
+              ),
+              DIAGRAM_TIMEOUT_MS,
+              () => new Error(`diagram crop timed out after ${DIAGRAM_TIMEOUT_MS}ms`),
             );
+          } else {
+            warn.add("diagram-crop-failed", slide.index, "crop path unavailable");
           }
         } catch (err) {
+          timedOut = /timed out/.test(err?.message || "");
           Logger.warn("Diagram crop render failed, falling back to SVG:", err);
+          warn.add(
+            timedOut ? "diagram-timeout" : "diagram-crop-failed",
+            slide.index,
+            err?.message || String(err),
+          );
         }
       }
 
       if (!dataUrl) {
-        dataUrl = await renderDiagramToSvgPng(el);
+        try {
+          dataUrl = await withTimeout(
+            renderDiagramToSvgPng(el),
+            DIAGRAM_TIMEOUT_MS,
+            () => new Error(`diagram SVG render timed out after ${DIAGRAM_TIMEOUT_MS}ms`),
+          );
+        } catch (err) {
+          timedOut = timedOut || /timed out/.test(err?.message || "");
+          Logger.warn("Diagram SVG render failed:", err);
+        }
       }
 
       if (!dataUrl) {
+        warn.add(
+          timedOut ? "diagram-timeout" : "diagram-render-failed",
+          slide.index,
+          "kept as a text diagram marker",
+        );
         newElements.push(el);
         continue;
       }

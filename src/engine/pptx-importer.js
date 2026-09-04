@@ -11,6 +11,7 @@ import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { uploadImagesInBatches } from "../core/image-batch-uploader.js";
 import { Logger } from "../core/logger.js";
 import { setImageUploadPromise, waitForImageUpload } from "../core/image-upload-promise.js";
+import { buildImportReport } from "../data/pptx-import-warnings.js";
 
 export class PptxImporter {
   /**
@@ -45,6 +46,7 @@ export class PptxImporter {
     modal.close();
 
     let { markdown, images, deckName } = result;
+    const { warnings: importWarnings = [] } = result;
 
     // Convert PPTX-extracted images to in-memory blob URLs so the deck renders immediately
     const imageBlobs = new Map();
@@ -142,6 +144,11 @@ export class PptxImporter {
       loading.updateProgress(100);
       loading.dismiss();
 
+      // Post-import report: surface slides whose content was degraded during
+      // extraction (failed/timed-out diagram crops) so the user knows which
+      // slides need review instead of discovering silent losses later.
+      const report = buildImportReport(importWarnings, deckData.slides.length);
+
       const getLatestMarkdown = () => {
         // Prefer the edit controller's live markdown (which reflects AI
         // refines, unsaved edits, etc.) over the stale localStorage snapshot.
@@ -206,6 +213,9 @@ export class PptxImporter {
       }
 
       Notification.dismissAll();
+      if (report.summary) {
+        Notification.warning(`${report.summary}. ${report.details.join(" ")}`, 0);
+      }
       Notification.success("PPTX imported successfully.", 0, {
         actions: [
           {

@@ -14,12 +14,27 @@ import { iconString } from "../core/icon.js";
 const P = "conversion-modal__";
 const STORAGE_KEY = "webdeck_import_defaults";
 
+// Extraction is a single monolithic pass over the deck; a hung conversion
+// (e.g. a stalled diagram crop) must surface as an error with a retry, not a
+// spinner forever. Generous: the CLI observed a 100+ slide deck converting in
+// well under a minute once unstuck.
+const IMPORT_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Distinguishes a hung conversion from a conversion that failed outright. */
+class ImportTimeoutError extends Error {
+  constructor() {
+    super("PPTX conversion timed out");
+    this.name = "ImportTimeoutError";
+  }
+}
+
 /**
  * @typedef {Object} ConversionResult
  * @property {string} markdown - The converted SlideMD markdown.
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
  * @property {string} deckName - Deck name derived from filename (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
+ * @property {Array} warnings - Degradation warnings from extraction (see pptx-import-warnings.js).
  */
 
 export class ConversionModal {
@@ -70,6 +85,7 @@ export class ConversionModal {
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
       const saveBtn = backdrop.querySelector('[data-action="save"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+      const retryBtn = backdrop.querySelector('[data-action="retry"]');
       const spinnerEl = backdrop.querySelector(`.${P}spinner-container`);
       const errorEl = backdrop.querySelector(`.${P}error`);
       const dialog = backdrop.querySelector(`.${P}dialog`);
@@ -147,10 +163,15 @@ export class ConversionModal {
       });
 
       // Conversion logic — called automatically when file is selected
+      let conversionAttempt = 0;
       const startConversion = async () => {
         if (!selectedFile || isConverting) return;
+        // A timed-out conversion leaves its extraction promise running; the
+        // token makes stale results (from a superseded attempt) ignorable.
+        const attemptId = ++conversionAttempt;
         isConverting = true;
         cancelBtn.disabled = true;
+        retryBtn.hidden = true;
         hideError();
         // Remove any dynamically added rows/buttons from previous conversion
         backdrop
@@ -163,7 +184,12 @@ export class ConversionModal {
 
         try {
           const buffer = await selectedFile.arrayBuffer();
-          extractionResult = await PptxExtractor.extract(buffer);
+          const extraction = await ConversionModal.#withTimeout(
+            PptxExtractor.extract(buffer),
+            IMPORT_TIMEOUT_MS,
+          );
+          if (attemptId !== conversionAttempt) return;
+          extractionResult = extraction;
 
           deckName = (selectedFile.name || "presentation")
             .replace(/\.pptx$/i, "")
@@ -283,12 +309,24 @@ export class ConversionModal {
           cancelBtn.disabled = false;
           isConverting = false;
         } catch (err) {
+          if (attemptId !== conversionAttempt) return;
           hideSpinner();
-          showError(`Conversion failed: ${err.message}`);
+          const timedOut = err instanceof ImportTimeoutError;
+          showError(
+            timedOut
+              ? `Conversion timed out after ${Math.round(IMPORT_TIMEOUT_MS / 60000)} minutes. The file may be too complex — try again.`
+              : `Conversion failed: ${err.message}`,
+          );
+          retryBtn.hidden = false;
           cancelBtn.disabled = false;
           isConverting = false;
         }
       };
+      // Retry — re-run conversion on the same selected file
+      retryBtn.addEventListener("click", () => {
+        if (selectedFile && !isConverting) startConversion();
+      });
+
       // Import button
       saveBtn.addEventListener("click", async () => {
         // Strip <img> tags when content images are not imported, but preserve
@@ -332,6 +370,7 @@ export class ConversionModal {
           images: extractionResult.images || [],
           deckName,
           importImages,
+          warnings: extractionResult.warnings?.warnings || [],
         });
       });
       // Cancel
@@ -364,6 +403,30 @@ export class ConversionModal {
       };
       document.addEventListener("keydown", onKeydown);
       this._currentKeydownHandler = onKeydown;
+    });
+  }
+
+  /**
+   * Reject with ImportTimeoutError when the promise does not settle in time.
+   * @static
+   * @template T
+   * @param {Promise<T>} promise
+   * @param {number} ms
+   * @returns {Promise<T>}
+   */
+  static #withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new ImportTimeoutError()), ms);
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
     });
   }
 
@@ -404,6 +467,7 @@ export class ConversionModal {
 
         <div class="modal-base__footer ${P}actions">
           <button type="button" data-action="cancel" class="modal-base__btn modal-base__btn--secondary ${P}btn ${P}btn--secondary">Cancel</button>
+          <button type="button" data-action="retry" class="modal-base__btn modal-base__btn--secondary ${P}btn ${P}btn--secondary" hidden>Retry</button>
           <button type="button" data-action="save" class="modal-base__btn modal-base__btn--primary ${P}btn ${P}btn--accent" hidden>Import</button>
         </div>
       </div>

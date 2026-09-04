@@ -46,7 +46,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:pptx-import": "node tools/check-pptx-snapshots.mjs"
   },
   "dependencies": {
     "@aiden0z/pptx-renderer": "^1.2.4",

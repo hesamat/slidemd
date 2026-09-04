@@ -35,6 +35,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: PPTX import snapshots (headless conversion)
+        run: npm run test:pptx-import
+
       - name: End-to-end tests
         run: npm run test:e2e
 
