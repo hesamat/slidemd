@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, master]
 
+# Pushing again to the same PR supersedes the previous run — no point
+# finishing a build whose head commit is already out of date.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,16 +38,29 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          # The browser set is pinned by the @playwright/test version in the
+          # lockfile; fall back to the last known-good cache on any mismatch.
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-
+
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
       - name: End-to-end tests
         run: npm run test:e2e
 
+      # Build/PDF output is only consumed by the main-branch artifact upload;
+      # skip the ~1-2 min of rendering on PRs.
       - name: Build HTML slides
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: npm run build -- docs/example/slides.md
 
       - name: Generate PDF
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: npm run pdf -- slides.html
 
       - name: Upload build artifacts
