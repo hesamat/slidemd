@@ -11,6 +11,7 @@ import JSZip from "jszip";
 import { htmlToMarkdown, stripHtml, isAllMonospace } from "./pptx-html-to-markdown.js";
 import { convertEmfImages, convertTiffImages } from "./pptx-image-converter.js";
 import { renderDiagramsToPng } from "./pptx-shape-renderer.js";
+import { createImportWarningCollector } from "./pptx-import-warnings.js";
 import { buildChartDataRows } from "./pptx-chart-data.js";
 import { sanitizeCssColor } from "./pptx-color-utils.js";
 
@@ -80,6 +81,8 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
  * @property {string[]} usedFonts - Fonts used in the presentation.
  * @property {{ width: number, height: number }} size - Slide dimensions in EMU.
  * @property {ExtractedImage[]} images - All extracted images with metadata.
+ * @property {{ warnings: import('./pptx-import-warnings.js').PptxImportWarning[], add: Function }} warnings
+ *   Degradation warnings (diagram crop failures, timeouts) for the post-import report.
  */
 
 /**
@@ -104,9 +107,16 @@ export class PptxExtractor {
    * @static
    * @param {ArrayBuffer} buffer - PPTX file contents.
    * @param {number} [limit] - If set, only process the first `limit` slides.
+   * @param {object} [options]
+   * @param {object} [options.warnings] - Optional import warnings collector.
+   *   When omitted, a fresh collector is created and returned on the result.
    * @returns {Promise<ExtractionResult>}
    */
-  static async extract(buffer, limit = undefined) {
+  static async extract(
+    buffer,
+    limit = undefined,
+    { warnings = createImportWarningCollector() } = {},
+  ) {
     const raw = await parse(buffer);
 
     // Load the PPTX ZIP once and reuse it for the manual XML extractions.
@@ -190,7 +200,7 @@ export class PptxExtractor {
     // Render shape/diagram groups to PNG screenshots (Phase 14.9, #117).
     // First try the high-fidelity slide-crop path; fall back to the SVG
     // builder if the cropper is unavailable or fails.
-    await renderDiagramsToPng(slides, images, buffer);
+    await renderDiagramsToPng(slides, images, buffer, warnings);
 
     return {
       slides,
@@ -198,6 +208,7 @@ export class PptxExtractor {
       usedFonts: raw.usedFonts || [],
       size: raw.size || { width: 914400, height: 5143500 },
       images,
+      warnings,
     };
   }
 
