@@ -86,7 +86,10 @@ const SIGNATURES = [
       [/\bself\./, 2, 1],
       [/\belif\b/, 2, 1],
       [/__name__\s*==/, 3, 1],
-      [/#\s\w+/, 1, 2],
+      // Cap 1: a block of only `# word` comment/heading lines must stay below
+      // the score floor (two weight-1 hits would otherwise reach it and tag
+      // comment-only blocks python).
+      [/#\s\w+/, 1, 1],
       // Trailing-colon control lines (`for x in y:`, `with open(p) as f:`,
       // `try:`), optionally followed by an inline comment (`if a > b: # or
       // >=`) — bash control flow uses `; do`/`then` instead, css has none.
@@ -315,17 +318,20 @@ export async function applyCodeLanguages(markdown, mode) {
   let openIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     if (!lines[i].startsWith("```")) continue;
+    // Preserve the original fence marker (```` vs ```) when rewriting so
+    // non-converter markdown keeps its longer fences.
+    const marker = (lines[i].match(/^`{3,}/) || ["```"])[0];
     if (!inCode) {
       inCode = true;
       openIndex = i;
       // Explicit mode needs no block content — tag the opening fence at once
       // so even an unclosed trailing fence gets tagged.
-      if (normalized !== "auto") lines[i] = "```" + normalized;
+      if (normalized !== "auto") lines[i] = marker + normalized;
     } else {
       inCode = false;
       if (normalized === "auto") {
         const lang = detect(lines.slice(openIndex + 1, i).join("\n"));
-        if (lang) lines[openIndex] = "```" + lang;
+        if (lang) lines[openIndex] = marker + lang;
       }
     }
   }
@@ -342,9 +348,10 @@ function stripFenceLanguages(markdown) {
   let inCode = false;
   for (let i = 0; i < lines.length; i++) {
     if (!lines[i].startsWith("```")) continue;
+    const marker = (lines[i].match(/^`{3,}/) || ["```"])[0];
     if (!inCode) {
       inCode = true;
-      if (lines[i].length > 3) lines[i] = "```";
+      if (lines[i].length > marker.length) lines[i] = marker;
     } else {
       inCode = false;
     }

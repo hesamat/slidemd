@@ -797,11 +797,9 @@ function convertSlide(
     bgCandidate || isColorDark(slide.background) || Object.values(areaBg).some(isColorDark);
   if (darkSlide) {
     parts.push("theme: dark");
-    for (const [areaName, css] of Object.entries(areaBg)) {
-      if (css && !isColorDark(css)) {
-        parts.push(`area-ink-${areaName}: ${CONFIG.lightPanelInk}`);
-      }
-    }
+    // `area-ink-<name>:` lines for light panels are appended later, alongside
+    // the area-bg directives, so layout downgrades (which delete panel
+    // entries from areaBg) never leave orphaned ink directives.
   }
 
   // --- FULL-IMAGE OVERRIDE ---
@@ -816,11 +814,6 @@ function convertSlide(
     if (bgIdx !== -1) parts.splice(bgIdx, 1);
     const themeIdx = parts.findIndex((p) => p === "theme: dark");
     if (themeIdx !== -1) parts.splice(themeIdx, 1);
-    // The dark-theme branch above may have emitted area-ink lines for light
-    // panels; a full-image slide has no panel-backed areas, so drop them too.
-    for (let i = parts.length - 1; i >= 0; i--) {
-      if (parts[i].startsWith("area-ink-")) parts.splice(i, 1);
-    }
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
@@ -1333,6 +1326,17 @@ function convertSlide(
   }
   for (const [area, css] of Object.entries(areaBg)) {
     extraDirectives.push(`area-bg-${area}: ${css}`);
+  }
+  // Per-area ink: a light panel on a dark slide keeps dark text while the
+  // header stays light on the dark background. Emitted here (not in the
+  // theme block) so downgrades that cleared areaBg entries never leave
+  // orphaned ink directives for areas the final layout doesn't have.
+  if (darkSlide) {
+    for (const [area, css] of Object.entries(areaBg)) {
+      if (css && !isColorDark(css)) {
+        extraDirectives.push(`area-ink-${area}: ${CONFIG.lightPanelInk}`);
+      }
+    }
   }
   if (extraDirectives.length > 0) {
     parts.splice(directiveIndex, 0, ...extraDirectives);

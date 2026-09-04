@@ -126,6 +126,9 @@ describe("detectCodeLanguage", () => {
     expect(detectCodeLanguage("SELECT", hljs)).toBe("");
     expect(detectCodeLanguage("", hljs)).toBe("");
     expect(detectCodeLanguage("   \n  ", hljs)).toBe("");
+    // Regression: comment-only blocks must not reach the python floor via the
+    // capped comment signal (two weight-1 hits used to clear it).
+    expect(detectCodeLanguage("# TODO fix this\n# TODO also that", hljs)).toBe("");
   });
 
   it("still detects via signatures without a highlight.js instance", () => {
@@ -194,6 +197,14 @@ describe("applyCodeLanguages", () => {
   it("tags an unclosed trailing fence in explicit mode", async () => {
     const unclosed = "```\nx = 1";
     expect(await applyCodeLanguages(unclosed, "python")).toBe("```python\nx = 1");
+  });
+
+  it("preserves longer fence markers when tagging", async () => {
+    // Non-converter markdown may use 4-backtick fences — rewriting must not
+    // collapse them (it would break blocks whose content contains ```).
+    const md = ["````", "x = 1", "````"].join("\n");
+    expect(await applyCodeLanguages(md, "python")).toBe(["````python", "x = 1", "````"].join("\n"));
+    expect(await applyCodeLanguages("````python\nx = 1\n````", "none")).toBe("````\nx = 1\n````");
   });
 
   it("handles markdown without any fences", async () => {

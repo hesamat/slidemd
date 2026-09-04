@@ -469,6 +469,9 @@ try {
           }
           const deckMdPath = path.join(deckDir, `${deckName}.md`);
           fs.writeFileSync(deckMdPath, finalMarkdown);
+          // Output is on disk — a later-stage failure (PDF rendering) must not
+          // re-run the whole browser conversion on the retry.
+          outputsWritten = true;
           if (wantPdf) {
             process.stdout.write("  rendering PDF ... ");
             const pdfPath = await renderPdf(deckMdPath, deckName, outDir);
@@ -484,8 +487,8 @@ try {
           for (const img of result.images) assets.file(img.name, img.base64, { base64: true });
           const buf = await zip.generateAsync({ type: "nodebuffer", compression: "STORE" });
           fs.writeFileSync(path.join(outDir, `${deckName}.textpack`), buf);
+          outputsWritten = true;
         }
-        outputsWritten = true;
 
         console.log(
           `ok — ${result.slideCount} slides, ${result.images.length} images (${Math.round((Date.now() - started) / 100) / 10}s)`,

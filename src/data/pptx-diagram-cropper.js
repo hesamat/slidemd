@@ -276,12 +276,20 @@ function readElementBox(el, originX, originY) {
   const top = originY + (parseFloat(el.style.top) || 0);
   const wRaw = el.style.width || "";
   const hRaw = el.style.height || "";
-  const measurable = wRaw !== "" && hRaw !== "" && !wRaw.includes("%") && !hRaw.includes("%");
+  const wNum = parseFloat(wRaw);
+  const hNum = parseFloat(hRaw);
+  const measurable =
+    wRaw !== "" &&
+    hRaw !== "" &&
+    !wRaw.includes("%") &&
+    !hRaw.includes("%") &&
+    Number.isFinite(wNum) &&
+    Number.isFinite(hNum);
   return {
     left,
     top,
-    width: parseFloat(wRaw) || 0,
-    height: parseFloat(hRaw) || 0,
+    width: wNum || 0,
+    height: hNum || 0,
     measurable,
   };
 }
