@@ -330,17 +330,39 @@ const serverExited = new Promise((resolve) => server.on("exit", (code) => resolv
 const results = startBridgeServer(pptxFiles);
 let browser;
 try {
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("vite dev server timed out")), 30000);
-    server.stdout.on("data", (d) => {
-      if (d.toString().includes("Local:")) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-    server.stderr.on("data", (d) => process.stderr.write(d));
-    serverExited.then(() => reject(new Error("vite dev server exited early")));
+  // Wait for Vite by polling the HTTP port instead of matching its startup
+  // banner: a cold CI runner (fresh npm ci, empty Vite dep cache) can take
+  // well over 30s to print the banner, and stdout text is not a contract.
+  let serverExitCode = null;
+  server.once("exit", (code) => {
+    serverExitCode = code;
   });
+  const viteUp = new Promise((resolve, reject) => {
+    const started = Date.now();
+    const attempt = async () => {
+      if (serverExitCode !== null) {
+        reject(new Error(`vite dev server exited early (code ${serverExitCode})`));
+        return;
+      }
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/index.html`, { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+          resolve();
+          return;
+        }
+      } catch {
+        /* not up yet — retry below */
+      }
+      if (Date.now() - started > 120_000) {
+        reject(new Error("vite dev server did not become reachable within 120s"));
+        return;
+      }
+      setTimeout(attempt, 500);
+    };
+    attempt();
+  });
+  server.stderr.on("data", (d) => process.stderr.write(d));
+  await viteUp;
 
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
