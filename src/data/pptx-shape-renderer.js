@@ -34,7 +34,10 @@ import { createImportWarningCollector } from "./pptx-import-warnings.js";
 const DIAGRAM_TIMEOUT_MS = 30_000;
 
 /**
- * Reject with `error` when `promise` does not settle within `ms`.
+ * Reject with `error` when `promise` does not settle within `ms`. The
+ * rejection carries `err.timeout = true` so callers can distinguish our
+ * timeout from timeout errors produced by inner layers (e.g. the cropper's
+ * own raster timeout).
  * @template T
  * @param {Promise<T>} promise
  * @param {number} ms
@@ -43,7 +46,11 @@ const DIAGRAM_TIMEOUT_MS = 30_000;
  */
 function withTimeout(promise, ms, makeError) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(makeError()), ms);
+    const timer = setTimeout(() => {
+      const err = makeError();
+      err.timeout = true;
+      reject(err);
+    }, ms);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -447,6 +454,10 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer, warni
     return presentationPromise;
   };
 
+  // Slides already told about the crop path being unavailable — one root
+  // cause (presentation parse failure) must not emit one warning per diagram.
+  const cropUnavailableSlides = new Set();
+
   for (const slide of slides) {
     const newElements = [];
     let diagramCounter = 0;
@@ -458,7 +469,8 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer, warni
       }
 
       let dataUrl = null;
-      let timedOut = false;
+      let cropFailed = false;
+      let cropTimedOut = false;
       // Safari's WebKit can hang inside html-to-image when rasterizing slides
       // that contain image-filled shapes, so we skip the high-fidelity crop
       // path there and use the SVG builder instead.
@@ -486,21 +498,20 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer, warni
               DIAGRAM_TIMEOUT_MS,
               () => new Error(`diagram crop timed out after ${DIAGRAM_TIMEOUT_MS}ms`),
             );
-          } else {
+            cropFailed = !dataUrl;
+          } else if (!cropUnavailableSlides.has(slide.index)) {
+            cropUnavailableSlides.add(slide.index);
             warn.add("diagram-crop-failed", slide.index, "crop path unavailable");
           }
         } catch (err) {
-          timedOut = /timed out/.test(err?.message || "");
+          cropFailed = true;
+          cropTimedOut = !!err?.timeout;
           Logger.warn("Diagram crop render failed, falling back to SVG:", err);
-          warn.add(
-            timedOut ? "diagram-timeout" : "diagram-crop-failed",
-            slide.index,
-            err?.message || String(err),
-          );
         }
       }
 
       if (!dataUrl) {
+        let svgTimedOut = false;
         try {
           dataUrl = await withTimeout(
             renderDiagramToSvgPng(el),
@@ -508,19 +519,30 @@ export async function renderDiagramsToPng(slides, imagesAccum, pptxBuffer, warni
             () => new Error(`diagram SVG render timed out after ${DIAGRAM_TIMEOUT_MS}ms`),
           );
         } catch (err) {
-          timedOut = timedOut || /timed out/.test(err?.message || "");
+          svgTimedOut = !!err?.timeout;
           Logger.warn("Diagram SVG render failed:", err);
+        }
+        if (!dataUrl) {
+          // The diagram content is lost (kept only as a text marker) — this is
+          // the degradation the post-import report exists to surface.
+          warn.add(
+            cropTimedOut || svgTimedOut ? "diagram-timeout" : "diagram-render-failed",
+            slide.index,
+            "kept as a text diagram marker",
+          );
+          newElements.push(el);
+          continue;
         }
       }
 
-      if (!dataUrl) {
+      // The diagram rendered, but if the crop path failed the output came
+      // from the lower-fidelity SVG builder — worth knowing, not content loss.
+      if (cropFailed) {
         warn.add(
-          timedOut ? "diagram-timeout" : "diagram-render-failed",
+          cropTimedOut ? "diagram-timeout" : "diagram-crop-failed",
           slide.index,
-          "kept as a text diagram marker",
+          "rendered with the lower-fidelity SVG fallback",
         );
-        newElements.push(el);
-        continue;
       }
 
       dataUrl = (await trimTransparentMargins(dataUrl)) ?? dataUrl;

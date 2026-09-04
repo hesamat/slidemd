@@ -6,7 +6,7 @@ theme: dark
 
 # How Variables Work
 
-- _Store references_: a variable holds an address in memory
+- *Store references*: a variable holds an address in memory
 - Pointers track objects : the address points to a live object
 - (A name can refer to many kindsof objects over time but only one at a time)
 - Sub-point without an explicit marker

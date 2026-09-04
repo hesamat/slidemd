@@ -37,6 +37,7 @@ jobs:
 
       - name: PPTX import snapshots (headless conversion)
         run: npm run test:pptx-import
+        timeout-minutes: 15
 
       - name: End-to-end tests
         run: npm run test:e2e

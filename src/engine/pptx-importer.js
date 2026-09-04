@@ -146,8 +146,12 @@ export class PptxImporter {
 
       // Post-import report: surface slides whose content was degraded during
       // extraction (failed/timed-out diagram crops) so the user knows which
-      // slides need review instead of discovering silent losses later.
+      // slides need review instead of discovering silent losses later. The
+      // toast caps long lists; the console always gets everything.
       const report = buildImportReport(importWarnings, deckData.slides.length);
+      if (report.summary) {
+        Logger.warn("PPTX import warnings:", importWarnings);
+      }
 
       const getLatestMarkdown = () => {
         // Prefer the edit controller's live markdown (which reflects AI

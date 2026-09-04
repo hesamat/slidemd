@@ -75,11 +75,14 @@ describe("pptx import output snapshots", () => {
       ).toBe(true);
       const expected = fs.readFileSync(mdPath, "utf8");
       if (markdown !== expected) {
-        const diff = [...markdown].findIndex((ch, i) => ch !== expected[i]);
+        // findIndex is -1 when markdown is a strict prefix of expected (e.g.
+        // a trailing-newline-only change); compare from the end in that case.
+        const i = [...markdown].findIndex((ch, j) => ch !== expected[j]);
+        const at = i === -1 ? expected.length - 1 : i;
         throw new Error(
-          `Conversion output for ${name} changed at char ${diff}.\n` +
-            `  expected: ...${JSON.stringify(expected.slice(Math.max(0, diff - 40), diff + 40))}\n` +
-            `  actual:   ...${JSON.stringify(markdown.slice(Math.max(0, diff - 40), diff + 40))}\n` +
+          `Conversion output for ${name} changed at char ${at}.\n` +
+            `  expected: ...${JSON.stringify(expected.slice(Math.max(0, at - 40), at + 40))}\n` +
+            `  actual:   ...${JSON.stringify(markdown.slice(Math.max(0, at - 40), at + 40))}\n` +
             `If this change is intended, update the snapshots:\n` +
             `  UPDATE_PPTX_SNAPSHOTS=1 npx vitest run src/__tests__/pptx-import-snapshots.test.js`,
         );
@@ -90,11 +93,21 @@ describe("pptx import output snapshots", () => {
     });
   }
 
-  it("has at least one snapshot per fixture (snapshot coverage is complete)", () => {
+  it("has complete snapshot coverage: every fixture pinned, no orphaned expectations", () => {
     expect(fixtureNames.length).toBeGreaterThan(0);
     for (const name of fixtureNames) {
       expect(fs.existsSync(path.join(EXPECTED_DIR, `${name}.md`)), name).toBe(true);
       expect(fs.existsSync(path.join(EXPECTED_DIR, `${name}.warnings.json`)), name).toBe(true);
+    }
+    // A renamed/deleted fixture must not leave stale expectations behind —
+    // they would silently pretend coverage that no longer exists.
+    for (const file of fs.readdirSync(EXPECTED_DIR)) {
+      if (file === "headless") continue;
+      const fixtureName = file.replace(/(\.md|\.warnings\.json)$/, "");
+      expect(
+        fixtureNames.includes(fixtureName),
+        `orphan expectation ${file} (no fixture ${fixtureName})`,
+      ).toBe(true);
     }
   });
 });

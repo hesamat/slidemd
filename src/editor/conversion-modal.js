@@ -164,6 +164,10 @@ export class ConversionModal {
 
       // Conversion logic — called automatically when file is selected
       let conversionAttempt = 0;
+      // True while an extraction promise is in flight — including after a
+      // timeout, when the abandoned extraction keeps running in the
+      // background. Retry waits for it so attempts don't stack in one tab.
+      let extractionActive = false;
       const startConversion = async () => {
         if (!selectedFile || isConverting) return;
         // A timed-out conversion leaves its extraction promise running; the
@@ -172,6 +176,12 @@ export class ConversionModal {
         isConverting = true;
         cancelBtn.disabled = true;
         retryBtn.hidden = true;
+        // A previous conversion's result must not survive a new attempt: with
+        // the old result still resolved, Import could return the PREVIOUS
+        // file's deck while the drop zone shows the new file's name.
+        saveBtn.hidden = true;
+        extractionResult = null;
+        markdown = "";
         hideError();
         // Remove any dynamically added rows/buttons from previous conversion
         backdrop
@@ -184,12 +194,28 @@ export class ConversionModal {
 
         try {
           const buffer = await selectedFile.arrayBuffer();
-          const extraction = await ConversionModal.#withTimeout(
-            PptxExtractor.extract(buffer),
-            IMPORT_TIMEOUT_MS,
+          extractionActive = true;
+          const extractPromise = PptxExtractor.extract(buffer);
+          // Observe the abandoned extraction's eventual settle so a late
+          // rejection is never unhandled, and re-enable Retry when it ends.
+          // Scoped to this attempt: a stale zombie's settle must not flip the
+          // flag while a newer attempt's extraction is in flight.
+          extractPromise.then(
+            () => {
+              if (attemptId !== conversionAttempt) return;
+              extractionActive = false;
+              retryBtn.disabled = false;
+            },
+            () => {
+              if (attemptId !== conversionAttempt) return;
+              extractionActive = false;
+              retryBtn.disabled = false;
+            },
           );
+          const extraction = await ConversionModal.#withTimeout(extractPromise, IMPORT_TIMEOUT_MS);
           if (attemptId !== conversionAttempt) return;
           extractionResult = extraction;
+          extractionActive = false;
 
           deckName = (selectedFile.name || "presentation")
             .replace(/\.pptx$/i, "")
@@ -199,7 +225,7 @@ export class ConversionModal {
           let savedDefaults = {};
           try {
             const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) savedDefaults = JSON.parse(raw);
+            if (raw) savedDefaults = JSON.parse(raw) || {};
           } catch (e) {
             Logger.warn("Corrupted conversion defaults in localStorage, clearing:", e);
             localStorage.removeItem(STORAGE_KEY);
@@ -318,17 +344,23 @@ export class ConversionModal {
               : `Conversion failed: ${err.message}`,
           );
           retryBtn.hidden = false;
+          // The abandoned extraction may still be running after a timeout —
+          // hold Retry until it settles so attempts never stack in one tab.
+          retryBtn.disabled = extractionActive;
           cancelBtn.disabled = false;
           isConverting = false;
         }
       };
       // Retry — re-run conversion on the same selected file
       retryBtn.addEventListener("click", () => {
-        if (selectedFile && !isConverting) startConversion();
+        if (selectedFile && !isConverting && !extractionActive) startConversion();
       });
 
       // Import button
       saveBtn.addEventListener("click", async () => {
+        // Guard against a stale result: Import is only meaningful after a
+        // completed conversion of the currently selected file.
+        if (!extractionResult || isConverting) return;
         // Strip <img> tags when content images are not imported, but preserve
         // diagram-derived images (marked with data-diagram="true") since they
         // are essential content, not decorative photos the user opted out of.
@@ -386,7 +418,9 @@ export class ConversionModal {
         backdropMouseDown = e.target === backdrop;
       });
       backdrop.addEventListener("click", (e) => {
-        if (backdropMouseDown && e.target === backdrop) {
+        // Backdrop/Escape must not abandon a running conversion (the Cancel
+        // button is disabled for the same reason).
+        if (backdropMouseDown && e.target === backdrop && !isConverting) {
           ConversionModal.close();
           resolve(null);
         }
@@ -395,7 +429,7 @@ export class ConversionModal {
 
       // Close on Escape key
       const onKeydown = (e) => {
-        if (e.key === "Escape") {
+        if (e.key === "Escape" && !isConverting) {
           e.stopPropagation();
           ConversionModal.close();
           resolve(null);
