@@ -785,21 +785,23 @@ function convertSlide(
   // Dark theme whenever the slide needs light text: a dark photo background
   // or a dark area-bg panel. Evaluated even without a `background:` directive
   // — an area-bg panel can be the only dark surface on the slide.
-  // Exception: when area-bg-main is light, the main content needs dark text
-  // to be readable on the light panel — don't force theme: dark even if the
-  // slide background is dark. The header may be less readable, but the main
-  // content (the bulk of the slide) takes priority.
+  // A light panel on a dark slide no longer suppresses the dark theme (that
+  // made the header unreadable): the slide goes dark and the light panel
+  // keeps dark text via an `area-ink-<name>:` directive instead.
   // Note: the edge sidebar (slidePanelBg) is prepended to slide.background,
   // so isColorDark(slide.background) already accounts for it. A dark sidebar
   // covering a minority of the slide should not flip the whole slide to dark
   // when the remaining background is light — the sidebar text color is
   // handled by the area-bg CSS, not the global slide theme.
-  const hasLightMain = areaBg.main && !isColorDark(areaBg.main);
-  if (
-    !hasLightMain &&
-    (bgCandidate || isColorDark(slide.background) || Object.values(areaBg).some(isColorDark))
-  ) {
+  const darkSlide =
+    bgCandidate || isColorDark(slide.background) || Object.values(areaBg).some(isColorDark);
+  if (darkSlide) {
     parts.push("theme: dark");
+    for (const [areaName, css] of Object.entries(areaBg)) {
+      if (css && !isColorDark(css)) {
+        parts.push(`area-ink-${areaName}: ${CONFIG.lightPanelInk}`);
+      }
+    }
   }
 
   // --- FULL-IMAGE OVERRIDE ---
@@ -814,6 +816,11 @@ function convertSlide(
     if (bgIdx !== -1) parts.splice(bgIdx, 1);
     const themeIdx = parts.findIndex((p) => p === "theme: dark");
     if (themeIdx !== -1) parts.splice(themeIdx, 1);
+    // The dark-theme branch above may have emitted area-ink lines for light
+    // panels; a full-image slide has no panel-backed areas, so drop them too.
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (parts[i].startsWith("area-ink-")) parts.splice(i, 1);
+    }
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");

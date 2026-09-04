@@ -571,6 +571,52 @@ function shapeDiagramSlide() {
   return title + group;
 }
 
+/**
+ * dark-slide-light-panel.pptx — a dark themed deck slide with a white
+ * translucent content card (a filled body placeholder) under the title.
+ * Pins the mixed-surface theme decision: the slide must emit `theme: dark`
+ * (readable header on the dark background) plus `area-ink-main:` so the
+ * card keeps dark text — the old behavior suppressed the dark theme and
+ * rendered dark header text on the dark background.
+ */
+function darkSlideLightPanelSlide() {
+  const title = titleBox({
+    id: 2,
+    name: "Title 1",
+    sz: 4400,
+    x: 60,
+    y: 20,
+    w: 640,
+    h: 60,
+    text: "Dictionary Methods",
+    algn: "l",
+    creationId: "{469C1986-A4A3-5A45-852E-EFFA9B41ADC3}",
+  });
+
+  const bullets =
+    `<a:p><a:pPr marL="342900" indent="-342900"><a:buFont typeface="Arial"/><a:buChar char="•"/></a:pPr>` +
+    `<a:r><a:rPr lang="en-US" sz="2400" dirty="0"/><a:t>keys() returns the key view</a:t></a:r></a:p>` +
+    `<a:p><a:pPr marL="342900" indent="-342900"><a:buFont typeface="Arial"/><a:buChar char="•"/></a:pPr>` +
+    `<a:r><a:rPr lang="en-US" sz="2400" dirty="0"/><a:t>values() returns the value view</a:t></a:r></a:p>` +
+    `<a:p><a:pPr marL="342900" indent="-342900"><a:buFont typeface="Arial"/><a:buChar char="•"/></a:pPr>` +
+    `<a:r><a:rPr lang="en-US" sz="2400" dirty="0"/><a:t>items() yields key/value pairs</a:t></a:r></a:p>`;
+
+  // Body placeholder whose fill IS the white card (translucent white, the
+  // dominant pattern in the real dark themed decks). Large non-edge panel
+  // centered under the header → area-bg-main.
+  const card =
+    `<p:sp><p:nvSpPr><p:cNvPr id="3" name="Content Placeholder 2"/>` +
+    `<p:cNvSpPr/><p:nvPr><p:ph type="body" sz="half" idx="1"/></p:nvPr></p:nvSpPr>` +
+    `<p:spPr><a:xfrm><a:off x="${EMU(60)}" y="${EMU(120)}"/><a:ext cx="${EMU(640)}" cy="${EMU(300)}"/></a:xfrm>` +
+    `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+    `<a:solidFill><a:srgbClr val="FFFFFF"><a:alpha val="70000"/></a:srgbClr></a:solidFill>` +
+    `<a:ln w="0"><a:noFill/></a:ln></p:spPr>` +
+    `<p:txBody><a:bodyPr anchor="t"/><a:lstStyle/>${bullets}</p:txBody></p:sp>`;
+
+  const bg = `<p:bg><p:bgPr><a:solidFill><a:srgbClr val="071D28"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>`;
+  return { bg, body: title + card };
+}
+
 // ---------------------------------------------------------------------------
 // Build & write fixtures
 // ---------------------------------------------------------------------------
@@ -599,6 +645,11 @@ const FIXTURES = [
   {
     name: "shape-diagram.pptx",
     slideBody: shapeDiagramSlide(),
+    imageCount: 0,
+  },
+  {
+    name: "dark-slide-light-panel.pptx",
+    slideBody: darkSlideLightPanelSlide(),
     imageCount: 0,
   },
 ];

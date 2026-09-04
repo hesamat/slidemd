@@ -414,13 +414,15 @@ export function formatDiagram(diagram) {
 
   // Prefer position-ordered shape texts; fall back to the raw comma-joined
   // content for diagrams without shape geometry (synthetic fixtures, etc.).
-  // Shape content is markdown (headings, emphasis) — strip the markers so the
-  // diagram marker reads as plain node labels.
+  // Shape content is markdown (headings, emphasis, list bullets) — strip the
+  // markers so the diagram marker reads as plain node labels.
   const cleanShapeText = (md) =>
     (md || "")
       .replace(/^#{1,3}\s+/gm, "")
       .replace(/`/g, "")
       .replace(/\*+/g, "")
+      .replace(/^\s*[-•·–+]\s+/gm, "") // bullet markers
+      .replace(/^\s*\d+[.)]\s+/gm, "") // ordered-list numbers
       .trim();
   const shapeTexts = (diagram.shapes || [])
     .filter((s) => s.type === "text" && s.content?.trim())

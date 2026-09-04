@@ -20,7 +20,7 @@ import { findFencedRanges } from "../image-markdown-parser.js";
  *
  * @param {string} markdown
  * @param {string[]} [slides] — pre-split fence-aware slide texts
- * @returns {Array<{layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg: Record<string,string>}>}
+ * @returns {Array<{layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg: Record<string,string>, areaInk: Record<string,string>}>}
  */
 export function extractDirectives(markdown, slides) {
   const sections = slides || splitSlides(markdown);
@@ -41,12 +41,17 @@ export function extractDirectives(markdown, slides) {
     // Extract per-area `area-bg-<name>:` backgrounds so they survive the AI
     // round-trip exactly like `background:` does — the AI is told to keep them,
     // but a conservative fix pass can drop them, and fix mode's strip-and-restore
-    // must be able to put them back.
+    // must be able to put them back. `area-ink-<name>:` text colors get the
+    // same treatment.
     const areaBg = {};
     const areaBgRe = /^\s*area-bg-([a-zA-Z0-9_-]+)\s*:\s*(.*)$/i;
+    const areaInk = {};
+    const areaInkRe = /^\s*area-ink-([a-zA-Z0-9_-]+)\s*:\s*(.*)$/i;
     for (const line of slide.split("\n")) {
-      const m = line.match(areaBgRe);
-      if (m) areaBg[m[1].toLowerCase()] = m[2].trim();
+      const bg = line.match(areaBgRe);
+      if (bg) areaBg[bg[1].toLowerCase()] = bg[2].trim();
+      const ink = line.match(areaInkRe);
+      if (ink) areaInk[ink[1].toLowerCase()] = ink[2].trim();
     }
 
     return {
@@ -55,6 +60,7 @@ export function extractDirectives(markdown, slides) {
       theme: themeMatch?.[1]?.trim() || "",
       mediaFullBleed,
       areaBg,
+      areaInk,
     };
   });
 }
@@ -62,8 +68,8 @@ export function extractDirectives(markdown, slides) {
 /**
  * Restore original layout, backgrounds, and themes onto AI-produced slides.
  * In fix mode, the AI often changes layouts despite instructions — restore originals.
- * @param {{ layout: string, background?: string, theme?: string, mediaFullBleed?: boolean, content: string, areaBg?: Record<string,string> }[]} slides
- * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg?: Record<string,string> }[]} origDirectives
+ * @param {{ layout: string, background?: string, theme?: string, mediaFullBleed?: boolean, content: string, areaBg?: Record<string,string>, areaInk?: Record<string,string> }[]} slides
+ * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg?: Record<string,string>, areaInk?: Record<string,string> }[]} origDirectives
  * @returns {typeof slides}
  */
 export function restoreDirectives(slides, origDirectives) {
@@ -76,6 +82,7 @@ export function restoreDirectives(slides, origDirectives) {
       theme: orig.theme || slide.theme || "",
       mediaFullBleed: Boolean(orig.mediaFullBleed || slide.mediaFullBleed),
       areaBg: orig.areaBg || slide.areaBg || {},
+      areaInk: orig.areaInk || slide.areaInk || {},
     };
   });
 }
@@ -92,7 +99,7 @@ export function restoreDirectives(slides, origDirectives) {
  *   literal `background:` line inside a code block is left untouched.
  *
  * @param {string} markdown - AI-produced markdown
- * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg?: Record<string,string> }[]} origDirectives
+ * @param {{ layout: string, background: string, theme: string, mediaFullBleed: boolean, areaBg?: Record<string,string>, areaInk?: Record<string,string> }[]} origDirectives
  * @param {"fix"|"generate"} [mode="fix"]
  * @returns {string} Markdown with background/theme directives re-injected
  */
@@ -130,6 +137,11 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
           insertAfter.push(`area-bg-${areaName}: ${value}`);
         }
       }
+      for (const [areaName, value] of Object.entries(orig.areaInk || {})) {
+        if (value && !hasTopLevelDirective(lines, `area-ink-${areaName}`)) {
+          insertAfter.push(`area-ink-${areaName}: ${value}`);
+        }
+      }
       if (insertAfter.length === 0) return section;
 
       lines.splice(layoutIdx + 1, 0, ...insertAfter);
@@ -137,14 +149,16 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
     }
 
     // fix mode: strip any background:/theme:/media-full-bleed:/media-span:/
-    // area-bg-*: the AI echoed back from the leading directive block, then
-    // restore the originals. Fence-aware so code-block contents are preserved.
+    // area-bg-*:/area-ink-*: the AI echoed back from the leading directive
+    // block, then restore the originals. Fence-aware so code-block contents
+    // are preserved.
     const lines = stripLeadingDirectives(section.split("\n"), [
       "background",
       "theme",
       "media-full-bleed",
       "media-span",
       "area-bg-",
+      "area-ink-",
     ]);
     const layoutIdx = findTopLevelDirectiveIdx(lines, "layout");
 
@@ -154,6 +168,9 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
     if (orig.mediaFullBleed) insertAfter.push("media-full-bleed: true");
     for (const [areaName, value] of Object.entries(orig.areaBg || {})) {
       if (value) insertAfter.push(`area-bg-${areaName}: ${value}`);
+    }
+    for (const [areaName, value] of Object.entries(orig.areaInk || {})) {
+      if (value) insertAfter.push(`area-ink-${areaName}: ${value}`);
     }
 
     if (insertAfter.length === 0) return lines.join("\n");

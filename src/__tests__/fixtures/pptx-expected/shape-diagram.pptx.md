@@ -6,4 +6,4 @@ layout: header-content
 
 @main
 
-[Diagram: - Client, - Server]
+[Diagram: Client, Server]

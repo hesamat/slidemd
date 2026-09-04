@@ -417,6 +417,46 @@ function extractAreaStylesAndStrip(markdownText) {
     return { areaStyles, markdown: out.join("\n").trim() };
 }
 
+function extractAreaInksAndStrip(markdownText) {
+    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+    let inFence = false;
+    let fenceMarker = null;
+
+    function toggleFence(line) {
+        const m = line.match(/^\s*(```+|~~~+)\s*/);
+        if (!m) return false;
+        const marker = m[1][0];
+        if (!inFence) {
+            inFence = true;
+            fenceMarker = marker;
+            return true;
+        }
+        if (fenceMarker === marker) {
+            inFence = false;
+            fenceMarker = null;
+            return true;
+        }
+        return false;
+    }
+
+    const out = [];
+    const areaInks = {};
+
+    for (const line of lines) {
+        toggleFence(line);
+        if (!inFence) {
+            const match = line.match(/^\s*area-ink-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
+            if (match) {
+                areaInks[match[1].toLowerCase()] = match[2].trim();
+                continue;
+            }
+        }
+        out.push(line);
+    }
+
+    return { areaInks, markdown: out.join("\n").trim() };
+}
+
 function parseAreas(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
 
@@ -658,6 +698,9 @@ export function parseDeckMarkdown(markdownText) {
             const { areaStyles, markdown: withoutAreaStyles } = extractAreaStylesAndStrip(cleaned);
             cleaned = withoutAreaStyles;
 
+            const { areaInks, markdown: withoutAreaInks } = extractAreaInksAndStrip(cleaned);
+            cleaned = withoutAreaInks;
+
             const { value: codeFontSize, markdown: withoutCodeFontSize } = extractDirectiveAndStrip(
                 cleaned,
                 "code-font-size",
@@ -727,6 +770,7 @@ export function parseDeckMarkdown(markdownText) {
                 areas: areasHtml,
                 areaStyle: areaStyle || "",
                 areaStyles,
+                areaInks,
                 codeFontSize: codeFontSize ? parseInt(codeFontSize, 10) : 0,
             };
         })

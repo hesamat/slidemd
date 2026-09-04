@@ -506,6 +506,37 @@ export class MarkdownParser {
   }
 
   /**
+   * Extract all `area-ink-<name>:` directives and return a map of area
+   * names to their text color CSS values, along with the markdown stripped
+   * of those directives. Mirrors `extractAreaStyleDirectives`: lets a slide
+   * mix a dark slide surface with light panels that keep dark text (or the
+   * reverse) without flipping the whole slide theme.
+   * @param {string} markdownText
+   * @returns {{ areaInks: Record<string, string>, markdown: string }}
+   */
+  extractAreaInkDirectives(markdownText) {
+    const text = safeString(markdownText).replace(/\r\n?/g, "\n");
+    const lines = text.split("\n");
+    const fence = new FenceTracker();
+    const out = [];
+    const areaInks = {};
+
+    for (const line of lines) {
+      fence.toggle(line);
+      if (!fence.isInFence) {
+        const match = line.match(/^\s*area-ink-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
+        if (match) {
+          areaInks[match[1].toLowerCase()] = match[2].trim();
+          continue;
+        }
+      }
+      out.push(line);
+    }
+
+    return { areaInks, markdown: out.join("\n").trim() };
+  }
+
+  /**
    * Escape LaTeX bracket delimiters (`\[`, `\]`) and convert `$$` math blocks to single-line.
    * @param {string} src
    * @returns {string}
@@ -793,7 +824,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|header-style|area-style|area-bg(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
+      /^\s*(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|header-style|area-style|area-bg(?:-[a-zA-Z0-9_-]+)?|area-ink(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
         line,
       );
 
@@ -942,6 +973,9 @@ export class MarkdownParser {
       const { areaStyles, markdown: withoutAreaStyles } = this.extractAreaStyleDirectives(cleaned);
       cleaned = withoutAreaStyles;
 
+      const { areaInks, markdown: withoutAreaInks } = this.extractAreaInkDirectives(cleaned);
+      cleaned = withoutAreaInks;
+
       const { value: codeFontSize, markdown: withoutCodeFontSize } = this.extractDirective(
         cleaned,
         "code-font-size",
@@ -1065,6 +1099,7 @@ export class MarkdownParser {
         areas,
         areaStyle: areaStyle || "",
         areaStyles,
+        areaInks,
         codeFontSize: parsedCodeFontSize || 0,
         _areaOffsets: rawAreaOffsets,
         _markerNames: markerNames,
