@@ -36,6 +36,13 @@ const projectRoot = path.resolve(import.meta.dirname, "..");
 const { default: JSZip } = await import(
   pathToFileURL(path.join(projectRoot, "node_modules", "jszip", "dist", "jszip.min.js")).href
 );
+const { buildImportReport } = await import(
+  pathToFileURL(path.join(projectRoot, "src", "data", "pptx-import-warnings.js")).href
+);
+
+// Retry each deck once on failure — a hung conversion (stalled diagram crop,
+// CDP hiccup) usually succeeds immediately on a second run.
+const MAX_ATTEMPTS = 2;
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -251,16 +258,24 @@ function startBridgeServer(pptxPaths) {
       res.end(buf);
       return;
     }
-    const idx = Number(url.pathname.split("/").pop());
+    // POST: the path after /result/ is the "<deckIndex>/<attempt>" key.
+    let key = url.pathname.replace(/^\/result\//, "");
+    try {
+      key = decodeURIComponent(key);
+    } catch {
+      res.writeHead(400);
+      res.end();
+      return;
+    }
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
-      results.set(idx, Buffer.concat(chunks));
+      results.set(key, Buffer.concat(chunks));
       res.writeHead(204);
       res.end();
-      const waiter = waiters.get(idx);
+      const waiter = waiters.get(key);
       if (waiter) {
-        waiters.delete(idx);
+        waiters.delete(key);
         waiter();
       }
     });
@@ -272,29 +287,31 @@ function startBridgeServer(pptxPaths) {
         server.listen(port2, "127.0.0.1", () => resolve(port2));
       }),
     // Called when the in-page evaluate fails before it could POST a result.
-    fail(idx, message) {
-      errors.set(idx, message);
-      const waiter = waiters.get(idx);
+    // `key` is "<deckIndex>/<attempt>" so superseded attempts cannot poison
+    // a retry's result slot.
+    fail(key, message) {
+      errors.set(key, message);
+      const waiter = waiters.get(key);
       if (waiter) {
-        waiters.delete(idx);
+        waiters.delete(key);
         waiter();
       }
     },
-    async waitFor(idx, timeoutMs = 10 * 60 * 1000) {
-      if (results.has(idx)) return results.get(idx);
-      if (errors.has(idx)) throw new Error(errors.get(idx));
+    async waitFor(key, timeoutMs = 10 * 60 * 1000) {
+      if (results.has(key)) return results.get(key);
+      if (errors.has(key)) throw new Error(errors.get(key));
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-          waiters.delete(idx);
+          waiters.delete(key);
           reject(new Error(`conversion timed out after ${timeoutMs / 1000}s`));
         }, timeoutMs);
-        waiters.set(idx, () => {
+        waiters.set(key, () => {
           clearTimeout(timer);
           resolve();
         });
       });
-      if (errors.has(idx)) throw new Error(errors.get(idx));
-      return results.get(idx);
+      if (errors.has(key)) throw new Error(errors.get(key));
+      return results.get(key);
     },
     close: () => server.close(),
   };
@@ -313,17 +330,47 @@ const serverExited = new Promise((resolve) => server.on("exit", (code) => resolv
 const results = startBridgeServer(pptxFiles);
 let browser;
 try {
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("vite dev server timed out")), 30000);
-    server.stdout.on("data", (d) => {
-      if (d.toString().includes("Local:")) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-    server.stderr.on("data", (d) => process.stderr.write(d));
-    serverExited.then(() => reject(new Error("vite dev server exited early")));
+  // Wait for Vite by polling the HTTP port instead of matching its startup
+  // banner: stdout text is not a contract, and a cold runner can be slow.
+  // `vite optimize` (run in CI before this script) keeps cold starts short.
+  let serverExitCode = null;
+  server.once("exit", (code) => {
+    serverExitCode = code;
   });
+  let lastStderr = "";
+  server.stderr.on("data", (d) => {
+    lastStderr = (lastStderr + d.toString()).slice(-2000);
+    process.stderr.write(d);
+  });
+  const viteUp = new Promise((resolve, reject) => {
+    const started = Date.now();
+    const attempt = async () => {
+      if (serverExitCode !== null) {
+        reject(new Error(`vite dev server exited early (code ${serverExitCode})`));
+        return;
+      }
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/index.html`, { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+          resolve();
+          return;
+        }
+      } catch {
+        /* not up yet — retry below */
+      }
+      if (Date.now() - started > 60_000) {
+        reject(
+          new Error(
+            `vite dev server did not become reachable within 60s. Last output:\n${lastStderr || "(none)"}`,
+          ),
+        );
+        return;
+      }
+      setTimeout(attempt, 500);
+    };
+    attempt();
+  });
+  await viteUp;
 
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
@@ -345,99 +392,128 @@ try {
     const pptxPath = pptxFiles[i];
     const deckName = path.basename(pptxPath).replace(/\.pptx$/i, "");
     process.stdout.write(`\nConverting ${path.basename(pptxPath)} ... `);
-    try {
-      const started = Date.now();
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      // Result keys are scoped per attempt, so a late POST (success or error)
+      // from a superseded attempt can never be consumed by the retry — the
+      // in-app modal guards the same race with an attempt token.
+      const resultKey = `${i}/${attempt}`;
+      // Set once conversion output (markdown/textpack) has been written; a
+      // later stage failing (e.g. --pdf rendering) must not re-convert the
+      // whole deck.
+      let outputsWritten = false;
+      try {
+        const started = Date.now();
 
-      // The page fetches the PPTX bytes from the bridge server and POSTs the
-      // result back to it — nothing bulky crosses the evaluate bridge.
-      evalPromises.push(
-        page.evaluate(
-        async ({ pptxUrl, resultUrl, limit, importBackgrounds }) => {
-          try {
-            const { PptxExtractor } = await import(`/src/data/pptx-extractor.js?t=${Date.now()}`);
-            const { convertToSlideMd } = await import(`/src/data/pptx-to-slide-md.js?t=${Date.now()}`);
-            const res = await fetch(pptxUrl);
-            if (!res.ok) throw new Error(`pptx fetch failed: ${res.status}`);
-            const buffer = await res.arrayBuffer();
-            const extraction = await PptxExtractor.extract(buffer, limit);
-            const markdown = convertToSlideMd(extraction, "presentation", {
-              importBackgrounds,
-            });
-            const images = [];
-            const seen = new Set();
-            for (const slide of extraction.slides) {
-              for (const el of slide.elements) {
-                if (!el.base64 || !el.ref) continue;
-                const name = el.ref.split("/").pop().replace(/\.(emf|wmf)$/i, ".png");
-                if (seen.has(name)) continue;
-                seen.add(name);
-                images.push({ name, base64: el.base64.replace(/^data:[^;]*;base64,/, "") });
+        // The page fetches the PPTX bytes from the bridge server and POSTs the
+        // result back to it — nothing bulky crosses the evaluate bridge.
+        evalPromises.push(
+          page.evaluate(
+            async ({ pptxUrl, resultUrl, limit, importBackgrounds }) => {
+              try {
+                const { PptxExtractor } = await import(`/src/data/pptx-extractor.js?t=${Date.now()}`);
+                const { convertToSlideMd } = await import(`/src/data/pptx-to-slide-md.js?t=${Date.now()}`);
+                const res = await fetch(pptxUrl);
+                if (!res.ok) throw new Error(`pptx fetch failed: ${res.status}`);
+                const buffer = await res.arrayBuffer();
+                const extraction = await PptxExtractor.extract(buffer, limit);
+                const markdown = convertToSlideMd(extraction, "presentation", {
+                  importBackgrounds,
+                });
+                const images = [];
+                const seen = new Set();
+                for (const slide of extraction.slides) {
+                  for (const el of slide.elements) {
+                    if (!el.base64 || !el.ref) continue;
+                    const name = el.ref.split("/").pop().replace(/\.(emf|wmf)$/i, ".png");
+                    if (seen.has(name)) continue;
+                    seen.add(name);
+                    images.push({ name, base64: el.base64.replace(/^data:[^;]*;base64,/, "") });
+                  }
+                }
+                await fetch(resultUrl, {
+                  method: "POST",
+                  body: JSON.stringify({
+                    markdown,
+                    images,
+                    slideCount: extraction.slides.length,
+                    warnings: extraction.warnings?.warnings || [],
+                  }),
+                });
+              } catch (e) {
+                await fetch(resultUrl, { method: "POST", body: JSON.stringify({ error: String(e && e.message ? e.message : e) }) });
               }
-            }
-            await fetch(resultUrl, {
-              method: "POST",
-              body: JSON.stringify({ markdown, images, slideCount: extraction.slides.length }),
-            });
-          } catch (e) {
-            await fetch(resultUrl, { method: "POST", body: JSON.stringify({ error: String(e && e.message ? e.message : e) }) });
+            },
+            {
+              pptxUrl: `http://127.0.0.1:${resultPort}/pptx/${i}`,
+              resultUrl: `http://127.0.0.1:${resultPort}/result/${resultKey}`,
+              limit,
+              importBackgrounds: backgrounds,
+            },
+          ).catch((e) => results.fail(resultKey, e?.message ?? String(e))), // surface bridge failures immediately
+        );
+
+        const raw = await results.waitFor(resultKey);
+        const result = JSON.parse(raw.toString("utf8"));
+        if (result.error) throw new Error(result.error);
+
+        const outDir = path.resolve(out ?? path.dirname(pptxPath));
+        lastOutDir = outDir;
+        fs.mkdirSync(outDir, { recursive: true });
+
+        const finalMarkdown = applyConversionOptions(result.markdown, {
+          codeLanguage,
+          contentImages,
+          theme,
+        });
+
+        if (format === "md" || format === "both") {
+          const deckDir = path.join(outDir, deckName);
+          warnOverwrite(deckDir);
+          const imgDir = path.join(deckDir, "images");
+          fs.mkdirSync(imgDir, { recursive: true });
+          for (const img of result.images) {
+            fs.writeFileSync(path.join(imgDir, img.name), Buffer.from(img.base64, "base64"));
           }
-        },
-        {
-          pptxUrl: `http://127.0.0.1:${resultPort}/pptx/${i}`,
-          resultUrl: `http://127.0.0.1:${resultPort}/result/${i}`,
-          limit,
-          importBackgrounds: backgrounds,
-        },
-        ).catch((e) => results.fail(i, e?.message ?? String(e))), // surface bridge failures immediately
-      );
-
-      const raw = await results.waitFor(i);
-      const result = JSON.parse(raw.toString("utf8"));
-      if (result.error) throw new Error(result.error);
-
-      const outDir = path.resolve(out ?? path.dirname(pptxPath));
-      lastOutDir = outDir;
-      fs.mkdirSync(outDir, { recursive: true });
-
-      const finalMarkdown = applyConversionOptions(result.markdown, {
-        codeLanguage,
-        contentImages,
-        theme,
-      });
-
-      if (format === "md" || format === "both") {
-        const deckDir = path.join(outDir, deckName);
-        warnOverwrite(deckDir);
-        const imgDir = path.join(deckDir, "images");
-        fs.mkdirSync(imgDir, { recursive: true });
-        for (const img of result.images) {
-          fs.writeFileSync(path.join(imgDir, img.name), Buffer.from(img.base64, "base64"));
+          const deckMdPath = path.join(deckDir, `${deckName}.md`);
+          fs.writeFileSync(deckMdPath, finalMarkdown);
+          if (wantPdf) {
+            process.stdout.write("  rendering PDF ... ");
+            const pdfPath = await renderPdf(deckMdPath, deckName, outDir);
+            console.log(`ok — ${path.relative(process.cwd(), pdfPath)}`);
+          }
         }
-        const deckMdPath = path.join(deckDir, `${deckName}.md`);
-        fs.writeFileSync(deckMdPath, finalMarkdown);
-        if (wantPdf) {
-          process.stdout.write("  rendering PDF ... ");
-          const pdfPath = await renderPdf(deckMdPath, deckName, outDir);
-          console.log(`ok — ${path.relative(process.cwd(), pdfPath)}`);
+
+        if (format === "textpack" || format === "both") {
+          warnOverwrite(path.join(outDir, `${deckName}.textpack`));
+          const zip = new JSZip();
+          zip.file("text.markdown", finalMarkdown);
+          const assets = zip.folder("assets");
+          for (const img of result.images) assets.file(img.name, img.base64, { base64: true });
+          const buf = await zip.generateAsync({ type: "nodebuffer", compression: "STORE" });
+          fs.writeFileSync(path.join(outDir, `${deckName}.textpack`), buf);
         }
-      }
+        outputsWritten = true;
 
-      if (format === "textpack" || format === "both") {
-        warnOverwrite(path.join(outDir, `${deckName}.textpack`));
-        const zip = new JSZip();
-        zip.file("text.markdown", finalMarkdown);
-        const assets = zip.folder("assets");
-        for (const img of result.images) assets.file(img.name, img.base64, { base64: true });
-        const buf = await zip.generateAsync({ type: "nodebuffer", compression: "STORE" });
-        fs.writeFileSync(path.join(outDir, `${deckName}.textpack`), buf);
+        console.log(
+          `ok — ${result.slideCount} slides, ${result.images.length} images (${Math.round((Date.now() - started) / 100) / 10}s)`,
+        );
+        const report = buildImportReport(result.warnings || [], result.slideCount, {
+          maxDetails: Infinity,
+        });
+        if (report.summary) {
+          console.log(`  review needed: ${report.summary}`);
+          for (const line of report.details) console.log(`   - ${line}`);
+        }
+        break;
+      } catch (e) {
+        if (attempt < MAX_ATTEMPTS && !outputsWritten) {
+          console.log(`attempt ${attempt} failed (${e.message}) — retrying ...`);
+          process.stdout.write(`Converting ${path.basename(pptxPath)} ... `);
+          continue;
+        }
+        failures++;
+        console.log(`FAILED: ${e.message}`);
       }
-
-      console.log(
-        `ok — ${result.slideCount} slides, ${result.images.length} images (${Math.round((Date.now() - started) / 100) / 10}s)`,
-      );
-    } catch (e) {
-      failures++;
-      console.log(`FAILED: ${e.message}`);
     }
   }
 

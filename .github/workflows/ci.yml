@@ -35,6 +35,12 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: PPTX import snapshots (headless conversion)
+        # vite optimize pre-bundles the dep cache so the CLI's dev server
+        # starts in seconds even on a cold runner.
+        run: npx vite optimize && npm run test:pptx-import
+        timeout-minutes: 15
+
       - name: End-to-end tests
         run: npm run test:e2e
 

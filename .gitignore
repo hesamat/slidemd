@@ -34,3 +34,5 @@ docs/compose/
 # Local PPTX layout-threshold analysis artifacts
 tools/pptx-layout-corpus.json
 tools/layout-report.json
+
+.pptx-snapshot-work/

@@ -524,6 +524,53 @@ function verboseBulletsSlide() {
   return title + body + picture + emptyGlyphBox + footer + slidenum;
 }
 
+/**
+ * shape-diagram.pptx — a manual diagram: a <p:grpSp> shape group with two
+ * filled, labelled boxes joined by an arrow connector, plus a slide title.
+ * Exercises diagram detection (#isManualDiagram), the diagram render/crop
+ * post-pass and its fallback paths, and the import warnings collector.
+ */
+function shapeDiagramSlide() {
+  const title = titleBox({
+    id: 2,
+    name: "Title 1",
+    sz: 4400,
+    x: 60,
+    y: 20,
+    w: 640,
+    h: 60,
+    text: "System Architecture",
+    algn: "l",
+    creationId: "{469C1986-A4A3-5A45-852E-EFFA9B41ADC3}",
+  });
+
+  const box = ({ id, name, x, y, w, h, fill, text }) =>
+    `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>` +
+    `<p:spPr><a:xfrm><a:off x="${EMU(x)}" y="${EMU(y)}"/><a:ext cx="${EMU(w)}" cy="${EMU(h)}"/></a:xfrm>` +
+    `<a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom>` +
+    `<a:solidFill><a:srgbClr val="${fill}"/></a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="333333"/></a:solidFill></a:ln></p:spPr>` +
+    `<p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="en-US" sz="1800" dirty="0"/><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp>`;
+
+  const connector =
+    `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="13" name="Connector 3"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>` +
+    `<p:spPr><a:xfrm><a:off x="${EMU(140)}" y="${EMU(60)}"/><a:ext cx="${EMU(120)}" cy="0"/></a:xfrm>` +
+    `<a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>` +
+    `<a:ln w="19050"><a:solidFill><a:srgbClr val="333333"/></a:solidFill><a:tailEnd type="triangle"/></a:ln></p:spPr></p:cxnSp>`;
+
+  // Group: children live in the child coordinate space (chOff/chExt 360x120pt),
+  // placed at 180,140 on the slide.
+  const group =
+    `<p:grpSp><p:nvGrpSpPr><p:cNvPr id="10" name="Diagram 1"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>` +
+    `<p:grpSpPr><a:xfrm><a:off x="${EMU(180)}" y="${EMU(140)}"/><a:ext cx="${EMU(360)}" cy="${EMU(120)}"/>` +
+    `<a:chOff x="0" y="0"/><a:chExt cx="${EMU(360)}" cy="${EMU(120)}"/></a:xfrm></p:grpSpPr>` +
+    box({ id: 11, name: "Box 1", x: 0, y: 30, w: 140, h: 60, fill: "DBEFF9", text: "Client" }) +
+    connector +
+    box({ id: 12, name: "Box 2", x: 260, y: 30, w: 100, h: 60, fill: "A5C249", text: "Server" }) +
+    `</p:grpSp>`;
+
+  return title + group;
+}
+
 // ---------------------------------------------------------------------------
 // Build & write fixtures
 // ---------------------------------------------------------------------------
@@ -548,6 +595,11 @@ const FIXTURES = [
     name: "verbose-bullets.pptx",
     slideBody: verboseBulletsSlide(),
     imageCount: 1,
+  },
+  {
+    name: "shape-diagram.pptx",
+    slideBody: shapeDiagramSlide(),
+    imageCount: 0,
   },
 ];
 
