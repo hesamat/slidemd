@@ -331,11 +331,16 @@ const results = startBridgeServer(pptxFiles);
 let browser;
 try {
   // Wait for Vite by polling the HTTP port instead of matching its startup
-  // banner: a cold CI runner (fresh npm ci, empty Vite dep cache) can take
-  // well over 30s to print the banner, and stdout text is not a contract.
+  // banner: stdout text is not a contract, and a cold runner can be slow.
+  // `vite optimize` (run in CI before this script) keeps cold starts short.
   let serverExitCode = null;
   server.once("exit", (code) => {
     serverExitCode = code;
+  });
+  let lastStderr = "";
+  server.stderr.on("data", (d) => {
+    lastStderr = (lastStderr + d.toString()).slice(-2000);
+    process.stderr.write(d);
   });
   const viteUp = new Promise((resolve, reject) => {
     const started = Date.now();
@@ -353,15 +358,18 @@ try {
       } catch {
         /* not up yet — retry below */
       }
-      if (Date.now() - started > 120_000) {
-        reject(new Error("vite dev server did not become reachable within 120s"));
+      if (Date.now() - started > 60_000) {
+        reject(
+          new Error(
+            `vite dev server did not become reachable within 60s. Last output:\n${lastStderr || "(none)"}`,
+          ),
+        );
         return;
       }
       setTimeout(attempt, 500);
     };
     attempt();
   });
-  server.stderr.on("data", (d) => process.stderr.write(d));
   await viteUp;
 
   browser = await chromium.launch({ headless: true });
