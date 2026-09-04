@@ -820,6 +820,18 @@ Goal: Add a `::: table { ... }` container directive mirroring the `text-block` g
 
 ---
 
+## Phase 14.11: Import Trust & Diagnostics
+
+Goal: Make the PPTX import pipeline observable and regressions reproducible. Import quality work (14.6, 14.9) improves the output, but users still cannot see what was dropped or degraded, real-deck regressions have no CI net, and hung conversions give no recourse. These gaps also block confident v1.0 claims about the import flow.
+
+| Task                                            | Details                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Post-import report                          | Show a per-slide summary after import: degraded/dropped elements (failed diagram crops, unsupported shapes, missing images) and layout-inference confidence. Aggregate the warnings the extractor already emits (#290).                                                                     |
+| [ ] Corpus regression tests in CI               | Pin a representative real-deck corpus (or synthetic decks covering known shape classes), batch-convert it headlessly via `tools/pptx-import.mjs`, and snapshot the markdown output so inference/converter changes fail CI on unexpected diffs — mirroring the prompt snapshot tests (#291). |
+| [ ] Import timeout and retry                    | Bound extraction per slide/import with a clear error, offer retry, and continue importing remaining slides instead of losing the whole import. Real decks have been observed hanging indefinitely inside the diagram-crop/font path (#292).                                                 |
+| [ ] Accessibility audit and slide announcements | Keyboard coverage for presenter/editor flows, `aria-live` announcement of slide changes on the stage, and end-to-end alt-text propagation from PPTX import through render and export. Fold results into the Phase 17 manual test plan (#293).                                               |
+| [ ] Export/render parity check                  | Automated headless comparison of the dev renderer vs. the built HTML export (per-slide DOM structure, optionally screenshots) over a fixture deck covering each layout and feature, so export drift is caught by CI instead of by hand (#294).                                              |
+
 ## Phase 15: Editor Diagnostics & Polish ✅
 
 Goal: Surface real deck-quality problems in the editor and polish existing editor features that are too simplistic in their current form — area backgrounds, background image sizing, text block styling, and mermaid drag. Drops the planned `DesignSystem` / `ThemeRegistry` / custom-theme / `@import` work — no demonstrated user need, and the existing light/dark + accent + layout presets cover the actual distribution of what users want. CSS custom properties in `styles/slides.css` already serve as the token system where they belong.
