@@ -449,3 +449,216 @@ describe("HtmlExportManager", () => {
     });
   });
 });
+
+describe("inlineImagesInDeck / inlineImagesInHtml readImage provider", () => {
+  const PNG_DATA_URL = "data:image/png;base64," + btoa("provider-image-bytes");
+
+  function providerBlob(text) {
+    return new Blob([text], { type: "image/png" });
+  }
+
+  function deckWithImage(src) {
+    return { slides: [{ id: "s1", title: "T", areas: { main: `<img src="${src}" alt="x">` } }] };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the readImage provider when the origin fetch 404s", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const readImage = vi.fn().mockResolvedValue(providerBlob("provider-bytes"));
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        readAsDataURL() {
+          this.result = PNG_DATA_URL;
+          if (this.onloadend) this.onloadend();
+        }
+      },
+    );
+
+    const result = await HtmlExportManager.inlineImagesInDeck(
+      deckWithImage("images/pic.png"),
+      null,
+      readImage,
+    );
+
+    expect(readImage).toHaveBeenCalledWith("images/pic.png");
+    const area = result.slides[0].areas.main;
+    expect(area).toContain(PNG_DATA_URL);
+    expect(area).not.toContain("images/pic.png");
+  });
+
+  it("prefers the readImage provider over the origin fetch", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue({ ok: true, blob: () => Promise.resolve(providerBlob("server-bytes")) });
+    vi.stubGlobal("fetch", fetchSpy);
+    const readImage = vi.fn().mockResolvedValue(providerBlob("provider-bytes"));
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        readAsDataURL() {
+          // Return a marker unique to the provider call so the test can tell
+          // which source won. encode the payload marker via closure:
+          this.result = "data:image/png;base64,PROVIDER";
+          if (this.onloadend) this.onloadend();
+        }
+      },
+    );
+
+    const result = await HtmlExportManager.inlineImagesInDeck(
+      deckWithImage("images/pic.png"),
+      null,
+      readImage,
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.slides[0].areas.main).toContain("data:image/png;base64,PROVIDER");
+  });
+
+  it("falls back to the origin fetch when the provider returns null", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(providerBlob("server-bytes")),
+      }),
+    );
+    const readImage = vi.fn().mockResolvedValue(null);
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        readAsDataURL() {
+          this.result = "data:image/png;base64,SERVER";
+          if (this.onloadend) this.onloadend();
+        }
+      },
+    );
+
+    const result = await HtmlExportManager.inlineImagesInDeck(
+      deckWithImage("images/pic.png"),
+      null,
+      readImage,
+    );
+
+    expect(fetch).toHaveBeenCalledWith("/images/pic.png", expect.anything());
+    expect(result.slides[0].areas.main).toContain("data:image/png;base64,SERVER");
+  });
+
+  it("falls back to the origin fetch when the provider throws", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(providerBlob("server-bytes")),
+      }),
+    );
+    const readImage = vi.fn().mockRejectedValue(new Error("handle closed"));
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        readAsDataURL() {
+          this.result = "data:image/png;base64,SERVER";
+          if (this.onloadend) this.onloadend();
+        }
+      },
+    );
+
+    const result = await HtmlExportManager.inlineImagesInDeck(
+      deckWithImage("images/pic.png"),
+      null,
+      readImage,
+    );
+
+    expect(result.slides[0].areas.main).toContain("data:image/png;base64,SERVER");
+  });
+
+  it("leaves the src as-is when both the provider and the fetch fail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const readImage = vi.fn().mockResolvedValue(null);
+
+    const result = await HtmlExportManager.inlineImagesInDeck(
+      deckWithImage("images/pic.png"),
+      null,
+      readImage,
+    );
+
+    expect(result.slides[0].areas.main).toContain('src="images/pic.png"');
+  });
+
+  it("inlineImagesInHtml uses the provider for snapshot images too", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const readImage = vi.fn().mockResolvedValue(providerBlob("provider-bytes"));
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        readAsDataURL() {
+          this.result = PNG_DATA_URL;
+          if (this.onloadend) this.onloadend();
+        }
+      },
+    );
+
+    const result = await HtmlExportManager.inlineImagesInHtml(
+      '<img src="images/pic.png" alt="x">',
+      null,
+      readImage,
+    );
+
+    expect(result).toContain(PNG_DATA_URL);
+    expect(result).not.toContain('src="images/pic.png"');
+  });
+
+  it("blob refs skip the provider and keep using the fetch path", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(providerBlob("blob-bytes")),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const readImage = vi.fn();
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        readAsDataURL() {
+          this.result = "data:image/png;base64,BLOB";
+          if (this.onloadend) this.onloadend();
+        }
+      },
+    );
+
+    await HtmlExportManager.inlineImagesInDeck(deckWithImage("blob:in-memory"), null, readImage);
+
+    expect(readImage).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith("blob:in-memory", expect.anything());
+  });
+});
+
+describe("stripEsmSyntax lucide import binding", () => {
+  it("binds a namespace import from the Vite deps path to the lucide global", async () => {
+    const src =
+      'import * as lucideModule from "/node_modules/.vite/deps/lucide.js?v=2fa5eaa6";\nconst x = lucideModule.X;';
+    const out = await HtmlExportManager.stripEsmSyntax(src, "src/core/icon.js");
+    expect(out).toContain("const lucideModule = globalThis.lucide ?? {};");
+    expect(out).not.toContain("import * as lucideModule");
+  });
+
+  it("binds named imports (with aliases) from the Vite deps path", async () => {
+    const src =
+      'import {\n  X,\n  Image as ImageIcon,\n} from "/node_modules/.vite/deps/lucide.js?v=2fa5eaa6";\nconst icons = { close: X, image: ImageIcon };';
+    const out = await HtmlExportManager.stripEsmSyntax(src, "src/core/icon.js");
+    expect(out).toContain("globalThis.lucide ?? {}");
+    expect(out).toContain("Image : ImageIcon");
+    expect(out).toContain("const icons = { close: X, image: ImageIcon };");
+  });
+
+  it("still strips unrelated npm dependency imports", async () => {
+    const src =
+      'import MarkdownIt from "/node_modules/.vite/deps/markdown-it.js?v=1";\nexport const a = 1;';
+    const out = await HtmlExportManager.stripEsmSyntax(src, "src/data/markdown-parser.js");
+    expect(out).not.toContain("import MarkdownIt");
+    expect(out).not.toContain("globalThis.lucide");
+    expect(out).toContain("const a = 1;");
+  });
+});

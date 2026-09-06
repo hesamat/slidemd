@@ -105,6 +105,14 @@ import { hydrateIcons } from "./src/core/icon.js";
         ? await DeckLoader.loadDeckDataFromBroadcast()
         : await DeckLoader.loadDeckData();
 
+    // 1b. Picker-opened decks: re-attach the persisted folder handle before
+    // the first render, otherwise the markdown restores from localStorage
+    // while images/ refs fall back to the CLI server (which only serves the
+    // deck it was launched with) and every slide image breaks on refresh.
+    if (!isExported && !isViewer && DeckImagesResolver.restorePersistedHandle) {
+      await DeckImagesResolver.restorePersistedHandle();
+    }
+
     // 2. Gather DOM Elements
     const elements = ElementGatherer.gatherElements();
 

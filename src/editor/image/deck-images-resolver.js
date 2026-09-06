@@ -9,6 +9,8 @@
  * Missing images show a named SVG placeholder.
  */
 
+import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
+
 export class DeckImagesResolver {
   /** Cache-busting version stamp — incremented when the deck changes. */
   static _cacheVersion = Date.now();
@@ -131,6 +133,62 @@ export class DeckImagesResolver {
    */
   static clearDirectoryHandle() {
     this.setDirectoryHandle(null);
+  }
+
+  /**
+   * Re-attach the persisted folder handle of a picker-opened deck.
+   *
+   * The in-memory handle dies with the page, so this must run on every page
+   * load (app boot) and before every deck reload — otherwise the markdown
+   * restores from localStorage while `images/...` refs fall back to the CLI
+   * server, which only serves the deck it was launched with.
+   *
+   * Guards keep the restore safe: decks not opened through the picker (CLI
+   * server, example, .textpack, PPTX) get their handle cleared so they can
+   * never inherit a previous deck's folder and show the wrong pictures.
+   * When the stored permission is no longer granted (e.g. after a full
+   * browser restart) the silent `requestPermission` attempt fails without a
+   * user gesture and the handle stays cleared.
+   * @returns {Promise<void>}
+   */
+  static async restorePersistedHandle() {
+    try {
+      const fromPicker = localStorage.getItem("webdeck_opened_from_picker") === "1";
+      if (!fromPicker || !globalThis.showDirectoryPicker) {
+        this.clearDirectoryHandle();
+        return;
+      }
+      const fileName = localStorage.getItem("webdeck_local_file_name");
+      if (!fileName) {
+        this.clearDirectoryHandle();
+        return;
+      }
+      const dir = await DirectoryHandleStore.load(fileName);
+      if (!dir?.handle) {
+        this.clearDirectoryHandle();
+        return;
+      }
+      let perm = dir.handle.queryPermission
+        ? await dir.handle.queryPermission({ mode: "read" })
+        : "granted";
+      if (perm !== "granted" && dir.handle.requestPermission) {
+        try {
+          perm = await dir.handle.requestPermission({ mode: "read" });
+        } catch {
+          perm = "denied";
+        }
+      }
+      if (perm === "granted") {
+        this.setDirectoryHandle(
+          dir.handle,
+          this.extractImageRefs(localStorage.getItem("webdeck_local_file") || ""),
+        );
+      } else {
+        this.clearDirectoryHandle();
+      }
+    } catch {
+      this.clearDirectoryHandle();
+    }
   }
 
   /**
