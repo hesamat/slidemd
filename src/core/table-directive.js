@@ -333,6 +333,25 @@ export function convertTableDirectivesToMarkers(markdown) {
     if (settings.noHeader) markerParts.push("no-header");
 
     let tableContent = content.trim();
+    // Non-table lines inside the container (e.g. a `**Caption**` paragraph)
+    // must not sit between the marker and the table: the
+    // `table_style_directive` core rule only attaches a marker that directly
+    // precedes the table, so a caption in between would leak the marker as
+    // literal text and drop the styling. Move lead lines in front of the
+    // marker; they render as ordinary paragraphs above the styled table.
+    const contentLines = tableContent.split("\n");
+    const tableStart = contentLines.findIndex((line) => /^\s*\|/.test(line));
+    if (tableStart === -1) {
+      // Nothing table-shaped inside the container: strip the wrapper instead
+      // of emitting a marker that can never be consumed.
+      result = result.slice(0, start) + tableContent + result.slice(end);
+      continue;
+    }
+    let lead = "";
+    if (tableStart > 0) {
+      lead = contentLines.slice(0, tableStart).join("\n").trim();
+      tableContent = contentLines.slice(tableStart).join("\n").trim();
+    }
     // markdown-it requires a header row + separator to recognize a table.
     // If the table lacks one, synthesize an empty header and treat the table
     // as headerless so the CSS hides it.
@@ -342,7 +361,7 @@ export function convertTableDirectivesToMarkers(markdown) {
       if (!settings.noHeader) markerParts.push("no-header");
     }
     const marker = markerParts.length > 0 ? `table {${markerParts.join(" ")}}\n\n` : "";
-    const replacement = marker + tableContent;
+    const replacement = lead ? `${lead}\n\n${marker}${tableContent}` : marker + tableContent;
     // The blank line after the closing ::: is preserved because `end` is the
     // position of the closing ::: itself, so any trailing blank line remains in
     // `result.slice(end)`.
