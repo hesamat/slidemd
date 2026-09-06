@@ -4,6 +4,16 @@ A lightweight, browser-based slide deck tool for technical educators. Write slid
 
 SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on every screen. The editor runs entirely in the browser; the CLI dev server handles file I/O so your `.md` files stay diffable in git.
 
+## Screenshots
+
+**Presenting** — the slide stage with the presenter dashboard (timer, break controls, next-slide preview, and speaker notes):
+
+![SlideMD in view mode showing a slide next to the presenter dashboard](docs/images/view-mode.png)
+
+**Editing** — press `E` for the split-screen editor with slide thumbnails, Markdown source, and a live preview with `@area` guides:
+
+![SlideMD in edit mode showing the slide list, Markdown editor, and live preview](docs/images/edit-mode.png)
+
 ## Features
 
 - **Markdown-first authoring** — layouts, themes, and backgrounds via simple directives
