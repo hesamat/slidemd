@@ -23,6 +23,7 @@ export class ElementGatherer {
       // Info
       slideNumberEl: $("slideNumber"),
       slideCountEl: $("slideCount"),
+      slideAnnouncer: $("slideAnnouncer"),
       deckTitleEl: $("deckTitle"),
       notesContainer: $("notesContainer"),
       nextPreview: $("nextPreview"),

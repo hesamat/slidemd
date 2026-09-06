@@ -72,6 +72,7 @@ Download the latest release from [GitHub Releases](https://github.com/hesamat/ht
 | AI editing (enhance, remix, reimagine, vision)         | [docs/ai-editing.md](docs/ai-editing.md)                 |
 | Import & export (PPTX, .textpack, PDF, HTML)           | [docs/import-export.md](docs/import-export.md)           |
 | Keyboard shortcuts                                     | [docs/keyboard-shortcuts.md](docs/keyboard-shortcuts.md) |
+| Manual test plan (keyboard & a11y verification)        | [docs/manual-test-plan.md](docs/manual-test-plan.md)     |
 | Example deck                                           | [docs/example/slides.md](docs/example/slides.md)         |
 | AI prompt structure                                    | [docs/prompt-template.md](docs/prompt-template.md)       |
 | AI/tool feature boundary                               | [docs/ai-positioning.md](docs/ai-positioning.md)         |
