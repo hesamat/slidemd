@@ -21,6 +21,7 @@ export class HtmlExportManager {
     katex: "0.18.4",
     mermaid: "11.16.1",
     dompurify: "3.4.13",
+    lucide: "1.31.0",
   };
 
   /**
@@ -109,6 +110,9 @@ export class HtmlExportManager {
     mainCss = HtmlExportManager.fixKatexFontUrls(mainCss, katexVersion);
     const vendorCss = await HtmlExportManager.fetchVendorCss(deck, signal);
     let allCss = vendorCss + "\n\n" + mainCss;
+    // Vite rewrites vendored-CSS font URLs (fira-code, KaTeX) to absolute
+    // /node_modules/... paths, dead in a standalone file — inline them all.
+    allCss = await HtmlExportManager.inlineNodeModulesFontUrls(allCss, signal);
     if (minify) allCss = HtmlExportManager.minifyCss(allCss);
 
     // 2. Get JS (App Bundle + Vendor Libraries)
@@ -367,6 +371,18 @@ ${escapedInitScript}
     }
     vendorScripts += `/* DOMPurify */\n${dompurifyJs}\n`;
 
+    // Lucide icons (UMD build) back the shared icon() helper, which the
+    // concatenated app bundle uses for copy buttons and notification glyphs.
+    // Non-fatal: when unavailable, icon()/iconString() return null/"" and
+    // callers degrade gracefully (the lucideModule import in core/icon.js is
+    // stripped during bundling and falls back to this globalThis.lucide UMD).
+    const lucideVersion = await HtmlExportManager._getVendorVersion("lucide", signal);
+    const lucideCdn = lucideVersion
+      ? `https://cdn.jsdelivr.net/npm/lucide@${lucideVersion}/dist/umd/lucide.min.js`
+      : null;
+    const lucideJs = await fetchJs("node_modules/lucide/dist/umd/lucide.min.js", lucideCdn);
+    if (lucideJs) vendorScripts += `/* Lucide (UMD) */\n${lucideJs}\n`;
+
     // Check if we need Prism
     const needsPrism =
       /<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) ||
@@ -607,7 +623,56 @@ ${escapedInitScript}
   }
 
   /**
-   * Convert absolute or relative KaTeX font URLs from the dev bundle into
+   * Inline absolute `/node_modules/...` font URLs (harvested from the live
+   * stylesheets: the app's code font, KaTeX fonts) as data URIs so the
+   * exported HTML renders fonts offline. Unfetchable URLs are left untouched
+   * (fixKatexFontUrls may still rewrite KaTeX ones to a CDN; anything else
+   * degrades to fallback fonts).
+   * @param {string} cssText
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<string>}
+   */
+  static async inlineNodeModulesFontUrls(cssText, signal = null) {
+    if (!cssText) return cssText;
+    const urlRe = /url\((['"]?)(\/node_modules\/[^'")]+?\.(?:woff2?|ttf|otf))\1\)/gi;
+    const matches = [...cssText.matchAll(urlRe)];
+    if (matches.length === 0) return cssText;
+
+    const dataUriByUrl = new Map();
+    for (const match of matches) {
+      if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+      const fontUrl = match[2];
+      if (dataUriByUrl.has(fontUrl)) continue;
+      try {
+        const response = await fetch(fontUrl, { signal });
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onabort = () => reject(new DOMException("HTML export cancelled", "AbortError"));
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read font"));
+          reader.readAsDataURL(blob);
+        });
+        dataUriByUrl.set(fontUrl, dataUrl);
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        // Leave the URL as-is; the export degrades to fallback fonts.
+      }
+    }
+
+    let out = cssText;
+    for (const [fontUrl, dataUrl] of dataUriByUrl) {
+      out = out.split(`url("${fontUrl}")`).join(`url("${dataUrl}")`);
+      out = out.split(`url('${fontUrl}')`).join(`url("${dataUrl}")`);
+      out = out.split(`url(${fontUrl})`).join(`url("${dataUrl}")`);
+    }
+    return out;
+  }
+
+  /**
+   * Convert absolute or relative KaTeX-font URLs from the dev bundle into
    * CDN URLs so the exported HTML loads them without a local node_modules server.
    */
   static fixKatexFontUrls(cssText, version) {

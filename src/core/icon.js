@@ -16,7 +16,23 @@
  * use `iconString(name, opts)` which returns the serialized SVG markup.
  */
 
-import {
+// Namespace import keeps this module usable in the runtime HTML export,
+// where the concatenated bundle strips ESM imports (see
+// HtmlExportManager.stripEsmSyntax). The fallback reads the UMD global the
+// export fetches as a vendor script; when neither is present (stripped
+// import, no UMD), icon lookups resolve to undefined and icon()/iconString()
+// return null/"" so callers degrade gracefully instead of throwing.
+import * as lucideModule from "lucide";
+
+const lucide =
+  (typeof lucideModule !== "undefined" &&
+    lucideModule &&
+    typeof lucideModule.X !== "undefined" &&
+    lucideModule) ||
+  globalThis.lucide ||
+  {};
+
+const {
   X,
   Menu,
   Ellipsis,
@@ -44,7 +60,7 @@ import {
   LayoutTemplate,
   Columns3,
   LayoutGrid,
-  Image as ImageIcon,
+  Image: ImageIcon,
   Type,
   Workflow,
   Sparkles,
@@ -90,7 +106,7 @@ import {
   ExternalLink,
   MessageSquare,
   MessageCircle,
-} from "lucide";
+} = lucide;
 
 /**
  * Canonical size tokens (px). Mirrored as CSS custom properties in
