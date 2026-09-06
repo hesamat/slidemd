@@ -443,54 +443,40 @@ layout: two-column
 
 @main
 
-### Navigation
+### Move around
 
-| Key               | Action                    |
-| ----------------- | ------------------------- |
-| `→` / `Space`     | Next slide                |
-| `←` / `Backspace` | Previous slide            |
-| `Home`            | First slide               |
-| `End`             | Last slide                |
-| `G`               | Go to slide (type number) |
+| Key                          | Action         |
+| ---------------------------- | -------------- |
+| `→` `↓` `Space` `PageDown`   | Next slide     |
+| `←` `↑` `PageUp` `Backspace` | Previous slide |
+| `Home` / `End`               | First / last   |
+| `G`                          | Go to slide    |
 
-@media
+### While editing
 
-### Presentation Controls
-
-| Key | Action                   |
-| --- | ------------------------ |
-| `P` | Open/close viewer window |
-| `F` | Toggle fullscreen        |
-| `E` | Toggle edit mode         |
-| `B` | Start break timer        |
-| `T` | Toggle dark/light theme  |
-| `R` | Reload deck from file    |
-
----
-
-layout: two-column
-
-@header
-
-# Accessibility Built In
-
-@main
-
-### For the audience
-
-- Slide changes are announced to **screen readers** with title and position
-- Every slide exposes a semantic label: "Slide 2 of 10: Quick Start"
-- Alt text set on images is preserved through import, render, and export
+| Key                       | Action                |
+| ------------------------- | --------------------- |
+| `Alt+N` / `Alt+D`         | New / duplicate slide |
+| `Alt+I` / `Alt+T`         | Insert image / text   |
+| `Alt+Shift+↑` / `↓`       | Move slide up / down  |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo           |
 
 @media
 
-### Keyboard first
+### Command the app
 
-- Navigate with `→` `←` `Space`, jump with `G`
-- Fullscreen `F`, presenter view `P`, break timer `B`
-- Every shortcut is documented in the manual and the Format dropdown
+| Key       | Action           |
+| --------- | ---------------- |
+| `E`       | Edit mode        |
+| `P`       | Presenter window |
+| `F`       | Fullscreen       |
+| `B`       | Break timer      |
+| `T` / `R` | Theme / reload   |
+| `/`       | Search slides    |
 
-Set `alt` text on your images — assistive tech reads it everywhere: live, exported HTML, and PDF.
+@footer
+
+Everything else lives in the **command palette** — press `Ctrl+K` (`Cmd+K`), or browse the Format dropdown in edit mode.
 
 ---
 
