@@ -435,8 +435,7 @@ When you open SlideMD, you see the presenter dashboard with:
 
 ---
 
-layout: "header header header" auto "main media secondary" minmax(0, 1fr) "footer footer footer" auto / 1fr 1fr 1fr
-
+layout: "header header header" auto "main media secondary" minmax(0, 1fr) "footer footer footer" auto / 0.9396fr 0.8058fr 1.2546fr
 @header
 
 # Keyboard Shortcuts Reference
