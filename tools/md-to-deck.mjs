@@ -5,7 +5,19 @@ import {
   convertTableDirectivesToMarkers,
   applyTableDirectiveRenderer,
 } from "../src/core/table-directive.js";
+import { LayoutParser } from "../src/data/layout-parser.js";
 import { extractVisualSystemFromMarkdown } from "../src/data/ai/visual-system-schema.js";
+// applyOpenInNewTabToLinks is imported separately so the build parser renders
+// links exactly like the runtime MarkdownParser does.
+import { MarkdownParser, applyOpenInNewTabToLinks } from "../src/data/markdown-parser.js";
+
+/**
+ * Constructor-less MarkdownParser instance reused for the Mermaid code-block
+ * conversion and fallback title derivation. The build parser must produce the
+ * exact same area HTML/titles as the runtime MarkdownParser, so the shared
+ * implementations are called directly instead of re-implemented here.
+ */
+const markdownParserHelper = Object.create(MarkdownParser.prototype);
 
 function splitSlides(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
@@ -615,24 +627,9 @@ function makeMarkdownRenderer() {
     // Per-table styling: `table { ... }` directive lines. Mirrors the same
     // rule in MarkdownParser.ensureMarkdownIt() via the shared helper.
     applyTableDirectiveRenderer(md);
+    // External links open in a new tab, matching MarkdownParser.ensureMarkdownIt().
+    applyOpenInNewTabToLinks(md);
     return md;
-}
-
-function resolveLayoutPreset(layoutSpec) {
-    const key = safeString(layoutSpec).trim().toLowerCase();
-    const presets = {
-        focus: '"header" "main" "footer" / auto 1fr auto',
-        "two-column": '"header header" "main media" "footer footer" / 1fr 1fr',
-        "left-heavy": '"header header" "main media" "footer footer" / 2fr 1fr',
-        "right-heavy": '"header header" "main media" "footer footer" / 1fr 2fr',
-        "header-content": '"header" "main" "footer" / 1fr',
-        "header-two-column": '"header header" "main media" "footer footer" / 1fr 1fr',
-        "title-slide": '"title" / 1fr',
-        "three-column": '"header header header" "main media secondary" "footer footer footer" / 1fr 1fr 1fr',
-        "sidebar-content": '"header header" "sidebar main" "footer footer" / 300px 1fr',
-        "content-sidebar": '"header header" "main sidebar" "footer footer" / 1fr 300px',
-    };
-    return presets[key] || layoutSpec;
 }
 
 function extractAreaNamesFromGridTemplate(gridTemplate) {
@@ -711,7 +708,10 @@ export function parseDeckMarkdown(markdownText) {
 
             const areasMd = parseAreas(cleaned);
 
-            const resolvedLayout = resolveLayoutPreset(layout || "");
+            // Resolve the preset only for area-name logic; the slide keeps the
+            // raw layout spec so the runtime resolves it exactly like the dev
+            // parser does (slide-renderer resolves presets itself).
+            const resolvedLayout = LayoutParser.resolvePreset(layout || "");
             const layoutAreaNames = extractAreaNamesFromGridTemplate(resolvedLayout);
             const hasTitleArea = layoutAreaNames.includes("title");
 
@@ -732,21 +732,39 @@ export function parseDeckMarkdown(markdownText) {
             for (const [area, src] of Object.entries(areasMd)) {
                 const withTextBlocks = convertTextBlockDirectivesToHtml(src);
                 const withTableMarkers = convertTableDirectivesToMarkers(withTextBlocks);
-                areasHtml[area] = md.render(escapeBareHtmlTags(withTableMarkers));
+                // Same Mermaid pre-conversion as MarkdownParser so the deck JSON
+                // carries `div.mermaid[data-mermaid-source]` instead of leaving
+                // the conversion to runtime (which trims the source differently).
+                areasHtml[area] = markdownParserHelper.convertMermaidCodeBlocksToDiv(
+                    md.render(escapeBareHtmlTags(withTableMarkers)),
+                );
             }
 
-            // Derive title: prefer explicit '# Title', then @header heading, then @main heading, then default
+            // Derive title: prefer explicit '# Title', then @header heading/content,
+            // then @main heading/content, then default — same chain as MarkdownParser.
             let slideTitle = explicitTitle;
             if (!slideTitle) {
                 const headerText = areasMd.header || "";
                 const headerHeading = headerText.match(/^#{1,6}\s+(.+)$/m);
                 if (headerHeading) {
-                    slideTitle = headerHeading[1].trim();
+                    slideTitle = MarkdownParser.stripFormatting(headerHeading[1]);
                 } else {
-                    const mainText = areasMd.main || "";
-                    const mainHeading = mainText.match(/^#{1,6}\s+(.+)$/m);
-                    slideTitle = mainHeading ? mainHeading[1].trim() : `Slide ${index + 1}`;
+                    slideTitle = markdownParserHelper._deriveFallbackTitle(headerText);
                 }
+            }
+
+            if (!slideTitle) {
+                const mainText = areasMd.main || "";
+                const mainHeading = mainText.match(/^#{1,6}\s+(.+)$/m);
+                if (mainHeading) {
+                    slideTitle = MarkdownParser.stripFormatting(mainHeading[1]);
+                } else {
+                    slideTitle = markdownParserHelper._deriveFallbackTitle(mainText);
+                }
+            }
+
+            if (!slideTitle) {
+                slideTitle = `Slide ${index + 1}`;
             }
 
             let id = slugifyTitle(slideTitle);
@@ -761,7 +779,7 @@ export function parseDeckMarkdown(markdownText) {
                 id,
                 title: slideTitle,
                 notes,
-                layout: resolvedLayout,
+                layout: layout || "",
                 align: align || "",
                 background: background || "",
                 theme: themeNormalized,

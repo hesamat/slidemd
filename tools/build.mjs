@@ -536,14 +536,21 @@ async function processJs() {
     const minifiedVendorScripts = [];
     for (const src of vendorJsParts) {
         if (!src) continue;
-        const result = await esbuild({
-            stdin: { contents: src },
-            minify: true,
-            write: false,
-        });
-        minifiedVendorScripts.push(
-            `<script>\n${escapeInlineScriptText(result.code)}\n</script>`
-        );
+    const result = await esbuild({
+        stdin: { contents: src },
+        // stdin builds need an outfile name for outputFiles to be populated;
+        // nothing is written to disk because write is false.
+        outfile: "vendor.min.js",
+        minify: true,
+        write: false,
+    });
+    const jsOutput = result.outputFiles.find((f) => f.path.endsWith(".js"));
+    if (!jsOutput) {
+        throw new Error("Vendor script minification produced no output");
+    }
+    minifiedVendorScripts.push(
+        `<script>\n${escapeInlineScriptText(jsOutput.text)}\n</script>`
+    );
     }
 
     return {
