@@ -80,11 +80,20 @@ function toDataUriWithMime(filePath, mime) {
 }
 
 function inlineKatexFonts(cssText) {
+    return inlineFontDataUris(cssText, path.join(root, "node_modules", "katex", "dist", "fonts"));
+}
+
+/**
+ * Rewrite url(fonts/<file>) references in CSS to data URIs, reading font files
+ * from `fontsDir`. Used for the vendored KaTeX fonts and the app's own code
+ * font so exported HTML stays fully self-contained.
+ */
+function inlineFontDataUris(cssText, fontsDir) {
     if (!cssText) return cssText;
 
     // katex.min.css uses url(fonts/<file>) relative references.
     return cssText.replace(/url\((?:'|")?fonts\/([^'")]+)(?:'|")?\)/g, (match, fileName) => {
-        const abs = path.join(root, "node_modules", "katex", "dist", "fonts", fileName);
+        const abs = path.join(fontsDir, fileName);
         if (!fs.existsSync(abs)) return match;
         const mime = fontMimeForExt(path.extname(fileName));
         if (!mime) return match;
@@ -95,6 +104,30 @@ function inlineKatexFonts(cssText) {
             return match;
         }
     });
+}
+
+/**
+ * Rewrite url() references to files inside npm packages (e.g.
+ * url("@fontsource/fira-code/files/<file>.woff2")) to data URIs.
+ */
+function inlinePackageFontDataUris(cssText) {
+    if (!cssText) return cssText;
+
+    return cssText.replace(
+        /url\((?:'|")?(@[^'")]+\/files\/[^'")]+)(?:'|")?\)/g,
+        (match, packagePath) => {
+            const abs = path.join(root, "node_modules", packagePath);
+            if (!fs.existsSync(abs)) return match;
+            const mime = fontMimeForExt(path.extname(packagePath));
+            if (!mime) return match;
+            try {
+                const uri = toDataUriWithMime(abs, mime);
+                return `url(${uri})`;
+            } catch {
+                return match;
+            }
+        },
+    );
 }
 
 function copyDirRecursive(srcDir, destDir) {
@@ -232,6 +265,9 @@ console.log(`Building from: ${path.relative(root, inDeck)}`);
 
 let html = fs.readFileSync(inIndex, "utf8");
 let css = resolveCssImports(inCss);
+// The app css references the code font by package specifier — inline it so
+// the exported HTML renders code identically offline.
+css = inlinePackageFontDataUris(css);
 if (fs.existsSync(prismCssPath)) {
     try {
         const prismCss = fs.readFileSync(prismCssPath, "utf8");
