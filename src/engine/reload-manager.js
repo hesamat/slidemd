@@ -12,7 +12,6 @@ import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { Notification } from "../renderer/notification.js";
 import { resetModalState } from "../core/modal-state.js";
 import { RoleManager } from "./role-manager.js";
-import { DirectoryHandleStore } from "../core/directory-handle-store.js";
 
 export class ReloadManager extends EventEmitter {
   /**
@@ -204,48 +203,11 @@ export class ReloadManager extends EventEmitter {
   /**
    * Restore the persisted deck-folder handle when reloading a picker-opened
    * deck, or drop it for decks served by the CLI server / example / new.
+   * Delegates to DeckImagesResolver (injected — engine must not import the
+   * editor layer), which owns the handle and its persistence.
    */
   async _syncDirectoryHandle() {
-    if (!this._deckImagesResolver) return;
-    try {
-      const fromPicker = localStorage.getItem("webdeck_opened_from_picker") === "1";
-      if (!fromPicker || !window.showDirectoryPicker) {
-        this._deckImagesResolver.clearDirectoryHandle();
-        return;
-      }
-      const fileName = localStorage.getItem("webdeck_local_file_name");
-      if (!fileName) {
-        this._deckImagesResolver.clearDirectoryHandle();
-        return;
-      }
-      const dir = await DirectoryHandleStore.load(fileName);
-      if (!dir.handle) {
-        this._deckImagesResolver.clearDirectoryHandle();
-        return;
-      }
-      let perm = dir.handle.queryPermission
-        ? await dir.handle.queryPermission({ mode: "read" })
-        : "granted";
-      if (perm !== "granted" && dir.handle.requestPermission) {
-        try {
-          perm = await dir.handle.requestPermission({ mode: "read" });
-        } catch {
-          perm = "denied";
-        }
-      }
-      if (perm === "granted") {
-        this._deckImagesResolver.setDirectoryHandle(
-          dir.handle,
-          this._deckImagesResolver.extractImageRefs(
-            localStorage.getItem("webdeck_local_file") || "",
-          ),
-        );
-      } else {
-        this._deckImagesResolver.clearDirectoryHandle();
-      }
-    } catch {
-      this._deckImagesResolver.clearDirectoryHandle();
-    }
+    await this._deckImagesResolver?.restorePersistedHandle?.();
   }
 
   /**

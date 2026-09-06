@@ -36,7 +36,7 @@ export class HtmlExportManager {
   static async handleHtmlExport(
     slidesContainer,
     deck,
-    { filename = null, includeSlideSnapshot = false, minify = true } = {},
+    { filename = null, includeSlideSnapshot = false, minify = true, readImage = null } = {},
   ) {
     if (HtmlExportManager._isExporting) return;
     HtmlExportManager._isExporting = true;
@@ -60,6 +60,7 @@ export class HtmlExportManager {
       const html = await HtmlExportManager.generateStandaloneHtml(deck, slidesContainer, {
         includeSlideSnapshot,
         minify,
+        readImage,
         signal: controller.signal,
         onProgress: (message, percent) => {
           loading.updateMessage(message);
@@ -96,7 +97,13 @@ export class HtmlExportManager {
   static async generateStandaloneHtml(
     deck,
     slidesContainer,
-    { includeSlideSnapshot = false, minify = true, signal = null, onProgress = null } = {},
+    {
+      includeSlideSnapshot = false,
+      minify = true,
+      signal = null,
+      onProgress = null,
+      readImage = null,
+    } = {},
   ) {
     const report = (message, percent) => {
       if (typeof onProgress === "function") onProgress(message, percent);
@@ -133,7 +140,7 @@ export class HtmlExportManager {
     // 3. Escape Data
     // Inline images in deck JSON as data URIs
     report("Inlining deck images...", 55);
-    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck, signal);
+    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck, signal, readImage);
     const deckJson = JSON.stringify(inlinedDeck);
     const escapedDeckJson = HtmlExportManager.escapeJsonForHtml(deckJson);
 
@@ -146,7 +153,7 @@ export class HtmlExportManager {
 
     // 4b. Inline images as data URIs
     report("Inlining slide images...", 85);
-    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml, signal);
+    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml, signal, readImage);
 
     const presenterHideCss = `
 /* Hide presenter-only elements in exported HTML */
@@ -885,7 +892,39 @@ ${escapedInitScript}
   /**
    * Fetches images from the server and converts them to data URIs in HTML.
    */
-  static async inlineImagesInHtml(html, signal = null) {
+  /**
+   * Resolve an image reference to a Blob/File for export inlining.
+   *
+   * Order: an injected readImage provider first (a picker-opened deck's
+   * directory handle — the only source that works when the dev server does
+   * not serve this deck's images/ folder), then a fetch against the current
+   * origin (serves the CLI deck's images). Returns null when neither yields
+   * bytes, leaving the original ref untouched in the export.
+   * @param {string} ref - "images/foo.png" or an in-memory "blob:" URL.
+   * @param {((relPath: string) => Promise<Blob|null>)|null} readImage
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<Blob|null>}
+   */
+  static async _resolveImageBlob(ref, readImage, signal = null) {
+    if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+    // The provider reads from the deck's images/ folder on disk; in-memory
+    // blob: URLs can only come from the current document, so skip it for those.
+    if (typeof readImage === "function" && !ref.startsWith("blob:")) {
+      try {
+        const file = await readImage(ref);
+        if (file) return file;
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        // Provider failure falls through to the origin fetch.
+      }
+    }
+    const fetchUrl = ref.startsWith("blob:") ? ref : `/${ref}`;
+    const response = await fetch(fetchUrl, { signal });
+    if (!response.ok) return null;
+    return await response.blob();
+  }
+
+  static async inlineImagesInHtml(html, signal = null, readImage = null) {
     if (!html) return html;
     if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
     // Match src="images/..." / src='images/...' and in-memory blob URLs from imports.
@@ -897,10 +936,8 @@ ${escapedInitScript}
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       const [fullMatch, quote, imagePath] = match;
       try {
-        const fetchUrl = imagePath.startsWith("blob:") ? imagePath : `/${imagePath}`;
-        const response = await fetch(fetchUrl, { signal });
-        if (!response.ok) return fullMatch;
-        const blob = await response.blob();
+        const blob = await HtmlExportManager._resolveImageBlob(imagePath, readImage, signal);
+        if (!blob) return fullMatch;
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
         const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -931,7 +968,7 @@ ${escapedInitScript}
   /**
    * Inlines images in deck JSON as data URIs.
    */
-  static async inlineImagesInDeck(deck, signal = null) {
+  static async inlineImagesInDeck(deck, signal = null, readImage = null) {
     if (!deck?.slides) return deck;
     if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
 
@@ -961,10 +998,8 @@ ${escapedInitScript}
     for (const ref of imageRefs) {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
-        const fetchUrl = ref.startsWith("blob:") ? ref : `/${ref}`;
-        const response = await fetch(fetchUrl, { signal });
-        if (!response.ok) continue;
-        const blob = await response.blob();
+        const blob = await HtmlExportManager._resolveImageBlob(ref, readImage, signal);
+        if (!blob) continue;
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
         const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
