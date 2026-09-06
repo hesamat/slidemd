@@ -31,6 +31,7 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
  * @property {string} [base64] - Base64-encoded image data.
  * @property {string} [mimeType] - Image MIME type inferred from ref extension.
  * @property {string} [ref] - Original image reference name.
+ * @property {string} [caption] - Author alt text (PPTX `descr`), or diagram labels; becomes the <img> alt text.
  * @property {ExtractedTableCell[][]} [rows] - Table data.
  * @property {string} [chartType] - Chart type (e.g., 'barChart', 'lineChart').
  * @property {ChartData[]} [chartData] - Chart series data.
@@ -155,6 +156,10 @@ export class PptxExtractor {
     // used to restore line breaks that pptxtojson drops.
     const xmlTexts = await this.#extractSlideXmlTexts(zip);
 
+    // Author alt text (descr on p:cNvPr) keyed by slide file number —
+    // pptxtojson drops it, so it is recovered from the raw slide XML.
+    const imageAlts = await this.#extractSlideImageAlts(zip);
+
     // Build a fallback fileNum→index map for the OL start value lookup when
     // #extractSlideOrder returned null. This keeps the olKey consistent: the
     // OL start values are keyed by file number minus one, not array position,
@@ -188,6 +193,7 @@ export class PptxExtractor {
         images,
         olStartValues.get(olKey) || [],
         xmlTexts.get(fileNum) || null,
+        imageAlts.get(fileNum) || null,
       );
     });
 
@@ -254,9 +260,18 @@ export class PptxExtractor {
    * @param {number[]} [olStartValues] - Ordered list start values for this slide.
    * @param {Array<{flatText: string, paragraphs: Array<{xmlWithBreaks: string, hasBreak: boolean}>}>} [slideXmlTexts]
    *   XML text-box data for this slide (from #extractSlideXmlTexts).
+   * @param {Map<string, string[]>} [imageAlts] - Author alt text queues keyed by
+   *   media file basename (from #extractSlideImageAlts) for this slide.
    * @returns {ExtractedSlide}
    */
-  static #processSlide(slide, index, imagesAccum, olStartValues = [], slideXmlTexts = null) {
+  static #processSlide(
+    slide,
+    index,
+    imagesAccum,
+    olStartValues = [],
+    slideXmlTexts = null,
+    imageAlts = null,
+  ) {
     // Process layout elements first (backgrounds, placeholders), then content
     const raw = [];
     // Track which start values have been consumed so each <ol> gets the right one.
@@ -267,6 +282,7 @@ export class PptxExtractor {
       const extracted = this.#processElement(el, index, imagesAccum, olStartValues, {
         startIdxRef: { value: startIdx },
         slideXmlTexts,
+        imageAlts,
       });
       if (extracted) {
         // Update startIdx from the mutable ref after processing.
@@ -279,6 +295,7 @@ export class PptxExtractor {
       const extracted = this.#processElement(el, index, imagesAccum, olStartValues, {
         startIdxRef: { value: startIdx },
         slideXmlTexts,
+        imageAlts,
       });
       if (extracted) {
         startIdx = extracted._startIdx ?? startIdx;
@@ -451,7 +468,7 @@ export class PptxExtractor {
    * @param {number} slideIndex
    * @param {ExtractedImage[]} imagesAccum
    * @param {number[]} [olStartValues] - Ordered list start values for this slide.
-   * @param {{ startIdxRef: { value: number } }} [opts] - Mutable ref to track consumed start values.
+   * @param {{ startIdxRef: { value: number }, imageAlts?: Map<string, string[]> }} [opts] - Mutable ref to track consumed start values; per-slide author alt text queues keyed by media basename.
    * @returns {ExtractedElement|null}
    */
   static #processElement(el, slideIndex, imagesAccum, olStartValues = [], opts) {
@@ -644,12 +661,19 @@ export class PptxExtractor {
           slideIndex,
         });
       }
+      // Author alt text: consume this picture's descr from the slide's queue
+      // (queues are per media file, in document order, so each picture gets
+      // its own). Consumed only after the size check so a dropped decorative
+      // picture does not shift the queue.
+      const altQueue = opts?.imageAlts?.get((el.ref || "").split("/").pop());
+      const authorAlt = altQueue?.shift() || "";
       return {
         type: "image",
         base64: el.base64 || "",
         blob: el.blob || "",
         mimeType: mime,
         ref: el.ref,
+        caption: authorAlt || undefined,
         placeholderType,
         order: el.order,
         left: el.left,
@@ -1039,6 +1063,61 @@ export class PptxExtractor {
     } catch {
       // Corrupted ZIP or unreadable XML — leave the map empty and fall back
       // to pptxtojson's merged line breaks.
+    }
+    return map;
+  }
+
+  /**
+   * Recover author alt text that pptxtojson drops: the optional `descr`
+   * attribute on a picture's <p:cNvPr> (what PowerPoint exposes as
+   * "Alt Text"). Returned as per-slide maps from media file basename to a
+   * queue of descr strings in document order, so each <p:pic> referencing a
+   * media file consumes its own descr even when several pictures share one
+   * media file. Pictures without descr contribute nothing and images fall
+   * back to the filename-derived alt in formatImage.
+   *
+   * @static
+   * @param {Object} zip - JSZip instance of the .pptx archive.
+   * @returns {Promise<Map<number, Map<string, string[]>>>} Slide file number → media basename → descr queue.
+   */
+  static async #extractSlideImageAlts(zip) {
+    const map = new Map();
+    try {
+      const slideFiles = Object.keys(zip.files).filter(
+        (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir,
+      );
+      for (const slideFile of slideFiles) {
+        const fileNum = Number(slideFile.match(/slide(\d+)\.xml/)[1]);
+        const xml = await zip.files[slideFile].async("text");
+        // rId → media basename, from this slide's relationship file.
+        const relsXml = await zip.file(`ppt/slides/_rels/slide${fileNum}.xml.rels`)?.async("text");
+        if (!xml || !relsXml) continue;
+        const rIdToMedia = new Map();
+        for (const m of relsXml.matchAll(
+          /<Relationship[^>]*\bId="([^"]+)"[^>]*\bTarget="([^"]+)"/gi,
+        )) {
+          rIdToMedia.set(m[1], m[2].split("/").pop());
+        }
+        const alts = new Map();
+        for (const picMatch of xml.matchAll(/<p:pic>[\s\S]*?<\/p:pic>/gi)) {
+          const pic = picMatch[0];
+          const descrMatch =
+            pic.match(/<p:cNvPr\b[^>]*\bdescr="([^"]*)"/i) ||
+            pic.match(/<p:cNvPr\b[^>]*\bdescr='([^']*)'/i);
+          if (!descrMatch) continue;
+          const descr = this.#decodeXmlText(descrMatch[1]).trim();
+          if (!descr) continue;
+          const embedMatch = pic.match(/<a:blip[^>]*\br:embed="([^"]*)"/i);
+          const media = embedMatch ? rIdToMedia.get(embedMatch[1]) : null;
+          if (!media) continue;
+          if (!alts.has(media)) alts.set(media, []);
+          alts.get(media).push(descr);
+        }
+        if (alts.size > 0) map.set(fileNum, alts);
+      }
+    } catch {
+      // Corrupted ZIP or unreadable XML — leave the map empty; images fall
+      // back to the filename-derived alt text.
     }
     return map;
   }

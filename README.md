@@ -10,6 +10,7 @@ SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on
 - **Live editing** — split-screen editor with instant preview, autocomplete, and slash commands
 - **Image styling** — opacity, corner radius, flip, rotation, and brightness/contrast/saturation filters via the image properties panel
 - **Dual-window presenter view** — speaker notes, next-slide preview, and break timer
+- **Accessibility** — screen-reader announcements of slide changes, semantic slide labels, keyboard-first navigation with documented shortcuts, and alt text preserved from PPTX import through export
 - **Code highlighting** via Prism, **math** via KaTeX, **diagrams** via Mermaid
 - **Table styling** — `::: table { ... }` container directive for width, alignment, borders, striping, header color, and column weights
 - **PPTX import** — convert PowerPoint decks to Markdown with layout inference, in the app or from the command line (`npm run pptx`)
@@ -72,6 +73,7 @@ Download the latest release from [GitHub Releases](https://github.com/hesamat/ht
 | AI editing (enhance, remix, reimagine, vision)         | [docs/ai-editing.md](docs/ai-editing.md)                 |
 | Import & export (PPTX, .textpack, PDF, HTML)           | [docs/import-export.md](docs/import-export.md)           |
 | Keyboard shortcuts                                     | [docs/keyboard-shortcuts.md](docs/keyboard-shortcuts.md) |
+| Manual test plan (keyboard & a11y verification)        | [docs/manual-test-plan.md](docs/manual-test-plan.md)     |
 | Example deck                                           | [docs/example/slides.md](docs/example/slides.md)         |
 | AI prompt structure                                    | [docs/prompt-template.md](docs/prompt-template.md)       |
 | AI/tool feature boundary                               | [docs/ai-positioning.md](docs/ai-positioning.md)         |

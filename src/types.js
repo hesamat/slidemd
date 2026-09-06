@@ -75,6 +75,7 @@
  * @property {HTMLElement} slidesContainer
  * @property {HTMLElement} slideNumberEl
  * @property {HTMLElement} slideCountEl
+ * @property {HTMLElement} slideAnnouncer
  * @property {HTMLElement} deckTitleEl
  * @property {HTMLElement} notesContainer
  * @property {HTMLElement} nextPreview

@@ -436,6 +436,14 @@
                 <div id="slideIndicator" class="slide-indicator" aria-label="Slide number">
                   <span id="slideNumber">1</span>/<span id="slideCount">1</span>
                 </div>
+                <!-- Screen-reader announcement of the active slide; kept inside
+                     #stageInner so it stays in the fullscreened subtree. -->
+                <div
+                  id="slideAnnouncer"
+                  class="visually-hidden"
+                  aria-live="polite"
+                  aria-atomic="true"
+                ></div>
               </div>
             </div>
           </div>

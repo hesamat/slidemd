@@ -435,36 +435,81 @@ When you open SlideMD, you see the presenter dashboard with:
 
 ---
 
-layout: two-column
-
+layout: "header header header" auto "main media secondary" minmax(0, 1fr) "footer footer footer" auto / 0.9396fr 0.8058fr 1.2546fr
 @header
 
 # Keyboard Shortcuts Reference
 
 @main
 
-### Navigation
+### Move around
 
-| Key               | Action                    |
-| ----------------- | ------------------------- |
-| `→` / `Space`     | Next slide                |
-| `←` / `Backspace` | Previous slide            |
-| `Home`            | First slide               |
-| `End`             | Last slide                |
-| `G`               | Go to slide (type number) |
+| Key                          | Action         |
+| ---------------------------- | -------------- |
+| `→` `↓` `Space` `PageDown`   | Next slide     |
+| `←` `↑` `PageUp` `Backspace` | Previous slide |
+| `Home` / `End`               | First / last   |
+| `G`                          | Go to slide    |
+
+@secondary
+
+### While editing
+
+| Key                       | Action                |
+| ------------------------- | --------------------- |
+| `Alt+N` / `Alt+D`         | New / duplicate slide |
+| `Alt+I` / `Alt+T`         | Insert image / text   |
+| `Alt+Shift+↑` / `↓`       | Move slide up / down  |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo           |
 
 @media
 
-### Presentation Controls
+### Command the app
 
-| Key | Action                   |
-| --- | ------------------------ |
-| `P` | Open/close viewer window |
-| `F` | Toggle fullscreen        |
-| `E` | Toggle edit mode         |
-| `B` | Start break timer        |
-| `T` | Toggle dark/light theme  |
-| `R` | Reload deck from file    |
+| Key       | Action           |
+| --------- | ---------------- |
+| `E`       | Edit mode        |
+| `P`       | Presenter window |
+| `F`       | Fullscreen       |
+| `B`       | Break timer      |
+| `T` / `R` | Theme / reload   |
+| `/`       | Search slides    |
+
+@footer
+
+Everything else lives in the **command palette** — press `Ctrl+K` (`Cmd+K`), or browse the Format dropdown in edit mode.
+
+---
+
+layout: two-column
+
+@header
+
+# Accessibility Built In
+
+@main
+
+### For the audience
+
+- Slide changes are **announced to screen readers** — title and position, politely
+- Every slide carries a semantic label: "Slide 2 of 10: Quick Start"
+- Hidden slides stay out of navigation and announcements
+- Alt text survives the whole journey: PPTX import → render → export
+- Status toasts (saves, exports, errors) are announced too
+
+@media
+
+### For the presenter
+
+- Fully keyboard-driven: `→` `←` `Space`, `Home` / `End`, `G` to jump
+- `Ctrl+K` command palette puts every action one keystroke away
+- `/` searches every slide; `Esc` closes what you opened
+- Presenter `P`, fullscreen `F`, break timer `B` — no mouse needed
+- Shortcuts are documented in the manual and the Format dropdown
+
+@footer
+
+Tip: set `alt` text on your images — assistive tech reads it everywhere: live, exported HTML, and PDF.
 
 ---
 
@@ -612,7 +657,7 @@ Let the AI handle the busywork so you can focus on the message.
 - **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
 - **Add speaker notes** — generate speaker notes without touching the slide
 
-<img src="images/image-d8f9.png" alt="image-d8f9" style="position: relative; left: 148px; top: 9px; width: 523px; height: 350px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
+<img src="images/image-d8f9.png" alt="Screenshot of the AI editing panel with single-slide and whole-deck actions" style="position: relative; left: 148px; top: 9px; width: 523px; height: 350px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
 @media
 
 ### Whole Deck

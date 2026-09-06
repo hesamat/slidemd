@@ -512,6 +512,10 @@ export class DeckController extends EventEmitter {
     const slides = this.elements.slidesContainer.querySelectorAll(".slide");
     slides.forEach((s, i) => s.classList.toggle("active", i === this.slideNavigator.currentIndex));
 
+    if (this.elements.slideAnnouncer) {
+      this.elements.slideAnnouncer.textContent = this.getSlideAnnouncement();
+    }
+
     if (this.elements.floatSlideCounter) {
       this.elements.floatSlideCounter.textContent = `${this.slideNavigator.currentIndex + 1} / ${this.deck.slides.length}`;
     }
@@ -528,6 +532,19 @@ export class DeckController extends EventEmitter {
           : "<p class='notes-empty'>No notes</p>";
       }
     }
+  }
+
+  /**
+   * Screen-reader announcement for the active slide. Mirrors the slide
+   * wrapper's aria-label built in SlideRenderer.createSlideElement so the
+   * live region and the slide itself never disagree.
+   * @returns {string}
+   */
+  getSlideAnnouncement() {
+    const index = this.slideNavigator.currentIndex;
+    const visibleSlideCount = this.deck.slides.filter((s) => !s.hidden).length;
+    const title = String(this.deck.slides[index]?.title ?? "").replace(/<[^>]*>/g, "");
+    return `Slide ${index + 1} of ${visibleSlideCount}${title ? `: ${title}` : ""}`;
   }
 
   updateNextPreview(nextSlide) {

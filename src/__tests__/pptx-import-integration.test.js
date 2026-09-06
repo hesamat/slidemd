@@ -14,13 +14,15 @@
  * - verbose-bullets.pptx — literal bullet glyphs, trailing spaces, tabs and
  *   an empty text box must not leak into the converted markdown.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import markdownit from "markdown-it";
 import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
+import { SlideRenderer } from "../renderer/slide-renderer.js";
+import { HtmlExportManager } from "../renderer/html-export-manager.js";
 
 window.markdownit = markdownit;
 
@@ -350,5 +352,48 @@ describe("slide title derivation from HTML-heavy slides", () => {
       '<div style="flex: 1; min-width: 0;">Revenue growth <img src="images/chart.png" alt="Slide image 1"></div>',
     ].join("\n");
     expect(parser.parseDeckMarkdown(md).slides[0].title).toBe("Revenue growth");
+  });
+});
+
+describe("pptx author alt text propagation", () => {
+  it("propagates the PPTX descr alt text through import, markdown, sanitization, and export", async () => {
+    // The fixture's picture carries author alt text (descr="illustration" on
+    // p:cNvPr in the slide XML) — pptxtojson drops it, so the extractor must
+    // recover it from the raw XML.
+    const { markdown, deck } = await convertFixture("one-image-plus-body.pptx");
+
+    // 1. Import -> markdown: the author alt replaces the filename-derived
+    //    "Slide image N" fallback.
+    expect(markdown).toContain('alt="illustration"');
+    expect(markdown).not.toContain('alt="Slide image');
+
+    // 2. Markdown -> parsed slide HTML: markdown-it keeps the alt attribute.
+    const mediaHtml = deck.slides[0].areas.media || "";
+    expect(mediaHtml).toContain('alt="illustration"');
+
+    // 3. Render -> sanitization: DOMPurify must keep alt on <img>.
+    const sanitized = SlideRenderer.sanitizeAreaHtml(mediaHtml);
+    expect(sanitized).toContain('alt="illustration"');
+
+    // 4. Export: inlining the image as a data URL must not touch the alt.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["fake-image-data"], { type: "image/png" })),
+      }),
+    );
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        readAsDataURL() {
+          this.result = "data:image/png;base64,ZmFrZS1pbWFnZS1kYXRh";
+          if (this.onloadend) this.onloadend();
+        }
+      },
+    );
+    const exported = await HtmlExportManager.inlineImagesInHtml(sanitized);
+    expect(exported).toContain('alt="illustration"');
+    expect(exported).toContain("data:image/png;base64,");
   });
 });

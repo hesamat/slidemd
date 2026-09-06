@@ -19,7 +19,7 @@ print(greeting)      # unchanged
 
 @media
 
-<img src="images/image1.png" width="695" height="463" alt="Slide image image 1" style="width: 100%; height: auto; object-fit: contain;">
+<img src="images/image1.png" width="695" height="463" alt="illustration" style="width: 100%; height: auto; object-fit: contain;">
 
 @footer
 
