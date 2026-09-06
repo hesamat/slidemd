@@ -435,7 +435,7 @@ When you open SlideMD, you see the presenter dashboard with:
 
 ---
 
-layout: two-column
+layout: "header header header" auto "main media secondary" minmax(0, 1fr) "footer footer footer" auto / 1fr 1fr 1fr
 
 @header
 
@@ -451,6 +451,8 @@ layout: two-column
 | `←` `↑` `PageUp` `Backspace` | Previous slide |
 | `Home` / `End`               | First / last   |
 | `G`                          | Go to slide    |
+
+@secondary
 
 ### While editing
 
