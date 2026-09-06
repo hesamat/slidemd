@@ -480,6 +480,38 @@ Everything else lives in the **command palette** — press `Ctrl+K` (`Cmd+K`), o
 
 ---
 
+layout: two-column
+
+@header
+
+# Accessibility Built In
+
+@main
+
+### For the audience
+
+- Slide changes are **announced to screen readers** — title and position, politely
+- Every slide carries a semantic label: "Slide 2 of 10: Quick Start"
+- Hidden slides stay out of navigation and announcements
+- Alt text survives the whole journey: PPTX import → render → export
+- Status toasts (saves, exports, errors) are announced too
+
+@media
+
+### For the presenter
+
+- Fully keyboard-driven: `→` `←` `Space`, `Home` / `End`, `G` to jump
+- `Ctrl+K` command palette puts every action one keystroke away
+- `/` searches every slide; `Esc` closes what you opened
+- Presenter `P`, fullscreen `F`, break timer `B` — no mouse needed
+- Shortcuts are documented in the manual and the Format dropdown
+
+@footer
+
+Tip: set `alt` text on your images — assistive tech reads it everywhere: live, exported HTML, and PDF.
+
+---
+
 layout: header-content
 
 @header
