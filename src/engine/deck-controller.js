@@ -326,6 +326,12 @@ export class DeckController extends EventEmitter {
     this.slideNavigator.goTo(this.slideNavigator.currentIndex, { broadcast: false });
     this.applyStageScale();
 
+    // Boot render: resolve images/... refs against the deck folder (picker
+    // handle) now that init is past data load. In-session deck swaps get this
+    // via the deckchange listener; a refresh restores slides straight from
+    // localStorage and would otherwise leave every stage image unresolved.
+    this.#rewriteImages();
+
     // Immediately enhance the first slide (don't wait for idle)
     requestAnimationFrame(() => this.enhanceActiveSlideNow());
   }
@@ -629,6 +635,9 @@ export class DeckController extends EventEmitter {
   async handleHtmlExport({ filename = null } = {}) {
     await HtmlExportManager.handleHtmlExport(this.elements.slidesContainer, this.deck, {
       filename,
+      // Picker-opened decks resolve images through the directory handle; the
+      // dev server only serves images for the deck it was launched with.
+      readImage: (relPath) => this._deckImagesResolver?.getImageFile(relPath) ?? null,
     });
   }
 
@@ -644,7 +653,10 @@ export class DeckController extends EventEmitter {
       editController?.saveManager?.getFullMarkdown() ??
       localStorage.getItem("webdeck_local_file") ??
       "";
-    await TextpackExportManager.handleTextpackExport(markdown, this.deck, { filename });
+    await TextpackExportManager.handleTextpackExport(markdown, this.deck, {
+      filename,
+      readImage: (relPath) => this._deckImagesResolver?.getImageFile(relPath) ?? null,
+    });
   }
 
   async handleNewPresentation() {

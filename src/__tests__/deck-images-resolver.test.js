@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
+import { DirectoryHandleStore } from "../core/directory-handle-store.js";
 
 // Revoke blob URLs synchronously so deferred revocation doesn't keep the
 // test process alive.
@@ -158,5 +159,102 @@ describe("DeckImagesResolver checkMissingImageRefs", () => {
       "![a](images/dup.png)\n![b](images/dup.png)\n![c](images/dup.png)",
     );
     expect(missing).toEqual(["images/dup.png"]);
+  });
+});
+
+describe("DeckImagesResolver.restorePersistedHandle", () => {
+  afterEach(() => {
+    DeckImagesResolver.clearDirectoryHandle();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.unstubAllGlobals();
+  });
+
+  /** Minimal localStorage stand-in: the suite runs in the node environment. */
+  function stubLocalStorage() {
+    const store = new Map();
+    const ls = {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      clear: () => store.clear(),
+    };
+    vi.stubGlobal("localStorage", ls);
+    return ls;
+  }
+
+  function grantedHandle() {
+    return { queryPermission: vi.fn().mockResolvedValue("granted") };
+  }
+
+  it("clears the handle when the deck was not opened through the picker", async () => {
+    const ls = stubLocalStorage();
+    ls.setItem("webdeck_local_file", "# deck");
+    await DeckImagesResolver.restorePersistedHandle();
+    expect(DeckImagesResolver.hasDirectoryHandle()).toBe(false);
+  });
+
+  it("clears the handle when File System Access is unavailable", async () => {
+    const ls = stubLocalStorage();
+    ls.setItem("webdeck_opened_from_picker", "1");
+    ls.setItem("webdeck_local_file_name", "my-deck.md");
+    ls.setItem("webdeck_local_file", "![x](images/x.png)");
+    vi.stubGlobal("showDirectoryPicker", undefined);
+    await DeckImagesResolver.restorePersistedHandle();
+    expect(DeckImagesResolver.hasDirectoryHandle()).toBe(false);
+  });
+
+  it("restores a persisted, permitted handle with the deck's image refs", async () => {
+    const ls = stubLocalStorage();
+    ls.setItem("webdeck_opened_from_picker", "1");
+    ls.setItem("webdeck_local_file_name", "my-deck.md");
+    ls.setItem("webdeck_local_file", "# A\n\n![x](images/x.png)\n\n![y](images/y.png)");
+    vi.stubGlobal("showDirectoryPicker", vi.fn());
+    const handle = grantedHandle();
+    const loadSpy = vi
+      .spyOn(DirectoryHandleStore, "load")
+      .mockResolvedValue({ handle, mode: "read" });
+    const setSpy = vi.spyOn(DeckImagesResolver, "setDirectoryHandle");
+
+    await DeckImagesResolver.restorePersistedHandle();
+
+    expect(loadSpy).toHaveBeenCalledWith("my-deck.md");
+    expect(setSpy).toHaveBeenCalledWith(handle, ["images/x.png", "images/y.png"]);
+    expect(DeckImagesResolver.hasDirectoryHandle()).toBe(true);
+  });
+
+  it("clears the handle when nothing is persisted for this deck", async () => {
+    const ls = stubLocalStorage();
+    ls.setItem("webdeck_opened_from_picker", "1");
+    ls.setItem("webdeck_local_file_name", "my-deck.md");
+    vi.stubGlobal("showDirectoryPicker", vi.fn());
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: null });
+
+    await DeckImagesResolver.restorePersistedHandle();
+
+    expect(DeckImagesResolver.hasDirectoryHandle()).toBe(false);
+  });
+
+  it("clears the handle when permission is denied", async () => {
+    const ls = stubLocalStorage();
+    ls.setItem("webdeck_opened_from_picker", "1");
+    ls.setItem("webdeck_local_file_name", "my-deck.md");
+    vi.stubGlobal("showDirectoryPicker", vi.fn());
+    const handle = { queryPermission: vi.fn().mockResolvedValue("denied") };
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle, mode: "read" });
+
+    await DeckImagesResolver.restorePersistedHandle();
+
+    expect(DeckImagesResolver.hasDirectoryHandle()).toBe(false);
+  });
+
+  it("clears the handle when the store throws", async () => {
+    const ls = stubLocalStorage();
+    ls.setItem("webdeck_opened_from_picker", "1");
+    ls.setItem("webdeck_local_file_name", "my-deck.md");
+    vi.stubGlobal("showDirectoryPicker", vi.fn());
+    vi.spyOn(DirectoryHandleStore, "load").mockRejectedValue(new Error("db closed"));
+
+    await expect(DeckImagesResolver.restorePersistedHandle()).resolves.toBeUndefined();
+    expect(DeckImagesResolver.hasDirectoryHandle()).toBe(false);
   });
 });

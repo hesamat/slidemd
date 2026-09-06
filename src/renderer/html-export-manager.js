@@ -21,6 +21,7 @@ export class HtmlExportManager {
     katex: "0.18.4",
     mermaid: "11.16.1",
     dompurify: "3.4.13",
+    lucide: "1.31.0",
   };
 
   /**
@@ -35,7 +36,7 @@ export class HtmlExportManager {
   static async handleHtmlExport(
     slidesContainer,
     deck,
-    { filename = null, includeSlideSnapshot = false, minify = true } = {},
+    { filename = null, includeSlideSnapshot = false, minify = true, readImage = null } = {},
   ) {
     if (HtmlExportManager._isExporting) return;
     HtmlExportManager._isExporting = true;
@@ -59,6 +60,7 @@ export class HtmlExportManager {
       const html = await HtmlExportManager.generateStandaloneHtml(deck, slidesContainer, {
         includeSlideSnapshot,
         minify,
+        readImage,
         signal: controller.signal,
         onProgress: (message, percent) => {
           loading.updateMessage(message);
@@ -95,7 +97,13 @@ export class HtmlExportManager {
   static async generateStandaloneHtml(
     deck,
     slidesContainer,
-    { includeSlideSnapshot = false, minify = true, signal = null, onProgress = null } = {},
+    {
+      includeSlideSnapshot = false,
+      minify = true,
+      signal = null,
+      onProgress = null,
+      readImage = null,
+    } = {},
   ) {
     const report = (message, percent) => {
       if (typeof onProgress === "function") onProgress(message, percent);
@@ -109,6 +117,9 @@ export class HtmlExportManager {
     mainCss = HtmlExportManager.fixKatexFontUrls(mainCss, katexVersion);
     const vendorCss = await HtmlExportManager.fetchVendorCss(deck, signal);
     let allCss = vendorCss + "\n\n" + mainCss;
+    // Vite rewrites vendored-CSS font URLs (fira-code, KaTeX) to absolute
+    // /node_modules/... paths, dead in a standalone file — inline them all.
+    allCss = await HtmlExportManager.inlineNodeModulesFontUrls(allCss, signal);
     if (minify) allCss = HtmlExportManager.minifyCss(allCss);
 
     // 2. Get JS (App Bundle + Vendor Libraries)
@@ -129,7 +140,7 @@ export class HtmlExportManager {
     // 3. Escape Data
     // Inline images in deck JSON as data URIs
     report("Inlining deck images...", 55);
-    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck, signal);
+    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck, signal, readImage);
     const deckJson = JSON.stringify(inlinedDeck);
     const escapedDeckJson = HtmlExportManager.escapeJsonForHtml(deckJson);
 
@@ -142,7 +153,7 @@ export class HtmlExportManager {
 
     // 4b. Inline images as data URIs
     report("Inlining slide images...", 85);
-    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml, signal);
+    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml, signal, readImage);
 
     const presenterHideCss = `
 /* Hide presenter-only elements in exported HTML */
@@ -367,6 +378,18 @@ ${escapedInitScript}
     }
     vendorScripts += `/* DOMPurify */\n${dompurifyJs}\n`;
 
+    // Lucide icons (UMD build) back the shared icon() helper, which the
+    // concatenated app bundle uses for copy buttons and notification glyphs.
+    // Non-fatal: when unavailable, icon()/iconString() return null/"" and
+    // callers degrade gracefully (the lucideModule import in core/icon.js is
+    // stripped during bundling and falls back to this globalThis.lucide UMD).
+    const lucideVersion = await HtmlExportManager._getVendorVersion("lucide", signal);
+    const lucideCdn = lucideVersion
+      ? `https://cdn.jsdelivr.net/npm/lucide@${lucideVersion}/dist/umd/lucide.min.js`
+      : null;
+    const lucideJs = await fetchJs("node_modules/lucide/dist/umd/lucide.min.js", lucideCdn);
+    if (lucideJs) vendorScripts += `/* Lucide (UMD) */\n${lucideJs}\n`;
+
     // Check if we need Prism
     const needsPrism =
       /<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) ||
@@ -486,6 +509,25 @@ ${escapedInitScript}
         out = out.replace(fullMatch, `const ${importName} = {};`);
       }
     }
+
+    // 1.5 Bind lucide imports to the inlined UMD global instead of dropping
+    // them. Vite rewrites `import ... from "lucide"` to a
+    // /node_modules/.vite/deps/lucide.js path; a bare strip would leave every
+    // icon name an undeclared identifier and crash the concatenated bundle
+    // (the deck loses KaTeX/Mermaid to exactly this class of bug). Names the
+    // UMD build does not export become undefined and icon() degrades to null.
+    const lucideDepsRe =
+      /import\s+(\{[^}]*\}|\*\s+as\s+\w+)\s+from\s+["'][^"']*\/node_modules\/\.vite\/deps\/lucide\.js[^"']*["'];?/g;
+    out = out.replace(lucideDepsRe, (_m, namesClause) => {
+      if (namesClause.startsWith("{")) {
+        // { Image as ImageIcon } destructures identically: bind local alias
+        // from the package member.
+        const destructuring = namesClause.replace(/\bas\b/g, ":");
+        return `const ${destructuring} = globalThis.lucide ?? {};`;
+      }
+      const nsName = namesClause.replace(/\*\s+as\s+/, "");
+      return `const ${nsName} = globalThis.lucide ?? {};`;
+    });
 
     // 2. Standard ESM stripping
     out = out.replace(/^\s*import\s+[\s\S]*?;\s*$/gm, "");
@@ -607,7 +649,56 @@ ${escapedInitScript}
   }
 
   /**
-   * Convert absolute or relative KaTeX font URLs from the dev bundle into
+   * Inline absolute `/node_modules/...` font URLs (harvested from the live
+   * stylesheets: the app's code font, KaTeX fonts) as data URIs so the
+   * exported HTML renders fonts offline. Unfetchable URLs are left untouched
+   * (fixKatexFontUrls may still rewrite KaTeX ones to a CDN; anything else
+   * degrades to fallback fonts).
+   * @param {string} cssText
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<string>}
+   */
+  static async inlineNodeModulesFontUrls(cssText, signal = null) {
+    if (!cssText) return cssText;
+    const urlRe = /url\((['"]?)(\/node_modules\/[^'")]+?\.(?:woff2?|ttf|otf))\1\)/gi;
+    const matches = [...cssText.matchAll(urlRe)];
+    if (matches.length === 0) return cssText;
+
+    const dataUriByUrl = new Map();
+    for (const match of matches) {
+      if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+      const fontUrl = match[2];
+      if (dataUriByUrl.has(fontUrl)) continue;
+      try {
+        const response = await fetch(fontUrl, { signal });
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onabort = () => reject(new DOMException("HTML export cancelled", "AbortError"));
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read font"));
+          reader.readAsDataURL(blob);
+        });
+        dataUriByUrl.set(fontUrl, dataUrl);
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        // Leave the URL as-is; the export degrades to fallback fonts.
+      }
+    }
+
+    let out = cssText;
+    for (const [fontUrl, dataUrl] of dataUriByUrl) {
+      out = out.split(`url("${fontUrl}")`).join(`url("${dataUrl}")`);
+      out = out.split(`url('${fontUrl}')`).join(`url("${dataUrl}")`);
+      out = out.split(`url(${fontUrl})`).join(`url("${dataUrl}")`);
+    }
+    return out;
+  }
+
+  /**
+   * Convert absolute or relative KaTeX-font URLs from the dev bundle into
    * CDN URLs so the exported HTML loads them without a local node_modules server.
    */
   static fixKatexFontUrls(cssText, version) {
@@ -820,7 +911,39 @@ ${escapedInitScript}
   /**
    * Fetches images from the server and converts them to data URIs in HTML.
    */
-  static async inlineImagesInHtml(html, signal = null) {
+  /**
+   * Resolve an image reference to a Blob/File for export inlining.
+   *
+   * Order: an injected readImage provider first (a picker-opened deck's
+   * directory handle — the only source that works when the dev server does
+   * not serve this deck's images/ folder), then a fetch against the current
+   * origin (serves the CLI deck's images). Returns null when neither yields
+   * bytes, leaving the original ref untouched in the export.
+   * @param {string} ref - "images/foo.png" or an in-memory "blob:" URL.
+   * @param {((relPath: string) => Promise<Blob|null>)|null} readImage
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<Blob|null>}
+   */
+  static async _resolveImageBlob(ref, readImage, signal = null) {
+    if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+    // The provider reads from the deck's images/ folder on disk; in-memory
+    // blob: URLs can only come from the current document, so skip it for those.
+    if (typeof readImage === "function" && !ref.startsWith("blob:")) {
+      try {
+        const file = await readImage(ref);
+        if (file) return file;
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        // Provider failure falls through to the origin fetch.
+      }
+    }
+    const fetchUrl = ref.startsWith("blob:") ? ref : `/${ref}`;
+    const response = await fetch(fetchUrl, { signal });
+    if (!response.ok) return null;
+    return await response.blob();
+  }
+
+  static async inlineImagesInHtml(html, signal = null, readImage = null) {
     if (!html) return html;
     if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
     // Match src="images/..." / src='images/...' and in-memory blob URLs from imports.
@@ -832,10 +955,8 @@ ${escapedInitScript}
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       const [fullMatch, quote, imagePath] = match;
       try {
-        const fetchUrl = imagePath.startsWith("blob:") ? imagePath : `/${imagePath}`;
-        const response = await fetch(fetchUrl, { signal });
-        if (!response.ok) return fullMatch;
-        const blob = await response.blob();
+        const blob = await HtmlExportManager._resolveImageBlob(imagePath, readImage, signal);
+        if (!blob) return fullMatch;
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
         const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -866,7 +987,7 @@ ${escapedInitScript}
   /**
    * Inlines images in deck JSON as data URIs.
    */
-  static async inlineImagesInDeck(deck, signal = null) {
+  static async inlineImagesInDeck(deck, signal = null, readImage = null) {
     if (!deck?.slides) return deck;
     if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
 
@@ -896,10 +1017,8 @@ ${escapedInitScript}
     for (const ref of imageRefs) {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
-        const fetchUrl = ref.startsWith("blob:") ? ref : `/${ref}`;
-        const response = await fetch(fetchUrl, { signal });
-        if (!response.ok) continue;
-        const blob = await response.blob();
+        const blob = await HtmlExportManager._resolveImageBlob(ref, readImage, signal);
+        if (!blob) continue;
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
         const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
