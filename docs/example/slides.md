@@ -612,7 +612,7 @@ Let the AI handle the busywork so you can focus on the message.
 - **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
 - **Add speaker notes** — generate speaker notes without touching the slide
 
-<img src="images/image-d8f9.png" alt="image-d8f9" style="position: relative; left: 148px; top: 9px; width: 523px; height: 350px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
+<img src="images/image-d8f9.png" alt="Screenshot of the AI editing panel with single-slide and whole-deck actions" style="position: relative; left: 148px; top: 9px; width: 523px; height: 350px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
 @media
 
 ### Whole Deck
@@ -647,3 +647,29 @@ layout: focus
 @footer
 
 Open source • Built for educators • Free forever
+
+---
+
+layout: two-column
+
+@header
+
+# Accessibility Built In
+
+@main
+
+### For the audience
+
+- Slide changes are announced to **screen readers** with title and position
+- Every slide exposes a semantic label: "Slide 2 of 10: Quick Start"
+- Alt text set on images is preserved through import, render, and export
+
+@media
+
+### Keyboard first
+
+- Navigate with `→` `←` `Space`, jump with `G`
+- Fullscreen `F`, presenter view `P`, break timer `B`
+- Every shortcut is documented in the manual and the Format dropdown
+
+Set `alt` text on your images — assistive tech reads it everywhere: live, exported HTML, and PDF.

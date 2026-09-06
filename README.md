@@ -10,6 +10,7 @@ SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on
 - **Live editing** — split-screen editor with instant preview, autocomplete, and slash commands
 - **Image styling** — opacity, corner radius, flip, rotation, and brightness/contrast/saturation filters via the image properties panel
 - **Dual-window presenter view** — speaker notes, next-slide preview, and break timer
+- **Accessibility** — screen-reader announcements of slide changes, semantic slide labels, keyboard-first navigation with documented shortcuts, and alt text preserved from PPTX import through export
 - **Code highlighting** via Prism, **math** via KaTeX, **diagrams** via Mermaid
 - **Table styling** — `::: table { ... }` container directive for width, alignment, borders, striping, header color, and column weights
 - **PPTX import** — convert PowerPoint decks to Markdown with layout inference, in the app or from the command line (`npm run pptx`)
