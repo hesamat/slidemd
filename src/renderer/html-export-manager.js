@@ -510,6 +510,25 @@ ${escapedInitScript}
       }
     }
 
+    // 1.5 Bind lucide imports to the inlined UMD global instead of dropping
+    // them. Vite rewrites `import ... from "lucide"` to a
+    // /node_modules/.vite/deps/lucide.js path; a bare strip would leave every
+    // icon name an undeclared identifier and crash the concatenated bundle
+    // (the deck loses KaTeX/Mermaid to exactly this class of bug). Names the
+    // UMD build does not export become undefined and icon() degrades to null.
+    const lucideDepsRe =
+      /import\s+(\{[^}]*\}|\*\s+as\s+\w+)\s+from\s+["'][^"']*\/node_modules\/\.vite\/deps\/lucide\.js[^"']*["'];?/g;
+    out = out.replace(lucideDepsRe, (_m, namesClause) => {
+      if (namesClause.startsWith("{")) {
+        // { Image as ImageIcon } destructures identically: bind local alias
+        // from the package member.
+        const destructuring = namesClause.replace(/\bas\b/g, ":");
+        return `const ${destructuring} = globalThis.lucide ?? {};`;
+      }
+      const nsName = namesClause.replace(/\*\s+as\s+/, "");
+      return `const ${nsName} = globalThis.lucide ?? {};`;
+    });
+
     // 2. Standard ESM stripping
     out = out.replace(/^\s*import\s+[\s\S]*?;\s*$/gm, "");
     // Handle `export [async] function/class/const/let/var` declarations.

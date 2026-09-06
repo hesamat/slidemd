@@ -634,3 +634,31 @@ describe("inlineImagesInDeck / inlineImagesInHtml readImage provider", () => {
     expect(fetchSpy).toHaveBeenCalledWith("blob:in-memory", expect.anything());
   });
 });
+
+describe("stripEsmSyntax lucide import binding", () => {
+  it("binds a namespace import from the Vite deps path to the lucide global", async () => {
+    const src =
+      'import * as lucideModule from "/node_modules/.vite/deps/lucide.js?v=2fa5eaa6";\nconst x = lucideModule.X;';
+    const out = await HtmlExportManager.stripEsmSyntax(src, "src/core/icon.js");
+    expect(out).toContain("const lucideModule = globalThis.lucide ?? {};");
+    expect(out).not.toContain("import * as lucideModule");
+  });
+
+  it("binds named imports (with aliases) from the Vite deps path", async () => {
+    const src =
+      'import {\n  X,\n  Image as ImageIcon,\n} from "/node_modules/.vite/deps/lucide.js?v=2fa5eaa6";\nconst icons = { close: X, image: ImageIcon };';
+    const out = await HtmlExportManager.stripEsmSyntax(src, "src/core/icon.js");
+    expect(out).toContain("globalThis.lucide ?? {}");
+    expect(out).toContain("Image : ImageIcon");
+    expect(out).toContain("const icons = { close: X, image: ImageIcon };");
+  });
+
+  it("still strips unrelated npm dependency imports", async () => {
+    const src =
+      'import MarkdownIt from "/node_modules/.vite/deps/markdown-it.js?v=1";\nexport const a = 1;';
+    const out = await HtmlExportManager.stripEsmSyntax(src, "src/data/markdown-parser.js");
+    expect(out).not.toContain("import MarkdownIt");
+    expect(out).not.toContain("globalThis.lucide");
+    expect(out).toContain("const a = 1;");
+  });
+});
