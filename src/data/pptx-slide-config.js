@@ -164,4 +164,12 @@ export const CONFIG = {
   overflowLineHeightCode: 28,
   overflowLineHeightBlank: 16,
   overflowWrapLength: 60,
+  // Cap on body elements redistributed into two balanced overflow bins: past
+  // this many, a two-column split degrades readability and the body renders
+  // single-column instead.
+  maxSplitBodyElements: 10,
+  // Tables carry no character content in the extraction, so layout heuristics
+  // that measure text length would treat a slide full of tables as "short".
+  // Each table row counts as this many characters of content volume instead.
+  tableRowCharEquivalent: 20,
 };

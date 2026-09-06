@@ -84,32 +84,117 @@ function cssBackgroundPosition(el, slideWidth, slideHeight) {
  * available to a single column. Line heights and the available area are
  * constants calibrated to the fixed 1920x1080 render geometry, so the result
  * does not depend on the source deck's page size. Long lines (body and
- * headings) are assumed to wrap. Only text elements are measured — tables,
- * charts, diagrams, and images size themselves.
+ * headings) are assumed to wrap; tables contribute one line height per row.
+ * Images, charts, and diagrams size themselves and are not measured.
  * @param {import('./pptx-extractor.js').ExtractedElement[]} bodyElements
  * @returns {boolean}
  */
 function estimateBodyOverflow(bodyElements) {
   const available = CONFIG.overflowBodyAreaHeight;
   let required = 0;
-  for (const el of bodyElements) {
-    if (el.type !== ELEMENT_TYPES.TEXT || !el.content) continue;
-    for (const line of el.content.split("\n")) {
-      const t = line.trim();
-      if (!t) {
-        required += CONFIG.overflowLineHeightBlank;
-      } else if (t === "```") {
-        required += CONFIG.overflowLineHeightCode;
-      } else if (/^#{1,3}\s/.test(t)) {
-        const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
-        required += CONFIG.overflowLineHeightHeading * wrappedLines;
-      } else {
-        const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
-        required += CONFIG.overflowLineHeightBody * wrappedLines;
-      }
+  for (const el of bodyElements) required += estimateElementHeight(el);
+  return required > available;
+}
+
+/**
+ * Estimate the rendered height (px) of a single body element on the fixed
+ * 1920x1080 stage, using the same calibration constants as
+ * `estimateBodyOverflow`. Text is measured line-by-line with wrapping;
+ * a table contributes one body line height per row.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @returns {number}
+ */
+function estimateElementHeight(el) {
+  if (!el) return 0;
+  if (el.type === ELEMENT_TYPES.TABLE) {
+    return (el.rows?.length || 0) * CONFIG.overflowLineHeightBody;
+  }
+  if (el.type !== ELEMENT_TYPES.TEXT || !el.content) return 0;
+  let required = 0;
+  for (const line of el.content.split("\n")) {
+    const t = line.trim();
+    if (!t) {
+      required += CONFIG.overflowLineHeightBlank;
+    } else if (t === "```") {
+      required += CONFIG.overflowLineHeightCode;
+    } else if (/^#{1,3}\s/.test(t)) {
+      const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
+      required += CONFIG.overflowLineHeightHeading * wrappedLines;
+    } else {
+      const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
+      required += CONFIG.overflowLineHeightBody * wrappedLines;
     }
   }
-  return required > available;
+  return required;
+}
+
+/**
+ * Split body elements into two columns of roughly equal estimated height,
+ * preserving top-to-bottom order. Used when an overflowing body is stacked
+ * vertically in the source (so position-based column detection sees one
+ * column): the elements flow into two-column's @main and @media instead of
+ * stacking in a single ~770px column. Both bins are non-empty when
+ * `elements.length >= 2`.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
+ * @returns {[import('./pptx-extractor.js').ExtractedElement[], import('./pptx-extractor.js').ExtractedElement[]]}
+ */
+function splitIntoOverflowBins(elements) {
+  const sorted = [...elements].sort((a, b) => (a.top || 0) - (b.top || 0));
+  const heights = sorted.map((el) => estimateElementHeight(el));
+  const total = heights.reduce((sum, h) => sum + h, 0);
+  let acc = 0;
+  // Default: the last (heaviest trailing) element gets its own bin. The loop
+  // only walks up to length-2, so when even the full prefix never reaches
+  // half the estimated height, the final element is the one that overflows.
+  let splitIdx = sorted.length - 1;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    acc += heights[i];
+    if (acc * 2 >= total) {
+      splitIdx = i + 1;
+      break;
+    }
+  }
+  return [sorted.slice(0, splitIdx), sorted.slice(splitIdx)];
+}
+
+/**
+ * Partition body elements into left/right columns at the slide midline.
+ * Elements overwhelmingly overlapping one side (1.2x area rule) go there;
+ * straddlers go to whichever side their center favors — except straddlers
+ * wider than half the slide, which lead the LEFT column: a box spanning the
+ * midline is lead content (e.g. a wide code block) and belongs in @main,
+ * where reading order starts.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
+ * @param {number} midX
+ * @param {number} slideHeight
+ * @param {number} slideWidth
+ * @returns {{ leftEls: import('./pptx-extractor.js').ExtractedElement[], rightEls: import('./pptx-extractor.js').ExtractedElement[] }}
+ */
+function partitionBodyColumns(elements, midX, slideHeight, slideWidth) {
+  const leftEls = elements.filter(
+    (el) =>
+      getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
+      getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
+  );
+  const rightEls = elements.filter(
+    (el) =>
+      getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
+      getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
+  );
+  const classified = new Set([...leftEls, ...rightEls]);
+  for (const el of elements) {
+    if (classified.has(el)) continue;
+    const elCenterX = (el.left || 0) + (el.width || 0) / 2;
+    if (elCenterX < midX || (el.width || 0) > slideWidth / 2) leftEls.push(el);
+    else rightEls.push(el);
+  }
+  // Straddlers were appended after the classified elements; restore
+  // top-to-bottom reading order so lead content (a wide code block) renders
+  // before lower elements in its column.
+  const byTop = (a, b) => (a.top || 0) - (b.top || 0);
+  leftEls.sort(byTop);
+  rightEls.sort(byTop);
+  return { leftEls, rightEls };
 }
 
 /**
@@ -556,15 +641,39 @@ function convertSlide(
         el.type === ELEMENT_TYPES.DIAGRAM),
   );
 
-  const hasMedia = allElements.some((el) => el.type !== ELEMENT_TYPES.TEXT);
+  // "Media" for layout inference means image-like content. Tables are
+  // text-like — they flow into a column like prose — but counting them as
+  // media sent table-heavy slides down the image-branch fallbacks, which end
+  // at header-content and stack everything into a single column.
+  const hasMedia = allElements.some(
+    (el) =>
+      el.type === ELEMENT_TYPES.IMAGE ||
+      el.type === ELEMENT_TYPES.CHART ||
+      el.type === ELEMENT_TYPES.DIAGRAM,
+  );
 
   // Prune slides with no content elements
   if (allElements.length === 0 && footerElements.length === 0) {
     return slide.notes ? parts.join("\n") : "";
   }
 
+  // Layout inference must see tables even though they carry no text: tables
+  // have real geometry, and excluding them made column detection ignore
+  // side-by-side tables entirely (they fell out of every heuristic as "no
+  // content" and the slide rendered as a single stacked column). Header
+  // extraction below still receives text-only elements.
+  const layoutElements = [
+    ...textElements,
+    ...meaningfulElements.filter(
+      (el) =>
+        el.type === ELEMENT_TYPES.TABLE &&
+        el.rows?.length &&
+        el.placeholderType !== ELEMENT_TYPES.FOOTER,
+    ),
+  ];
+
   let layout = inferLayout(
-    textElements,
+    layoutElements,
     slideWidth,
     slideHeight,
     hasMedia,
@@ -594,10 +703,10 @@ function convertSlide(
 
   // Overflow upgrade: a single-column slide whose body needs more vertical
   // space than the area provides is redistributed into two columns.
-  // NOTE: only a single body element can be content-split (see the pre-check
-  // and renderer below), so multi-element bodies that overflow are upgraded
-  // and then downgraded back to header-content — the heuristic does not fix
-  // multi-box overflow, it only avoids regressing it.
+  // A single body element can be content-split at line/row boundaries.
+  // A multi-element body is redistributed into two balanced bins (see
+  // `splitIntoOverflowBins`), so the overflow heuristic fixes multi-box
+  // bodies stacked vertically in the source, not just single-box ones.
   const bodyOverflows = estimateBodyOverflow(bodyElements);
   // A table with 8+ rows is a splittable body — upgrade to two-column so
   // the table can be split at the row midpoint into side-by-side tables.
@@ -608,7 +717,7 @@ function convertSlide(
   if (
     (bodyOverflows || hasSplittableTableBody) &&
     bodyElements.length > 0 &&
-    layout.type === LAYOUT.HEADER_CONTENT.type
+    (layout.type === LAYOUT.HEADER_CONTENT.type || layout.type === LAYOUT.FOCUS.type)
   ) {
     layout = { type: LAYOUT.TWO_COLUMN.type, spec: LAYOUT.TWO_COLUMN.spec };
   }
@@ -618,36 +727,22 @@ function convertSlide(
   // Use 1.2x threshold (less aggressive than 1.5x) to avoid false positives
   // on centered or right-side elements.
   if (layout.type === LAYOUT.TWO_COLUMN.type) {
-    const leftEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
-    );
-    const rightEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
-    );
-    // Catch unclassified elements that straddle the midpoint — assign to
-    // the column whose center is closer.  Without this, a wide image that
-    // spans both columns causes a false downgrade to header-content.
-    const classified = new Set([...leftEls, ...rightEls]);
-    for (const el of bodyElements) {
-      if (classified.has(el)) continue;
-      const elCenterX = (el.left || 0) + (el.width || 0) / 2;
-      if (elCenterX < midX) leftEls.push(el);
-      else rightEls.push(el);
-    }
+    const { leftEls, rightEls } = partitionBodyColumns(bodyElements, midX, slideHeight, slideWidth);
     if (leftEls.length === 0 || rightEls.length === 0) {
-      // Keep TWO_COLUMN if there's a single element that can be content-split:
-      // a wide element (merged code from PPTX), an overflowing body, or a
-      // table with 8+ rows that can be split at the row midpoint.
+      // Keep TWO_COLUMN when the body can be redistributed: a single element
+      // that can be content-split (wide merged code from PPTX, an overflowing
+      // body, a table with 8+ rows), or an overflowing multi-element body
+      // that fits the element-bin cap (see `splitIntoOverflowBins`).
       const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
       const hasSplittableTable =
         bodyElements.length === 1 &&
         bodyElements[0].type === ELEMENT_TYPES.TABLE &&
         (bodyElements[0].rows?.length || 0) >= 8;
-      if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows || hasSplittableTable))) {
+      const splittableOverflow =
+        bodyElements.length === 1
+          ? hasWideElement || bodyOverflows || hasSplittableTable
+          : bodyOverflows && bodyElements.length <= CONFIG.maxSplitBodyElements;
+      if (!splittableOverflow) {
         layout = LAYOUT.HEADER_CONTENT;
       }
     }
@@ -911,27 +1006,8 @@ function convertSlide(
       if (header) parts.push(formatTextElement(header.content));
     }
   } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
-    const leftEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
-    );
-    const rightEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
-    );
+    const { leftEls, rightEls } = partitionBodyColumns(bodyElements, midX, slideHeight, slideWidth);
 
-    // Catch unclassified elements (e.g. an image straddling the midpoint)
-    // that don't clear the 1.2x threshold for either side. Assign to the
-    // column whose center is closer to the element's center.
-    const classified = new Set([...leftEls, ...rightEls]);
-    for (const el of bodyElements) {
-      if (classified.has(el)) continue;
-      const elCenterX = (el.left || 0) + (el.width || 0) / 2;
-      if (elCenterX < midX) leftEls.push(el);
-      else rightEls.push(el);
-    }
     // If the position split leaves one side empty, check for a single element
     // that spans both columns (merged code from PPTX extraction) or overflows
     // the column area. Split its content at a safe boundary — not inside a
@@ -952,6 +1028,19 @@ function convertSlide(
         bodyElements[0].type === ELEMENT_TYPES.TABLE &&
         (bodyElements[0].rows?.length || 0) >= 8
           ? bodyElements[0]
+          : null;
+      // An overflowing multi-element body cannot content-split (that needs a
+      // single element); redistribute whole elements into two balanced bins
+      // so the content flows into @main and @media instead of stacking in one
+      // ~770px column. A single element heavier than a column can still
+      // overflow — element-level binning is a heuristic, not a fit guarantee.
+      const splitBins =
+        !splitEl &&
+        !splitTable &&
+        bodyOverflows &&
+        bodyElements.length > 1 &&
+        bodyElements.length <= CONFIG.maxSplitBodyElements
+          ? splitIntoOverflowBins(bodyElements)
           : null;
       if (splitEl) {
         const rawContent = splitEl.content || "";
@@ -1064,10 +1153,29 @@ function convertSlide(
         parts.push(MARKDOWN_TAGS.MEDIA);
         parts.push("");
         parts.push(formatTable(rightTable, 0));
+      } else if (splitBins) {
+        const [leftBin, rightBin] = splitBins;
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(
+          renderElementsWithFlex(leftBin, slideWidth, slideHeight, deckName, formatSingleElement),
+        );
+        parts.push("");
+        parts.push(MARKDOWN_TAGS.MEDIA);
+        parts.push("");
+        parts.push(rightBin.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
       } else {
-        // No single element to content-split (multiple body elements landed
-        // on one side). Downgrade to header-content and render the body
-        // immediately — the late fallback must not be the only renderer.
+        // No split possible: not overflowing, or too many body elements to bin
+        // (see maxSplitBodyElements). Downgrade to header-content and render
+        // the body immediately — the late fallback must not be the only
+        // renderer.
         layout = LAYOUT.HEADER_CONTENT;
         setLayoutDirective(parts, layout);
         const singleImage =
@@ -1105,27 +1213,12 @@ function convertSlide(
       }
     } else {
       // Overlap-based split
-      const leftEls = bodyElements.filter(
-        (el) =>
-          getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-          getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
+      const { leftEls, rightEls } = partitionBodyColumns(
+        bodyElements,
+        midX,
+        slideHeight,
+        slideWidth,
       );
-      const rightEls = bodyElements.filter(
-        (el) =>
-          getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-          getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
-      );
-
-      // Catch unclassified elements (e.g. middle image straddling the midpoint)
-      // that don't clear the 1.2x threshold for either side. Assign to the
-      // column whose center is closer to the element's center.
-      const classified = new Set([...leftEls, ...rightEls]);
-      for (const el of bodyElements) {
-        if (classified.has(el)) continue;
-        const elCenterX = (el.left || 0) + (el.width || 0) / 2;
-        if (elCenterX < midX) leftEls.push(el);
-        else rightEls.push(el);
-      }
 
       if (rightEls.length === 0) {
         // No elements on the right — downgrade to header-content

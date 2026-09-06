@@ -1581,10 +1581,11 @@ describe("convertToSlideMd", () => {
     expect(mediaSection).toContain("Tail line number 12");
   });
 
-  it("patches the layout directive when the pre-check downgrades two-column", () => {
+  it("splits two overflowing body elements stacked on the left into one bin per element", () => {
     // Two overflowing body elements stacked on the left are forced into
-    // two-column by the overflow upgrade, but the pre-check finds no right
-    // column and downgrades — the emitted directive must match.
+    // two-column by the overflow upgrade; the pre-check finds no right
+    // column, but the body is splittable, so each element becomes one bin
+    // (@main and @media) instead of stacking into a single column.
     const longText = "Stacked body element with a lot of words. ".repeat(20);
     const extraction = makeExtraction([
       {
@@ -1621,10 +1622,16 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: header-content");
-    expect(md).not.toContain("layout: two-column");
+    expect(md).toContain("layout: two-column");
     expect(md).toContain("@main");
-    expect(md).toContain("Stacked body element");
+    expect(md).toContain("@media");
+    // The two elements are equal height, so each gets its own bin: the
+    // 40 repetitions split 20/20 across the two areas.
+    expect((md.match(/Stacked body element/g) || []).length).toBe(40);
+    const mainPart = md.slice(md.indexOf("@main"), md.indexOf("@media"));
+    const mediaPart = md.slice(md.indexOf("@media"));
+    expect((mainPart.match(/Stacked body element/g) || []).length).toBe(20);
+    expect((mediaPart.match(/Stacked body element/g) || []).length).toBe(20);
   });
 
   it("picks the media-span variant from the media-only column, not the first dominant image", () => {
@@ -2512,6 +2519,239 @@ describe("convertToSlideMd", () => {
     expect((md.match(/assert case number/g) || []).length).toBe(14);
     expect(md).toContain("### assert case number 1");
     expect(md).toContain("### assert case number 14");
+  });
+
+  it("redistributes an overflowing stacked multi-element body into two-column bins", () => {
+    // Regression: a vertically stacked body (intro + long bullet list + table)
+    // used to upgrade to two-column and then downgrade back to
+    // header-content, because only single-element bodies could be split.
+    // The whole stack landed in one ~770px @main and overflowed.
+    const intro = "### Week 04 concepts";
+    const bullets = Array.from({ length: 10 }, (_, i) => `- Pointer concept ${i + 1}`).join("\n");
+    const tableRows = [
+      [{ text: "Address" }, { text: "Value" }],
+      ...Array.from({ length: 14 }, (_, i) => [{ text: `4399${i}` }, { text: `${i}` }]),
+    ];
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Pointers",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "# Pointers",
+            left: 0,
+            top: 0,
+            width: 300 * 12700,
+            height: 40 * 12700,
+          },
+          {
+            type: "text",
+            content: intro,
+            left: 0,
+            top: 60 * 12700,
+            width: 300 * 12700,
+            height: 40 * 12700,
+          },
+          {
+            type: "text",
+            content: bullets,
+            left: 0,
+            top: 110 * 12700,
+            width: 300 * 12700,
+            height: 200 * 12700,
+          },
+          {
+            type: "table",
+            rows: tableRows,
+            left: 0,
+            top: 320 * 12700,
+            width: 300 * 12700,
+            height: 80 * 12700,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    // The first bin (intro + bullets) flows into @main, the second (table)
+    // into @media, and every piece of content survives exactly once.
+    expect((md.match(/Pointer concept /g) || []).length).toBe(10);
+    expect((md.match(/4399/g) || []).length).toBe(14);
+    const mainPart = md.slice(mainIdx, mediaIdx);
+    const mediaPart = md.slice(mediaIdx);
+    expect(mainPart).toContain("Week 04 concepts");
+    expect(mainPart).toContain("Pointer concept 10");
+    expect(mediaPart).toContain("Address");
+    expect(mediaPart).toContain("439913");
+  });
+
+  it("detects side-by-side tables as two-column even when the tables carry no text", () => {
+    // Regression (COMP 1510 Week 07, "Now let's create some integers"): the
+    // source slide has a wide code box top-left, an 8-row memory table on the
+    // right and a 4-row variable table below the code. Tables have no
+    // `.content`, so they used to vanish from layout inference: the slide
+    // inferred as focus/header-content and stacked everything into one
+    // overflowing column instead of two.
+    const memoryRows = [
+      [{ text: "Address" }, { text: "Value" }],
+      ...Array.from({ length: 7 }, (_, i) => [{ text: `4399${i}` }, { text: `${i}` }]),
+    ];
+    const variableRows = [
+      [{ text: "Variable" }, { text: "Value" }],
+      [{ text: "voyager" }, { text: "@4399779904" }],
+      [{ text: "rover" }, { text: "@4399779968" }],
+    ];
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Integers",
+        notes: "",
+        elements: [
+          // 720x405pt deck; midX = 360pt
+          {
+            type: "text",
+            content: "# Now let's create some integers",
+            left: 0,
+            top: 0,
+            width: 720 * 12700,
+            height: 100 * 12700,
+          },
+          {
+            type: "text",
+            content: "### Let's execute this code:\n\n```\nvoyager = 2\nrover = 4\n```",
+            left: 97 * 12700,
+            top: 108 * 12700,
+            width: 574 * 12700,
+            height: 257 * 12700,
+          },
+          {
+            type: "table",
+            rows: memoryRows,
+            left: 384 * 12700,
+            top: 114 * 12700,
+            width: 206 * 12700,
+            height: 227 * 12700,
+          },
+          {
+            type: "table",
+            rows: variableRows,
+            left: 97 * 12700,
+            top: 221 * 12700,
+            width: 221 * 12700,
+            height: 119 * 12700,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    const mainPart = md.slice(md.indexOf("@main"), md.indexOf("@media"));
+    const mediaPart = md.slice(md.indexOf("@media"));
+    // Left column: code first (wide straddler leads), then the variable table
+    expect(mainPart).toContain("Let's execute this code:");
+    expect(mainPart.indexOf("Let's execute")).toBeLessThan(mainPart.indexOf("voyager"));
+    expect(mainPart).toContain("rover = 4");
+    // Right column: the memory table
+    expect(mediaPart).toContain("Address");
+    expect(mediaPart).toContain("43996");
+    // Everything survives exactly once
+    expect((md.match(/voyager = 2/g) || []).length).toBe(1);
+  });
+
+  it("keeps a short stacked multi-element body in a single column (no false split)", () => {
+    // The body is short (no overflow) and nothing is side-by-side, so the
+    // slide must stay single-column: no two-column upgrade, no @media area.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Small Body",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "# Small Body",
+            left: 0,
+            top: 0,
+            width: 300 * 12700,
+            height: 40 * 12700,
+          },
+          {
+            type: "text",
+            content: "### A short note",
+            left: 0,
+            top: 60 * 12700,
+            width: 300 * 12700,
+            height: 40 * 12700,
+          },
+          {
+            type: "text",
+            content: "- one\n- two",
+            left: 0,
+            top: 110 * 12700,
+            width: 300 * 12700,
+            height: 60 * 12700,
+          },
+          {
+            type: "table",
+            rows: [
+              [{ text: "A" }, { text: "B" }],
+              [{ text: "1" }, { text: "2" }],
+            ],
+            left: 0,
+            top: 180 * 12700,
+            width: 300 * 12700,
+            height: 40 * 12700,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Short content infers focus (single @main); the invariant is that no
+    // two-column split happens for a body that fits.
+    expect(md).toContain("layout: focus");
+    expect(md).toContain("A short note");
+    expect(md).toContain("- one");
+    expect(md).not.toContain("@media");
+  });
+
+  it("does not bin bodies with more elements than maxSplitBodyElements", () => {
+    // 11 stacked 3-line text elements need ~1122px (overflow) but exceed the
+    // bin cap, so the body falls back to header-content instead of binning.
+    const elements = [
+      {
+        type: "text",
+        content: "# Dense",
+        left: 0,
+        top: 0,
+        width: 300 * 12700,
+        height: 40 * 12700,
+      },
+    ];
+    for (let i = 0; i < 11; i++) {
+      elements.push({
+        type: "text",
+        content: `Box ${i + 1}\nline two\nline three`,
+        left: 0,
+        top: (50 + i * 30) * 12700,
+        width: 300 * 12700,
+        height: 28 * 12700,
+      });
+    }
+    const extraction = makeExtraction([
+      { index: 0, title: "Dense", notes: "", elements, background: "" },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).not.toContain("@media");
   });
 
   it("upgrades media-span to two-column when body overflows", () => {
