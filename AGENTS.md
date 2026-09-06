@@ -8,9 +8,10 @@ For most tasks, use this loop:
 
 1. **Understand** the request and read the relevant code.
 2. **Implement** a small, coherent change.
-3. **Review** the implementation adversarially.
-4. **Fix** any review findings.
-5. **Run checks** — for non-trivial changes, run all five quality gates:
+3. **Offer the user a smoke test** for user-facing changes — give concrete steps and wait for confirmation (see [Phase 0](#phase-0--user-smoke-test-before-any-code-review)).
+4. **Review** the implementation adversarially.
+5. **Fix** any review findings.
+6. **Run checks** — for non-trivial changes, run all five quality gates:
    - `npm run lint`
    - `npm run format:check`
    - `npm test`
@@ -19,8 +20,8 @@ For most tasks, use this loop:
 
    For trivial changes (typo fixes, single-file config edits, pure formatting), run the relevant targeted check.
 
-6. **Re-review** after fixes and checks.
-7. **Report** what changed and whether checks passed.
+7. **Re-review** after fixes and checks.
+8. **Report** what changed and whether checks passed.
 
 - Ask the user before destructive actions, git commits/pushes, or anything with real-world side effects.
 - For trivial changes (typo fixes, single-file config edits, pure formatting), run the relevant check and report briefly.
@@ -100,6 +101,8 @@ Inspect relevant code
       ↓
 Implement incrementally
       ↓
+Offer the user a smoke test (user-facing changes; wait for confirmation)
+      ↓
 Self-review
       ↓
 Fix review findings
@@ -115,7 +118,7 @@ Final verification
 Report completion
 ```
 
-Do not stop between these stages to ask the user for approval unless the task itself requires a user decision or the instructions above explicitly require approval.
+Do not stop between these stages to ask the user for approval unless the task itself requires a user decision or the instructions above explicitly require approval. The Phase 0 smoke test below is one of those explicit stops.
 
 Prefer small, logically coherent changes over large speculative rewrites.
 
@@ -124,11 +127,22 @@ Prefer small, logically coherent changes over large speculative rewrites.
 ## Review & Verification Loop — MANDATORY
 
 After implementation, perform an adversarial review before declaring the task complete.
+For user-facing changes, run the Phase 0 smoke test gate first and wait for the user's confirmation.
 
 If the environment provides an independent reviewer, invoke it.
 Otherwise, perform the review yourself.
 
 Treat the reviewer as a skeptical senior engineer who did not write the code.
+
+### Phase 0 — User smoke test (before any code review)
+
+For every change the user can see or run — UI, editor flows, import/export, CLI output, docs — pause after implementing and before starting the review:
+
+1. Give the user concrete smoke-test steps: how to run the change locally (dev server or CLI command), exactly what to click/press, and the expected outcome of each step.
+2. Wait for the user to confirm the smoke test passes, or to report problems.
+3. Fix anything the smoke test surfaced, then continue to Phase 1.
+
+Do not start the review loop while the smoke test is still outstanding. A passed smoke test does not replace the review and verification loop — both are required. Pure refactors, test-only changes, and config edits may skip this gate.
 
 ### Phase 1 — Understand the final change
 
