@@ -21,8 +21,8 @@ For AI-assistant guidance aimed at coding tools working on this repository, see
 ## Setup
 
 ```bash
-git clone https://github.com/hesamat/html-presentation.git
-cd html-presentation
+git clone https://github.com/hesamat/slidemd.git
+cd slidemd
 npm install
 npm run dev
 ```

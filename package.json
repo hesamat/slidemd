@@ -12,11 +12,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hesamat/html-presentation.git"
+    "url": "https://github.com/hesamat/slidemd.git"
   },
-  "homepage": "https://github.com/hesamat/html-presentation#readme",
+  "homepage": "https://github.com/hesamat/slidemd#readme",
   "bugs": {
-    "url": "https://github.com/hesamat/html-presentation/issues"
+    "url": "https://github.com/hesamat/slidemd/issues"
   },
   "keywords": [
     "markdown",

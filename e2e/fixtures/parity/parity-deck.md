@@ -24,7 +24,7 @@ layout: two-column
 
 1. **Bold lead** with trailing text
 2. _Italic_ and `inline code`
-3. A [link to SlideMD](https://github.com/hesamat/html-presentation)
+3. A [link to SlideMD](https://github.com/hesamat/slidemd)
 
 > A blockquote that must survive both parsers unchanged.
 
@@ -58,7 +58,7 @@ Full-height media area spanning every row.
 
 @footer
 
-Fixture deck for [export/render parity](https://github.com/hesamat/html-presentation).
+Fixture deck for [export/render parity](https://github.com/hesamat/slidemd).
 
 ---
 
