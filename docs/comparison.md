@@ -14,10 +14,14 @@ for, and the right choice depends on what you are teaching and how you work.
 | Presenter view              | ✓ dual-window, notes, timer                                | ✓               | ✓ speaker view         | ✗               | ✓ presenter mode  |
 | Deterministic layout        | ✓ fixed 1920x1080 stage                                    | ✓               | responsive/theme-based | theme-based     | responsive        |
 | PPTX import                 | ✓ built-in, rule-based                                     | n/a             | ✗                      | ✗               | ✗                 |
-| Offline single-file export  | ✓ (all assets inlined)                                     | ✓               | needs hosting/assets   | ✓ (HTML export) | needs build step  |
+| Offline single-file export  | ✓ (single file)                                            | ✓               | needs hosting/assets   | ✓ (HTML export) | needs build step  |
 | Accounts / cloud            | ✗ none                                                     | Microsoft 365   | ✗                      | ✗               | ✗                 |
 | Built-in AI post-processing | ✓ enhance / remix / reimagine                              | add-ons         | ✗                      | ✗               | community plugins |
 | Runs without install        | ✓ (exported HTML); editing needs Node + a Chromium browser | ✓               | needs a web server     | needs CLI       | needs Node        |
+
+\* SlideMD's exported HTML inlines all vendor code; the only runtime external
+requests are Google-hosted fonts (the app's UI fonts, plus metric-compatible
+font metrics when rasterizing PPTX diagrams). System fonts take over offline.
 
 ## The short version
 
