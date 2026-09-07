@@ -799,7 +799,7 @@ describe("PptxExtractor ordered list start attribute injection", () => {
 
 describe("PptxExtractor diagram detection", () => {
   // Test helper to create mock elements that match ExtractedElement shape.
-  // Includes the Phase 14.9 geometry fields (path, border, transform, fillRaw)
+  // Includes the shape geometry fields (path, border, transform, fillRaw)
   // so diagram/shape elements carry everything the shape-renderer needs.
   const makeShape = (overrides = {}) => ({
     type: "text",

@@ -203,7 +203,7 @@ export class PptxExtractor {
     // Convert TIFF images to PNG (browsers can't display TIFF natively)
     await convertTiffImages(slides, images);
 
-    // Render shape/diagram groups to PNG screenshots (Phase 14.9, #117).
+    // Render shape/diagram groups to PNG screenshots (#117).
     // First try the high-fidelity slide-crop path; fall back to the SVG
     // builder if the cropper is unavailable or fails.
     await renderDiagramsToPng(slides, images, buffer, warnings);

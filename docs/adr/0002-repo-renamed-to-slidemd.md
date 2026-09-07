@@ -46,8 +46,8 @@ Alternatives considered:
 - Previously exported HTML decks keep working; they are self-contained and
   were never coupled to the repo name.
 - The codebase carries an internal codename that no longer matches the repo
-  or product name. This ADR and the Phase 17 "Rename & Branding" rows in
-  [`ROADMAP.md`](../../ROADMAP.md) are the pointer for new contributors.
+  or product name. This ADR is the record of that decision for new
+  contributors.
 - If a future release ever needs user-facing persistence renamed, it requires
   a read-old/write-new migration, a renamed-or-dual-fired `webdeck:ready`
   bootstrap, and an IndexedDB migration; the identifier families listed above
@@ -58,5 +58,4 @@ Alternatives considered:
 ## Links
 
 - [ADR-0001](./0001-record-architecture-decisions.md) — ADR practice
-- [`ROADMAP.md`](../../ROADMAP.md) — Phase 17, "Rename & Branding"
 - [`CONTRIBUTING.md`](../../CONTRIBUTING.md) — updated clone instructions

@@ -4,14 +4,20 @@ This document describes the release process for SlideMD.
 
 ## Versioning
 
+- SlideMD uses semantic versioning starting at `1.0.0`: breaking changes to
+  the authoring syntax, deck formats, or supported environments bump the major
+  version, new features bump the minor version, and bug fixes bump the patch
+  version.
 - Each released PR gets its own version bump. A release whose changes live on
-  a feature branch is released as its own version (e.g. `0.9.2`); it is NOT
+  a feature branch is released as its own version (e.g. `1.2.1`); it is NOT
   folded into the next pending changelog section.
 - `CHANGELOG.md` sections are marked `(Unreleased)` until the release PR is
   merged; the release PR replaces `(Unreleased)` with the release date.
-- **Feature branches do NOT bump `package.json` version or edit `CHANGELOG.md`.**
-  Those changes belong on the release branch (below), so the feature branch
-  stays a clean code-only PR.
+- Public changelog history starts at `1.0.0`. Versions `0.1.0`–`0.14.0`
+  predate the public release; their history lives in the git log.
+- **Feature branches do NOT bump `package.json` version or edit
+  `CHANGELOG.md`.** Those changes belong on the release branch (below), so
+  the feature branch stays a clean code-only PR.
 
 ## Prerequisites
 

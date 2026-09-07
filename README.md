@@ -91,7 +91,9 @@ Download the latest release from [GitHub Releases](https://github.com/hesamat/sl
 | AI prompt structure                                    | [docs/prompt-template.md](docs/prompt-template.md)       |
 | AI/tool feature boundary                               | [docs/ai-positioning.md](docs/ai-positioning.md)         |
 | How SlideMD compares                                   | [docs/comparison.md](docs/comparison.md)                 |
+| How SlideMD was built (pre-1.0 retrospective)          | [docs/history.md](docs/history.md)                       |
 | Contributing                                           | [CONTRIBUTING.md](CONTRIBUTING.md)                       |
+| Changelog                                              | [CHANGELOG.md](CHANGELOG.md)                             |
 | Roadmap                                                | [ROADMAP.md](ROADMAP.md)                                 |
 
 ## Browser Support

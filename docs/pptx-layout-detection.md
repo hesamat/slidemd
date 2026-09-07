@@ -124,7 +124,7 @@ grounded in corpus analysis of real decks:
 | Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision in `inferLayout`                      |
 | Small icon/logo beside the heading                     | Treated as content image                      | Header-band filter drops small images in the shared `bodyTopRatio` band |
 
-## Shape & diagram rendering (Phase 14.9, #117)
+## Shape & diagram rendering (#117)
 
 Shape groups and diagrams (detected by `PptxExtractor.#isManualDiagram()` /
 `#detectTopLevelDiagrams()`) are rendered to PNG screenshots instead of
