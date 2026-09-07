@@ -109,7 +109,10 @@ import { hydrateIcons } from "./src/core/icon.js";
     // the first render, otherwise the markdown restores from localStorage
     // while images/ refs fall back to the CLI server (which only serves the
     // deck it was launched with) and every slide image breaks on refresh.
-    if (!isExported && !isViewer && DeckImagesResolver.restorePersistedHandle) {
+    // Viewer windows are same-origin, so they share the localStorage flags
+    // and the IndexedDB handle — without this, the audience screen shows
+    // broken images for picker-opened decks while the editor renders fine.
+    if (!isExported && DeckImagesResolver.restorePersistedHandle) {
       await DeckImagesResolver.restorePersistedHandle();
     }
 

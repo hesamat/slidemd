@@ -340,6 +340,13 @@ export class DeckController extends EventEmitter {
     try {
       const resolver = this._deckImagesResolver;
       if (!resolver) return;
+      // Viewer windows share localStorage and IndexedDB with the editor, so
+      // re-attaching the persisted folder handle on every rewrite picks up
+      // images the presenter added (and saved) after this window was opened.
+      // Idempotent, and a no-op for decks not opened through the picker.
+      if (RoleManager.isViewerMode() && resolver.restorePersistedHandle) {
+        await resolver.restorePersistedHandle();
+      }
       await resolver.rewriteImgSrcs(this.elements.slidesContainer);
       await resolver.rewriteBackgroundUrls(this.elements.slidesContainer);
     } catch {
