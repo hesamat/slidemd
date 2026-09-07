@@ -69,18 +69,29 @@ All checks must pass (lint, format, build, tests). Requires 1 approval.
 gh pr merge N --admin --merge
 ```
 
-### 6. Tag and create GitHub release
+### 6. Tag and publish the GitHub release
 
 ```bash
 git checkout main
 git pull origin main
 git tag vX.Y.Z
 git push origin vX.Y.Z
-gh release create vX.Y.Z --title "vX.Y.Z" --notes-file CHANGELOG.md
 ```
 
-The tag push triggers `.github/workflows/release.yml`, which builds the HTML
-and PDF and attaches them to the release.
+The tag push triggers `.github/workflows/release.yml`, which re-runs the
+checks, builds the HTML and PDF, and creates the GitHub release with both
+assets attached. Auto-generated release notes are disabled — finish the
+release by pasting the new `## X.Y.Z` section from `CHANGELOG.md` into the
+release body:
+
+```bash
+awk '/^## X.Y.Z \(/{flag=1} flag && /^## [0-9]+\./{exit} flag' CHANGELOG.md > /tmp/release-body.md
+gh release edit vX.Y.Z --notes-file /tmp/release-body.md
+```
+
+The release notes are the curated changelog section only: GitHub's
+auto-generated "What's Changed" list is not used, because the first release
+would otherwise pull in the project's entire pre-release PR history.
 
 ## Branch Protection Rules
 
