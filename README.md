@@ -16,17 +16,20 @@ SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on
 
 ## Features
 
-- **Markdown-first authoring** — layouts, themes, and backgrounds via simple directives
-- **Live editing** — split-screen editor with instant preview, autocomplete, and slash commands
+- **Markdown-first authoring** — layouts, themes, slide/area backgrounds, and media full-bleed via simple directives
+- **Live editing** — split-screen editor with instant preview, autocomplete, slash commands, drag-and-drop for images, code, diagrams, and math, plus drag-to-resize columns on multi-column layouts
+- **Text blocks** — `::: text-block` container directives for multi-column text, styled blocks, and a speech-bubble preset with tail controls
 - **Image styling** — opacity, corner radius, flip, rotation, and brightness/contrast/saturation filters via the image properties panel
 - **Dual-window presenter view** — speaker notes, next-slide preview, and break timer
+- **Command palette & search** — `Ctrl+K` command palette and full-text slide search (`/` or `Ctrl+Shift+F`)
+- **Undo & save** — global undo/redo spans structural edits; `Ctrl+S` saves to disk and updates the local baseline that reloads and other windows pick up
 - **Accessibility** — screen-reader announcements of slide changes, semantic slide labels, keyboard-first navigation with documented shortcuts, and alt text preserved from PPTX import through export
 - **Code highlighting** via Prism, **math** via KaTeX, **diagrams** via Mermaid
 - **Table styling** — `::: table { ... }` container directive for width, alignment, borders, striping, header color, and column weights
 - **PPTX import** — convert PowerPoint decks to Markdown with layout inference, in the app or from the command line (`npm run pptx`)
-- **AI editing** — enhance, remix, or reimagine slides with OpenRouter, Ollama, or any OpenAI-compatible endpoint
-- **Export** — standalone HTML (all assets inlined) or deterministic PDF
-- **Offline builds** — no Tailwind, no CDN dependencies at runtime
+- **AI editing** — enhance, remix, or reimagine slides with OpenRouter, Ollama, or any OpenAI-compatible endpoint; remix and reimagine can optionally see the deck's content images, the Reimagine outline is editable before generation, and AI results that race your own edits are detected with a keep-or-merge choice
+- **Export** — standalone HTML (vendor assets inlined) or deterministic PDF
+- **Offline builds** — highlighter, math, diagram, and icon assets are inlined at build time; the only runtime external requests are the Google-hosted UI fonts
 - **`.md + images/` or `.textpack`** — diffable in git or shareable as a single file
 
 ## Quick Start
@@ -72,7 +75,7 @@ layout: header-content
 
 Download the latest release from [GitHub Releases](https://github.com/hesamat/slidemd/releases/latest). Each release includes:
 
-- `slides.html` — a single self-contained file that works offline in any browser
+- `slides.html` — a single self-contained file that works offline in any browser (system fonts substitute for the web fonts when offline)
 - `slides.pdf` — a pre-generated PDF of the example deck
 
 ## Documentation
@@ -87,12 +90,22 @@ Download the latest release from [GitHub Releases](https://github.com/hesamat/sl
 | Example deck                                           | [docs/example/slides.md](docs/example/slides.md)         |
 | AI prompt structure                                    | [docs/prompt-template.md](docs/prompt-template.md)       |
 | AI/tool feature boundary                               | [docs/ai-positioning.md](docs/ai-positioning.md)         |
+| How SlideMD compares                                   | [docs/comparison.md](docs/comparison.md)                 |
 | Contributing                                           | [CONTRIBUTING.md](CONTRIBUTING.md)                       |
 | Roadmap                                                | [ROADMAP.md](ROADMAP.md)                                 |
 
 ## Browser Support
 
 SlideMD works in all modern browsers. The CLI dev server and File System Access API features (open/save files from disk) require Chromium-based browsers (Chrome, Edge, Brave). Other browsers (Firefox, Safari) can view decks and use keyboard shortcuts but cannot open or save files directly from the filesystem.
+
+## Privacy & Data
+
+SlideMD is local-first. Nothing you write leaves your machine unless you send it somewhere yourself:
+
+- **Decks stay on your machine.** Markdown and images live on your disk (opened via the File System Access API or the local dev server), with a browser-local baseline for quick-start decks. There is no account, no cloud, and no sync.
+- **No analytics or tracking.** There are no analytics libraries, beacons, or update checks. The only requests SlideMD makes on its own behalf are to Google Fonts: the app's UI fonts (Roboto, Roboto Mono), and — when a PPTX slide contains shape diagrams — a static list of metric-compatible font families used to rasterize those diagrams. Neither request carries slide content or user data; the diagram-font request is skipped offline and is non-fatal if it fails.
+- **AI is opt-in and direct.** AI features call only the endpoint you configure (OpenRouter, Ollama, LM Studio, or any OpenAI-compatible API), and only when you trigger an AI action. Requests go from your browser straight to that endpoint — SlideMD has no server in between. API keys are stored in your browser's session storage (optionally remembered in local storage) and are never sent anywhere except your chosen endpoint.
+- **Exports are self-contained.** Exported HTML inlines all vendor code and assets; KaTeX math fonts load from a CDN in the exported file, and the app's UI fonts load from Google Fonts (system fonts take over when offline).
 
 ## License
 
