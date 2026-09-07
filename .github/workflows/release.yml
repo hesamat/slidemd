@@ -46,4 +46,3 @@ jobs:
           files: |
             dist/slides.html
             dist/slides.pdf
-          generate_release_notes: true
