@@ -1,13 +1,32 @@
 # How SlideMD Compares
 
 SlideMD shares territory with several established tools. This page maps the
-differences honestly — every tool here is excellent at what it was built
-for, and the right choice depends on how you want to work.
+differences honestly: what SlideMD does well, where the alternatives win,
+and which trade-offs are deliberate.
 
 > **SlideMD in one sentence:** your decks live in git as plain Markdown, you
 > write and fix them in a live editor, present from a second window with
 > speaker notes and a timer, and hand students a single self-contained HTML
 > file.
+
+## What makes SlideMD different
+
+- **The whole loop in one tool.** Author in a live split-screen editor,
+  present from a second window with speaker notes, a timer, and a
+  next-slide preview, and export a single self-contained HTML file — no
+  build step, no hosting, no export pipeline to babysit.
+- **What you preview is what the projector shows.** The fixed 1920x1080
+  stage renders identically on every machine, so a slide that fits during
+  rehearsal fits during the lecture.
+- **Your content outlives the tool.** Decks are plain Markdown plus an
+  images folder: they diff cleanly in git, open in any editor, and can
+  never be held hostage by a dead product or a subscription.
+- **An exit path from PowerPoint.** Best-effort PPTX import converts
+  existing decks into editable Markdown, and AI post-processing (polish,
+  remix, reimagine) helps modernize them afterwards.
+- **Accessibility is built in, not bolted on.** Screen-reader slide
+  announcements, keyboard-first navigation, and end-to-end alt-text
+  propagation from PPTX import through export.
 
 ## At a glance
 
@@ -26,14 +45,7 @@ for, and the right choice depends on how you want to work.
 requests are Google-hosted fonts (the app's UI fonts, plus metric-compatible
 font metrics when rasterizing PPTX diagrams). System fonts take over offline.
 
-## Choosing between them
-
-**Choose SlideMD if your decks live in git.** You write slides as plain
-Markdown in one window while the rendered slide updates beside it, present
-from a second window (or second screen) with speaker notes, a timer, and a
-next-slide preview, and export one self-contained HTML file that runs
-offline in any browser. PPTX import and AI post-processing exist to retrofit
-existing decks into that workflow.
+## Where the alternatives win
 
 **Choose PowerPoint if you need pixel-perfect GUI control.** Corporate
 template compatibility, co-authoring in Microsoft 365, and editing without
@@ -55,11 +67,13 @@ tool.
 live-coded interactivity.** SlideMD trades that extensibility for a simpler
 authoring model and an audience-facing export with no build step.
 
-## What SlideMD gives up
+## Deliberate trade-offs
 
-Honesty requires the reverse list. SlideMD is the wrong tool if you need:
+SlideMD skips a few things on purpose, and knowing that boundary is part of
+the design. If one of these is a must-have for you, the tools above are the
+better fit:
 
-- **Slide animations or transitions** — slides are static by design; there
+- **Slide animations and transitions** — slides are static by design; there
   are no built-in effects or object animations.
 - **Cloud collaboration** — one author, one deck. Git is the sharing layer,
   not a live multi-user editor.
@@ -76,6 +90,6 @@ Honesty requires the reverse list. SlideMD is the wrong tool if you need:
 ## The bottom line
 
 If your decks live in git and you present from a browser, SlideMD covers the
-whole loop — author, present, export — with no accounts and no analytics. If
-you need animations, co-authoring, non-16:9 canvases, or pixel-identical
-PPTX fidelity, one of the tools above will serve you better.
+whole loop — author, present, export — for free, with no accounts and no
+analytics. If you need animations, co-authoring, non-16:9 canvases, or
+pixel-identical PPTX fidelity, one of the tools above will serve you better.
