@@ -17,6 +17,7 @@ SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on
 ## Features
 
 - **Markdown-first authoring** — layouts, themes, slide/area backgrounds, and media full-bleed via simple directives
+- **New deck wizard** — New Presentation modal with template, background, and styling steps plus a live theme preview
 - **Live editing** — split-screen editor with instant preview, autocomplete, slash commands, drag-and-drop for images, code, diagrams, and math, plus drag-to-resize columns on multi-column layouts
 - **Text blocks** — `::: text-block` container directives for multi-column text, styled blocks, and a speech-bubble preset with tail controls
 - **Image styling** — opacity, corner radius, flip, rotation, and brightness/contrast/saturation filters via the image properties panel
@@ -24,6 +25,7 @@ SlideMD renders on a fixed 16:9 stage (1920x1080) so your deck looks the same on
 - **Command palette & search** — `Ctrl+K` command palette and full-text slide search (`/` or `Ctrl+Shift+F`)
 - **Undo & save** — global undo/redo spans structural edits; `Ctrl+S` saves to disk and updates the local baseline that reloads and other windows pick up
 - **Accessibility** — screen-reader announcements of slide changes, semantic slide labels, keyboard-first navigation with documented shortcuts, and alt text preserved from PPTX import through export
+- **Appearance** — light/dark UI themes (`T` to toggle) with three dark palettes (Warm Graphite, Cool Indigo-Gray, Blue Slate) selectable in Settings
 - **Code highlighting** via Prism, **math** via KaTeX, **diagrams** via Mermaid
 - **Table styling** — `::: table { ... }` container directive for width, alignment, borders, striping, header color, and column weights
 - **PPTX import** — convert PowerPoint decks to Markdown with layout inference, in the app or from the command line (`npm run pptx`)
