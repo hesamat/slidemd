@@ -45,7 +45,7 @@ and which trade-offs are deliberate.
 requests are Google-hosted fonts (the app's UI fonts, plus metric-compatible
 font metrics when rasterizing PPTX diagrams). System fonts take over offline.
 
-## Where the alternatives win
+## When another tool is the better fit
 
 **Choose PowerPoint if you need pixel-perfect GUI control.** Corporate
 template compatibility, co-authoring in Microsoft 365, and editing without
