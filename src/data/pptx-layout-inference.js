@@ -286,7 +286,11 @@ export function inferLayout(
   dominantImages = findDominantImages(allEls, slideWidth, slideHeight),
   slideIndex = 0,
 ) {
-  const contentEls = textEls.filter((el) => el.content?.trim());
+  // Tables have no `.content`, but they ARE content: excluding them here made
+  // every downstream heuristic (spread-row column detection, the focus length
+  // gate, element counts) treat a slide full of tables as "short", stacking
+  // side-by-side tables into one column. Tables join via their geometry.
+  const contentEls = textEls.filter((el) => el.content?.trim() || el.type === ELEMENT_TYPES.TABLE);
 
   if (contentEls.length === 0) {
     // Image-only slide: determine layout from dominant images
@@ -309,6 +313,9 @@ export function inferLayout(
   const bodyThreshold = slideHeight * CONFIG.bodyTopRatio;
 
   const isHeader = (el) => {
+    // Only text elements can be headers; a table (no content) in the top band
+    // is body content that happens to start high.
+    if (el.type !== ELEMENT_TYPES.TEXT) return false;
     if (el.top >= bodyThreshold) return false;
 
     // A box taller than the header limit is a body container; it only counts
@@ -375,12 +382,21 @@ export function inferLayout(
     const hasBodyBelowHeader = contentEls.some(
       (el) => el !== headerEl && el.top + (el.height || 0) > bodyThreshold,
     );
-    const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
+    const totalLength = contentEls.reduce(
+      (sum, el) =>
+        sum +
+        (el.content || "").trim().length +
+        (el.rows?.length || 0) * CONFIG.tableRowCharEquivalent,
+      0,
+    );
 
     if (totalLength < CONFIG.maxTitleLength && contentEls.length <= CONFIG.maxFocusElements) {
       const titleBodyEls = contentEls.filter((el) => el !== headerEl);
       const hasBodyContent = titleBodyEls.some(
-        (el) => REGEX.BULLET.test(el.content || "") || REGEX.NUMBER.test(el.content || ""),
+        (el) =>
+          el.type === ELEMENT_TYPES.TABLE ||
+          REGEX.BULLET.test(el.content || "") ||
+          REGEX.NUMBER.test(el.content || ""),
       );
       const headerHi = headerEl?.height || 0;
       const bodyHi = titleBodyEls.length ? Math.max(...titleBodyEls.map((e) => e.height || 0)) : 0;
@@ -451,7 +467,13 @@ export function inferLayout(
       // Use focus when the body (excluding the header) is short enough to read as
       // a centered callout rather than a two-area header+content split.
       const bodyEls = contentEls.filter((el) => el !== headerEl);
-      const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
+      const bodyLength = bodyEls.reduce(
+        (sum, el) =>
+          sum +
+          (el.content || "").trim().length +
+          (el.rows?.length || 0) * CONFIG.tableRowCharEquivalent,
+        0,
+      );
       if (bodyLength < CONFIG.maxTitleLength && bodyEls.length <= CONFIG.maxFocusElements) {
         return LAYOUT.FOCUS;
       }
