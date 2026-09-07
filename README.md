@@ -75,7 +75,7 @@ layout: header-content
 
 ## Download
 
-Download the latest release from [GitHub Releases](https://github.com/hesamat/slidemd/releases/latest). Each release includes:
+Download the current beta from [GitHub Releases](https://github.com/hesamat/slidemd/releases). Each release includes:
 
 - `slides.html` — a single self-contained file that works offline in any browser (system fonts substitute for the web fonts when offline)
 - `slides.pdf` — a pre-generated PDF of the example deck
