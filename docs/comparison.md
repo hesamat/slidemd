@@ -22,24 +22,36 @@ and which trade-offs are deliberate.
   images folder: they diff cleanly in git, open in any editor, and can
   never be held hostage by a dead product or a subscription.
 - **An exit path from PowerPoint.** Best-effort PPTX import converts
-  existing decks into editable Markdown, and AI post-processing (polish,
-  remix, reimagine) helps modernize them afterwards.
+  existing decks into editable Markdown — layout inference, image
+  extraction, diagrams rendered to PNG, and alt text preserved.
+- **A real AI editor, on your terms.** SlideMD's AI goes beyond fixing one
+  slide at a time: it can polish wording across a whole deck, remix it by
+  restructuring slides from an editable plan, or reimagine it entirely from
+  a chapter outline you review before generation. Vision-augmented flows
+  can see your deck's images, and every result passes through validation —
+  with a keep-or-merge choice when the AI races your own edits.
+- **AI without the cloud, if you want it.** Bring your own key for
+  OpenRouter or any OpenAI-compatible endpoint, or run models fully local
+  with Ollama or LM Studio — the AI features work identically against a
+  local server, so nothing about your deck ever leaves the machine.
 - **Accessibility is built in, not bolted on.** Screen-reader slide
   announcements, keyboard-first navigation, and end-to-end alt-text
   propagation from PPTX import through export.
 
 ## At a glance
 
-|                             | SlideMD                     | PowerPoint   | Reveal.js         | Marp          | Slidev            |
-| --------------------------- | --------------------------- | ------------ | ----------------- | ------------- | ----------------- |
-| Authoring                   | Markdown, in-browser        | GUI          | HTML + JavaScript | Markdown, CLI | Markdown + Vue    |
-| Live edit + instant preview | ✓ split-screen editor       | ✓ (GUI)      | code + reload     | ✓ CLI watch   | code + reload     |
-| Presenter view              | ✓ dual-window, notes, timer | ✓            | ✓ speaker view    | —             | ✓ presenter mode  |
-| Diffable in git             | ✓ plain Markdown            | —            | ✓                 | ✓             | ✓                 |
-| Fixed, deterministic layout | ✓ 1920x1080 stage           | ✓            | responsive        | theme-based   | responsive        |
-| PPTX import                 | ✓ built-in                  | n/a          | —                 | —             | —                 |
-| Audience-facing export      | single-file HTML + PDF      | many formats | static site       | HTML + PDF    | static site build |
-| Cost                        | free, MIT                   | paid (M365)  | free, MIT         | free, MIT     | free, MIT         |
+|                             | SlideMD                                | PowerPoint     | Reveal.js         | Marp          | Slidev            |
+| --------------------------- | -------------------------------------- | -------------- | ----------------- | ------------- | ----------------- |
+| Authoring                   | Markdown, in-browser                   | GUI            | HTML + JavaScript | Markdown, CLI | Markdown + Vue    |
+| Live edit + instant preview | ✓ split-screen editor                  | ✓ (GUI)        | code + reload     | ✓ CLI watch   | code + reload     |
+| Presenter view              | ✓ dual-window, notes, timer            | ✓              | ✓ speaker view    | —             | ✓ presenter mode  |
+| Diffable in git             | ✓ plain Markdown                       | —              | ✓                 | ✓             | ✓                 |
+| Fixed, deterministic layout | ✓ 1920x1080 stage                      | ✓              | responsive        | theme-based   | responsive        |
+| PPTX import                 | ✓ built-in                             | n/a            | —                 | —             | —                 |
+| Audience-facing export      | single-file HTML + PDF                 | many formats   | static site       | HTML + PDF    | static site build |
+| Cloud collaboration         | —                                      | ✓ (M365)       | —                 | —             | —                 |
+| Built-in AI editing         | ✓ enhance / polish / remix / reimagine | Copilot add-on | —                 | —             | community plugins |
+| Cost                        | free, MIT                              | paid (M365)    | free, MIT         | free, MIT     | free, MIT         |
 
 \* SlideMD's exported HTML inlines all vendor code; the only runtime external
 requests are Google-hosted fonts (the app's UI fonts, plus metric-compatible
