@@ -205,6 +205,20 @@ describe("shrinkTextToFit", () => {
     }
   });
 
+  it("never enlarges text already below the legibility floor", () => {
+    // A 5pt overflowing label: the floor ratio (7/5) must not scale the text
+    // UP to 7pt — the floor stops further shrinking, it never enlarges.
+    const shape = { shapType: "ellipse", left: 0, top: 0, width: 100, height: 50 };
+    const { root, text } = buildShapeDom({ shape, fontSizePt: 5 });
+    const restore = installMeasurement(text, { baseWidth: 2000, baseHeight: 12, basePt: 5 });
+    try {
+      shrinkTextToFit(root, [shape], 1);
+      expect(parseFloat(text.style.fontSize)).toBeCloseTo(5, 1);
+    } finally {
+      document.createRange = restore;
+    }
+  });
+
   it("skips shapes that are not curved (rect)", () => {
     const shape = { shapType: "rect", left: 0, top: 0, width: 100, height: 50 };
     const { root, text } = buildShapeDom({ shape, fontSizePt: 20 });

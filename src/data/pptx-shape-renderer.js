@@ -92,7 +92,7 @@ function escAttr(value) {
  *   - connector            → `<line>` or `<path>` for arrow connectors
  *
  * @param {import('./pptx-extractor.js').ExtractedElement[]} shapes
- * @param {{left: number, top: number, width: number, height: number}} groupBbox - Bounding box in EMU (absolute slide coords).
+ * @param {{left: number, top: number, width: number, height: number}} groupBbox - Bounding box in points (absolute slide coords).
  * @returns {string} SVG string, or "" if no renderable shapes.
  */
 export function buildShapeSvg(shapes, groupBbox) {
@@ -168,8 +168,8 @@ function buildShapeTextSvg(content, left, top, width, height, fillColor = null) 
 /**
  * Convert a single shape element to its SVG representation.
  * @param {import('./pptx-extractor.js').ExtractedElement} shape
- * @param {number} originX - Group origin X (EMU) to subtract from shape coords.
- * @param {number} originY - Group origin Y (EMU) to subtract from shape coords.
+ * @param {number} originX - Group origin X (points) to subtract from shape coords.
+ * @param {number} originY - Group origin Y (points) to subtract from shape coords.
  * @returns {string}
  */
 function shapeToSvg(shape, originX = 0, originY = 0) {
@@ -307,8 +307,10 @@ function buildFillAttr(fill) {
     return color === "transparent" ? ' fill="none"' : ` fill="${color}"`;
   }
   if (fill.type === "image") {
-    // Image fills are handled by the caller (the image is already extracted);
-    // for the screenshot we use the image as a fill via <image> element.
+    // Image fills are not rendered by this fallback — the shape degrades to
+    // an unfilled outline.  Embedding the bitmap would require the image
+    // bytes, which shape elements do not carry; the high-fidelity crop path
+    // renders image fills correctly.
     return ' fill="none"';
   }
   return ' fill="none"';

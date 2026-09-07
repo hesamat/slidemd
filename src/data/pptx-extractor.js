@@ -37,10 +37,10 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
  * @property {ChartData[]} [chartData] - Chart series data.
  * @property {string[]} [chartColors] - Chart series colors.
  * @property {number} order - PPTX element order (preserves slide author's arrangement).
- * @property {number} left - X position (EMU, relative to slide).
- * @property {number} top - Y position (EMU).
- * @property {number} width - Width in EMU.
- * @property {number} height - Height in EMU.
+ * @property {number} left - X position (points, relative to slide).
+ * @property {number} top - Y position (points).
+ * @property {number} width - Width in points.
+ * @property {number} height - Height in points.
  * @property {'title'|'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
  * @property {string} [shapType] - Preset shape type (e.g., 'rect', 'ellipse', 'triangle').
  * @property {string} [fill] - Fill color or gradient description.
@@ -80,7 +80,7 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
  * @property {ExtractedSlide[]} slides
  * @property {string[]} themeColors - Theme color palette from the PPTX.
  * @property {string[]} usedFonts - Fonts used in the presentation.
- * @property {{ width: number, height: number }} size - Slide dimensions in EMU.
+ * @property {{ width: number, height: number }} size - Slide dimensions in points (pptxtojson output); the degenerate no-size fallback is EMU and is threshold-normalized downstream.
  * @property {ExtractedImage[]} images - All extracted images with metadata.
  * @property {{ warnings: import('./pptx-import-warnings.js').PptxImportWarning[], add: Function }} warnings
  *   Degradation warnings (diagram crop failures, timeouts) for the post-import report.
@@ -96,11 +96,15 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
 
 /** @class */
 export class PptxExtractor {
-  // pptxtojson returns image dimensions in points; all other coordinates are in EMU.
-  // 1 pt = 914400 / 72 = 12700 EMU.
+  // 1 pt = 914400 / 72 = 12700 EMU.  Used only by helpers that compare raw
+  // pptxtojson (points) values against EMU thresholds; extracted elements
+  // keep pptxtojson's points everywhere.
   static #PT_TO_EMU = 12700;
-  // Images with both dimensions below this threshold (in EMU) are treated as
-  // decorative icons, bullets, or ornaments.  ~15 pt ≈ 20 px at 96 DPI.
+  // Images with both dimensions below this threshold are treated as
+  // decorative icons, bullets, or ornaments.  15 pt ≈ 20 px at 96 DPI.
+  static #MIN_SIZE_PT = 15;
+  // Same threshold expressed in EMU, for the raw-value helpers that work in
+  // EMU space.
   static #MIN_SIZE_EMU = 15 * 12700;
 
   /**
@@ -212,7 +216,9 @@ export class PptxExtractor {
       slides,
       themeColors: raw.themeColors || [],
       usedFonts: raw.usedFonts || [],
-      size: raw.size || { width: 914400, height: 5143500 },
+      // 10in × 5.625in (16:9) in EMU, matching DEFAULT_SLIDE_SIZE.WIDTH_EMU
+      // downstream; real PPTX files always carry a size from pptxtojson.
+      size: raw.size || { width: 9144000, height: 5143500 },
       images,
       warnings,
     };
@@ -238,6 +244,24 @@ export class PptxExtractor {
    */
   static detectTopLevelDiagramsForTest(elements) {
     return this.#detectTopLevelDiagrams(elements);
+  }
+
+  /**
+   * Test-only wrapper: run raw pptxtojson content elements through
+   * #processElement and #detectTopLevelDiagrams, mirroring #processSlide's
+   * content loop (without layout elements or XML/alt-text opts).
+   * @static
+   * @param {object[]} rawElements
+   * @returns {ExtractedElement[]}
+   */
+  static processElementsForTest(rawElements) {
+    const imagesAccum = [];
+    const raw = [];
+    for (const el of rawElements) {
+      const extracted = this.#processElement(el, 0, imagesAccum, [], {});
+      if (extracted) raw.push(extracted);
+    }
+    return this.#detectTopLevelDiagrams(raw.flat().filter(Boolean));
   }
 
   /**
@@ -639,17 +663,16 @@ export class PptxExtractor {
     if (el.type === "image") {
       const mime = this.#inferMimeType(el.ref);
 
-      // pptxtojson returns image dimensions in points while all other
-      // element coordinates (left, top) are in EMU.  Normalise to EMU
-      // so layout inference can compare image sizes against the slide
-      // dimensions without unit-mismatch errors.
-      const widthEmu = (el.width || 0) * this.#PT_TO_EMU;
-      const heightEmu = (el.height || 0) * this.#PT_TO_EMU;
+      // pptxtojson returns every element's geometry in points (EMU ÷ 12700),
+      // images included.  Keep those values as-is: diagram detection, the
+      // group-offset math, and both diagram render paths all assume extracted
+      // elements share one unit.  (convertToSlideMd's threshold normalizer
+      // accepts EMU fixtures too, so its behavior is unchanged.)
 
       // Skip tiny images (likely decorative icons, bullets, or ornaments).
       // Uses AND: both dimensions must be small.  A thin separator line
       // (e.g. 5×500pt) is intentional content and should be kept.
-      if (widthEmu < this.#MIN_SIZE_EMU && heightEmu < this.#MIN_SIZE_EMU) {
+      if ((el.width || 0) < this.#MIN_SIZE_PT && (el.height || 0) < this.#MIN_SIZE_PT) {
         return null;
       }
 
@@ -678,8 +701,8 @@ export class PptxExtractor {
         order: el.order,
         left: el.left,
         top: el.top,
-        width: widthEmu,
-        height: heightEmu,
+        width: el.width,
+        height: el.height,
       };
     }
 
@@ -1329,8 +1352,7 @@ export class PptxExtractor {
     const expandedMaxY = maxY + EXPAND_Y_PT;
 
     // Compute the slide's max Y from all elements to determine the header
-    // band threshold.  pptxtojson returns points, so this works regardless
-    // of whether the elements are in points or EMU.
+    // band threshold.  All element coordinates are in points.
     const slideMaxY = elements.reduce((max, el) => {
       const bottom = (el.top || 0) + (el.height || 0);
       return bottom > max ? bottom : max;
@@ -1361,6 +1383,13 @@ export class PptxExtractor {
       // pptxtojson sometimes rasterizes complex shapes (e.g. multi-line code
       // blocks) as `type: "image"`; those must not be swallowed by the diagram.
       if (el.type === "image" && !isShapeLike) continue;
+
+      // Tables and charts are structured slide content, not diagram
+      // constituents.  A table/chart whose center falls inside the expanded
+      // connector box would otherwise be absorbed: its geometry would inflate
+      // the diagram's bounding box and the element itself would be consumed
+      // into the rendered PNG, disappearing from the slide body.
+      if (el.type === "table" || el.type === "chart") continue;
 
       // Code blocks disguised as bordered shapes (e.g. a roundRect with
       // `print(...)` examples) are not diagram labels; keep them out of the

@@ -1322,6 +1322,120 @@ describe("PptxExtractor top-level diagram detection", () => {
     expect(result.some((el) => el.type === "connector" && el.hasConnector)).toBe(true);
     expect(result.some((el) => el.type === "shape" && el.shapType === "ellipse")).toBe(true);
   });
+
+  it("does not absorb a table or chart that sits inside the connector cluster", () => {
+    // A table and a chart whose centers fall inside the expanded connector
+    // bounding box (x 708..808, y 195..322) sit within cluster-gap distance of
+    // the flowchart boxes.  They are structured slide content, so they must
+    // stay standalone: absorbing them would consume them into the diagram PNG
+    // and inflate the diagram's bounding box.
+    const table = {
+      type: "table",
+      rows: [[{ text: "7", fillColor: "#ffffff" }]],
+      left: 700,
+      top: 200,
+      width: 100,
+      height: 60,
+      order: 500,
+    };
+    const chart = {
+      type: "chart",
+      content: "[Chart: barChart]",
+      chartType: "barChart",
+      left: 700,
+      top: 250,
+      width: 100,
+      height: 50,
+      order: 600,
+    };
+    const elements = [
+      title("# Flow"),
+      textBox("Start", 669, 206),
+      textBox("End", 669, 282),
+      arrow(758, 235),
+      table,
+      chart,
+    ];
+
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    const diagrams = result.filter((el) => el.type === "diagram");
+
+    // The flowchart still forms a diagram…
+    expect(diagrams).toHaveLength(1);
+    // …but the table and chart survive as standalone elements.
+    expect(result.some((el) => el.type === "table")).toBe(true);
+    expect(result.some((el) => el.type === "chart")).toBe(true);
+    // Neither is a diagram constituent, and neither inflated the bbox.
+    const shapes = diagrams[0].shapes;
+    expect(shapes.some((s) => s.type === "table" || s.type === "chart")).toBe(false);
+    expect(diagrams[0].left + diagrams[0].width).toBeLessThanOrEqual(848.5);
+  });
+});
+
+describe("PptxExtractor diagram constituents with image children", () => {
+  it("keeps a group diagram's bbox in points when it contains a picture", () => {
+    // A group with two filled shapes and a picture is detected as a manual
+    // diagram.  The picture's dimensions must stay in points like every other
+    // constituent — an EMU-inflated picture (×12700) ballooned the diagram's
+    // bounding box and broke both diagram render paths.
+    const group = {
+      type: "group",
+      left: 100,
+      top: 50,
+      order: 3,
+      elements: [
+        {
+          type: "shape",
+          content: "",
+          shapType: "roundRect",
+          fill: { type: "color", value: "#5B9BD5" },
+          left: 0,
+          top: 0,
+          width: 120,
+          height: 60,
+          order: 1,
+        },
+        {
+          type: "shape",
+          content: "",
+          shapType: "ellipse",
+          fill: { type: "color", value: "#ED7D31" },
+          left: 40,
+          top: 20,
+          width: 120,
+          height: 60,
+          order: 2,
+        },
+        {
+          type: "image",
+          ref: "media/image1.png",
+          base64: "aGk=",
+          left: 10,
+          top: 10,
+          width: 100,
+          height: 80,
+          order: 3,
+        },
+      ],
+    };
+
+    const result = PptxExtractor.processElementsForTest([group]);
+    const diagram = result.find((el) => el.type === "diagram");
+    expect(diagram).toBeDefined();
+
+    // Sane bbox: shapes 100..260 × 50..130, picture 110..210 × 60..140
+    // (group offsets added) → 160 × 90.  An EMU-inflated picture yields
+    // a width of ~1.27M instead.
+    expect(diagram.width).toBeCloseTo(160, 0);
+    expect(diagram.height).toBeCloseTo(90, 0);
+
+    // The picture stays a diagram constituent, in points, so the crop path's
+    // position matcher can find it in the rendered DOM.
+    const picture = diagram.shapes.find((s) => s.type === "image");
+    expect(picture).toBeDefined();
+    expect(picture.width).toBe(100);
+    expect(picture.height).toBe(80);
+  });
 });
 
 describe("PptxExtractor code extraction", () => {
