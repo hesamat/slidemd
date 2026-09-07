@@ -247,6 +247,38 @@ describe("convertTableDirectivesToMarkers", () => {
     expect(result).toMatch(/\| 1 \| 2 \|\n\n\*Design Rule\*/);
   });
 
+  it("moves a caption line out from between the marker and the table so the directive still applies", () => {
+    // Regression: a `**Caption**` written inside the container used to stay
+    // between the emitted marker and the table, so the core rule (which only
+    // attaches a marker directly preceding table_open) never consumed the
+    // marker and it leaked as literal slide text.
+    const md = [
+      '::: table { width=29 headerColor="#071d28" }',
+      "**Memory table**",
+      "| Address | Value |",
+      "| --- | --- |",
+      "| 1 | 0 |",
+      ":::",
+    ].join("\n");
+    const result = convertTableDirectivesToMarkers(md);
+    const markerIdx = result.indexOf("table {width=29 headerColor=#071d28}");
+    expect(markerIdx).toBeGreaterThan(-1);
+    expect(result).not.toContain("::: table");
+    // Caption must render before the marker, never between marker and table.
+    expect(result.indexOf("**Memory table**")).toBeLessThan(markerIdx);
+    expect(result).toMatch(
+      /\*\*Memory table\*\*\n\ntable \{width=29 headerColor=#071d28\}\n\n\| Address \| Value \|/,
+    );
+  });
+
+  it("strips the wrapper when the container holds no table at all", () => {
+    const md = ["::: table { width=50 }", "Just some prose.", ":::"].join("\n");
+    const result = convertTableDirectivesToMarkers(md);
+    expect(result).not.toContain(":::");
+    expect(result).not.toContain("table {");
+    expect(result).toContain("Just some prose.");
+  });
+
   it("synthesizes a hidden header for no-header tables that omit the header row", () => {
     const md = [
       "::: table { width=90 no-header }",
