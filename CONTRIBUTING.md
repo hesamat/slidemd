@@ -237,7 +237,7 @@ guidance. The short version:
 ## Questions
 
 - Open an issue for bugs or feature requests.
-- See [`ROADMAP.md`](ROADMAP.md) for planned phases and architecture direction.
+- See [`ROADMAP.md`](ROADMAP.md) for what's planned after 1.0.
 - See [`docs/ai-positioning.md`](docs/ai-positioning.md) for the AI/tool
   feature boundary.
 - See [`docs/prompt-template.md`](docs/prompt-template.md) for the AI prompt

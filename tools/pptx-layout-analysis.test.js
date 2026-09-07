@@ -4,9 +4,8 @@
  *
  * Runs the real extraction + layout-inference pipeline over a corpus of
  * .pptx decks and reports, per slide, the inferred layout and the CONFIG
- * threshold inputs that drove the decision. Used by the Phase 14.9
- * "Review layout thresholds" task to tune thresholds from actual failure
- * cases instead of intuition.
+ * threshold inputs that drove the decision. Used to tune the layout
+ * thresholds from actual failure cases instead of intuition.
  *
  * The corpus lives outside the repo (real-world decks), so this spec skips
  * cleanly when the corpus file or any deck is missing — it only runs where

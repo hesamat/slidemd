@@ -1,7 +1,7 @@
 # Manual Test Plan
 
-Step-by-step manual verification for the critical user flows listed in
-`ROADMAP.md` Phase 17 (v1.0 release gate). Each step states the exact action
+Step-by-step manual verification for the critical user flows of the v1.0
+release. Each step states the exact action
 and the expected outcome. This plan is grown incrementally: sections marked
 "To be written" are scoped but not yet documented.
 
@@ -170,7 +170,7 @@ shortcut buttons, and the Format dropdown hints).
 
 ## To be written
 
-The remaining Phase 17 flows still need their step-by-step procedures
+The remaining v1.0 flows still need their step-by-step procedures
 documented. Scope notes:
 
 - **AI whole-deck operations (Polish, Remix, Reimagine)** — verify each

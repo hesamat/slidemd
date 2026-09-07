@@ -6,7 +6,7 @@
  * embedded image so diagrams survive import as visuals rather than flattening
  * to bullet lists.
  *
- * Phase 14.9 (#117). Reuses the Canvas infrastructure in pptx-image-converter.js.
+ * Introduced for #117. Reuses the Canvas infrastructure in pptx-image-converter.js.
  *
  * Architecture:
  *   - `buildShapeSvg()` is a pure function that turns shape elements into an

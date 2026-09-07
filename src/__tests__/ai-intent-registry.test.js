@@ -8,14 +8,14 @@ import {
 
 describe("AiIntentRegistry", () => {
   describe("listIntents", () => {
-    it("includes all Phase 13 intents", () => {
+    it("includes all core intents", () => {
       const intents = listIntents();
       expect(intents).toContain("enhanceSlide");
       expect(intents).toContain("addSpeakerNotes");
       expect(intents).toContain("generate");
     });
 
-    it("does not include whole-deck fix (dropped in Phase 13)", () => {
+    it("does not include whole-deck fix (dropped)", () => {
       const intents = listIntents();
       expect(intents).not.toContain("fix");
     });

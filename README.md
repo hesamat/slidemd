@@ -92,6 +92,7 @@ Download the latest release from [GitHub Releases](https://github.com/hesamat/sl
 | AI/tool feature boundary                               | [docs/ai-positioning.md](docs/ai-positioning.md)         |
 | How SlideMD compares                                   | [docs/comparison.md](docs/comparison.md)                 |
 | Contributing                                           | [CONTRIBUTING.md](CONTRIBUTING.md)                       |
+| Changelog                                              | [CHANGELOG.md](CHANGELOG.md)                             |
 | Roadmap                                                | [ROADMAP.md](ROADMAP.md)                                 |
 
 ## Browser Support
