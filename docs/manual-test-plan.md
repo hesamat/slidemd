@@ -142,6 +142,12 @@ shortcut buttons, and the Format dropdown hints).
 5. Drag the viewer window to a second display (if available). Expected: the
    window placement persists; on a single display the placement prompt does not
    block presenting.
+6. Deck-folder images across windows (Chromium only): open a deck from disk
+   via **Open File** (a deck with an `images/` folder), then press `P`.
+   Expected: images render in both the editor and the viewer window. Insert a
+   new image in the editor and save with `Ctrl+S`, then reload the viewer
+   window (`Ctrl+R`). Expected: the viewer still renders all deck images,
+   including the newly added one.
 
 ## Command palette & full-text search
 

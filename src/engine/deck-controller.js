@@ -341,8 +341,10 @@ export class DeckController extends EventEmitter {
       const resolver = this._deckImagesResolver;
       if (!resolver) return;
       // Viewer windows share localStorage and IndexedDB with the editor, so
-      // re-attaching the persisted folder handle on every rewrite picks up
-      // images the presenter added (and saved) after this window was opened.
+      // re-attaching the persisted folder handle before each rewrite keeps
+      // deck-folder images resolving across reloads and deck changes —
+      // including images the presenter added since this window was opened
+      // (the refreshed registration reads the current saved baseline).
       // Idempotent, and a no-op for decks not opened through the picker.
       if (RoleManager.isViewerMode() && resolver.restorePersistedHandle) {
         await resolver.restorePersistedHandle();
