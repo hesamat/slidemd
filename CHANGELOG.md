@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0-beta.1 (2026-09-06)
+## 1.0.0-beta.1 (2026-09-07)
 
 First public release of SlideMD — a local-first, Markdown-driven presentation
 tool for technical educators. Write slides in plain Markdown, present with a
@@ -34,12 +34,17 @@ git log.
   navigation with documented shortcuts
 - Accessibility: slide-change announcements, semantic slide labels, and alt
   text preserved from PPTX import through export
+- The audience (viewer) window renders deck-folder images for decks opened
+  through the file picker, including images the presenter adds afterwards
 
 ### Import & export
 
 - PPTX import with rule-based layout inference and shape/diagram rendering
   as images — in the app or from the command line (`npm run pptx`, with
   direct PPTX-to-PDF)
+- PPTX diagram fixes from real lecture-deck testing: corrected an image
+  unit mix that misplaced imported images, kept tables and charts out of
+  diagram renders, and added a text shrink floor for dense diagrams
 - Standalone offline HTML export (vendor assets inlined) and deterministic
   PDF export
 - `.md + images/` decks that stay diffable in git, or `.textpack` for
@@ -60,3 +65,10 @@ git log.
   at build time
 - Works in all modern browsers; File System Access features (open/save from
   disk) on Chromium-based browsers
+- Full favicon and manifest icon set
+
+### Documentation
+
+- README screenshots, a Privacy & Data section, and a comparison page
+  against PowerPoint, Reveal.js, Marp, and Slidev
+- Public forward-looking roadmap
