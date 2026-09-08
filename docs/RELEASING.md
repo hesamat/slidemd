@@ -85,9 +85,12 @@ release by pasting the new `## X.Y.Z` section from `CHANGELOG.md` into the
 release body:
 
 ```bash
-awk '/^## X.Y.Z \(/{flag=1} flag && /^## [0-9]+\./{exit} flag' CHANGELOG.md > /tmp/release-body.md
+tail -n +3 CHANGELOG.md > /tmp/release-body.md
 gh release edit vX.Y.Z --notes-file /tmp/release-body.md
 ```
+
+(`tail -n +3` skips the `# Changelog` header and its blank line; the file
+contains only the current release's entry.)
 
 The release notes are the curated changelog section only: GitHub's
 auto-generated "What's Changed" list is not used, because the first release
