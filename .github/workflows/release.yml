@@ -46,3 +46,8 @@ jobs:
           files: |
             dist/slides.html
             dist/slides.pdf
+          # Regenerates the "What's Changed" section from PRs merged since
+          # the previous tag. Disabled only for v1.0.0-beta.1 (the first
+          # release, where no previous tag existed and the section would
+          # have listed the project's entire pre-release history).
+          generate_release_notes: true

@@ -72,3 +72,10 @@ git log.
 - README screenshots, a Privacy & Data section, and a comparison page
   against PowerPoint, Reveal.js, Marp, and Slidev
 - Public forward-looking roadmap
+- The Download section points at the releases page during the beta window
+- Release pages carry the curated changelog; auto-generated "What's
+  Changed" sections start with the next release
+- The Download section points at the releases page during the beta window
+- GitHub releases carry only the curated changelog section — auto-generated
+  release notes are disabled, and the release process documents the
+  finishing step
