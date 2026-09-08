@@ -1112,6 +1112,119 @@ describe("PptxExtractor top-level diagram detection", () => {
     expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
   });
 
+  it("does not crop a filled backdrop panel behind an unfilled text box", () => {
+    // Real-world case (Week 02, "Pythonic Naming Conventions"): an empty
+    // black-filled rect used as a design backdrop with an unfilled borderless
+    // text box on top. Both are substantial (fill / text) and overlap, but
+    // the pair is a backdrop + label, not a diagram — the text must stay in
+    // the slide body instead of being cropped into a PNG.
+    const backdrop = {
+      type: "shape",
+      content: "",
+      left: 100,
+      top: 98,
+      width: 396,
+      height: 293,
+      order: 1100,
+      shapType: "rect",
+      fill: "#000000",
+      fillRaw: { type: "color", value: "#000000" },
+      strokeOnly: false,
+    };
+    const heading = textBox("Pythonic Naming Conventions", 10, 82, 486, 356, {
+      fill: undefined,
+      fillRaw: undefined,
+    });
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([
+      title("# Pythonic Naming"),
+      backdrop,
+      heading,
+    ]);
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
+    expect(
+      result.some((el) => el.type === "text" && el.content === "Pythonic Naming Conventions"),
+    ).toBe(true);
+  });
+
+  it("still detects two overlapping filled shapes as a diagram after the fill requirement", () => {
+    // Venn-style pair where only one oval carries text: both have real
+    // fills, so the overlap rule still fires.
+    const oval = (content, left, top, w, h) => ({
+      type: "shape",
+      content,
+      left,
+      top,
+      width: w,
+      height: h,
+      order: Math.round(top * 10),
+      shapType: "ellipse",
+      fill: "#5B9BD5",
+      fillRaw: { type: "color", value: "#5B9BD5" },
+    });
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([
+      oval("Left side", 23, 26, 295, 443),
+      oval("", 98, 270, 145, 161),
+    ]);
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(1);
+  });
+
+  describe("dropFullBleedBackdrops", () => {
+    const slideSize = { width: 960, height: 540 };
+    const shape = (overrides = {}) => ({
+      type: "shape",
+      content: "",
+      left: 0,
+      top: 0,
+      width: 960,
+      height: 540,
+      shapType: "rect",
+      fill: "#0F6FC6",
+      fillRaw: { type: "color", value: "#0F6FC6" },
+      strokeOnly: false,
+      ...overrides,
+    });
+    const textEl = (overrides = {}) => ({
+      type: "text",
+      content: "Body",
+      left: 100,
+      top: 100,
+      width: 300,
+      height: 100,
+      order: 100,
+      ...overrides,
+    });
+
+    it("drops empty shapes spanning the whole slide", () => {
+      const result = PptxExtractor.dropFullBleedBackdropsForTest(
+        [shape(), shape({ shapType: "leftRightArrow", fill: "#C00000" }), textEl()],
+        slideSize,
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].type).toBe("text");
+    });
+
+    it("keeps partial panels, sidebars, and text-bearing shapes", () => {
+      const result = PptxExtractor.dropFullBleedBackdropsForTest(
+        [
+          // Gradient wash covering most of the height but not the width.
+          shape({ width: 768, fill: null, fillRaw: { type: "gradient", value: { colors: [] } } }),
+          // Full-height narrow sidebar.
+          shape({ width: 280 }),
+          // A filled shape that carries text is a content panel, not a backdrop.
+          shape({ content: "Panel label", width: 500, height: 400 }),
+          textEl(),
+        ],
+        slideSize,
+      );
+      expect(result).toHaveLength(4);
+    });
+
+    it("keeps everything when the slide size is unknown", () => {
+      const els = [shape(), textEl()];
+      expect(PptxExtractor.dropFullBleedBackdropsForTest(els, null)).toHaveLength(2);
+    });
+  });
+
   it("keeps the full accepted connector extent in the diagram bbox", () => {
     const box = textBox("Box", 100, 100, 100, 50);
     const longArrow = arrow(200, 120, 100);
@@ -1321,6 +1434,120 @@ describe("PptxExtractor top-level diagram detection", () => {
     // be discarded by the downstream meaningful-element filter.
     expect(result.some((el) => el.type === "connector" && el.hasConnector)).toBe(true);
     expect(result.some((el) => el.type === "shape" && el.shapType === "ellipse")).toBe(true);
+  });
+
+  it("does not absorb a table or chart that sits inside the connector cluster", () => {
+    // A table and a chart whose centers fall inside the expanded connector
+    // bounding box (x 708..808, y 195..322) sit within cluster-gap distance of
+    // the flowchart boxes.  They are structured slide content, so they must
+    // stay standalone: absorbing them would consume them into the diagram PNG
+    // and inflate the diagram's bounding box.
+    const table = {
+      type: "table",
+      rows: [[{ text: "7", fillColor: "#ffffff" }]],
+      left: 700,
+      top: 200,
+      width: 100,
+      height: 60,
+      order: 500,
+    };
+    const chart = {
+      type: "chart",
+      content: "[Chart: barChart]",
+      chartType: "barChart",
+      left: 700,
+      top: 250,
+      width: 100,
+      height: 50,
+      order: 600,
+    };
+    const elements = [
+      title("# Flow"),
+      textBox("Start", 669, 206),
+      textBox("End", 669, 282),
+      arrow(758, 235),
+      table,
+      chart,
+    ];
+
+    const result = PptxExtractor.detectTopLevelDiagramsForTest(elements);
+    const diagrams = result.filter((el) => el.type === "diagram");
+
+    // The flowchart still forms a diagram…
+    expect(diagrams).toHaveLength(1);
+    // …but the table and chart survive as standalone elements.
+    expect(result.some((el) => el.type === "table")).toBe(true);
+    expect(result.some((el) => el.type === "chart")).toBe(true);
+    // Neither is a diagram constituent, and neither inflated the bbox.
+    const shapes = diagrams[0].shapes;
+    expect(shapes.some((s) => s.type === "table" || s.type === "chart")).toBe(false);
+    expect(diagrams[0].left + diagrams[0].width).toBeLessThanOrEqual(848.5);
+  });
+});
+
+describe("PptxExtractor diagram constituents with image children", () => {
+  it("keeps a group diagram's bbox in points when it contains a picture", () => {
+    // A group with two filled shapes and a picture is detected as a manual
+    // diagram.  The picture's dimensions must stay in points like every other
+    // constituent — an EMU-inflated picture (×12700) ballooned the diagram's
+    // bounding box and broke both diagram render paths.
+    const group = {
+      type: "group",
+      left: 100,
+      top: 50,
+      order: 3,
+      elements: [
+        {
+          type: "shape",
+          content: "",
+          shapType: "roundRect",
+          fill: { type: "color", value: "#5B9BD5" },
+          left: 0,
+          top: 0,
+          width: 120,
+          height: 60,
+          order: 1,
+        },
+        {
+          type: "shape",
+          content: "",
+          shapType: "ellipse",
+          fill: { type: "color", value: "#ED7D31" },
+          left: 40,
+          top: 20,
+          width: 120,
+          height: 60,
+          order: 2,
+        },
+        {
+          type: "image",
+          ref: "media/image1.png",
+          base64: "aGk=",
+          left: 10,
+          top: 10,
+          width: 100,
+          height: 80,
+          order: 3,
+        },
+      ],
+    };
+
+    const result = PptxExtractor.processElementsForTest([group]);
+    const diagram = result.find((el) => el.type === "diagram");
+    expect(diagram).toBeDefined();
+
+    // Sane bbox: shapes 100..260 × 50..130, picture 110..210 × 60..140
+    // (group offsets added) → 160 × 90.  An EMU-inflated picture yields
+    // a width of ~1.27M instead.
+    expect(diagram.width).toBeCloseTo(160, 0);
+    expect(diagram.height).toBeCloseTo(90, 0);
+
+    // The picture stays a diagram constituent, in points, so the crop path's
+    // position matcher can find it in the rendered DOM.
+    const picture = diagram.shapes.find((s) => s.type === "image");
+    expect(picture).toBeDefined();
+    expect(picture.width).toBe(100);
+    expect(picture.height).toBe(80);
   });
 });
 

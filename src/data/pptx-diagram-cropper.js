@@ -447,10 +447,13 @@ export function shrinkTextToFit(root, shapes, scale) {
       const s = fitScale(measure);
       if (s >= 0.999) break;
       // Apply the shrink, clamped to the legibility floor (MIN_FONT_PT).
-      // If the clamp kicks in the text still gets the floor size so it
-      // doesn't stay at an arbitrary pre-clamp size.
+      // The floor ratio is itself clamped to ≤ 1: for a label already below
+      // the floor (fontSizePt < MIN_FONT_PT) the ratio would exceed 1 and
+      // scale the text *up*, so the floor only stops further shrinking —
+      // it must never enlarge.
+      const floorScale = Math.min(MIN_FONT_PT / fontSizePt, 1);
       const nextScale = scaleFactor * s;
-      const clamped = Math.max(nextScale, MIN_FONT_PT / fontSizePt);
+      const clamped = Math.max(nextScale, floorScale);
       scaleFactor = clamped;
       textContainer.style.fontSize = `${(fontSizePt * scaleFactor).toFixed(1)}pt`;
       spans.forEach((sp, idx) => {

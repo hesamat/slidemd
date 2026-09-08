@@ -37,10 +37,10 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
  * @property {ChartData[]} [chartData] - Chart series data.
  * @property {string[]} [chartColors] - Chart series colors.
  * @property {number} order - PPTX element order (preserves slide author's arrangement).
- * @property {number} left - X position (EMU, relative to slide).
- * @property {number} top - Y position (EMU).
- * @property {number} width - Width in EMU.
- * @property {number} height - Height in EMU.
+ * @property {number} left - X position (points, relative to slide).
+ * @property {number} top - Y position (points).
+ * @property {number} width - Width in points.
+ * @property {number} height - Height in points.
  * @property {'title'|'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
  * @property {string} [shapType] - Preset shape type (e.g., 'rect', 'ellipse', 'triangle').
  * @property {string} [fill] - Fill color or gradient description.
@@ -80,7 +80,7 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
  * @property {ExtractedSlide[]} slides
  * @property {string[]} themeColors - Theme color palette from the PPTX.
  * @property {string[]} usedFonts - Fonts used in the presentation.
- * @property {{ width: number, height: number }} size - Slide dimensions in EMU.
+ * @property {{ width: number, height: number }} size - Slide dimensions in points (pptxtojson output); the degenerate no-size fallback is EMU and is threshold-normalized downstream.
  * @property {ExtractedImage[]} images - All extracted images with metadata.
  * @property {{ warnings: import('./pptx-import-warnings.js').PptxImportWarning[], add: Function }} warnings
  *   Degradation warnings (diagram crop failures, timeouts) for the post-import report.
@@ -96,11 +96,15 @@ import { sanitizeCssColor } from "./pptx-color-utils.js";
 
 /** @class */
 export class PptxExtractor {
-  // pptxtojson returns image dimensions in points; all other coordinates are in EMU.
-  // 1 pt = 914400 / 72 = 12700 EMU.
+  // 1 pt = 914400 / 72 = 12700 EMU.  Used only by helpers that compare raw
+  // pptxtojson (points) values against EMU thresholds; extracted elements
+  // keep pptxtojson's points everywhere.
   static #PT_TO_EMU = 12700;
-  // Images with both dimensions below this threshold (in EMU) are treated as
-  // decorative icons, bullets, or ornaments.  ~15 pt ≈ 20 px at 96 DPI.
+  // Images with both dimensions below this threshold are treated as
+  // decorative icons, bullets, or ornaments.  15 pt ≈ 20 px at 96 DPI.
+  static #MIN_SIZE_PT = 15;
+  // Same threshold expressed in EMU, for the raw-value helpers that work in
+  // EMU space.
   static #MIN_SIZE_EMU = 15 * 12700;
 
   /**
@@ -175,6 +179,14 @@ export class PptxExtractor {
     }
 
     const images = [];
+    const rawSize = raw.size || { width: 9144000, height: 5143500 };
+    // pptxtojson reports the slide size in points; the degenerate fallback is
+    // EMU. Normalize to points so diagram detection can compare element
+    // geometry against the real slide extent.
+    const slideSizePt =
+      rawSize.width > 5000
+        ? { width: rawSize.width / 12700, height: rawSize.height / 12700 }
+        : { width: rawSize.width, height: rawSize.height };
     const slides = (orderedRawSlides || []).map((slide, index) => {
       // olStartValues is keyed by 0-based filename number (slideN → N-1).
       // When slides are reordered, look up by the original filename number,
@@ -194,6 +206,7 @@ export class PptxExtractor {
         olStartValues.get(olKey) || [],
         xmlTexts.get(fileNum) || null,
         imageAlts.get(fileNum) || null,
+        slideSizePt,
       );
     });
 
@@ -212,7 +225,9 @@ export class PptxExtractor {
       slides,
       themeColors: raw.themeColors || [],
       usedFonts: raw.usedFonts || [],
-      size: raw.size || { width: 914400, height: 5143500 },
+      // 10in × 5.625in (16:9) in EMU, matching DEFAULT_SLIDE_SIZE.WIDTH_EMU
+      // downstream; real PPTX files always carry a size from pptxtojson.
+      size: raw.size || { width: 9144000, height: 5143500 },
       images,
       warnings,
     };
@@ -241,6 +256,63 @@ export class PptxExtractor {
   }
 
   /**
+   * Test-only wrapper: run raw pptxtojson content elements through
+   * #processElement and #detectTopLevelDiagrams, mirroring #processSlide's
+   * content loop (without layout elements or XML/alt-text opts).
+   * @static
+   * @param {object[]} rawElements
+   * @returns {ExtractedElement[]}
+   */
+  static processElementsForTest(rawElements) {
+    const imagesAccum = [];
+    const raw = [];
+    for (const el of rawElements) {
+      const extracted = this.#processElement(el, 0, imagesAccum, [], {});
+      if (extracted) raw.push(extracted);
+    }
+    return this.#detectTopLevelDiagrams(raw.flat().filter(Boolean));
+  }
+
+  /**
+   * Test-only wrapper for the private #dropFullBleedBackdrops method.
+   * @static
+   * @param {ExtractedElement[]} elements
+   * @param {{width: number, height: number}|null} slideSize - Slide size in points.
+   * @returns {ExtractedElement[]}
+   */
+  static dropFullBleedBackdropsForTest(elements, slideSize) {
+    return this.#dropFullBleedBackdrops(elements, slideSize);
+  }
+
+  /**
+   * Drop empty shapes spanning (nearly) the whole slide — background panels,
+   * gradient washes, and decorative full-slide arrows or frames inherited
+   * from the slide layout or master. They sit underneath the slide's photos
+   * and washes and are invisible by design; kept in the element list they
+   * would only be re-painted as area backgrounds (a full-slide rectangle's
+   * center lands in one area column) or absorbed into diagram detection.
+   * Full-height sidebars and partial gradient washes stay — they are visible
+   * design surfaces handled by the area-bg logic downstream. Requires the
+   * slide size; without one, nothing is dropped.
+   * @static
+   * @param {ExtractedElement[]} elements
+   * @param {{width: number, height: number}|null} slideSize - Slide size in points.
+   * @returns {ExtractedElement[]}
+   */
+  static #dropFullBleedBackdrops(elements, slideSize) {
+    if (!slideSize?.width || !slideSize?.height) return elements;
+    return elements.filter(
+      (el) =>
+        !(
+          el.type === "shape" &&
+          !(el.content || "").trim() &&
+          (el.width || 0) >= slideSize.width * 0.9 &&
+          (el.height || 0) >= slideSize.height * 0.9
+        ),
+    );
+  }
+
+  /**
    * Test-only wrapper for the private #injectBrBreaks method.
    * @static
    * @param {string} html
@@ -262,6 +334,8 @@ export class PptxExtractor {
    *   XML text-box data for this slide (from #extractSlideXmlTexts).
    * @param {Map<string, string[]>} [imageAlts] - Author alt text queues keyed by
    *   media file basename (from #extractSlideImageAlts) for this slide.
+   * @param {{width: number, height: number}|null} [slideSize] - Slide size in
+   *   points; enables the full-bleed backdrop drop when known.
    * @returns {ExtractedSlide}
    */
   static #processSlide(
@@ -271,6 +345,7 @@ export class PptxExtractor {
     olStartValues = [],
     slideXmlTexts = null,
     imageAlts = null,
+    slideSize = null,
   ) {
     // Process layout elements first (backgrounds, placeholders), then content
     const raw = [];
@@ -308,6 +383,12 @@ export class PptxExtractor {
     raw.sort((a, b) => a.order - b.order);
 
     let elements = raw.flat().filter(Boolean);
+
+    // Full-bleed empty shapes are invisible design backdrops (layout/master
+    // background panels, decorative full-slide arrows or frames) — remove
+    // them before anything downstream (diagram detection, area backgrounds)
+    // can mistake them for content.
+    elements = this.#dropFullBleedBackdrops(elements, slideSize);
 
     // Detect top-level diagrams: shapes + connectors placed directly on the
     // slide (not wrapped in a <p:grpSp> group).  This catches flowcharts
@@ -639,17 +720,16 @@ export class PptxExtractor {
     if (el.type === "image") {
       const mime = this.#inferMimeType(el.ref);
 
-      // pptxtojson returns image dimensions in points while all other
-      // element coordinates (left, top) are in EMU.  Normalise to EMU
-      // so layout inference can compare image sizes against the slide
-      // dimensions without unit-mismatch errors.
-      const widthEmu = (el.width || 0) * this.#PT_TO_EMU;
-      const heightEmu = (el.height || 0) * this.#PT_TO_EMU;
+      // pptxtojson returns every element's geometry in points (EMU ÷ 12700),
+      // images included.  Keep those values as-is: diagram detection, the
+      // group-offset math, and both diagram render paths all assume extracted
+      // elements share one unit.  (convertToSlideMd's threshold normalizer
+      // accepts EMU fixtures too, so its behavior is unchanged.)
 
       // Skip tiny images (likely decorative icons, bullets, or ornaments).
       // Uses AND: both dimensions must be small.  A thin separator line
       // (e.g. 5×500pt) is intentional content and should be kept.
-      if (widthEmu < this.#MIN_SIZE_EMU && heightEmu < this.#MIN_SIZE_EMU) {
+      if ((el.width || 0) < this.#MIN_SIZE_PT && (el.height || 0) < this.#MIN_SIZE_PT) {
         return null;
       }
 
@@ -678,8 +758,8 @@ export class PptxExtractor {
         order: el.order,
         left: el.left,
         top: el.top,
-        width: widthEmu,
-        height: heightEmu,
+        width: el.width,
+        height: el.height,
       };
     }
 
@@ -730,6 +810,17 @@ export class PptxExtractor {
         .map((child) => this.#processElement(child, slideIndex, imagesAccum, olStartValues, opts))
         .flat()
         .filter(Boolean);
+      // SmartArt child geometry is diagram-frame-relative (same convention as
+      // <p:grpSp> children), while the diagram element itself is
+      // slide-absolute.  The shape-renderer works in slide-absolute
+      // coordinates — the crop path's position matcher compares against the
+      // rendered slide DOM, and the SVG fallback subtracts the diagram origin
+      // — so without this offset every child lands at (−left, −top) and the
+      // render comes out clipped.
+      for (const child of childShapes) {
+        child.left += el.left;
+        child.top += el.top;
+      }
       return {
         type: "diagram",
         content: text || "[Diagram]",
@@ -1274,6 +1365,8 @@ export class PptxExtractor {
     // Shape-like elements: actual shapes (not text placeholders) with visual
     // properties like fills or borders.  These seed the candidate set even
     // when there are no connectors (e.g. Venn diagrams with nested ovals).
+    // Full-bleed backdrop shapes are already gone — #processSlide drops them
+    // before detection runs.
     const shapeLike = elements.filter(
       (el) =>
         !el.placeholderType &&
@@ -1329,8 +1422,7 @@ export class PptxExtractor {
     const expandedMaxY = maxY + EXPAND_Y_PT;
 
     // Compute the slide's max Y from all elements to determine the header
-    // band threshold.  pptxtojson returns points, so this works regardless
-    // of whether the elements are in points or EMU.
+    // band threshold.  All element coordinates are in points.
     const slideMaxY = elements.reduce((max, el) => {
       const bottom = (el.top || 0) + (el.height || 0);
       return bottom > max ? bottom : max;
@@ -1362,6 +1454,16 @@ export class PptxExtractor {
       // blocks) as `type: "image"`; those must not be swallowed by the diagram.
       if (el.type === "image" && !isShapeLike) continue;
 
+      // Tables and charts are structured slide content, not diagram
+      // constituents.  A table/chart whose center falls inside the expanded
+      // connector box would otherwise be absorbed: its geometry would inflate
+      // the diagram's bounding box and the element itself would be consumed
+      // into the rendered PNG, disappearing from the slide body.
+      if (el.type === "table" || el.type === "chart") continue;
+
+      // Placeholder chrome (footer, title, ...) is never a diagram label.
+      if (el.placeholderType) continue;
+
       // Code blocks disguised as bordered shapes (e.g. a roundRect with
       // `print(...)` examples) are not diagram labels; keep them out of the
       // diagram group so they render as slide body text instead of being
@@ -1371,8 +1473,10 @@ export class PptxExtractor {
       // Text elements inside the box: only include if they're short (diagram
       // labels are typically a few words) and not in the header band (which
       // is likely the slide title).  Long body text, code blocks, and titles
-      // stay outside even if they're within the X range.
-      if (el.type === "text" && !isShapeLike) {
+      // stay outside even if they're within the X range.  On slides without
+      // connectors the same guards apply to shape-like text too: bordered or
+      // filled text panels are then content layout, not diagram structure.
+      if (el.type === "text" && (!isShapeLike || connectors.length === 0)) {
         const text = (el.content || "").trim();
         // Only drop long body text / code.  Multi-line diagram labels
         // (e.g. a flowchart box with three lines) are still short, and the
@@ -1477,6 +1581,35 @@ export class PptxExtractor {
           if (closest > connectorTouchPt) continue;
         }
         kept.push(el);
+      }
+
+      // A component made up entirely of callout/speech-bubble shapes is a
+      // designed annotation layout (intro bubbles, quotes over portraits),
+      // not a diagram — the bubbles carry the slide's real text and must
+      // stay in the slide body.
+      if (kept.length > 0 && kept.every((el) => this.#isCalloutShape(el))) continue;
+
+      // A component whose shapes are same-sized copies (three or more shapes
+      // sharing one width×height) is a repeated layout element — a grid or
+      // column of content bubbles whose bounding boxes may incidentally
+      // overlap by a few points. Real shape-only diagrams (Venn pairs,
+      // organic concept clusters) size their shapes individually. Flowcharts
+      // legitimately reuse box sizes, so this only applies to shape-only
+      // components; connector-linked ones are anchored by Rule 1.
+      const boxes = kept.filter(
+        (el) =>
+          !el.hasConnector &&
+          el.type !== "connector" &&
+          (el.type === "shape" || el.shapType || (el.type === "text" && (el.borderWidth || 0) > 0)),
+      );
+      if (!hasConnectors && boxes.length >= 3) {
+        const [first] = boxes;
+        const sameSize = boxes.filter(
+          (el) =>
+            Math.abs((el.width || 0) - (first.width || 0)) < 2 &&
+            Math.abs((el.height || 0) - (first.height || 0)) < 2,
+        );
+        if (sameSize.length >= 3) continue;
       }
 
       if (!this.#isManualDiagram(kept)) continue;
@@ -1631,35 +1764,28 @@ export class PptxExtractor {
     }
 
     // Rule 2: 2+ substantial shapes that overlap or are nested → likely a diagram
-    // (e.g. Venn diagrams with nested ovals)
+    // (e.g. Venn diagrams with nested ovals). Both members of the overlapping
+    // pair must carry a real fill: a filled panel rectangle placed behind an
+    // unfilled text box is a common slide-design backdrop (highlight panel +
+    // label), not a diagram, and must not consume the text into a crop.
     if (substantialShapes.length >= 2) {
       const overlap = substantialShapes.some((a, i) =>
         substantialShapes.some((b, j) => {
           if (i >= j) return false;
-          return this.#bboxEdgeDistance(a, b) === 0;
+          return this.#hasRealFill(a) && this.#hasRealFill(b) && this.#bboxEdgeDistance(a, b) === 0;
         }),
       );
       if (overlap) return true;
     }
 
-    // Rule 3: 3+ substantial shapes in close proximity → likely a diagram
-    if (substantialShapes.length >= 3) {
-      // Check if shapes are in reasonable proximity (within 3x the average dimension)
-      const avgDim =
-        substantialShapes.reduce((sum, el) => sum + (el.width || 0) + (el.height || 0), 0) /
-        (substantialShapes.length * 2);
-      const maxDist = avgDim * 3;
-
-      const minX = Math.min(...substantialShapes.map((el) => el.left || 0));
-      const maxX = Math.max(...substantialShapes.map((el) => (el.left || 0) + (el.width || 0)));
-      const minY = Math.min(...substantialShapes.map((el) => el.top || 0));
-      const maxY = Math.max(...substantialShapes.map((el) => (el.top || 0) + (el.height || 0)));
-
-      if (maxX - minX < maxDist && maxY - minY < maxDist) {
-        return true;
-      }
-    }
-
+    // NOTE: proximity alone (3+ shapes near each other, no overlap, no
+    // connectors) is deliberately NOT treated as a diagram. The former
+    // proximity branch could only ever fire on compact clusters — a
+    // spread-out concept map fails its own 3×average-dimension test — and
+    // real decks use exactly such compact bubble/panel layouts as content
+    // design; cropping them destroys the slide's text. Overlapping shapes
+    // (Rule 2) and connector-linked shapes (Rule 1) remain the diagram
+    // signals.
     return false;
   }
 

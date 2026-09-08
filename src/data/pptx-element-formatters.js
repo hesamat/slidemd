@@ -184,13 +184,16 @@ export function formatImage(
     .replace(REGEX.HYPHEN_UNDERSCORE, " ")
     .replace(/(\d+)/g, " $1")
     .trim();
-  // Escape characters that would break the <img> tag: double quotes close the
+  // Author alt text (PPTX descr) is often multi-line, e.g. PowerPoint's
+  // auto-generated descriptions; flatten every whitespace run to single
+  // spaces so the emitted alt attribute stays on one line. Then escape
+  // characters that would break the <img> tag: double quotes close the
   // alt attribute, and < / > would confuse the conversion modal's <img>-strip
   // regex (which uses [^>]* to bound the tag) when the caption contains them.
-  const altText = (caption || img.caption || `Slide image ${baseAlt}`).replace(
-    /["<>]/g,
-    (ch) => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;" })[ch],
-  );
+  const altText = (caption || img.caption || `Slide image ${baseAlt}`)
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/["<>]/g, (ch) => ({ '"': "&quot;", "<": "&lt;", ">": "&gt;" })[ch]);
 
   // fitColumn: media-span image — the media-span CSS fills the column via
   // absolute insets and object-fit; the inline style stays layout-agnostic

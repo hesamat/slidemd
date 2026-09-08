@@ -172,4 +172,21 @@ describe("formatImage", () => {
     // modal's negative-lookahead strip regex sees it before any > in the alt.
     expect(out.indexOf('data-diagram="true"')).toBeLessThan(out.indexOf("alt="));
   });
+
+  it("flattens multi-line auto-generated alt text onto one line", () => {
+    const out = formatImage(
+      {
+        ref: "image1-1630.jpeg",
+        width: 664,
+        height: 721,
+        caption:
+          "A group of bananas on a table\r\n\nDescription automatically generated with low confidence",
+      },
+      "deck",
+    );
+    expect(out).not.toMatch(/\n/);
+    expect(out).toContain(
+      'alt="A group of bananas on a table Description automatically generated with low confidence"',
+    );
+  });
 });
