@@ -80,18 +80,21 @@ git push origin vX.Y.Z
 
 The tag push triggers `.github/workflows/release.yml`, which re-runs the
 checks, builds the HTML and PDF, and creates the GitHub release with both
-assets attached. Auto-generated release notes are disabled — finish the
-release by pasting the new `## X.Y.Z` section from `CHANGELOG.md` into the
-release body:
+assets attached, plus an auto-generated "What's Changed" section listing
+the PRs merged since the previous tag. Finish the release by pasting the
+new `## X.Y.Z` section from `CHANGELOG.md` at the top of the release body,
+so the curated changelog leads the page:
 
 ```bash
-awk '/^## X.Y.Z \(/{flag=1} flag && /^## [0-9]+\./{exit} flag' CHANGELOG.md > /tmp/release-body.md
+tail -n +3 CHANGELOG.md > /tmp/release-body-top.md
+gh release view vX.Y.Z --json body --jq .body > /tmp/release-body-generated.md
+cat /tmp/release-body-top.md /tmp/release-body-generated.md > /tmp/release-body.md
 gh release edit vX.Y.Z --notes-file /tmp/release-body.md
 ```
 
-The release notes are the curated changelog section only: GitHub's
-auto-generated "What's Changed" list is not used, because the first release
-would otherwise pull in the project's entire pre-release PR history.
+(The first release, `1.0.0-beta.1`, skipped the generated section: with no
+previous tag, it would have listed the project's entire pre-release PR
+history.)
 
 ## Branch Protection Rules
 
