@@ -201,6 +201,15 @@ export class SlideRenderer {
 
     if (slide?.background) {
       wrapper.style.background = slide.background;
+      // The `background` shorthand resets background-color to transparent, so
+      // partially-transparent gradient layers (edge sidebars, scrims) would
+      // reveal the dark stage behind the slide instead of the theme surface.
+      // Re-assert the theme surface color beneath gradient-carrying
+      // backgrounds; under opaque layers it is invisible, and bare-color
+      // backgrounds keep their own color because this is skipped.
+      if (slide.background.includes("gradient(")) {
+        wrapper.style.backgroundColor = "var(--slide-bg)";
+      }
     }
 
     if (slide?._areaOffsets) {

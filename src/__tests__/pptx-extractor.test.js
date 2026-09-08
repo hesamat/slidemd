@@ -1112,6 +1112,119 @@ describe("PptxExtractor top-level diagram detection", () => {
     expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
   });
 
+  it("does not crop a filled backdrop panel behind an unfilled text box", () => {
+    // Real-world case (Week 02, "Pythonic Naming Conventions"): an empty
+    // black-filled rect used as a design backdrop with an unfilled borderless
+    // text box on top. Both are substantial (fill / text) and overlap, but
+    // the pair is a backdrop + label, not a diagram — the text must stay in
+    // the slide body instead of being cropped into a PNG.
+    const backdrop = {
+      type: "shape",
+      content: "",
+      left: 100,
+      top: 98,
+      width: 396,
+      height: 293,
+      order: 1100,
+      shapType: "rect",
+      fill: "#000000",
+      fillRaw: { type: "color", value: "#000000" },
+      strokeOnly: false,
+    };
+    const heading = textBox("Pythonic Naming Conventions", 10, 82, 486, 356, {
+      fill: undefined,
+      fillRaw: undefined,
+    });
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([
+      title("# Pythonic Naming"),
+      backdrop,
+      heading,
+    ]);
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(0);
+    expect(
+      result.some((el) => el.type === "text" && el.content === "Pythonic Naming Conventions"),
+    ).toBe(true);
+  });
+
+  it("still detects two overlapping filled shapes as a diagram after the fill requirement", () => {
+    // Venn-style pair where only one oval carries text: both have real
+    // fills, so the overlap rule still fires.
+    const oval = (content, left, top, w, h) => ({
+      type: "shape",
+      content,
+      left,
+      top,
+      width: w,
+      height: h,
+      order: Math.round(top * 10),
+      shapType: "ellipse",
+      fill: "#5B9BD5",
+      fillRaw: { type: "color", value: "#5B9BD5" },
+    });
+    const result = PptxExtractor.detectTopLevelDiagramsForTest([
+      oval("Left side", 23, 26, 295, 443),
+      oval("", 98, 270, 145, 161),
+    ]);
+    expect(result.filter((el) => el.type === "diagram")).toHaveLength(1);
+  });
+
+  describe("dropFullBleedBackdrops", () => {
+    const slideSize = { width: 960, height: 540 };
+    const shape = (overrides = {}) => ({
+      type: "shape",
+      content: "",
+      left: 0,
+      top: 0,
+      width: 960,
+      height: 540,
+      shapType: "rect",
+      fill: "#0F6FC6",
+      fillRaw: { type: "color", value: "#0F6FC6" },
+      strokeOnly: false,
+      ...overrides,
+    });
+    const textEl = (overrides = {}) => ({
+      type: "text",
+      content: "Body",
+      left: 100,
+      top: 100,
+      width: 300,
+      height: 100,
+      order: 100,
+      ...overrides,
+    });
+
+    it("drops empty shapes spanning the whole slide", () => {
+      const result = PptxExtractor.dropFullBleedBackdropsForTest(
+        [shape(), shape({ shapType: "leftRightArrow", fill: "#C00000" }), textEl()],
+        slideSize,
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].type).toBe("text");
+    });
+
+    it("keeps partial panels, sidebars, and text-bearing shapes", () => {
+      const result = PptxExtractor.dropFullBleedBackdropsForTest(
+        [
+          // Gradient wash covering most of the height but not the width.
+          shape({ width: 768, fill: null, fillRaw: { type: "gradient", value: { colors: [] } } }),
+          // Full-height narrow sidebar.
+          shape({ width: 280 }),
+          // A filled shape that carries text is a content panel, not a backdrop.
+          shape({ content: "Panel label", width: 500, height: 400 }),
+          textEl(),
+        ],
+        slideSize,
+      );
+      expect(result).toHaveLength(4);
+    });
+
+    it("keeps everything when the slide size is unknown", () => {
+      const els = [shape(), textEl()];
+      expect(PptxExtractor.dropFullBleedBackdropsForTest(els, null)).toHaveLength(2);
+    });
+  });
+
   it("keeps the full accepted connector extent in the diagram bbox", () => {
     const box = textBox("Box", 100, 100, 100, 50);
     const longArrow = arrow(200, 120, 100);

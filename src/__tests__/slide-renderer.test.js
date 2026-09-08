@@ -67,6 +67,33 @@ describe("SlideRenderer", () => {
     expect(html).toContain('class="mermaid"');
   });
 
+  it("keeps the theme surface beneath gradient backgrounds", () => {
+    // The `background` shorthand resets background-color to transparent; a
+    // partially-transparent gradient (an edge-sidebar stripe) would otherwise
+    // reveal the dark stage behind the slide instead of the theme surface.
+    const stripe = {
+      id: "stripe-check",
+      title: "Stripe",
+      background:
+        "linear-gradient(90deg, transparent 0%, transparent 71.3%, #FFC000 71.3%, #FFC000 100%)",
+      areas: { main: "Body" },
+    };
+    const stripeEl = SlideRenderer.createSlideElement({ slides: [stripe] }, stripe, 0, true);
+    expect(stripeEl.style.backgroundImage).toContain("linear-gradient");
+    expect(stripeEl.style.backgroundColor).toBe("var(--slide-bg)");
+
+    // Bare-color backgrounds keep their own color — no theme re-assertion.
+    const solid = {
+      id: "solid-check",
+      title: "Solid",
+      background: "#071d28",
+      areas: { main: "Body" },
+    };
+    const solidEl = SlideRenderer.createSlideElement({ slides: [solid] }, solid, 0, true);
+    expect(solidEl.style.backgroundColor).toBe("rgb(7, 29, 40)");
+    expect(solidEl.style.backgroundImage).toBe("none");
+  });
+
   it("applies per-area ink as the area text color", () => {
     // A dark slide with a light panel: area-ink-main keeps the panel's body
     // text dark while the slide theme stays dark for the header.
