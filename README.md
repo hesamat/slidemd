@@ -73,6 +73,20 @@ layout: header-content
 - Press **F** for fullscreen
 ```
 
+## Convert a PowerPoint deck
+
+From the project folder, convert a `.pptx` file to a Markdown deck:
+
+```bash
+npm install
+npx playwright install chromium  # one-time setup if Chromium is not installed
+npm run pptx -- path/to/deck.pptx
+```
+
+For example, `deck.pptx` produces an app-openable `deck/` folder beside the input, containing `deck.md`
+and an `images/` folder. For `.textpack`, batch conversion, output locations,
+and other options, see the [PPTX import CLI guide](docs/import-export.md#command-line).
+
 ## Download
 
 Download the current beta from [GitHub Releases](https://github.com/hesamat/slidemd/releases). Each release includes:

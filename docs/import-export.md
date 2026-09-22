@@ -54,27 +54,58 @@ Use the [AI editing](ai-editing.md) features to refine slides afterward.
 
 ### Command line
 
-Convert decks without opening the app:
+Convert decks without opening the app. Run commands from the SlideMD project
+folder after installing dependencies with `npm install`:
 
 ```bash
-npm run pptx -- deck.pptx                    # deck folder: deck/deck.md + images/
-npm run pptx -- deck.pptx --format textpack  # single .textpack archive
-npm run pptx -- deck.pptx --pdf              # also render deck.pdf
-npm run pptx -- ~/decks/ --out ~/out         # batch-convert every .pptx in a folder
+npm run pptx -- --help
+npm run pptx -- path/to/deck.pptx
 ```
 
-The options mirror the import dialog: `--code-language <mode>` tags fenced code
-blocks (`auto` — the default — detects each block's language; `none` leaves
-fences bare; or force one language onto every block), `--no-content-images` /
-`--no-backgrounds` / `--no-theme` drop
-respectively content images, background images, and slide appearance directives,
-plus `--limit <n>` for partial conversion and `--out <dir>` for the output
-location. Requires `npx playwright install chromium`.
+The default output is an app-openable deck folder next to the input, containing
+`deck/deck.md` and `deck/images/`. Use `--out` to choose another output
+directory. Quote paths that contain spaces.
+
+```bash
+# Choose where the generated deck folder goes
+npm run pptx -- path/to/deck.pptx --out path/to/output
+
+# Write a single .textpack archive, or produce both formats
+npm run pptx -- path/to/deck.pptx --format textpack
+npm run pptx -- path/to/deck.pptx --format both
+
+# Convert multiple files, or every .pptx directly inside a folder
+npm run pptx -- first.pptx second.pptx
+npm run pptx -- path/to/presentations/ --out path/to/output
+
+# Convert only the first 5 slides and also create a PDF
+npm run pptx -- path/to/deck.pptx --limit 5 --pdf
+```
+
+Options:
+
+- `--format md|textpack|both` selects the output format (`md` is the default).
+- `--out <dir>` sets the output directory. By default, output is placed beside
+  each input file.
+- `--limit <n>` converts only the first _n_ slides.
+- `--code-language <mode>` tags code fences. `auto` (default) detects a
+  language per block, `none` leaves fences untagged, and a language such as
+  `javascript` forces that language for all code blocks. Run `--help` for the
+  supported language names.
+- `--no-content-images`, `--no-backgrounds`, and `--no-theme` omit content
+  images, background images, and theme/background color directives respectively.
+- `--pdf` also renders a PDF; it works with `md` and `both` formats.
+- `--port <n>` sets the Vite port used during conversion (normally selected
+  automatically).
+
+The converter uses Playwright's Chromium browser. If Chromium is not installed,
+run `npx playwright install chromium` once. The original `.pptx` is left
+untouched.
 
 ## CLI Dev Server
 
 ```bash
-node tools/dev-server.mjs slides.md
+npm run dev:cli -- slides.md
 ```
 
 Serves the deck with live reload. Also handles image uploads and deck saves via API.
