@@ -32,7 +32,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `WEBDECK_VITE_PORT=${e2ePort} WEBDECK_CLI_PORT=${e2eCliPort} node tools/dev.mjs docs/example/slides.md --no-open`,
+    command: "node tools/dev.mjs docs/example/slides.md --no-open",
+    env: {
+      ...process.env,
+      WEBDECK_VITE_PORT: String(e2ePort),
+      WEBDECK_CLI_PORT: String(e2eCliPort),
+    },
     url: `http://127.0.0.1:${e2ePort}/index.html`,
     // Reuse a server already running on the e2e port (e.g. from a previous
     // failed run, or manually started). In CI, always start fresh.

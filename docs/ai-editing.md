@@ -37,6 +37,8 @@ Open **Settings** from the menu to configure:
 - **Model** — free-text field when using a non-OpenRouter base URL; searchable dropdown for OpenRouter.
 - **Reasoning** — optional extended thinking for better results, if the model supports it.
 
+For Z.ai, run SlideMD with `npm run dev`. The local CLI server forwards its Coding Plan and general API requests to Z.ai to work around browser CORS restrictions. The proxy is limited to `api.z.ai` and rejects cross-origin requests. It is available only through the local development server; exported or statically hosted HTML cannot use it.
+
 ## How It Works
 
 1. The AI receives your slide markdown plus a system prompt defining the allowed layouts and content rules.

@@ -77,6 +77,45 @@ export function validateAiBaseUrl(baseUrl, provider) {
   }
 }
 
+/**
+ * Z.ai currently omits CORS headers from browser preflight responses. When
+ * SlideMD is running on its local dev server, route the two supported Z.ai
+ * OpenAI-compatible endpoints through the loopback CLI server instead.
+ * @param {string} baseUrl
+ * @returns {string|null}
+ */
+function getLocalZaiProxyUrl(baseUrl) {
+  if (typeof window === "undefined") return null;
+  const hostname = window.location.hostname;
+  if (hostname !== "127.0.0.1" && hostname !== "localhost") return null;
+
+  try {
+    const parsed = new URL(baseUrl);
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.hostname !== "api.z.ai" ||
+      (parsed.port && parsed.port !== "443") ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      return null;
+    }
+
+    const basePath = parsed.pathname.replace(/\/+$/, "");
+    if (basePath === "/api/coding/paas/v4") {
+      return "/api/ai-proxy/zai/coding";
+    }
+    if (basePath === "/api/paas/v4") {
+      return "/api/ai-proxy/zai/general";
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export class AiProviderClient {
   /**
    * @param {object} opts
@@ -118,7 +157,8 @@ export class AiProviderClient {
     if (!validation.ok) {
       throw new AiHttpError(0, validation.error || "Invalid base URL");
     }
-    const url = `${baseUrl}/chat/completions`;
+    const localZaiProxyUrl = getLocalZaiProxyUrl(baseUrl);
+    const url = localZaiProxyUrl || baseUrl + "/chat/completions";
     const model = this._getModel();
     // OpenRouter routing suffixes (e.g. :nitro, :floor) can be blocked by
     // user guardrail/data-policy settings and are not required. Use the

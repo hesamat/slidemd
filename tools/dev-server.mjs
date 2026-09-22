@@ -422,6 +422,88 @@ function isSameOrigin(req) {
   return false;
 }
 
+/** Require same-origin access through a loopback host, even behind Vite's proxy. */
+function isLoopbackSameOrigin(req) {
+  if (!isSameOrigin(req)) return false;
+  try {
+    const hostname = new URL("http://" + req.headers.host).hostname;
+    return hostname === "127.0.0.1" || hostname === "localhost";
+  } catch {
+    return false;
+  }
+}
+
+const ZAI_PROXY_PATHS = new Map([
+  ["/api/ai-proxy/zai/coding", "/api/coding/paas/v4/chat/completions"],
+  ["/api/ai-proxy/zai/general", "/api/paas/v4/chat/completions"],
+]);
+
+/** Forward a local same-origin AI request to one of the fixed Z.ai endpoints. */
+async function proxyZaiRequest(req, res, pathname) {
+  if (!isLoopbackSameOrigin(req)) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Cross-origin AI proxy requests are not allowed" }));
+    return;
+  }
+
+  const authorization = req.headers.authorization;
+  if (typeof authorization !== "string" || !/^Bearer\s+\S+$/i.test(authorization)) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "A Bearer API key is required" }));
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid JSON request body" }));
+    return;
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Expected a JSON object request body" }));
+    return;
+  }
+
+  const upstreamPath = ZAI_PROXY_PATHS.get(pathname);
+  if (!upstreamPath) {
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unknown Z.ai proxy endpoint" }));
+    return;
+  }
+
+  try {
+    const upstream = await fetch("https://api.z.ai" + upstreamPath, {
+      method: "POST",
+      headers: {
+        Authorization: authorization,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      redirect: "error",
+    });
+    const responseBody = await upstream.text();
+    const contentType = upstream.headers.get("content-type") || "application/json";
+    const responseHeaders = {
+      "Content-Type": contentType,
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    };
+    const retryAfter = upstream.headers.get("retry-after");
+    const requestId = upstream.headers.get("x-request-id");
+    if (retryAfter) responseHeaders["Retry-After"] = retryAfter;
+    if (requestId) responseHeaders["X-Request-ID"] = requestId;
+    res.writeHead(upstream.status, responseHeaders);
+    res.end(responseBody);
+  } catch {
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Could not reach the Z.ai API" }));
+  }
+}
+
 // ── Request handler ───────────────────────────────────────────────────────────
 
 /**
@@ -441,6 +523,12 @@ function createHandler(format) {
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
+      return;
+    }
+
+    // POST /api/ai-proxy/zai/{coding,general}
+    if (ZAI_PROXY_PATHS.has(pathname) && req.method === "POST") {
+      await proxyZaiRequest(req, res, pathname);
       return;
     }
 

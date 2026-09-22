@@ -18,11 +18,21 @@ describe("AiProviderClient", () => {
       ...overrides,
     });
 
+  let originalWindow;
+  let hadWindow;
+
   beforeEach(() => {
+    hadWindow = Object.hasOwn(globalThis, "window");
+    originalWindow = globalThis.window;
     globalThis.fetch = vi.fn();
   });
 
   afterEach(() => {
+    if (hadWindow) {
+      globalThis.window = originalWindow;
+    } else {
+      delete globalThis.window;
+    }
     vi.restoreAllMocks();
   });
 
@@ -170,6 +180,72 @@ describe("AiProviderClient", () => {
     expect(globalThis.fetch).toHaveBeenCalled();
   });
 
+  it("routes the Z.ai Coding Plan through the local proxy on loopback", async () => {
+    globalThis.window = { location: { hostname: "127.0.0.1" } };
+    const client = makeClient({
+      getProvider: () => "Custom",
+      getBaseUrl: () => "https://api.z.ai/api/coding/paas/v4",
+      getModel: () => "glm-5.3-flash",
+    });
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ choices: [{ message: { content: "ok" } }] }),
+    });
+
+    await client.chat({
+      messages: [{ role: "user", content: "hi" }],
+      maxTokens: 100,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    expect(globalThis.fetch.mock.calls[0][0]).toBe("/api/ai-proxy/zai/coding");
+    expect(globalThis.fetch.mock.calls[0][1].headers.Authorization).toBe("Bearer sk-test");
+  });
+
+  it("routes the Z.ai general API through the local proxy", async () => {
+    globalThis.window = { location: { hostname: "localhost" } };
+    const client = makeClient({
+      getProvider: () => "Custom",
+      getBaseUrl: () => "https://api.z.ai/api/paas/v4/",
+    });
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ choices: [{ message: { content: "ok" } }] }),
+    });
+
+    await client.chat({
+      messages: [{ role: "user", content: "hi" }],
+      maxTokens: 100,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    expect(globalThis.fetch.mock.calls[0][0]).toBe("/api/ai-proxy/zai/general");
+  });
+
+  it("uses the configured Z.ai endpoint directly outside loopback", async () => {
+    globalThis.window = { location: { hostname: "slides.example.com" } };
+    const client = makeClient({
+      getProvider: () => "Custom",
+      getBaseUrl: () => "https://api.z.ai/api/coding/paas/v4",
+    });
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ choices: [{ message: { content: "ok" } }] }),
+    });
+
+    await client.chat({
+      messages: [{ role: "user", content: "hi" }],
+      maxTokens: 100,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    expect(globalThis.fetch.mock.calls[0][0]).toBe(
+      "https://api.z.ai/api/coding/paas/v4/chat/completions",
+    );
+  });
   it("retries once without response_format when the provider rejects it", async () => {
     const client = makeClient();
     globalThis.fetch
